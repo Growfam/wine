@@ -1,7 +1,7 @@
 /**
  * auth.js - Модуль авторизації для Telegram Mini App
  * Оптимізована версія з покращеним управлінням та інтеграцією з API
- * @version 1.1.0
+ * @version 1.2.0
  */
 
 (function() {
@@ -15,9 +15,14 @@
     let _authRequestInProgress = false;
     let _userDataRequestInProgress = false;
     let _lastRequestTime = 0;
+    let _lastTokenRefreshTime = 0;
 
     // Мінімальний інтервал між запитами (збільшено з 8 до 15 секунд)
     const MIN_REQUEST_INTERVAL = 15000;
+    // Мінімальний інтервал для оновлення токена (10 хвилин)
+    const MIN_TOKEN_REFRESH_INTERVAL = 600000;
+    // Термін дії токена за замовчуванням - 7 днів у мілісекундах
+    const DEFAULT_TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000;
 
     // Підтримка подій
     const EVENT_USER_DATA_UPDATED = 'user-data-updated';
@@ -72,20 +77,78 @@
     // ======== ДОПОМІЖНІ ФУНКЦІЇ ========
 
     /**
-     * Перевірка валідності ID
+     * Покращена перевірка валідності ID
      * @param {any} id - ID для перевірки
      * @returns {boolean} - Чи валідний ID
      */
     function isValidId(id) {
-        return id &&
-               id !== 'undefined' &&
-               id !== 'null' &&
-               id !== undefined &&
-               id !== null &&
-               typeof id !== 'function' &&
-               id.toString().trim() !== '' &&
-               !id.toString().includes('function') &&
-               !id.toString().includes('=>');
+        // Базові перевірки на null, undefined та пусті значення
+        if (id === null ||
+            id === undefined ||
+            id === 'undefined' ||
+            id === 'null' ||
+            typeof id === 'function' ||
+            (typeof id === 'string' && id.trim() === '')) {
+            return false;
+        }
+
+        // Перевіряємо чи не місить функціональних блоків
+        const strValue = String(id);
+        if (strValue.includes('function') ||
+            strValue.includes('=>') ||
+            strValue.includes('undefined') ||
+            strValue.includes('null')) {
+            return false;
+        }
+
+        // Перевіряємо формат Telegram ID (має бути цифровим, можливо з префіксом -100 для чатів)
+        // 1. Звичайні ID користувачів - просто цифри
+        if (/^\d+$/.test(strValue)) {
+            return true;
+        }
+
+        // 2. ID групових чатів - можуть починатися з -100
+        if (/^-100\d+$/.test(strValue)) {
+            return true;
+        }
+
+        // Додаткова перевірка на типову довжину Telegram ID (більше 5 цифр)
+        const digitsOnly = strValue.replace(/\D/g, '');
+        if (digitsOnly.length >= 5 && !isNaN(Number(digitsOnly))) {
+            console.warn(`🔐 AUTH: ID "${strValue}" має нестандартний формат, але може бути валідним`);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Нормалізує формат ID
+     * @param {any} id - ID для нормалізації
+     * @returns {string} - Нормалізований ID
+     */
+    function normalizeId(id) {
+        if (!id) return null;
+
+        // Перетворюємо на рядок
+        let strId = String(id).trim();
+
+        // Видаляємо потенційні префікси від JSON
+        strId = strId.replace(/^["'](.*)["']$/, '$1');
+
+        // Обробка групових чатів
+        if (strId.startsWith('-100')) {
+            return strId;
+        }
+
+        // Видаляємо всі не-цифрові символи для звичайних ID
+        const digitsOnly = strId.replace(/\D/g, '');
+
+        if (digitsOnly.length > 0) {
+            return digitsOnly;
+        }
+
+        return null;
     }
 
     /**
@@ -157,99 +220,266 @@
         alert(message);
     }
 
+    /**
+     * Перевіряє та управляє токеном авторизації
+     * @returns {Object} Об'єкт з інформацією про токен
+     */
+    function checkAuthToken() {
+        try {
+            const tokenData = localStorage.getItem('auth_token_data');
+            if (!tokenData) {
+                return { valid: false, reason: 'no_token' };
+            }
+
+            const parsedData = JSON.parse(tokenData);
+            const token = parsedData.token;
+            const expiresAt = new Date(parsedData.expires_at);
+            const now = new Date();
+
+            // Перевіряємо, чи термін дії токена закінчується протягом дня
+            const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+            if (expiresAt < now) {
+                return { valid: false, reason: 'expired', token };
+            } else if (expiresAt < oneDayFromNow) {
+                return { valid: true, expiringSoon: true, token, expiresAt };
+            }
+
+            return { valid: true, token, expiresAt };
+        } catch (e) {
+            console.error("🔐 AUTH: Помилка перевірки токена:", e);
+            return { valid: false, reason: 'error', error: e };
+        }
+    }
+
+    /**
+     * Оновлює токен авторизації
+     * @param {string} token - Токен авторизації
+     * @param {string} expiresAt - Дата закінчення терміну дії
+     */
+    function updateAuthToken(token, expiresAt) {
+        try {
+            if (!token) {
+                console.error("🔐 AUTH: Спроба збереження порожнього токена!");
+                return false;
+            }
+
+            const tokenData = {
+                token,
+                expires_at: expiresAt || new Date(Date.now() + DEFAULT_TOKEN_EXPIRY).toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            localStorage.setItem('auth_token_data', JSON.stringify(tokenData));
+            _lastTokenRefreshTime = Date.now();
+
+            // Відправляємо подію про оновлення токена
+            document.dispatchEvent(new CustomEvent(EVENT_TOKEN_REFRESHED, {
+                detail: { token, expiresAt }
+            }));
+
+            return true;
+        } catch (e) {
+            console.error("🔐 AUTH: Помилка збереження токена:", e);
+            return false;
+        }
+    }
+
     // ======== ФУНКЦІЇ АВТОРИЗАЦІЇ ========
 
     /**
-     * Отримати ID користувача з усіх можливих джерел
+     * Покращена функція отримання ID користувача з усіх можливих джерел
      * @returns {string|null} ID користувача або null
      */
     function getUserIdFromAllSources() {
         try {
-            // Використовуємо основний API якщо він доступний
-            if (hasApiModule()) {
-                const id = window.WinixAPI.getUserId();
-                if (isValidId(id)) return id;
+            console.log("🔐 AUTH: Спроба отримання ID користувача з усіх джерел");
+
+            // Список для зберігання всіх знайдених ID для подальшого аналізу
+            const foundIds = [];
+
+            // 1. Перевірка кешованого ID
+            const cachedUser = window.WinixAuth?.currentUser;
+            if (cachedUser && isValidId(cachedUser.telegram_id)) {
+                foundIds.push({id: cachedUser.telegram_id, source: 'cache', priority: 5});
             }
 
-            // 1. Перевіряємо Telegram WebApp
-            if (window.Telegram && window.Telegram.WebApp) {
-                try {
-                    if (window.Telegram.WebApp.initDataUnsafe &&
-                        window.Telegram.WebApp.initDataUnsafe.user &&
-                        window.Telegram.WebApp.initDataUnsafe.user.id) {
-
-                        const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-
-                        if (isValidId(tgUserId)) {
-                            try {
-                                localStorage.setItem('telegram_user_id', tgUserId);
-                            } catch (e) {}
-
-                            return tgUserId;
-                        }
-                    }
-                } catch (e) {
-                    console.warn("🔐 AUTH: Помилка отримання ID з Telegram WebApp:", e);
+            // 2. Перевірка API модуля
+            if (hasApiModule()) {
+                const apiId = window.WinixAPI.getUserId();
+                if (isValidId(apiId)) {
+                    foundIds.push({id: apiId, source: 'api', priority: 4});
                 }
             }
 
-            // 2. Перевіряємо localStorage
+            // 3. Перевірка Telegram WebApp
+            if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+                const tgUserId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
+                if (isValidId(tgUserId)) {
+                    foundIds.push({id: tgUserId, source: 'telegram', priority: 5});
+                }
+            }
+
+            // 4. Перевірка localStorage з верифікацією
             try {
                 const localId = localStorage.getItem('telegram_user_id');
+                const localIdVerified = localStorage.getItem('telegram_user_id_verified');
+
                 if (isValidId(localId)) {
-                    return localId;
+                    // Якщо ID був верифікований, надаємо йому вищий пріоритет
+                    const priority = localIdVerified === 'true' ? 3 : 2;
+                    foundIds.push({id: localId, source: 'localStorage', priority});
                 }
             } catch (e) {
-                console.warn("🔐 AUTH: Помилка отримання ID з localStorage:", e);
+                console.warn("🔐 AUTH: Помилка доступу до localStorage:", e);
             }
 
-            // 3. Перевіряємо DOM елемент
+            // 5. Перевірка sessionStorage
+            try {
+                const sessionId = sessionStorage.getItem('telegram_user_id');
+                if (isValidId(sessionId)) {
+                    foundIds.push({id: sessionId, source: 'sessionStorage', priority: 3});
+                }
+            } catch (e) {
+                console.warn("🔐 AUTH: Помилка доступу до sessionStorage:", e);
+            }
+
+            // 6. Перевірка DOM елементу
             try {
                 const userIdElement = document.getElementById('user-id');
                 if (userIdElement && userIdElement.textContent) {
                     const domId = userIdElement.textContent.trim();
                     if (isValidId(domId)) {
-                        try {
-                            localStorage.setItem('telegram_user_id', domId);
-                        } catch (e) {}
-
-                        return domId;
+                        foundIds.push({id: domId, source: 'dom', priority: 1});
                     }
                 }
             } catch (e) {
                 console.warn("🔐 AUTH: Помилка отримання ID з DOM:", e);
             }
 
-            // 4. Перевіряємо URL параметри
+            // 7. Перевірка URL параметрів
             try {
                 const urlParams = new URLSearchParams(window.location.search);
                 const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
                 if (isValidId(urlId)) {
-                    try {
-                        localStorage.setItem('telegram_user_id', urlId);
-                    } catch (e) {}
-
-                    return urlId;
+                    foundIds.push({id: urlId, source: 'url', priority: 2});
                 }
             } catch (e) {
                 console.warn("🔐 AUTH: Помилка отримання ID з URL:", e);
             }
 
-            // 5. Якщо не знайдено і це сторінка налаштувань - використовуємо тестовий ID
+            // 8. Перевірка JWT токена, якщо він є
+            try {
+                const tokenData = localStorage.getItem('auth_token_data');
+                if (tokenData) {
+                    const parsedToken = JSON.parse(tokenData);
+
+                    // Якщо в токені зберігається ID користувача
+                    // Примітка: цей розділ залежить від формату вашого JWT
+                    if (parsedToken.user_id && isValidId(parsedToken.user_id)) {
+                        foundIds.push({id: parsedToken.user_id, source: 'jwt', priority: 3});
+                    } else {
+                        // Спроба декодувати JWT токен (якщо формат простий)
+                        try {
+                            const token = parsedToken.token;
+                            if (token && token.split('.').length === 3) {
+                                const payload = JSON.parse(atob(token.split('.')[1]));
+                                if (payload.user_id && isValidId(payload.user_id)) {
+                                    foundIds.push({id: payload.user_id, source: 'jwt_decoded', priority: 3});
+                                }
+                            }
+                        } catch (decodeError) {
+                            console.warn("🔐 AUTH: Помилка декодування JWT:", decodeError);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("🔐 AUTH: Помилка доступу до JWT токена:", e);
+            }
+
+            // Якщо знайдено хоча б один ID, сортуємо за пріоритетом і повертаємо найкращий
+            if (foundIds.length > 0) {
+                // Сортуємо за пріоритетом (спадання)
+                foundIds.sort((a, b) => b.priority - a.priority);
+
+                // Беремо ID з найвищим пріоритетом
+                const bestMatch = foundIds[0];
+                const normalizedId = normalizeId(bestMatch.id);
+
+                if (!normalizedId) {
+                    console.error("🔐 AUTH: Знайдений ID не пройшов нормалізацію:", bestMatch.id);
+                    if (foundIds.length > 1) {
+                        const secondBest = foundIds[1];
+                        const secondNormalized = normalizeId(secondBest.id);
+                        if (secondNormalized) {
+                            console.log(`🔐 AUTH: Використовуємо другий за пріоритетом ID ${secondNormalized} з джерела ${secondBest.source}`);
+                            saveValidatedId(secondNormalized, secondBest.source);
+                            return secondNormalized;
+                        }
+                    }
+                } else {
+                    console.log(`🔐 AUTH: Знайдено ID ${normalizedId} з джерела ${bestMatch.source}`);
+                    saveValidatedId(normalizedId, bestMatch.source);
+                    return normalizedId;
+                }
+            }
+
+            // 9. Як запасний варіант для сторінки налаштувань
             const isSettingsPage = window.location.pathname.includes('general.html');
             if (isSettingsPage) {
+                console.warn("🔐 AUTH: Використання тестового ID для сторінки налаштувань");
                 const testId = "7066583465";
-                try {
-                    localStorage.setItem('telegram_user_id', testId);
-                } catch (e) {}
-
+                saveValidatedId(testId, 'test_fallback');
                 return testId;
             }
 
+            console.error("🔐 AUTH: Не вдалося отримати валідний ID користувача з жодного джерела");
             return null;
+
         } catch (e) {
             console.error("🔐 AUTH: Критична помилка отримання ID з усіх джерел:", e);
             return null;
+        }
+    }
+
+    /**
+     * Зберігає валідований ID у всі доступні сховища
+     * @param {string} id - Валідований ID користувача
+     * @param {string} source - Джерело ID
+     */
+    function saveValidatedId(id, source) {
+        if (!isValidId(id)) {
+            console.error("🔐 AUTH: Спроба зберегти невалідний ID:", id);
+            return;
+        }
+
+        const normalizedId = normalizeId(id);
+        if (!normalizedId) {
+            console.error("🔐 AUTH: ID не пройшов нормалізацію:", id);
+            return;
+        }
+
+        try {
+            // Зберігаємо в localStorage
+            localStorage.setItem('telegram_user_id', normalizedId);
+
+            // Позначаємо як верифікований, якщо ID з надійного джерела
+            if (source === 'telegram' || source === 'api' || source === 'cache' || source === 'jwt' || source === 'jwt_decoded') {
+                localStorage.setItem('telegram_user_id_verified', 'true');
+            }
+
+            // Зберігаємо в sessionStorage
+            sessionStorage.setItem('telegram_user_id', normalizedId);
+
+            // Оновлюємо DOM елемент, якщо він існує
+            const userIdElement = document.getElementById('user-id');
+            if (userIdElement) {
+                userIdElement.textContent = normalizedId;
+            }
+
+            console.log(`🔐 AUTH: ID користувача ${normalizedId} збережено у всі сховища`);
+        } catch (e) {
+            console.warn("🔐 AUTH: Помилка збереження ID:", e);
         }
     }
 
@@ -279,10 +509,17 @@
                                 balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                                 coins: parseInt(localStorage.getItem('userCoins') || '0')
                             }
-                        })
+                        }),
+                        refreshToken: async () => {
+                            console.log("🔐 AUTH: Заглушка refreshToken викликана");
+                            return { status: 'success', source: 'stub' };
+                        }
                     };
                 }
             }
+
+            // Очищаємо невалідні дані перед ініціалізацією
+            cleanInvalidIds();
 
             // Продовжуємо з init
             return init();
@@ -309,16 +546,16 @@
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
-           // Якщо немає кешованих даних, але виклик занадто частий
-if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
-    const userId = getUserIdFromAllSources();
-    return {
-        telegram_id: userId || 'unknown',
-        balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-        coins: parseInt(localStorage.getItem('userCoins') || '0'),
-        source: 'throttled_init'
-    };
-}
+            // Якщо немає кешованих даних, але виклик занадто частий
+            if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
+                const userId = getUserIdFromAllSources();
+                return {
+                    telegram_id: userId || 'unknown',
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0'),
+                    source: 'throttled_init'
+                };
+            }
 
             // Інакше дозволяємо продовжити з оновленням часу запиту
         }
@@ -340,8 +577,7 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
 
         // Перевіряємо, чи є Telegram WebApp
         if (!window.Telegram || !window.Telegram.WebApp) {
-            console.error("❌ AUTH: Telegram WebApp не знайдено");
-            return Promise.reject(new Error("Telegram WebApp not available"));
+            console.warn("⚠️ AUTH: Telegram WebApp не знайдено, працюємо в обмеженому режимі");
         }
 
         // Перевіряємо наявність API модуля
@@ -358,20 +594,50 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
             };
         }
 
-        // Перевіряємо необхідність оновлення токену через WinixAPI
-       try {
-            console.log('🔄 [AUTH] Спроба оновлення токену через WinixAPI, доступність методу:',
-  typeof window.WinixAPI?.refreshToken === 'function');
-  if (window.WinixAPI && typeof window.WinixAPI.refreshToken === 'function') {
-    await window.WinixAPI.refreshToken();
-    console.log('✅ [AUTH] Токен успішно оновлено');
-    } else {
-    console.warn('⚠️ [AUTH] Метод refreshToken не доступний');
-  }
-} catch (e) {
-  console.warn("⚠️ AUTH: Помилка оновлення токену:", e);
-  console.warn("⚠️ [AUTH] Stack trace:", e.stack);
-}
+        // Перевіряємо стан токену авторизації
+        const tokenStatus = checkAuthToken();
+        console.log("🔐 AUTH: Стан токену:", tokenStatus);
+
+        // Оновлюємо токен, якщо необхідно
+        if (!tokenStatus.valid || tokenStatus.expiringSoon ||
+            (now - _lastTokenRefreshTime) > MIN_TOKEN_REFRESH_INTERVAL) {
+            try {
+                console.log('🔄 AUTH: Спроба оновлення токену через WinixAPI');
+                if (window.WinixAPI && typeof window.WinixAPI.refreshToken === 'function') {
+                    const refreshResult = await window.WinixAPI.refreshToken();
+
+                    if (refreshResult && refreshResult.status === 'success') {
+                        console.log('✅ AUTH: Токен успішно оновлено');
+
+                        // Оновлюємо збережений токен, якщо він є у відповіді
+                        if (refreshResult.token) {
+                            updateAuthToken(refreshResult.token, refreshResult.expires_at);
+                        }
+                    } else {
+                        console.warn('⚠️ AUTH: Проблема з оновленням токену:', refreshResult);
+                    }
+                } else {
+                    console.warn('⚠️ AUTH: Метод refreshToken не доступний');
+
+                    // Якщо refreshToken недоступний, але токен недійсний, спробуємо повну авторизацію
+                    if (!tokenStatus.valid) {
+                        const tg = window.Telegram?.WebApp;
+                        if (tg?.initDataUnsafe?.user) {
+                            console.log('🔄 AUTH: Спроба повної авторизації через Telegram дані');
+                            const authData = {
+                                ...tg.initDataUnsafe.user,
+                                initData: tg.initData || ""
+                            };
+
+                            const authResult = await authorizeUser(authData);
+                            return authResult;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("⚠️ AUTH: Помилка оновлення токену:", e);
+            }
+        }
 
         // Отримуємо дані користувача через getUserData
         try {
@@ -380,18 +646,27 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
             console.warn("⚠️ AUTH: Помилка під час getUserData, спробуємо authorizeUser:", error);
 
             // Якщо getUserData не спрацював, використовуємо authorizeUser як резервний варіант
-            const tg = window.Telegram.WebApp;
+            const tg = window.Telegram?.WebApp;
             let authData = {};
 
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            if (tg?.initDataUnsafe?.user) {
                 authData = {
                     ...tg.initDataUnsafe.user,
                     initData: tg.initData || ""
                 };
             } else {
-                authData = {
-                    initData: tg.initData || ""
-                };
+                // Спроба використати ID з інших джерел
+                const userId = getUserIdFromAllSources();
+                if (userId) {
+                    authData = {
+                        id: userId,
+                        telegram_id: userId
+                    };
+                } else {
+                    authData = {
+                        initData: tg?.initData || ""
+                    };
+                }
             }
 
             return authorizeUser(authData);
@@ -413,49 +688,57 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
         _authRequestInProgress = true;
 
         try {
-            // Перевіряємо чи доступний Telegram WebApp і оновлюємо дані
-            if (window.Telegram && window.Telegram.WebApp &&
-                window.Telegram.WebApp.initDataUnsafe &&
-                window.Telegram.WebApp.initDataUnsafe.user) {
+            // Клонуємо об'єкт для запобігання його модифікації
+            const authData = { ...userData };
 
+            // Оновлюємо ID користувача з усіх можливих джерел
+            // Перевіряємо чи доступний Telegram WebApp і оновлюємо дані
+            if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
                 // Оновлюємо ID користувача з Telegram WebApp
                 const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id;
                 if (telegramId) {
-                    // Замість модифікації параметра, створюємо нову змінну
-                    userData = {
-                        ...userData,
-                        id: telegramId.toString(),
-                        telegram_id: telegramId.toString()
-                    };
-                    console.log("🔐 AUTH: ID оновлено з Telegram WebApp:", userData.id);
+                    authData.id = String(telegramId);
+                    authData.telegram_id = String(telegramId);
+                    console.log("🔐 AUTH: ID оновлено з Telegram WebApp:", authData.id);
                 }
             }
 
-            // Валідуємо ID перед надсиланням запиту
-            let userId = userData.id || userData.telegram_id || null;
+            // Якщо немає ID в Telegram WebApp, використовуємо інші джерела
+            if (!isValidId(authData.id) && !isValidId(authData.telegram_id)) {
+                const userId = getUserIdFromAllSources();
+                if (userId) {
+                    authData.id = userId;
+                    authData.telegram_id = userId;
+                    console.log("🔐 AUTH: ID оновлено з інших джерел:", userId);
+                }
+            }
+
+            // Перевірка наявності та валідності ID перед відправкою
+            let userId = authData.id || authData.telegram_id || null;
 
             if (!isValidId(userId)) {
                 console.error("❌ AUTH: Неможливо отримати валідний ID користувача для авторизації");
                 throw new Error("Неможливо отримати валідний ID користувача");
             }
 
+            // Нормалізуємо ID перед відправкою
+            userId = normalizeId(userId);
+            if (!userId) {
+                console.error("❌ AUTH: ID не пройшов нормалізацію");
+                throw new Error("ID не пройшов нормалізацію");
+            }
+
+            // Оновлюємо дані запиту з нормалізованим ID
+            authData.id = userId;
+            authData.telegram_id = userId;
+
             // Перевірка чи пристрій онлайн
             if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
                 throw new Error("Пристрій офлайн");
             }
 
-            // Використовуємо let замість const для userId
-            userId = userId.toString();
-
-            // Зберігаємо в localStorage для подальшого використання
-            localStorage.setItem('telegram_user_id', userId);
-
-            // Одразу оновлюємо елемент на сторінці, якщо він існує
-            const userIdElement = document.getElementById('user-id');
-            if (userIdElement) {
-                userIdElement.textContent = userId;
-                console.log(`🔐 AUTH: Оновлено ID користувача на сторінці: ${userId}`);
-            }
+            // Зберігаємо ID у сховищах
+            saveValidatedId(userId, 'auth_request');
 
             // Показуємо індикатор завантаження, якщо він є
             const spinner = document.getElementById('loading-spinner');
@@ -477,7 +760,9 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
 
             // Виконуємо запит авторизації через WinixAPI
             try {
-                const response = await window.WinixAPI.apiRequest('api/auth', 'POST', userData, {
+                console.log("🔐 AUTH: Відправка запиту авторизації з даними:", {...authData, initData: authData.initData ? "..." : undefined});
+
+                const response = await window.WinixAPI.apiRequest('api/auth', 'POST', authData, {
                     timeout: 15000, // Збільшуємо таймаут для авторизації
                     suppressErrors: true, // Для обробки помилок на нашому рівні
                 });
@@ -491,15 +776,14 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
                     window.WinixAuth.currentUser = userData;
                     console.log("✅ AUTH: Користувача успішно авторизовано", userData);
 
+                    // Зберігаємо токен авторизації, якщо він є у відповіді
+                    if (response.token) {
+                        updateAuthToken(response.token, response.expires_at);
+                    }
+
                     // Перевіряємо валідність ID перед збереженням
                     if (isValidId(userData.telegram_id)) {
-                        localStorage.setItem('telegram_user_id', userData.telegram_id);
-
-                        // Оновлюємо елемент на сторінці
-                        const userIdElement = document.getElementById('user-id');
-                        if (userIdElement) {
-                            userIdElement.textContent = userData.telegram_id;
-                        }
+                        saveValidatedId(userData.telegram_id, 'server_response');
                     } else {
                         console.warn("⚠️ AUTH: API повернув невалідний ID користувача:", userData.telegram_id);
                     }
@@ -681,17 +965,58 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
                 };
             }
 
+            // Перевіряємо авторизаційний токен перед запитом
+            const tokenStatus = checkAuthToken();
+            if (!tokenStatus.valid) {
+                console.warn("🔐 AUTH: Токен недійсний перед getUserData, намагаємося оновити");
+                try {
+                    if (window.WinixAPI.refreshToken) {
+                        const refreshResult = await window.WinixAPI.refreshToken();
+                        console.log("🔐 AUTH: Результат оновлення токена:", refreshResult);
+
+                        // Оновлюємо збережений токен, якщо він є у відповіді
+                        if (refreshResult?.token) {
+                            updateAuthToken(refreshResult.token, refreshResult.expires_at);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("🔐 AUTH: Помилка оновлення токена перед getUserData:", e);
+                }
+            }
+
             try {
                 // Отримуємо дані користувача через WinixAPI
+                console.log("🔐 AUTH: Запит getUserData для ID:", userId);
                 const response = await window.WinixAPI.getUserData(forceRefresh);
 
                 // Приховуємо індикатор завантаження
                 if (spinner) spinner.classList.remove('show');
 
                 if (response && response.status === 'success' && response.data) {
+                    // Нормалізуємо отриманий ID
+                    if (response.data.telegram_id) {
+                        response.data.telegram_id = normalizeId(response.data.telegram_id);
+                    }
+
                     // Зберігаємо дані
                     window.WinixAuth.currentUser = response.data;
                     console.log("✅ AUTH: Дані користувача успішно отримано", response.data);
+
+                    // Якщо є валідний ID, зберігаємо його
+                    if (isValidId(response.data.telegram_id)) {
+                        saveValidatedId(response.data.telegram_id, 'get_user_data');
+                    }
+
+                    // Зберігаємо баланс і жетони в localStorage
+                    if (response.data.balance !== undefined) {
+                        localStorage.setItem('userTokens', response.data.balance.toString());
+                        localStorage.setItem('winix_balance', response.data.balance.toString());
+                    }
+
+                    if (response.data.coins !== undefined) {
+                        localStorage.setItem('userCoins', response.data.coins.toString());
+                        localStorage.setItem('winix_coins', response.data.coins.toString());
+                    }
 
                     // Відправляємо подію оновлення даних
                     document.dispatchEvent(new CustomEvent(EVENT_USER_DATA_UPDATED, {
@@ -709,6 +1034,37 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
                 if (spinner) spinner.classList.remove('show');
 
                 console.error("❌ AUTH: Помилка отримання даних користувача", error);
+
+                // Якщо помилка пов'язана з токеном, намагаємося виконати повну авторизацію
+                if (error.status === 401) {
+                    console.warn("🔐 AUTH: Помилка авторизації в getUserData, спробуємо повну авторизацію");
+
+                    // Спробуємо провести повну авторизацію
+                    try {
+                        // Отримуємо дані з Telegram WebApp
+                        const tg = window.Telegram?.WebApp;
+                        if (tg?.initDataUnsafe?.user) {
+                            const authData = {
+                                ...tg.initDataUnsafe.user,
+                                initData: tg.initData || ""
+                            };
+
+                            console.log("🔐 AUTH: Спроба авторизації через Telegram дані");
+                            return await authorizeUser(authData);
+                        } else {
+                            // Якщо немає даних з Telegram, використовуємо збережений ID
+                            const authData = {
+                                id: userId,
+                                telegram_id: userId
+                            };
+
+                            console.log("🔐 AUTH: Спроба авторизації через збережений ID");
+                            return await authorizeUser(authData);
+                        }
+                    } catch (authError) {
+                        console.error("❌ AUTH: Невдала спроба повної авторизації:", authError);
+                    }
+                }
 
                 // Генеруємо подію про помилку
                 document.dispatchEvent(new CustomEvent(EVENT_AUTH_ERROR, {
@@ -765,18 +1121,58 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
         let cleaned = false;
 
         // Перевіряємо ID в localStorage
-        const storedId = localStorage.getItem('telegram_user_id');
-        if (storedId && !isValidId(storedId)) {
-            console.warn("⚠️ AUTH: Видалення невалідного ID з localStorage:", storedId);
-            localStorage.removeItem('telegram_user_id');
-            cleaned = true;
+        try {
+            const storedId = localStorage.getItem('telegram_user_id');
+            if (storedId && !isValidId(storedId)) {
+                console.warn("⚠️ AUTH: Видалення невалідного ID з localStorage:", storedId);
+                localStorage.removeItem('telegram_user_id');
+                localStorage.removeItem('telegram_user_id_verified');
+                cleaned = true;
+            }
+
+            // Перевіряємо наявність захардкодженого ID
+            if (localStorage.getItem('telegram_user_id') === '12345678') {
+                console.warn("⚠️ AUTH: Видалення захардкодженого ID з localStorage");
+                localStorage.removeItem('telegram_user_id');
+                localStorage.removeItem('telegram_user_id_verified');
+                cleaned = true;
+            }
+        } catch (e) {
+            console.warn("⚠️ AUTH: Помилка доступу до localStorage:", e);
         }
 
-        // Перевіряємо наявність захардкодженого ID
-        if (localStorage.getItem('telegram_user_id') === '12345678') {
-            console.warn("⚠️ AUTH: Видалення захардкодженого ID з localStorage");
-            localStorage.removeItem('telegram_user_id');
-            cleaned = true;
+        // Перевіряємо ID в sessionStorage
+        try {
+            const sessionId = sessionStorage.getItem('telegram_user_id');
+            if (sessionId && !isValidId(sessionId)) {
+                console.warn("⚠️ AUTH: Видалення невалідного ID з sessionStorage:", sessionId);
+                sessionStorage.removeItem('telegram_user_id');
+                cleaned = true;
+            }
+
+            // Перевіряємо наявність захардкодженого ID
+            if (sessionStorage.getItem('telegram_user_id') === '12345678') {
+                console.warn("⚠️ AUTH: Видалення захардкодженого ID з sessionStorage");
+                sessionStorage.removeItem('telegram_user_id');
+                cleaned = true;
+            }
+        } catch (e) {
+            console.warn("⚠️ AUTH: Помилка доступу до sessionStorage:", e);
+        }
+
+        // Перевіряємо ID в DOM
+        try {
+            const userIdElement = document.getElementById('user-id');
+            if (userIdElement && userIdElement.textContent) {
+                const domId = userIdElement.textContent.trim();
+                if (!isValidId(domId)) {
+                    console.warn("⚠️ AUTH: Видалення невалідного ID з DOM:", domId);
+                    userIdElement.textContent = '';
+                    cleaned = true;
+                }
+            }
+        } catch (e) {
+            console.warn("⚠️ AUTH: Помилка доступу до DOM:", e);
         }
 
         return cleaned;
@@ -808,14 +1204,29 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
                 }
             }
 
-            // Перевіряємо чи треба оновити токен (через WinixAPI)
-            if (hasApiModule()) {
-                try {
+            // Перевіряємо стан токену і за потреби оновлюємо
+            const tokenStatus = checkAuthToken();
+            const now = Date.now();
+            if (!tokenStatus.valid || tokenStatus.expiringSoon ||
+                (now - _lastTokenRefreshTime) > MIN_TOKEN_REFRESH_INTERVAL) {
+
+                if (hasApiModule() && typeof window.WinixAPI.refreshToken === 'function') {
+                    console.log("🔄 AUTH: Періодичне оновлення токену");
+
                     window.WinixAPI.refreshToken()
-                        .then(() => console.log("✅ AUTH: Токен успішно оновлено"))
+                        .then(result => {
+                            if (result && result.status === 'success') {
+                                console.log("✅ AUTH: Токен успішно оновлено");
+
+                                // Оновлюємо збережений токен, якщо він є у відповіді
+                                if (result.token) {
+                                    updateAuthToken(result.token, result.expires_at);
+                                }
+                            } else {
+                                console.warn("⚠️ AUTH: Проблема з оновленням токену:", result);
+                            }
+                        })
                         .catch(err => console.warn("⚠️ AUTH: Помилка оновлення токену:", err));
-                } catch (e) {
-                    console.warn("⚠️ AUTH: Помилка виклику refreshToken:", e);
                 }
             }
         }, interval);
@@ -859,7 +1270,47 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
         }
 
         console.log("🔄 AUTH: Примусове оновлення даних користувача");
+
+        // Перевіряємо стан токену перед запитом
+        const tokenStatus = checkAuthToken();
+        if (!tokenStatus.valid) {
+            console.log("🔄 AUTH: Токен недійсний, спроба оновлення");
+
+            try {
+                if (hasApiModule() && typeof window.WinixAPI.refreshToken === 'function') {
+                    const refreshResult = await window.WinixAPI.refreshToken();
+                    console.log("🔐 AUTH: Результат оновлення токена:", refreshResult);
+
+                    // Оновлюємо збережений токен, якщо він є у відповіді
+                    if (refreshResult?.token) {
+                        updateAuthToken(refreshResult.token, refreshResult.expires_at);
+                    }
+                }
+            } catch (e) {
+                console.warn("⚠️ AUTH: Помилка оновлення токена:", e);
+            }
+        }
+
         return getUserData(true);
+    }
+
+    /**
+     * Отримати токен авторизації
+     * @returns {string|null} Токен авторизації або null
+     */
+    function getAuthToken() {
+        try {
+            const tokenStatus = checkAuthToken();
+            if (tokenStatus.valid) {
+                return tokenStatus.token;
+            }
+
+            console.warn("⚠️ AUTH: Токен недійсний в getAuthToken");
+            return null;
+        } catch (e) {
+            console.error("❌ AUTH: Помилка отримання токена:", e);
+            return null;
+        }
     }
 
     /**
@@ -895,6 +1346,7 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
 
         // Методи перевірки
         isValidId,
+        normalizeId,
 
         // Основні методи
         init,
@@ -906,6 +1358,14 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
         cleanInvalidIds,
         clearCache,
 
+        // Методи для роботи з токенами
+        checkAuthToken,
+        getAuthToken,
+        updateAuthToken,
+
+        // Додаткові методи
+        saveValidatedId,
+
         // Методи для показу повідомлень
         showError,
         showWelcomeMessage,
@@ -916,7 +1376,7 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
         stopPeriodicUpdate,
 
         // Технічна інформація
-        version: '1.1.0'
+        version: '1.2.0'
     };
 
     // ======== АВТОМАТИЧНА ІНІЦІАЛІЗАЦІЯ ========
