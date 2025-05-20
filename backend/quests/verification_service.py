@@ -180,7 +180,7 @@ class VerificationService:
             return False, f"Внутрішня помилка: {str(e)}", {}
 
     @staticmethod
-    def process_reward(telegram_id: str, task: Task, progress: UserProgress) -> Tuple[bool, Optional[str], Dict[str, Any]]:
+    def process_reward(telegram_id: str, task: UserTask, progress: UserProgress) -> Tuple[bool, Optional[str], Dict[str, Any]]:
         """
         Обробляє винагороду за виконання завдання.
 
