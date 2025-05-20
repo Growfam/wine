@@ -103,6 +103,7 @@ def verify_user(telegram_data):
         username = telegram_data.get('username', '')
         first_name = telegram_data.get('first_name', '')
         last_name = telegram_data.get('last_name', '')
+        referrer_id = telegram_data.get('referrer_id', None)  # Додаємо можливість отримання referrer_id
 
         # Додаткова логіка для роботи з різними форматами даних
         if not telegram_id and 'telegram_id' in telegram_data:
@@ -127,7 +128,7 @@ def verify_user(telegram_data):
 
             if not user:
                 display_name = username or first_name or "WINIX User"
-                user = _create_new_user(telegram_id, display_name)
+                user = _create_new_user(telegram_id, display_name, referrer_id)  # Передаємо referrer_id у функцію створення
                 if not user:
                     logger.error(f"verify_user: Помилка створення користувача: {telegram_id}")
                     return None
@@ -146,8 +147,6 @@ def verify_user(telegram_data):
             updates["language"] = telegram_data.get('language_code')
 
         update_user(telegram_id, updates)
-
-
 
         return user
     except Exception as e:
@@ -252,4 +251,3 @@ def verify_user(telegram_data):
         except Exception as e:
             logger.error(f"verify_telegram_mini_app_user: Помилка: {str(e)}")
             return None
-

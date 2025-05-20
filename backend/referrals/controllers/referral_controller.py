@@ -49,6 +49,21 @@ class ReferralController:
             dict: Результат операції
         """
         try:
+            # Конвертуємо ID в цілі числа, якщо вони були передані як рядки
+            if isinstance(referrer_id, str):
+                try:
+                    referrer_id = int(referrer_id)
+                except ValueError:
+                    current_app.logger.warning(
+                        f"Не вдалося конвертувати referrer_id '{referrer_id}' до int. Використовуємо як є.")
+
+            if isinstance(referee_id, str):
+                try:
+                    referee_id = int(referee_id)
+                except ValueError:
+                    current_app.logger.warning(
+                        f"Не вдалося конвертувати referee_id '{referee_id}' до int. Використовуємо як є.")
+
             # Перевірка, чи реферал вже зареєстрований
             existing_referral = Referral.query.filter_by(referee_id=referee_id).first()
             if existing_referral:
@@ -82,6 +97,8 @@ class ReferralController:
                 db.session.add(second_level_referral)
 
             db.session.commit()
+            current_app.logger.info(
+                f"register_referral: Успішно створено реферальний зв'язок між {referrer_id} та {referee_id}")
 
             return {
                 'success': True,
@@ -117,6 +134,14 @@ class ReferralController:
             dict: Структура рефералів користувача
         """
         try:
+            # Конвертуємо ID в ціле число, якщо воно було передано як рядок
+            if isinstance(user_id, str):
+                try:
+                    user_id = int(user_id)
+                except ValueError:
+                    current_app.logger.warning(
+                        f"Не вдалося конвертувати user_id '{user_id}' до int. Використовуємо як є.")
+
             # Отримання рефералів 1-го рівня
             level1_referrals = Referral.query.filter_by(referrer_id=user_id, level=1).all()
 
@@ -132,7 +157,8 @@ class ReferralController:
                 },
                 'referrals': {
                     'level1': [ReferralController._format_referral_data(ref) for ref in level1_referrals],
-                    'level2': [ReferralController._format_referral_data(ref, with_referrer_id=True) for ref in level2_referrals]
+                    'level2': [ReferralController._format_referral_data(ref, with_referrer_id=True) for ref in
+                               level2_referrals]
                 },
                 'statistics': {
                     'totalReferrals': len(level1_referrals) + len(level2_referrals),
