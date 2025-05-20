@@ -15,6 +15,7 @@ window.ReferralStore = (function() {
         return state;
       },
       dispatch: function(action) {
+        console.log('🔄 [STORE] Dispatching action:', action.type, action);
         state = reducer(state, action);
         listeners.forEach(function(listener) {
           listener();
@@ -611,6 +612,7 @@ window.ReferralStore = (function() {
   // Badge Actions
   function fetchUserBadges(userId) {
     return function(dispatch) {
+      console.log('🏆 [STORE] Запит бейджів для користувача:', userId);
       dispatch({ type: BadgeActionTypes.FETCH_BADGES_REQUEST });
 
       // Переконуємося що userId це число

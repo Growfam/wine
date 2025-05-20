@@ -27,6 +27,7 @@ window.ReferralAPI = (function() {
         'Content-Type': 'application/json'
       }
     }, options);
+console.log('🌐 [API REQUEST]:', url, fetchOptions);
 
     return fetch(url, fetchOptions)
       .then(function(response) {
@@ -48,6 +49,8 @@ window.ReferralAPI = (function() {
       })
       .catch(function(error) {
         clearTimeout(timeoutId);
+  console.log('📦 [API RESPONSE]:', url, response.status);
+
 
         // Обробляємо різні типи помилок
         if (error.name === 'AbortError') {
@@ -131,6 +134,7 @@ window.ReferralAPI = (function() {
 
   // fetchReferralStats.js
   function fetchReferralStats(userId) {
+    console.log('📊 [API] Запит статистики рефералів для ID:', userId);
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання статистики рефералів'));
     }

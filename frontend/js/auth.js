@@ -359,11 +359,19 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
         }
 
         // Перевіряємо необхідність оновлення токену через WinixAPI
-        try {
-            await window.WinixAPI.refreshToken();
-        } catch (e) {
-            console.warn("⚠️ AUTH: Помилка оновлення токену:", e);
-        }
+       try {
+            console.log('🔄 [AUTH] Спроба оновлення токену через WinixAPI, доступність методу:',
+  typeof window.WinixAPI?.refreshToken === 'function');
+  if (window.WinixAPI && typeof window.WinixAPI.refreshToken === 'function') {
+    await window.WinixAPI.refreshToken();
+    console.log('✅ [AUTH] Токен успішно оновлено');
+    } else {
+    console.warn('⚠️ [AUTH] Метод refreshToken не доступний');
+  }
+} catch (e) {
+  console.warn("⚠️ AUTH: Помилка оновлення токену:", e);
+  console.warn("⚠️ [AUTH] Stack trace:", e.stack);
+}
 
         // Отримуємо дані користувача через getUserData
         try {
