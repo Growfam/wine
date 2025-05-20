@@ -62,13 +62,16 @@ window.ReferralIntegration = (function() {
    * Отримує ID користувача з різних джерел
    */
   ReferralIntegration.prototype.getUserId = function() {
+    console.log('🔍 [INTEGRATION] Спроба отримання ID користувача з усіх доступних джерел');
     // Спочатку пробуємо з Telegram
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user && window.Telegram.WebApp.initDataUnsafe.user.id) {
-      return parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
-    }
+      console.log('🔍 [INTEGRATION] Перевірка ID у Telegram WebApp:',
+                window.Telegram.WebApp.initDataUnsafe?.user?.id);
+  }
 
     // Потім з localStorage
     const storedId = localStorage.getItem('telegram_user_id') || localStorage.getItem('user_id');
+    console.log('🔍 [INTEGRATION] ID у localStorage:', storedId);
     if (storedId) {
       const numericId = parseInt(storedId);
       if (!isNaN(numericId)) {
@@ -78,7 +81,7 @@ window.ReferralIntegration = (function() {
 
     // Якщо нічого немає, використовуємо тестовий ID
     console.warn('[INTEGRATION] ID користувача не знайдено, використовуємо тестовий');
-    return 123; // Числове значення замість строки
+    return null; // Числове значення замість строки
   };
 
   /**
@@ -275,13 +278,16 @@ window.ReferralIntegration = (function() {
    */
   ReferralIntegration.prototype.loadReferralStats = function() {
     const self = this;
+ console.log('🔄 [INTEGRATION] Запит статистики рефералів з API для ID:', this.userId);
 
     return window.ReferralAPI.fetchReferralStats(this.userId)
       .then(function(statsData) {
+        console.log('✅ [INTEGRATION] Отримано статистику рефералів:', JSON.stringify(statsData));
         self.updateReferralStatsDisplay(statsData);
       })
       .catch(function(error) {
         console.error('Помилка завантаження статистики рефералів:', error);
+        console.error('❌ [INTEGRATION] Stack trace:', error.stack);
         throw error;
       });
   };
@@ -617,5 +623,43 @@ window.initReferralSystem = function() {
       console.error('💥 [INTEGRATION] Критична помилка ініціалізації:', error);
       reject(error);
     }
+    // Додайте до Integration.js:
+ReferralIntegration.prototype.loadInitialData = function() {
+  const self = this;
+  const maxRetries = 3;
+  let retryCount = 0;
+
+  function attemptLoad() {
+    return new Promise(function(resolve, reject) {
+      console.log('📊 [INTEGRATION] Завантаження початкових даних...');
+
+      // Завантажуємо базові дані паралельно
+      Promise.all([
+        self.loadReferralStats(),
+        self.loadBadgesData(),
+        self.loadDirectBonusHistory()
+      ])
+      .then(function() {
+        console.log('✅ [INTEGRATION] Початкові дані завантажено');
+        resolve();
+      })
+      .catch(function(error) {
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.warn(`❌ [INTEGRATION] Помилка завантаження даних (спроба ${retryCount}/${maxRetries}):`, error);
+          setTimeout(function() {
+            attemptLoad().then(resolve).catch(reject);
+          }, 1000 * retryCount); // Збільшуємо затримку з кожною спробою
+        } else {
+          console.error('❌ [INTEGRATION] Помилка завантаження даних:', error);
+          self.showErrorMessage('Не вдалося завантажити дані. Перевірте підключення до інтернету.');
+          reject(error);
+        }
+      });
+    });
+  }
+
+  return attemptLoad();
+}
   });
 };

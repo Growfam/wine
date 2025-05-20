@@ -1079,12 +1079,14 @@
      * @returns {string|null} ID користувача або null
      */
     function getUserId() {
+        console.log('🔍 [CORE] Спроба отримання ID користувача');
         // Перевіряємо різні джерела ID користувача в порядку пріоритету
 
         // 1. З API модуля
         if (hasApiModule()) {
             try {
                 const apiId = window.WinixAPI.getUserId();
+                console.log('🔍 [CORE] ID з API модуля:', apiId);
                 if (apiId && apiId !== 'undefined' && apiId !== 'null') {
                     return apiId;
                 }
