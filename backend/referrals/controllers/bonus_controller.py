@@ -25,6 +25,21 @@ class BonusController:
             dict: Результат операції
         """
         try:
+            # Конвертуємо ID в цілі числа, якщо вони були передані як рядки
+            if isinstance(referrer_id, str):
+                try:
+                    referrer_id = int(referrer_id)
+                except ValueError:
+                    current_app.logger.warning(
+                        f"Не вдалося конвертувати referrer_id '{referrer_id}' до int. Використовуємо як є.")
+
+            if isinstance(referee_id, str):
+                try:
+                    referee_id = int(referee_id)
+                except ValueError:
+                    current_app.logger.warning(
+                        f"Не вдалося конвертувати referee_id '{referee_id}' до int. Використовуємо як є.")
+
             # Перевірка, чи існує реферальний зв'язок
             referral = Referral.query.filter_by(
                 referrer_id=referrer_id,
@@ -33,6 +48,8 @@ class BonusController:
             ).first()
 
             if not referral:
+                current_app.logger.warning(
+                    f"award_direct_bonus: Не знайдено реферальний зв'язок між {referrer_id} та {referee_id}")
                 return {
                     'success': False,
                     'error': 'No referral relationship found',
@@ -56,6 +73,9 @@ class BonusController:
             )
             db.session.add(new_bonus)
             db.session.commit()
+
+            current_app.logger.info(
+                f"award_direct_bonus: Успішно нараховано бонус {amount} для {referrer_id} за реферала {referee_id}")
 
             return {
                 'success': True,
@@ -91,6 +111,14 @@ class BonusController:
             dict: Історія нарахованих бонусів
         """
         try:
+            # Конвертуємо ID в ціле число, якщо воно було передано як рядок
+            if isinstance(user_id, str):
+                try:
+                    user_id = int(user_id)
+                except ValueError:
+                    current_app.logger.warning(
+                        f"Не вдалося конвертувати user_id '{user_id}' до int. Використовуємо як є.")
+
             # Отримання всіх бонусів, де користувач є реферером
             bonuses = DirectBonus.query.filter_by(referrer_id=user_id).all()
 
