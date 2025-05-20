@@ -15,8 +15,6 @@ from contextlib import contextmanager
 from requests.exceptions import RequestException, Timeout, ConnectTimeout, ReadTimeout
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from referrals.controllers.referral_controller import ReferralController
-from referrals.controllers.bonus_controller import BonusController
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -568,77 +566,31 @@ def create_user(telegram_id: str, username: str, referrer_id: Optional[str] = No
         # Якщо є referrer_id, реєструємо реферальний зв'язок
         if referrer_id:
             try:
-                # Забезпечуємо, щоб referrer_id був рядком
                 referrer_id = str(referrer_id)
                 logger.info(f"create_user: Реєструємо реферальний зв'язок: {referrer_id} -> {telegram_id}")
 
-                # Додаємо шляхи до sys.path для правильного імпорту
-                import sys
-                import os
-                import traceback
+                # Імпортуємо контролери реферальної системи
+                from referrals.controllers.referral_controller import ReferralController
+                from referrals.controllers.bonus_controller import BonusController
 
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                parent_dir = os.path.dirname(current_dir)
+                # Реєструємо реферальний зв'язок
+                referral_result = ReferralController.register_referral(
+                    referrer_id=referrer_id,
+                    referee_id=telegram_id
+                )
 
-                # Додаємо директорії до шляху пошуку Python
-                paths_to_add = [
-                    current_dir,
-                    parent_dir,
-                    os.path.join(parent_dir, 'backend'),
-                    os.path.join(parent_dir, 'backend', 'referrals'),
-                    os.path.join(parent_dir, 'referrals')
-                ]
+                if referral_result['success']:
+                    logger.info(f"create_user: Реферальний зв'язок успішно створено")
 
-                for path in paths_to_add:
-                    if path not in sys.path and os.path.exists(path):
-                        sys.path.append(path)
-                        logger.debug(f"create_user: Додано до sys.path: {path}")
+                    # Нараховуємо прямий бонус
+                    bonus_result = BonusController.award_direct_bonus(
+                        referrer_id=referrer_id,
+                        referee_id=telegram_id,
+                        amount=50
+                    )
 
-                # Спроба імпорту різними способами
-                controllers_loaded = False
-
-                # Список можливих шляхів імпорту від найбільш ймовірного до найменш ймовірного
-                import_paths = [
-                    ("from referrals.controllers.referral_controller import ReferralController; "
-                     "from referrals.controllers.bonus_controller import BonusController"),
-                    ("from backend.referrals.controllers.referral_controller import ReferralController; "
-                     "from backend.referrals.controllers.bonus_controller import BonusController"),
-                    ("from controllers.referral_controller import ReferralController; "
-                     "from controllers.bonus_controller import BonusController")
-                ]
-
-                for import_statement in import_paths:
-                    try:
-                        logger.debug(f"create_user: Спроба імпорту: {import_statement}")
-                        exec(import_statement, globals())
-                        controllers_loaded = True
-                        logger.info(f"create_user: Успішний імпорт: {import_statement}")
-                        break
-                    except ImportError as e:
-                        logger.debug(f"create_user: Невдала спроба імпорту: {str(e)}")
-
-                if not controllers_loaded:
-                    # Якщо не вдалось імпортувати контролери, використовуємо прямий SQL-запит
-                    logger.warning("create_user: Не вдалося імпортувати контролери, використовуємо прямий SQL")
-                    try:
-                        # Виконуємо SQL-запит для створення запису в таблиці referrals
-                        now = datetime.now(timezone.utc).isoformat()
-                        referral_data = {
-                            "referrer_id": referrer_id,
-                            "referee_id": telegram_id,
-                            "level": 1,
-                            "created_at": now
-                        }
-                        referral_result = supabase.table("referrals").insert(referral_data).execute()
-
-                        # Створюємо запис в таблиці direct_bonuses
-                        bonus_data = {
-                            "referrer_id": referrer_id,
-                            "referee_id": telegram_id,
-                            "amount": 50,  # Стандартний бонус 50 winix
-                            "created_at": now
-                        }
-                        bonus_result = supabase.table("direct_bonuses").insert(bonus_data).execute()
+                    if bonus_result['success']:
+                        logger.info(f"create_user: Прямий бонус успішно нараховано")
 
                         # Оновлюємо баланс реферера
                         referrer_user = get_user(referrer_id)
@@ -648,79 +600,22 @@ def create_user(telegram_id: str, username: str, referrer_id: Optional[str] = No
 
                             supabase.table("winix").update({
                                 "balance": new_balance,
-                                "updated_at": now
+                                "updated_at": datetime.now(timezone.utc).isoformat()
                             }).eq("telegram_id", referrer_id).execute()
 
-                            # Створюємо запис транзакції
-                            transaction_data = {
-                                "telegram_id": referrer_id,
-                                "type": "referral_bonus",
-                                "amount": 50,
-                                "description": f"Реферальний бонус за користувача {telegram_id}",
-                                "status": "completed",
-                                "created_at": now,
-                                "updated_at": now
-                            }
-                            supabase.table("transactions").insert(transaction_data).execute()
-
-                            logger.info(
-                                f"create_user: Бонус успішно нараховано через SQL. Реферер: {referrer_id}, сума: 50")
+                            logger.info(f"create_user: Баланс реферера {referrer_id} оновлено: {current_balance} -> {new_balance}")
 
                             # Інвалідуємо кеш для реферера
                             invalidate_cache_for_entity(referrer_id)
-                    except Exception as sql_error:
-                        logger.error(f"create_user: Помилка SQL-запиту: {str(sql_error)}")
-                else:
-                    # Реєструємо реферальний зв'язок через контролери
-                    logger.info(
-                        f"create_user: Викликаємо ReferralController.register_referral({referrer_id}, {telegram_id})")
-                    referral_result = ReferralController.register_referral(
-                        referrer_id=referrer_id,
-                        referee_id=telegram_id
-                    )
-
-                    if referral_result.get('success', False):
-                        logger.info(f"create_user: Реферальний зв'язок успішно створено")
-
-                        # Нараховуємо прямий бонус
-                        logger.info(
-                            f"create_user: Викликаємо BonusController.award_direct_bonus({referrer_id}, {telegram_id})")
-                        bonus_result = BonusController.award_direct_bonus(
-                            referrer_id=referrer_id,
-                            referee_id=telegram_id,
-                            amount=50
-                        )
-
-                        if bonus_result.get('success', False):
-                            logger.info(f"create_user: Прямий бонус успішно нараховано")
-
-                            # Оновлюємо баланс реферера
-                            referrer_user = get_user(referrer_id)
-                            if referrer_user:
-                                current_balance = float(referrer_user.get('balance', 0))
-                                new_balance = current_balance + 50
-
-                                supabase.table("winix").update({
-                                    "balance": new_balance,
-                                    "updated_at": datetime.now(timezone.utc).isoformat()
-                                }).eq("telegram_id", referrer_id).execute()
-
-                                logger.info(
-                                    f"create_user: Баланс реферера {referrer_id} оновлено: {current_balance} -> {new_balance}")
-
-                                # Інвалідуємо кеш для реферера
-                                invalidate_cache_for_entity(referrer_id)
-                        else:
-                            logger.warning(f"create_user: Помилка нарахування бонусу: {bonus_result}")
                     else:
-                        logger.warning(f"create_user: Помилка реєстрації реферального зв'язку: {referral_result}")
+                        logger.warning(f"create_user: Помилка нарахування бонусу: {bonus_result}")
+                else:
+                    logger.warning(f"create_user: Помилка реєстрації реферального зв'язку: {referral_result}")
 
             except ImportError as e:
                 logger.error(f"create_user: Помилка імпорту реферальних контролерів: {str(e)}")
-                logger.error(f"create_user: Stacktrace: {traceback.format_exc()}")
             except Exception as e:
                 logger.error(f"create_user: Помилка обробки реферального зв'язку: {str(e)}")
-                logger.error(f"create_user: Stacktrace: {traceback.format_exc()}")
 
         return user
     except Exception as e:
