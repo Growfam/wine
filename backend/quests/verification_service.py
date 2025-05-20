@@ -20,7 +20,7 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 # Імпорт моделей та інших залежностей
-from models.task import Task, ACTION_TYPE_VISIT, ACTION_TYPE_FOLLOW, ACTION_TYPE_SHARE
+from models.task import UserTask, ACTION_TYPE_VISIT, ACTION_TYPE_FOLLOW, ACTION_TYPE_SHARE
 from models.user_progress import UserProgress, STATUS_VERIFIED, STATUS_REJECTED
 from utils.api_helpers import api_success, api_error
 from supabase_client import supabase

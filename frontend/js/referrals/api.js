@@ -49,7 +49,7 @@ console.log('🌐 [API REQUEST]:', url, fetchOptions);
       })
       .catch(function(error) {
         clearTimeout(timeoutId);
-  console.log('📦 [API RESPONSE]:', url, response.status);
+
 
 
         // Обробляємо різні типи помилок
