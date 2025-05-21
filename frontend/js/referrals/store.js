@@ -427,22 +427,22 @@ window.ReferralStore = (function() {
 
      return window.ReferralAPI.fetchReferralLink(numericUserId)
     .then(function(link) {
-        // Безпечна перевірка формату посилання
-        let formattedLink;
+    // Безпечна перевірка формату посилання
+    let formattedLink;
 
-        if (typeof link === 'string') {
-            formattedLink = link.indexOf('t.me/WINIX_Official_bot') >= 0
-                ? link
-                : 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
-        } else {
-            // Якщо link не рядок, просто створюємо посилання
-            formattedLink = 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
-            console.warn("⚠️ [STORE] Отримано некоректний формат посилання:", link);
-        }
+    if (typeof link === 'string') {
+        formattedLink = window.safeIncludes(link, 't.me/WINIX_Official_bot')
+            ? link
+            : 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+    } else {
+        // Якщо link не рядок, просто створюємо посилання
+        formattedLink = 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+        console.warn("⚠️ [STORE] Отримано некоректний формат посилання:", link);
+    }
 
-        dispatch(fetchReferralLinkSuccess(formattedLink));
-        return formattedLink;
-    })
+    dispatch(fetchReferralLinkSuccess(formattedLink));
+    return formattedLink;
+})
     };
   }
 
@@ -531,7 +531,7 @@ window.ReferralStore = (function() {
     };
   }
 
-  function fetchDirectBonusHistory(userId) {
+function fetchDirectBonusHistory(userId) {
     return function(dispatch) {
       dispatch(fetchDirectBonusHistoryRequest());
 
@@ -545,18 +545,34 @@ window.ReferralStore = (function() {
 
       return window.ReferralAPI.fetchReferralHistory(numericUserId, { type: 'bonus' })
         .then(function(historyData) {
+          // Перевіряємо, чи historyData взагалі є об'єктом
+          if (!historyData || typeof historyData !== 'object') {
+            console.warn('⚠️ [STORE] Отримано некоректні дані історії:', historyData);
+            historyData = {}; // Безпечне значення за замовчуванням
+          }
+
           // Нормалізуємо дані
           const normalizedData = {
-            totalBonus: historyData.totalBonus || 0,
-            history: historyData.history || historyData.bonuses || []
+            totalBonus: (historyData && historyData.totalBonus) || 0,
+            history: (historyData && (historyData.history || historyData.bonuses)) || []
           };
 
           dispatch(fetchDirectBonusHistorySuccess(normalizedData));
           return normalizedData;
         })
         .catch(function(error) {
+          console.error('❌ [STORE] Помилка отримання історії бонусів:', error);
+
+          // Повертаємо базову структуру при помилці
+          const fallbackData = {
+            totalBonus: 0,
+            history: [],
+            error: error.message
+          };
+
           dispatch(fetchDirectBonusHistoryFailure(error));
-          throw error;
+          // Повертаємо дані за замовчуванням замість викидання помилки
+          return fallbackData;
         });
     };
   }

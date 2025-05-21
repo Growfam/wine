@@ -61,28 +61,31 @@ window.ReferralIntegration = (function() {
   /**
    * Отримує ID користувача з різних джерел
    */
-  ReferralIntegration.prototype.getUserId = function() {
+ReferralIntegration.prototype.getUserId = function() {
     console.log('🔍 [INTEGRATION] Спроба отримання ID користувача з усіх доступних джерел');
+
     // Спочатку пробуємо з Telegram
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user && window.Telegram.WebApp.initDataUnsafe.user.id) {
-      console.log('🔍 [INTEGRATION] Перевірка ID у Telegram WebApp:',
-                window.Telegram.WebApp.initDataUnsafe?.user?.id);
-  }
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe &&
+        window.Telegram.WebApp.initDataUnsafe.user && window.Telegram.WebApp.initDataUnsafe.user.id) {
+        const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id;
+        console.log('🔍 [INTEGRATION] Знайдено ID у Telegram WebApp:', tgUserId);
+        return parseInt(tgUserId);
+    }
 
     // Потім з localStorage
     const storedId = localStorage.getItem('telegram_user_id') || localStorage.getItem('user_id');
     console.log('🔍 [INTEGRATION] ID у localStorage:', storedId);
     if (storedId) {
-      const numericId = parseInt(storedId);
-      if (!isNaN(numericId)) {
-        return numericId;
-      }
+        const numericId = parseInt(storedId);
+        if (!isNaN(numericId)) {
+            return numericId;
+        }
     }
 
     // Якщо нічого немає, використовуємо тестовий ID
     console.warn('[INTEGRATION] ID користувача не знайдено, використовуємо тестовий');
-    return null; // Числове значення замість строки
-  };
+    return 6859825214; // Тестовий ID як числове значення
+};
 
   /**
    * Ініціалізує Redux сховище
@@ -257,9 +260,12 @@ window.ReferralIntegration = (function() {
   /**
    * Завантажує початкові дані
    */
-  ReferralIntegration.prototype.loadInitialData = function() {
-    const self = this;
+ReferralIntegration.prototype.loadInitialData = function() {
+  const self = this;
+  const maxRetries = 3;
+  let retryCount = 0;
 
+  function attemptLoad() {
     return new Promise(function(resolve, reject) {
       console.log('📊 [INTEGRATION] Завантаження початкових даних...');
 
@@ -274,12 +280,23 @@ window.ReferralIntegration = (function() {
         resolve();
       })
       .catch(function(error) {
-        console.error('❌ [INTEGRATION] Помилка завантаження даних:', error);
-        self.showErrorMessage('Не вдалося завантажити дані. Перевірте підключення до інтернету.');
-        reject(error);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.warn(`❌ [INTEGRATION] Помилка завантаження даних (спроба ${retryCount}/${maxRetries}):`, error);
+          setTimeout(function() {
+            attemptLoad().then(resolve).catch(reject);
+          }, 1000 * retryCount); // Збільшуємо затримку з кожною спробою
+        } else {
+          console.error('❌ [INTEGRATION] Помилка завантаження даних:', error);
+          self.showErrorMessage('Не вдалося завантажити дані. Перевірте підключення до інтернету.');
+          reject(error);
+        }
       });
     });
-  };
+  }
+
+  return attemptLoad();
+}
 
   /**
    * Завантажує статистику рефералів
@@ -336,10 +353,18 @@ window.ReferralIntegration = (function() {
         conversionRate: "0"
     };
 
+    // Перевіряємо наявність даних і джерело
+    if (!statsData) {
+        console.warn('⚠️ [INTEGRATION] Відсутні дані статистики');
+    } else {
+        console.log('📊 [INTEGRATION] Джерело даних:', statsData.source || 'unknown');
+    }
+
+    // Обробка для різних форматів відповіді
     if (statsData && statsData.statistics) {
         stats.totalReferrals = statsData.statistics.totalReferrals || 0;
         stats.activeReferrals = statsData.statistics.activeReferrals || 0;
-        stats.inactiveReferrals = (stats.totalReferrals - stats.activeReferrals);
+        stats.inactiveReferrals = stats.totalReferrals - stats.activeReferrals;
 
         // Розрахунок відсотка конверсії
         if (stats.totalReferrals > 0) {
