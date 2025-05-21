@@ -1,4 +1,4 @@
-// api.js - Виправлена версія без mock даних
+// api.js - Виправлена версія з підтримкою авторизації
 /**
  * API функції для реферальної системи
  */
@@ -13,7 +13,20 @@ window.ReferralAPI = (function() {
     retryDelay: 1000
   };
 
-  // Утилітарна функція для виконання HTTP запитів з обробкою помилок
+  // Утилітарна функція для отримання токена авторизації
+  function getAuthToken() {
+    return localStorage.getItem('auth_token') ||
+           localStorage.getItem('jwt_token') ||
+           localStorage.getItem('token');
+  }
+
+  // Утилітарна функція для отримання ID користувача
+  function getUserId() {
+    return localStorage.getItem('telegram_user_id') ||
+           localStorage.getItem('user_id');
+  }
+
+  // Утилітарна функція для виконання HTTP запитів з обробкою помилок та авторизацією
   function apiRequest(url, options) {
     options = options || {};
     const controller = new AbortController();
@@ -21,52 +34,130 @@ window.ReferralAPI = (function() {
       controller.abort();
     }, API_CONFIG.timeout);
 
+    // Отримуємо авторизаційний токен та ID користувача
+    const token = getAuthToken();
+    const userId = getUserId();
+
+    // Встановлюємо базові заголовки
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    // Додаємо заголовок авторизації, якщо токен доступний
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+
+    // Додаємо Telegram User ID заголовок, якщо ID доступний
+    if (userId) {
+      headers['X-Telegram-User-Id'] = userId;
+    }
+
+    // Об'єднуємо заголовки з опціями запиту
     const fetchOptions = Object.assign({
       signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: headers
     }, options);
-console.log('🌐 [API REQUEST]:', url, fetchOptions);
 
-    return fetch(url, fetchOptions)
-      .then(function(response) {
-        clearTimeout(timeoutId);
+    console.log('🌐 [API REQUEST]:', url, {
+      method: fetchOptions.method || 'GET',
+      hasAuth: !!token,
+      userId: userId
+    });
 
-        // Перевіряємо чи відповідь в порядку
-        if (!response.ok) {
-          // Створюємо детальну помилку
-          const error = new Error('HTTP ' + response.status + ': ' + response.statusText);
-          error.status = response.status;
-          error.statusText = response.statusText;
-          throw error;
-        }
+    // Логуємо заголовки у розробці
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('Request headers:', fetchOptions.headers);
+    }
 
-        return response.json().catch(function() {
-          // Якщо не можемо парсити JSON, повертаємо пусту відповідь
-          return {};
+    let retryCount = 0;
+
+    function executeRequest() {
+      return fetch(url, fetchOptions)
+        .then(function(response) {
+          clearTimeout(timeoutId);
+
+          // Перевіряємо відповідь
+          if (!response.ok) {
+            // Якщо це помилка авторизації, спробуємо оновити токен
+            if (response.status === 401 && retryCount < API_CONFIG.retryAttempts) {
+              return refreshTokenAndRetry();
+            }
+
+            // Створюємо детальну помилку
+            const error = new Error('HTTP ' + response.status + ': ' + response.statusText);
+            error.status = response.status;
+            error.statusText = response.statusText;
+            throw error;
+          }
+
+          return response.json().catch(function() {
+            // Якщо не можемо парсити JSON, повертаємо пусту відповідь
+            return {};
+          });
+        })
+        .catch(function(error) {
+          clearTimeout(timeoutId);
+
+          // Якщо це не помилка авторизації або ми вже намагалися оновити токен занадто багато разів
+          if (error.status !== 401 || retryCount >= API_CONFIG.retryAttempts) {
+            // Обробляємо різні типи помилок
+            if (error.name === 'AbortError') {
+              throw new Error('Запит перевищив час очікування (' + API_CONFIG.timeout + 'мс)');
+            }
+
+            if (error.status === 404) {
+              throw new Error('API ендпоінт не знайдено: ' + url);
+            }
+
+            if (error.status >= 500) {
+              throw new Error('Помилка сервера (' + error.status + ')');
+            }
+
+            throw error;
+          }
+
+          // Спробуємо оновити токен і повторити запит
+          return refreshTokenAndRetry();
         });
+    }
+
+    // Функція для оновлення токена і повторення запиту
+    function refreshTokenAndRetry() {
+      retryCount++;
+      console.warn(`Спроба оновити токен авторизації (спроба ${retryCount}/${API_CONFIG.retryAttempts})...`);
+
+      return fetch('/api/auth/refresh-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-User-Id': userId || ''
+        },
+        body: JSON.stringify({ telegram_id: userId })
       })
-      .catch(function(error) {
-        clearTimeout(timeoutId);
+      .then(response => response.json())
+      .then(data => {
+        if (data.token || data.data && data.data.token) {
+          const newToken = data.token || data.data.token;
+          localStorage.setItem('auth_token', newToken);
+          console.log('Токен оновлено успішно!');
 
+          // Оновлюємо заголовок авторизації для повторного запиту
+          fetchOptions.headers['Authorization'] = 'Bearer ' + newToken;
 
-
-        // Обробляємо різні типи помилок
-        if (error.name === 'AbortError') {
-          throw new Error('Запит перевищив час очікування (' + API_CONFIG.timeout + 'мс)');
+          // Повторно виконуємо запит
+          return executeRequest();
+        } else {
+          throw new Error('Не вдалося оновити токен авторизації');
         }
-
-        if (error.status === 404) {
-          throw new Error('API ендпоінт не знайдено: ' + url);
-        }
-
-        if (error.status >= 500) {
-          throw new Error('Помилка сервера (' + error.status + ')');
-        }
-
-        throw error;
+      })
+      .catch(err => {
+        console.error('Помилка оновлення токена:', err);
+        throw err;
       });
+    }
+
+    return executeRequest();
   }
 
   // Основні API функції
@@ -161,7 +252,6 @@ console.log('🌐 [API REQUEST]:', url, fetchOptions);
   }
 
   // fetchReferralLink.js
-// fetchReferralLink.js - ОНОВЛЕНО
   function fetchReferralLink(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання реферального посилання'));
@@ -670,6 +760,36 @@ console.log('🌐 [API REQUEST]:', url, fetchOptions);
     return apiRequest(url);
   }
 
+  // Функція для оновлення токена авторизації
+  function refreshAuthToken() {
+    const userId = getUserId();
+    if (!userId) {
+      return Promise.reject(new Error('ID користувача відсутній'));
+    }
+
+    console.log('Спроба оновити токен авторизації для користувача:', userId);
+
+    return fetch('/api/auth/refresh-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-User-Id': userId
+      },
+      body: JSON.stringify({ telegram_id: userId })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.token || (data.data && data.data.token)) {
+        const newToken = data.token || data.data.token;
+        localStorage.setItem('auth_token', newToken);
+        console.log('Токен оновлено успішно!');
+        return newToken;
+      } else {
+        throw new Error('Не вдалося оновити токен авторизації');
+      }
+    });
+  }
+
   // Функція для перевірки доступності API
   function checkAPIHealth() {
     return apiRequest(API_CONFIG.baseUrl + '/health')
@@ -691,6 +811,9 @@ console.log('🌐 [API REQUEST]:', url, fetchOptions);
     // Утиліти
     apiRequest: apiRequest,
     checkAPIHealth: checkAPIHealth,
+    refreshAuthToken: refreshAuthToken,
+    getAuthToken: getAuthToken,
+    getUserId: getUserId,
 
     // Основні API функції
     fetchUserBadges: fetchUserBadges,
