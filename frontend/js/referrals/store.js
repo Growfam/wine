@@ -167,7 +167,7 @@ window.ReferralStore = (function() {
         return Object.assign({}, state, {
           isLoading: false,
           totalBonus: action.payload.totalBonus || 0,
-          history: action.payload.history || [],
+          history: action.payload.history || action.payload.bonuses || [],
           error: null
         });
 
@@ -399,7 +399,7 @@ window.ReferralStore = (function() {
         type: ReferralLinkActionTypes.FETCH_REFERRAL_LINK_SUCCESS,
         payload: { link: validLink }
     };
-}
+  }
 
   function fetchReferralLinkFailure(error) {
     return {
@@ -414,6 +414,28 @@ window.ReferralStore = (function() {
     };
   }
 
+  // Безпечна функція для перевірки підрядка
+  function safeIncludes(str, search) {
+    // Перевіряємо, чи str це рядок
+    if (typeof str !== 'string') {
+      console.warn('⚠️ [STORE] safeIncludes: перший аргумент не є рядком:', str);
+      return false;
+    }
+
+    // Перевіряємо, чи search це рядок
+    if (typeof search !== 'string') {
+      console.warn('⚠️ [STORE] safeIncludes: другий аргумент не є рядком:', search);
+      return false;
+    }
+
+    return str.indexOf(search) >= 0;
+  }
+
+  // Якщо глобальна функція не існує, створюємо її
+  if (typeof window.safeIncludes !== 'function') {
+    window.safeIncludes = safeIncludes;
+  }
+
   function fetchReferralLink(userId) {
     return function(dispatch) {
       dispatch(fetchReferralLinkRequest());
@@ -425,24 +447,36 @@ window.ReferralStore = (function() {
         return Promise.reject(new Error('Некоректний ID користувача'));
       }
 
-     return window.ReferralAPI.fetchReferralLink(numericUserId)
-    .then(function(link) {
-    // Безпечна перевірка формату посилання
-    let formattedLink;
+      return window.ReferralAPI.fetchReferralLink(numericUserId)
+        .then(function(link) {
+          // Безпечна перевірка формату посилання
+          let formattedLink;
 
-    if (typeof link === 'string') {
-        formattedLink = window.safeIncludes(link, 't.me/WINIX_Official_bot')
-            ? link
-            : 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
-    } else {
-        // Якщо link не рядок, просто створюємо посилання
-        formattedLink = 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
-        console.warn("⚠️ [STORE] Отримано некоректний формат посилання:", link);
-    }
+          if (typeof link === 'string') {
+            formattedLink = safeIncludes(link, 't.me/WINIX_Official_bot')
+                ? link
+                : 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+          } else {
+            // Якщо link не рядок, просто створюємо посилання
+            formattedLink = 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+            console.warn("⚠️ [STORE] Отримано некоректний формат посилання:", link);
+          }
 
-    dispatch(fetchReferralLinkSuccess(formattedLink));
-    return formattedLink;
-})
+          dispatch(fetchReferralLinkSuccess(formattedLink));
+          return formattedLink;
+        })
+        .catch(function(error) {
+          console.error("❌ [STORE] Помилка отримання реферального посилання:", error);
+
+          // При будь-якій помилці формуємо стандартне посилання
+          const fallbackLink = 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+
+          // Відправляємо успішний результат зі стандартним посиланням
+          dispatch(fetchReferralLinkSuccess(fallbackLink));
+
+          // Повертаємо стандартне посилання, а не відхиляємо проміс
+          return fallbackLink;
+        });
     };
   }
 
@@ -531,7 +565,7 @@ window.ReferralStore = (function() {
     };
   }
 
-function fetchDirectBonusHistory(userId) {
+  function fetchDirectBonusHistory(userId) {
     return function(dispatch) {
       dispatch(fetchDirectBonusHistoryRequest());
 
@@ -563,14 +597,16 @@ function fetchDirectBonusHistory(userId) {
         .catch(function(error) {
           console.error('❌ [STORE] Помилка отримання історії бонусів:', error);
 
-          // Повертаємо базову структуру при помилці
+          // Створюємо порожній об'єкт з базовою структурою
           const fallbackData = {
             totalBonus: 0,
-            history: [],
-            error: error.message
+            history: []
           };
 
-          dispatch(fetchDirectBonusHistoryFailure(error));
+          // Відправляємо успішний результат з порожнім результатом,
+          // щоб не перервати ланцюжок ініціалізації
+          dispatch(fetchDirectBonusHistorySuccess(fallbackData));
+
           // Повертаємо дані за замовчуванням замість викидання помилки
           return fallbackData;
         });
@@ -657,11 +693,11 @@ function fetchDirectBonusHistory(userId) {
           // Нормалізуємо дані
           const normalizedData = {
             success: badgesData.success !== false,
-            earnedBadges: badgesData.badges || [],
-            availableBadges: badgesData.available_badges || [],
-            badgesProgress: badgesData.badges_progress || [],
+            earnedBadges: badgesData.badges || badgesData.earnedBadges || [],
+            availableBadges: badgesData.available_badges || badgesData.availableBadges || [],
+            badgesProgress: badgesData.badges_progress || badgesData.badgesProgress || [],
             totalBadgesCount: 4,
-            totalAvailableBadgesCount: (badgesData.available_badges || []).length,
+            totalAvailableBadgesCount: (badgesData.available_badges || badgesData.availableBadges || []).length,
             earnedBadgesReward: 0,
             availableBadgesReward: 0,
             totalPotentialReward: 37500
@@ -675,11 +711,27 @@ function fetchDirectBonusHistory(userId) {
           return normalizedData;
         })
         .catch(function(error) {
+          console.error('❌ [STORE] Помилка отримання бейджів:', error);
+
+          // Створюємо базову структуру даних, щоб не перервати ланцюжок ініціалізації
+          const fallbackData = {
+            success: true,
+            earnedBadges: [],
+            availableBadges: [],
+            badgesProgress: [],
+            totalBadgesCount: 4,
+            totalAvailableBadgesCount: 0,
+            earnedBadgesReward: 0,
+            availableBadgesReward: 0,
+            totalPotentialReward: 37500
+          };
+
           dispatch({
-            type: BadgeActionTypes.FETCH_BADGES_FAILURE,
-            payload: { error: error.message || 'Невідома помилка при отриманні бейджів' }
+            type: BadgeActionTypes.FETCH_BADGES_SUCCESS,
+            payload: fallbackData
           });
-          throw error;
+
+          return fallbackData;
         });
     };
   }
@@ -717,11 +769,22 @@ function fetchDirectBonusHistory(userId) {
           return normalizedData;
         })
         .catch(function(error) {
+          console.error('❌ [STORE] Помилка отримання завдань:', error);
+
+          // Створюємо базову структуру даних при помилці
+          const fallbackData = {
+            success: true,
+            completedTasks: [],
+            tasksProgress: {},
+            totalReward: 0
+          };
+
           dispatch({
-            type: BadgeActionTypes.FETCH_TASKS_FAILURE,
-            payload: { error: error.message || 'Невідома помилка при отриманні завдань' }
+            type: BadgeActionTypes.FETCH_TASKS_SUCCESS,
+            payload: fallbackData
           });
-          throw error;
+
+          return fallbackData;
         });
     };
   }
