@@ -31,6 +31,14 @@
     // Поточна мова інтерфейсу
     let _currentLang = 'uk';
 
+    // Дані користувача за замовчуванням для захисного механізму
+    const DEFAULT_USER_DATA = {
+        telegram_id: '',
+        balance: 0,
+        coins: 0,
+        source: 'default_fallback'
+    };
+
     // Перевірка базового API з додатковими перевірками
     const hasApiModule = () => {
         try {
@@ -89,7 +97,7 @@
     }
 
     /**
-     * Отримати локалізований текст за поточною мовою
+     * Отримання локалізований текст за поточною мовою
      * @param {string} key - Ключ повідомлення
      * @returns {string} - Локалізований текст
      */
@@ -254,11 +262,51 @@
     }
 
     /**
+     * Створення заглушки для WinixAPI якщо вона не існує
+     */
+    function createWinixAPIStub() {
+        if (typeof window.WinixAPI === 'undefined') {
+            console.log('📢 AUTH: Створення WinixAPI як глобальної заглушки');
+            window.WinixAPI = {
+                apiRequest: async function(endpoint, method, data, options) {
+                    console.log('🔄 AUTH: Виклик apiRequest заглушки:', endpoint);
+                    return { status: 'success', data: {} };
+                },
+                getUserId: function() {
+                    const userId = getUserIdFromAllSources();
+                    console.log('🔍 AUTH: getUserId заглушки повертає:', userId);
+                    return userId;
+                },
+                refreshToken: async function() {
+                    console.log('🔄 AUTH: Виклик refreshToken заглушки');
+                    return true;
+                },
+                getUserData: async function() {
+                    console.log('🔄 AUTH: Виклик getUserData заглушки');
+                    const userId = getUserIdFromAllSources();
+                    return {
+                        status: 'success',
+                        data: {
+                            telegram_id: userId || 'unknown',
+                            balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                            coins: parseInt(localStorage.getItem('userCoins') || '0'),
+                            source: 'winixapi_stub'
+                        }
+                    };
+                }
+            };
+        }
+    }
+
+    /**
      * Функція безпечної ініціалізації
      * Спочатку перевіряє наявність API модуля з затримкою
      */
     async function safeInit() {
         try {
+            // Створюємо заглушку для WinixAPI, якщо вона не існує
+            createWinixAPIStub();
+
             // Перевіряємо наявність API модуля з затримкою для його завантаження
             if (!hasApiModule()) {
                 console.warn("🔐 AUTH: API модуль не знайдено, очікуємо 2 секунди...");
@@ -267,20 +315,7 @@
                 // Повторна перевірка
                 if (!hasApiModule()) {
                     console.error("🔐 AUTH: API модуль недоступний навіть після очікування");
-                    // Створюємо заглушку для API, щоб уникнути помилок
-                    window.WinixAPI = window.WinixAPI || {
-                        apiRequest: async () => ({ status: 'error', message: 'API недоступний', source: 'stub' }),
-                        getUserId: () => getUserIdFromAllSources(),
-                        getUserData: async () => ({
-                            status: 'success',
-                            source: 'stub',
-                            data: {
-                                telegram_id: getUserIdFromAllSources() || 'unknown',
-                                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                                coins: parseInt(localStorage.getItem('userCoins') || '0')
-                            }
-                        })
-                    };
+                    // Заглушка вже створена вище
                 }
             }
 
@@ -309,16 +344,16 @@
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
-           // Якщо немає кешованих даних, але виклик занадто частий
-if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
-    const userId = getUserIdFromAllSources();
-    return {
-        telegram_id: userId || 'unknown',
-        balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-        coins: parseInt(localStorage.getItem('userCoins') || '0'),
-        source: 'throttled_init'
-    };
-}
+            // Якщо немає кешованих даних, але виклик занадто частий
+            if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
+                const userId = getUserIdFromAllSources();
+                return {
+                    telegram_id: userId || 'unknown',
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0'),
+                    source: 'throttled_init'
+                };
+            }
 
             // Інакше дозволяємо продовжити з оновленням часу запиту
         }
@@ -340,61 +375,70 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
 
         // Перевіряємо, чи є Telegram WebApp
         if (!window.Telegram || !window.Telegram.WebApp) {
-            console.error("❌ AUTH: Telegram WebApp не знайдено");
-            return Promise.reject(new Error("Telegram WebApp not available"));
+            console.warn("⚠️ AUTH: Telegram WebApp не знайдено, продовжуємо без нього");
         }
 
         // Перевіряємо наявність API модуля
         if (!hasApiModule()) {
-            console.error("❌ AUTH: API модуль недоступний");
-
-            // Повертаємо базові дані з localStorage як запасний варіант
-            const userId = getUserIdFromAllSources();
-            return {
-                telegram_id: userId || 'unknown',
-                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                coins: parseInt(localStorage.getItem('userCoins') || '0'),
-                source: 'localStorage_fallback'
-            };
+            console.warn("⚠️ AUTH: API модуль недоступний, використовуємо заглушку");
+            createWinixAPIStub();
         }
 
-        // Перевіряємо необхідність оновлення токену через WinixAPI
-       try {
-            console.log('🔄 [AUTH] Спроба оновлення токену через WinixAPI, доступність методу:',
-  typeof window.WinixAPI?.refreshToken === 'function');
-  if (window.WinixAPI && typeof window.WinixAPI.refreshToken === 'function') {
-    await window.WinixAPI.refreshToken();
-    console.log('✅ [AUTH] Токен успішно оновлено');
-    } else {
-    console.warn('⚠️ [AUTH] Метод refreshToken не доступний');
-  }
-} catch (e) {
-  console.warn("⚠️ AUTH: Помилка оновлення токену:", e);
-  console.warn("⚠️ [AUTH] Stack trace:", e.stack);
-}
-
-        // Отримуємо дані користувача через getUserData
         try {
+            console.log('🔄 [AUTH] Спроба оновлення токену');
+
+            // Спроба виконати refreshToken, якщо це можливо
+            if (window.WinixAPI && typeof window.WinixAPI.refreshToken === 'function') {
+                try {
+                    await window.WinixAPI.refreshToken();
+                    console.log('✅ [AUTH] Токен успішно оновлено');
+                } catch (e) {
+                    console.warn("⚠️ AUTH: Помилка оновлення токену:", e);
+                }
+            } else {
+                console.warn('⚠️ [AUTH] Метод refreshToken не доступний');
+            }
+
+            // Отримуємо дані користувача через getUserData
             return await getUserData();
         } catch (error) {
             console.warn("⚠️ AUTH: Помилка під час getUserData, спробуємо authorizeUser:", error);
 
             // Якщо getUserData не спрацював, використовуємо authorizeUser як резервний варіант
-            const tg = window.Telegram.WebApp;
+            const tg = window.Telegram && window.Telegram.WebApp;
             let authData = {};
 
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 authData = {
                     ...tg.initDataUnsafe.user,
                     initData: tg.initData || ""
                 };
             } else {
                 authData = {
-                    initData: tg.initData || ""
+                    initData: tg ? (tg.initData || "") : ""
                 };
             }
 
-            return authorizeUser(authData);
+            try {
+                return await authorizeUser(authData);
+            } catch (authError) {
+                console.error("❌ AUTH: Помилка під час authorizeUser:", authError);
+
+                // Якщо все не вдалося, повертаємо дані за замовчуванням
+                const userId = getUserIdFromAllSources() || 'unknown';
+                const fallbackData = {
+                    ...DEFAULT_USER_DATA,
+                    telegram_id: userId,
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0'),
+                    source: 'critical_error_fallback'
+                };
+
+                // Зберігаємо ці дані у сховище
+                window.WinixAuth.currentUser = fallbackData;
+
+                return fallbackData;
+            }
         }
     }
 
@@ -463,16 +507,24 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
 
             // Перевіряємо наявність API модуля
             if (!hasApiModule()) {
-                console.error("❌ AUTH: API модуль недоступний");
+                console.warn("⚠️ AUTH: API модуль недоступний для авторизації");
                 if (spinner) spinner.classList.remove('show');
 
+                // Створюємо заглушку, якщо WinixAPI не існує
+                createWinixAPIStub();
+
                 // Повертаємо базові дані з localStorage як запасний варіант
-                return {
+                const fallbackData = {
                     telegram_id: userId,
                     balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                     coins: parseInt(localStorage.getItem('userCoins') || '0'),
-                    source: 'localStorage_fallback'
+                    source: 'localStorage_fallback_auth'
                 };
+
+                // Зберігаємо ці дані у сховище
+                window.WinixAuth.currentUser = fallbackData;
+
+                return fallbackData;
             }
 
             // Виконуємо запит авторизації через WinixAPI
@@ -485,43 +537,37 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
                 // Приховуємо індикатор завантаження
                 if (spinner) spinner.classList.remove('show');
 
-                if (response.status === 'success') {
+                if (response && response.status === 'success') {
                     // Зберігаємо дані користувача
-                    // Зберігаємо дані користувача
-const userData = response.data;
-window.WinixAuth.currentUser = userData;
-console.log("✅ AUTH: Користувача успішно авторизовано", userData);
+                    const userData = response.data || {};
+                    window.WinixAuth.currentUser = userData;
+                    console.log("✅ AUTH: Користувача успішно авторизовано", userData);
 
-if (userData && userData.balance !== undefined) {
-    localStorage.setItem('userTokens', String(userData.balance));
-    localStorage.setItem('winix_balance', String(userData.balance));
-} else {
-    console.warn("⚠️ AUTH: Баланс користувача відсутній або невалідний");
-    // Залишаємо попереднє значення
-}
+                    // Зберігаємо баланс і жетони з перевірками на валідність
+                    if (userData && userData.balance !== undefined && userData.balance !== null) {
+                        localStorage.setItem('userTokens', String(userData.balance));
+                        localStorage.setItem('winix_balance', String(userData.balance));
+                    } else {
+                        console.warn("⚠️ AUTH: Баланс користувача відсутній або невалідний");
+                        // Встановлюємо значення за замовчуванням
+                        localStorage.setItem('userTokens', '0');
+                        localStorage.setItem('winix_balance', '0');
+                    }
 
-if (userData && userData.coins !== undefined) {
-    localStorage.setItem('userCoins', String(userData.coins));
-    localStorage.setItem('winix_coins', String(userData.coins));
-} else {
-    console.warn("⚠️ AUTH: Монети користувача відсутні або невалідні");
-    // Залишаємо попереднє значення
-}
-
-                   // Зберігаємо баланс і жетони в localStorage
-if (userData && userData.balance !== undefined) {
-    localStorage.setItem('userTokens', userData.balance.toString());
-    localStorage.setItem('winix_balance', userData.balance.toString());
-} else if (userData) {
-    // Встановлюємо значення за замовчуванням, якщо balance відсутній
-    localStorage.setItem('userTokens', '0');
-    localStorage.setItem('winix_balance', '0');
-}
+                    if (userData && userData.coins !== undefined && userData.coins !== null) {
+                        localStorage.setItem('userCoins', String(userData.coins));
+                        localStorage.setItem('winix_coins', String(userData.coins));
+                    } else {
+                        console.warn("⚠️ AUTH: Монети користувача відсутні або невалідні");
+                        // Встановлюємо значення за замовчуванням
+                        localStorage.setItem('userCoins', '0');
+                        localStorage.setItem('winix_coins', '0');
+                    }
 
                     // Показуємо вітальне повідомлення для нових користувачів
                     if (response && response.data && response.data.is_new_user) {
-    showWelcomeMessage();
-}
+                        showWelcomeMessage();
+                    }
 
                     // Відправляємо подію про успішну авторизацію
                     document.dispatchEvent(new CustomEvent(EVENT_AUTH_SUCCESS, {
@@ -568,24 +614,34 @@ if (userData && userData.balance !== undefined) {
                 }));
 
                 // Повертаємо базові дані з localStorage як запасний варіант
-                return {
+                const fallbackData = {
                     telegram_id: userId,
                     balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                     coins: parseInt(localStorage.getItem('userCoins') || '0'),
-                    source: 'localStorage_fallback'
+                    source: 'localStorage_fallback_auth_error'
                 };
+
+                // Зберігаємо ці дані у сховище
+                window.WinixAuth.currentUser = fallbackData;
+
+                return fallbackData;
             }
         } catch (e) {
             console.error("❌ AUTH: Неочікувана помилка в authorizeUser:", e);
 
             // Повертаємо базові дані з localStorage як запасний варіант
             const userId = getUserIdFromAllSources();
-            return {
+            const fallbackData = {
                 telegram_id: userId || 'unknown',
                 balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                 coins: parseInt(localStorage.getItem('userCoins') || '0'),
-                source: 'localStorage_fallback'
+                source: 'localStorage_fallback_auth_critical'
             };
+
+            // Зберігаємо ці дані у сховище
+            window.WinixAuth.currentUser = fallbackData;
+
+            return fallbackData;
         } finally {
             _authRequestInProgress = false;
         }
@@ -608,12 +664,17 @@ if (userData && userData.balance !== undefined) {
 
             // Повертаємо базові дані з localStorage
             const userId = getUserIdFromAllSources();
-            return {
+            const userData = {
                 telegram_id: userId || 'unknown',
                 balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                 coins: parseInt(localStorage.getItem('userCoins') || '0'),
                 source: 'localStorage_offline'
             };
+
+            // Зберігаємо ці дані у сховище
+            window.WinixAuth.currentUser = userData;
+
+            return userData;
         }
 
         // Запобігання паралельним запитам
@@ -625,7 +686,16 @@ if (userData && userData.balance !== undefined) {
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
-            return Promise.reject(new Error("Запит даних користувача вже виконується"));
+            // Повертаємо тимчасові дані
+            const userId = getUserIdFromAllSources();
+            const userData = {
+                telegram_id: userId || 'unknown',
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0'),
+                source: 'temp_during_request'
+            };
+
+            return userData;
         }
 
         // Запобігання частим запитам
@@ -639,10 +709,16 @@ if (userData && userData.balance !== undefined) {
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
-            return Promise.reject({
-                message: "Занадто частий запит даних користувача",
-                retryAfter: MIN_REQUEST_INTERVAL - timeSinceLastRequest
-            });
+            // Повертаємо тимчасові дані
+            const userId = getUserIdFromAllSources();
+            const userData = {
+                telegram_id: userId || 'unknown',
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0'),
+                source: 'throttled_request'
+            };
+
+            return userData;
         }
 
         _lastRequestTime = now;
@@ -652,6 +728,7 @@ if (userData && userData.balance !== undefined) {
             // Отримуємо ID користувача
             const userId = getUserIdFromAllSources();
             if (!userId) {
+                console.error("❌ AUTH: Не вдалося отримати ID користувача");
                 throw new Error("Не вдалося отримати ID користувача");
             }
 
@@ -667,8 +744,11 @@ if (userData && userData.balance !== undefined) {
 
             // Перевіряємо наявність API модуля
             if (!hasApiModule()) {
-                console.error("❌ AUTH: API модуль недоступний");
+                console.warn("⚠️ AUTH: API модуль недоступний для getUserData");
                 if (spinner) spinner.classList.remove('show');
+
+                // Створюємо заглушку, якщо WinixAPI не існує
+                createWinixAPIStub();
 
                 // Якщо API недоступний, але є кешовані дані - повертаємо їх
                 if (window.WinixAuth.currentUser) {
@@ -676,40 +756,62 @@ if (userData && userData.balance !== undefined) {
                 }
 
                 // Повертаємо базові дані з localStorage
-                return {
+                const userData = {
                     telegram_id: userId,
                     balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                     coins: parseInt(localStorage.getItem('userCoins') || '0'),
-                    source: 'localStorage_no_api'
+                    source: 'localStorage_no_api_getdata'
                 };
+
+                // Зберігаємо ці дані у сховище
+                window.WinixAuth.currentUser = userData;
+
+                return userData;
             }
 
             try {
                 // Отримуємо дані користувача через WinixAPI
-               let response;
-if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
-    response = await window.WinixAPI.getUserData(forceRefresh);
-} else {
-    // Запасний варіант, якщо функція недоступна
-    const userId = getUserId();
-    response = {
-        status: 'success',
-        data: {
-            telegram_id: userId || 'unknown',
-            balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-            coins: parseInt(localStorage.getItem('userCoins') || '0')
-        }
-    };
-    console.log("⚠️ AUTH: Використовуємо запасні дані, getUserData недоступний");
-}
+                let response;
+                if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
+                    response = await window.WinixAPI.getUserData(forceRefresh);
+                } else {
+                    // Запасний варіант, якщо функція недоступна
+                    response = {
+                        status: 'success',
+                        data: {
+                            telegram_id: userId || 'unknown',
+                            balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                            coins: parseInt(localStorage.getItem('userCoins') || '0'),
+                            source: 'userdata_stub'
+                        }
+                    };
+                    console.log("⚠️ AUTH: Використовуємо запасні дані, getUserData недоступний");
+                }
 
                 // Приховуємо індикатор завантаження
                 if (spinner) spinner.classList.remove('show');
 
                 if (response && response.status === 'success' && response.data) {
+                    // Перевіряємо дані на валідність і встановлюємо значення за замовчуванням
+                    if (response.data.balance === undefined || response.data.balance === null) {
+                        console.warn("⚠️ AUTH: Баланс відсутній у відповіді, встановлюємо значення за замовчуванням");
+                        response.data.balance = parseFloat(localStorage.getItem('userTokens') || '0');
+                    }
+
+                    if (response.data.coins === undefined || response.data.coins === null) {
+                        console.warn("⚠️ AUTH: Монети відсутні у відповіді, встановлюємо значення за замовчуванням");
+                        response.data.coins = parseInt(localStorage.getItem('userCoins') || '0');
+                    }
+
                     // Зберігаємо дані
                     window.WinixAuth.currentUser = response.data;
                     console.log("✅ AUTH: Дані користувача успішно отримано", response.data);
+
+                    // Зберігаємо дані в localStorage
+                    localStorage.setItem('userTokens', String(response.data.balance));
+                    localStorage.setItem('winix_balance', String(response.data.balance));
+                    localStorage.setItem('userCoins', String(response.data.coins));
+                    localStorage.setItem('winix_coins', String(response.data.coins));
 
                     // Відправляємо подію оновлення даних
                     document.dispatchEvent(new CustomEvent(EVENT_USER_DATA_UPDATED, {
@@ -737,9 +839,6 @@ if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
                     }
                 }));
 
-                // Показуємо повідомлення про помилку
-                showError(getLocalizedText('dataError'));
-
                 // Якщо не вдалося отримати свіжі дані, повертаємо старі (якщо вони є)
                 if (window.WinixAuth.currentUser) {
                     console.warn("⚠️ AUTH: Використовуємо кешовані дані користувача");
@@ -747,12 +846,17 @@ if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
                 }
 
                 // Повертаємо базові дані з localStorage
-                return {
+                const userData = {
                     telegram_id: userId,
                     balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                     coins: parseInt(localStorage.getItem('userCoins') || '0'),
                     source: 'localStorage_after_error'
                 };
+
+                // Зберігаємо ці дані у сховище
+                window.WinixAuth.currentUser = userData;
+
+                return userData;
             }
         } catch (e) {
             console.error("❌ AUTH: Неочікувана помилка в getUserData:", e);
@@ -764,12 +868,17 @@ if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
 
             // Повертаємо базові дані з localStorage
             const userId = getUserIdFromAllSources();
-            return {
+            const userData = {
                 telegram_id: userId || 'unknown',
                 balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                 coins: parseInt(localStorage.getItem('userCoins') || '0'),
                 source: 'localStorage_after_critical_error'
             };
+
+            // Зберігаємо ці дані у сховище
+            window.WinixAuth.currentUser = userData;
+
+            return userData;
         } finally {
             _userDataRequestInProgress = false;
         }
@@ -826,12 +935,14 @@ if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
                 }
             }
 
-            // Перевіряємо чи треба оновити токен (через WinixAPI)
+            // Перевіряємо чи треба оновити токен
             if (hasApiModule()) {
                 try {
-                    window.WinixAPI.refreshToken()
-                        .then(() => console.log("✅ AUTH: Токен успішно оновлено"))
-                        .catch(err => console.warn("⚠️ AUTH: Помилка оновлення токену:", err));
+                    if (typeof window.WinixAPI.refreshToken === 'function') {
+                        window.WinixAPI.refreshToken()
+                            .then(() => console.log("✅ AUTH: Токен успішно оновлено"))
+                            .catch(err => console.warn("⚠️ AUTH: Помилка оновлення токену:", err));
+                    }
                 } catch (e) {
                     console.warn("⚠️ AUTH: Помилка виклику refreshToken:", e);
                 }
@@ -868,12 +979,17 @@ if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
 
             // Повертаємо базові дані з localStorage
             const userId = getUserIdFromAllSources();
-            return {
+            const userData = {
                 telegram_id: userId || 'unknown',
                 balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                 coins: parseInt(localStorage.getItem('userCoins') || '0'),
-                source: 'localStorage_offline'
+                source: 'localStorage_offline_refresh'
             };
+
+            // Зберігаємо ці дані у сховище
+            window.WinixAuth.currentUser = userData;
+
+            return userData;
         }
 
         console.log("🔄 AUTH: Примусове оновлення даних користувача");
