@@ -1,4 +1,4 @@
-// api.js - Виправлена версія з підтримкою авторизації (без process.env)
+// api.js - Виправлена версія з підтримкою авторизації
 /**
  * API функції для реферальної системи
  */
@@ -8,14 +8,35 @@ window.ReferralAPI = (function() {
   // Базова конфігурація API
   const API_CONFIG = {
     baseUrl: '/api',
-    timeout: 10000,
+    timeout: 15000, // Збільшено таймаут
     retryAttempts: 3,
     retryDelay: 1000
   };
 
-
   // Налаштування логування
   const DEBUG = true; // Прапорець для режиму відлагодження
+
+  // Ініціалізація WinixAPI, якщо вона не існує
+  if (typeof window.WinixAPI === 'undefined') {
+    console.log('📢 [API] Створення WinixAPI як глобальної заглушки');
+    window.WinixAPI = {
+      apiRequest: async function(endpoint, method, data, options) {
+        console.log('🔄 [API] Виклик apiRequest заглушки:', endpoint);
+        return { status: 'success', data: {} };
+      },
+      getUserId: function() {
+        const userId = localStorage.getItem('telegram_user_id') ||
+                       localStorage.getItem('user_id') ||
+                       null;
+        console.log('🔍 [API] getUserId заглушки повертає:', userId);
+        return userId;
+      },
+      refreshToken: async function() {
+        console.log('🔄 [API] Виклик refreshToken заглушки');
+        return true;
+      }
+    };
+  }
 
   // Утилітарна функція для отримання токена авторизації
   function getAuthToken() {
@@ -26,23 +47,17 @@ window.ReferralAPI = (function() {
 
   // Утилітарна функція для отримання ID користувача
   function getUserId() {
+    // Спочатку спробуємо через WinixAPI
+    if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
+      const apiId = window.WinixAPI.getUserId();
+      if (apiId && apiId !== 'undefined' && apiId !== 'null') {
+        return apiId;
+      }
+    }
+
     return localStorage.getItem('telegram_user_id') ||
            localStorage.getItem('user_id');
   }
-
-  if (typeof window.WinixAPI === 'undefined') {
-  console.log('📢 Створення WinixAPI як глобальної змінної');
-  window.WinixAPI = {
-    apiRequest: async function(endpoint, method, data, options) {
-      // Базова імплементація
-      // ...
-      return { status: 'success' };
-    },
-    getUserId: function() {
-      return localStorage.getItem('telegram_user_id') || null;
-    }
-  };
-}
 
   // Утилітарна функція для виконання HTTP запитів з обробкою помилок та авторизацією
   function apiRequest(url, options) {
@@ -58,7 +73,9 @@ window.ReferralAPI = (function() {
 
     // Встановлюємо базові заголовки
     const headers = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
     };
 
     // Додаємо заголовок авторизації, якщо токен доступний
@@ -91,7 +108,12 @@ window.ReferralAPI = (function() {
     let retryCount = 0;
 
     function executeRequest() {
-      return fetch(url, fetchOptions)
+      // Додаємо параметр timestamp для запобігання кешування
+      const urlWithTimestamp = url.includes('?')
+        ? url + '&t=' + Date.now()
+        : url + '?t=' + Date.now();
+
+      return fetch(urlWithTimestamp, fetchOptions)
         .then(function(response) {
           clearTimeout(timeoutId);
 
@@ -109,9 +131,18 @@ window.ReferralAPI = (function() {
             throw error;
           }
 
-          return response.json().catch(function() {
-            // Якщо не можемо парсити JSON, повертаємо пусту відповідь
-            return {};
+          // Спробуємо парсити JSON відповідь
+          return response.json().catch(function(err) {
+            console.warn('⚠️ [API] Неможливо парсити відповідь як JSON, повертаємо текст');
+            return response.text().then(text => {
+              try {
+                // Якщо це валідний JSON, але помилка парсингу
+                return JSON.parse(text);
+              } catch(e) {
+                // Якщо це не JSON взагалі
+                return { success: true, text: text };
+              }
+            });
           });
         })
         .catch(function(error) {
@@ -143,36 +174,64 @@ window.ReferralAPI = (function() {
     // Функція для оновлення токена і повторення запиту
     function refreshTokenAndRetry() {
       retryCount++;
-      console.warn(`Спроба оновити токен авторизації (спроба ${retryCount}/${API_CONFIG.retryAttempts})...`);
+      console.warn(`⚠️ [API] Спроба оновити токен авторизації (спроба ${retryCount}/${API_CONFIG.retryAttempts})...`);
 
-      return fetch('/api/auth/refresh-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Telegram-User-Id': userId || ''
-        },
-        body: JSON.stringify({ telegram_id: userId })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.token || data.data && data.data.token) {
-          const newToken = data.token || data.data.token;
-          localStorage.setItem('auth_token', newToken);
-          console.log('Токен оновлено успішно!');
+      // Спочатку спробуємо через WinixAPI
+      if (window.WinixAPI && typeof window.WinixAPI.refreshToken === 'function') {
+        return window.WinixAPI.refreshToken()
+          .then(function(result) {
+            console.log('✅ [API] Токен оновлено через WinixAPI');
 
-          // Оновлюємо заголовок авторизації для повторного запиту
-          fetchOptions.headers['Authorization'] = 'Bearer ' + newToken;
+            // Оновлюємо токен у заголовках
+            const newToken = getAuthToken();
+            if (newToken) {
+              fetchOptions.headers['Authorization'] = 'Bearer ' + newToken;
+            }
 
-          // Повторно виконуємо запит
-          return executeRequest();
-        } else {
-          throw new Error('Не вдалося оновити токен авторизації');
-        }
-      })
-      .catch(err => {
-        console.error('Помилка оновлення токена:', err);
-        throw err;
-      });
+            // Повторно виконуємо запит
+            return executeRequest();
+          })
+          .catch(function(err) {
+            console.warn('⚠️ [API] Помилка оновлення токена через WinixAPI:', err);
+            // Продовжуємо зі стандартним методом
+            return standardRefreshToken();
+          });
+      } else {
+        // Якщо WinixAPI недоступний, використовуємо стандартний метод
+        return standardRefreshToken();
+      }
+
+      // Стандартний метод оновлення токена
+      function standardRefreshToken() {
+        return fetch('/api/auth/refresh-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Telegram-User-Id': userId || ''
+          },
+          body: JSON.stringify({ telegram_id: userId })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.token || data.data && data.data.token) {
+            const newToken = data.token || data.data.token;
+            localStorage.setItem('auth_token', newToken);
+            console.log('✅ [API] Токен оновлено успішно!');
+
+            // Оновлюємо заголовок авторизації для повторного запиту
+            fetchOptions.headers['Authorization'] = 'Bearer ' + newToken;
+
+            // Повторно виконуємо запит
+            return executeRequest();
+          } else {
+            throw new Error('Не вдалося оновити токен авторизації');
+          }
+        })
+        .catch(err => {
+          console.error('❌ [API] Помилка оновлення токена:', err);
+          throw err;
+        });
+      }
     }
 
     return executeRequest();
@@ -180,7 +239,7 @@ window.ReferralAPI = (function() {
 
   // Основні API функції
 
-  // fetchBadges.js
+  // Отримання бейджів користувача
   function fetchUserBadges(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання даних про бейджі'));
@@ -192,9 +251,28 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача повинен бути числом'));
     }
 
+    // Спочатку спробуємо через WinixAPI
+    if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
+      return window.WinixAPI.apiRequest(`badges/${numericUserId}`, 'GET')
+        .then(response => {
+          if (response.status === 'success' && response.data) {
+            return response.data;
+          }
+
+          // Якщо WinixAPI не повернув дані, викликаємо безпосередній запит
+          return apiRequest(API_CONFIG.baseUrl + '/badges/' + numericUserId);
+        })
+        .catch(error => {
+          console.warn('⚠️ [API] Помилка отримання бейджів через WinixAPI:', error);
+          // Якщо помилка, повертаємося до стандартного методу
+          return apiRequest(API_CONFIG.baseUrl + '/badges/' + numericUserId);
+        });
+    }
+
     return apiRequest(API_CONFIG.baseUrl + '/badges/' + numericUserId);
   }
 
+  // Перевірка бейджів
   function checkBadges(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для перевірки бейджів'));
@@ -210,6 +288,7 @@ window.ReferralAPI = (function() {
     });
   }
 
+  // Отримання винагороди за бейдж
   function claimBadgeReward(userId, badgeType) {
     if (!userId || !badgeType) {
       return Promise.reject(new Error('ID користувача та тип бейджа обов\'язкові для отримання винагороди'));
@@ -235,26 +314,92 @@ window.ReferralAPI = (function() {
           window.updateUserBalanceDisplay(currentBalance + data.reward_amount, true);
         }
       } catch (e) {
-        console.warn('Не вдалося оновити відображення балансу:', e);
+        console.warn('⚠️ [API] Не вдалося оновити відображення балансу:', e);
       }
       return data;
     });
   }
 
+  // Отримання реферального посилання
   function fetchReferralLink(userId) {
-  if (!userId) {
-    return Promise.reject(new Error('ID користувача обов\'язковий'));
+    if (!userId) {
+      return Promise.reject(new Error('ID користувача обов\'язковий'));
+    }
+
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    // Спочатку спробуємо через WinixAPI
+    if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
+      return window.WinixAPI.apiRequest(`referrals/link/${numericUserId}`, 'GET')
+        .then(response => {
+          if (response.status === 'success' && response.data && response.data.link) {
+            return response.data.link;
+          }
+
+          // Якщо WinixAPI успішний, але формат відповіді не відповідає
+          if (response.status === 'success' && response.data) {
+            // Спробуємо знайти посилання в даних
+            if (typeof response.data === 'string' && response.data.includes('t.me')) {
+              return response.data;
+            }
+
+            // Якщо не вдалося, створюємо посилання вручну
+            return formatReferralUrl(numericUserId);
+          }
+
+          // Якщо WinixAPI не повернув посилання, викликаємо безпосередній запит
+          return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + numericUserId)
+            .then(data => {
+              if (data && data.link) {
+                return data.link;
+              }
+
+              // Якщо відповідь не містить посилання, створюємо його вручну
+              return formatReferralUrl(numericUserId);
+            });
+        })
+        .catch(error => {
+          console.warn('⚠️ [API] Помилка отримання реферального посилання через WinixAPI:', error);
+          // При помилці створюємо посилання вручну
+          return formatReferralUrl(numericUserId);
+        });
+    }
+
+    // Якщо WinixAPI недоступний, викликаємо звичайний запит
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + numericUserId)
+      .then(data => {
+        if (data && data.link) {
+          return data.link;
+        }
+
+        // Якщо відповідь не містить посилання, створюємо його вручну
+        return formatReferralUrl(numericUserId);
+      })
+      .catch(error => {
+        console.warn('⚠️ [API] Помилка отримання реферального посилання:', error);
+        // При помилці створюємо посилання вручну
+        return formatReferralUrl(numericUserId);
+      });
   }
 
-  const numericUserId = parseInt(userId);
-  if (isNaN(numericUserId)) {
-    return Promise.reject(new Error('ID користувача повинен бути числом'));
+  // Допоміжна функція для форматування реферального посилання
+  function formatReferralUrl(userId) {
+    if (!userId) {
+      return null;
+    }
+
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return null;
+    }
+
+    return 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
   }
 
-  return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + numericUserId);
-}
-
-  // fetchReferralStats.js
+  // Отримання статистики рефералів
   function fetchReferralStats(userId) {
     console.log('📊 [API] Запит статистики рефералів для ID:', userId);
     if (!userId) {
@@ -266,7 +411,32 @@ window.ReferralAPI = (function() {
         return Promise.reject(new Error('ID користувача повинен бути числом'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/stats/' + numericUserId)
+    // Спочатку спробуємо через WinixAPI
+    if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
+      return window.WinixAPI.apiRequest(`referrals/stats/${numericUserId}`, 'GET')
+        .then(response => {
+          if (response.status === 'success' && response.data) {
+            response.data.source = 'winix_api';
+            console.log('✅ [API] Отримано відповідь про статистику рефералів з WinixAPI:', response.data);
+            return response.data;
+          }
+
+          // Якщо WinixAPI не повернув дані, викликаємо безпосередній запит
+          return sendStatsRequest();
+        })
+        .catch(error => {
+          console.warn('⚠️ [API] Помилка отримання статистики через WinixAPI:', error);
+          // Якщо помилка, повертаємося до стандартного методу
+          return sendStatsRequest();
+        });
+    } else {
+      // Якщо WinixAPI недоступний, викликаємо звичайний запит
+      return sendStatsRequest();
+    }
+
+    // Функція для виконання стандартного запиту
+    function sendStatsRequest() {
+      return apiRequest(API_CONFIG.baseUrl + '/referrals/stats/' + numericUserId)
         .then(function(response) {
             console.log('✅ [API] Отримано відповідь про статистику рефералів:', response);
 
@@ -321,9 +491,10 @@ window.ReferralAPI = (function() {
                 }
             };
         });
-}
+    }
+  }
 
-  // fetchReferralEarnings.js
+  // Отримання заробітків від рефералів
   function fetchReferralEarnings(userId, options) {
     options = options || {};
     if (!userId) {
@@ -338,9 +509,20 @@ window.ReferralAPI = (function() {
     return apiRequest(API_CONFIG.baseUrl + '/referrals/earnings/' + numericUserId, {
       method: 'POST',
       body: JSON.stringify(options)
+    })
+    .catch(function(error) {
+      console.error('❌ [API] Помилка отримання заробітків:', error);
+      // Повертаємо базову структуру при помилці
+      return {
+        success: true,
+        source: 'error_fallback',
+        level1Earnings: [],
+        level2Earnings: []
+      };
     });
   }
 
+  // Отримання детальних заробітків від рефералів
   function fetchReferralDetailedEarnings(referralId, options) {
     options = options || {};
     if (!referralId) {
@@ -363,6 +545,7 @@ window.ReferralAPI = (function() {
     return apiRequest(url);
   }
 
+  // Отримання зведених даних про заробітки
   function fetchEarningsSummary(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання зведених даних'));
@@ -373,10 +556,21 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача повинен бути числом'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/earnings/summary/' + numericUserId);
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/earnings/summary/' + numericUserId)
+    .catch(function(error) {
+      console.error('❌ [API] Помилка отримання зведених даних про заробітки:', error);
+      // Повертаємо базову структуру при помилці
+      return {
+        success: true,
+        source: 'error_fallback',
+        totalEarnings: 0,
+        level1Earnings: 0,
+        level2Earnings: 0
+      };
+    });
   }
 
-  // fetchReferralActivity.js
+  // Отримання активності рефералів
   function fetchReferralActivity(userId, options) {
     options = options || {};
     if (!userId) {
@@ -394,6 +588,7 @@ window.ReferralAPI = (function() {
     });
   }
 
+  // Отримання детальної активності рефералів
   function fetchReferralDetailedActivity(referralId, options) {
     options = options || {};
     if (!referralId) {
@@ -416,6 +611,7 @@ window.ReferralAPI = (function() {
     return apiRequest(url);
   }
 
+  // Отримання зведених даних про активність
   function fetchActivitySummary(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання даних про активність'));
@@ -429,6 +625,7 @@ window.ReferralAPI = (function() {
     return apiRequest(API_CONFIG.baseUrl + '/referrals/activity/summary/' + numericUserId);
   }
 
+  // Оновлення активності рефералів
   function updateReferralActivity(userId, drawsParticipation, invitedReferrals) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для оновлення активності'));
@@ -449,6 +646,7 @@ window.ReferralAPI = (function() {
     });
   }
 
+  // Ручна активація реферала
   function manuallyActivateReferral(userId, adminId) {
     if (!userId || !adminId) {
       return Promise.reject(new Error('ID користувача та адміністратора обов\'язкові для ручної активації'));
@@ -469,7 +667,7 @@ window.ReferralAPI = (function() {
     });
   }
 
-  // fetchTasks.js
+  // Отримання завдань користувача
   function fetchUserTasks(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання даних про завдання'));
@@ -483,6 +681,7 @@ window.ReferralAPI = (function() {
     return apiRequest(API_CONFIG.baseUrl + '/tasks/' + numericUserId);
   }
 
+  // Оновлення завдань
   function updateTasks(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для оновлення завдань'));
@@ -498,6 +697,7 @@ window.ReferralAPI = (function() {
     });
   }
 
+  // Отримання винагороди за завдання
   function claimTaskReward(userId, taskType) {
     if (!userId || !taskType) {
       return Promise.reject(new Error('ID користувача та тип завдання обов\'язкові для отримання винагороди'));
@@ -523,13 +723,13 @@ window.ReferralAPI = (function() {
           window.updateUserBalanceDisplay(currentBalance + data.reward_amount, true);
         }
       } catch (e) {
-        console.warn('Не вдалося оновити відображення балансу:', e);
+        console.warn('⚠️ [API] Не вдалося оновити відображення балансу:', e);
       }
       return data;
     });
   }
 
-  // registerReferral.js
+  // Реєстрація реферала
   function registerReferral(referrerId, userId) {
     if (!referrerId) {
       return Promise.reject(new Error('ID реферера обов\'язковий'));
@@ -559,6 +759,7 @@ window.ReferralAPI = (function() {
     });
   }
 
+  // Перевірка, чи є користувач рефералом
   function checkIfReferral(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий'));
@@ -575,7 +776,7 @@ window.ReferralAPI = (function() {
       });
   }
 
-  // Історія та інші функції
+  // Отримання історії рефералів
   function fetchReferralHistory(userId, options) {
     options = options || {};
     if (!userId) {
@@ -612,10 +813,20 @@ window.ReferralAPI = (function() {
       url += '?' + queryString;
     }
 
-    return apiRequest(url);
+    return apiRequest(url)
+      .catch(function(error) {
+        console.error('❌ [API] Помилка отримання історії рефералів:', error);
+        // Повертаємо базову структуру при помилці
+        return {
+          success: true,
+          source: 'error_fallback',
+          history: [],
+          bonuses: []
+        };
+      });
   }
 
-  // Додаткові функції
+  // Отримання розіграшів реферала
   function fetchReferralDraws(referralId) {
     if (!referralId) {
       return Promise.reject(new Error('ID реферала обов\'язковий'));
@@ -629,6 +840,7 @@ window.ReferralAPI = (function() {
     return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/' + numericReferralId);
   }
 
+  // Отримання деталей розіграшу
   function fetchDrawDetails(referralId, drawId) {
     if (!referralId || !drawId) {
       return Promise.reject(new Error('ID реферала та розіграшу обов\'язкові'));
@@ -643,6 +855,7 @@ window.ReferralAPI = (function() {
     return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/details/' + numericReferralId + '/' + numericDrawId);
   }
 
+  // Отримання статистики участі в розіграшах
   function fetchDrawsParticipationStats(ownerId, options) {
     options = options || {};
     if (!ownerId) {
@@ -676,6 +889,7 @@ window.ReferralAPI = (function() {
     return apiRequest(url);
   }
 
+  // Отримання загальної кількості розіграшів
   function fetchTotalDrawsCount(ownerId) {
     if (!ownerId) {
       return Promise.reject(new Error('ID власника обов\'язковий'));
@@ -692,6 +906,7 @@ window.ReferralAPI = (function() {
       });
   }
 
+  // Отримання найактивніших учасників розіграшів
   function fetchMostActiveInDraws(ownerId, limit) {
     limit = limit || 10;
     if (!ownerId) {
@@ -706,7 +921,7 @@ window.ReferralAPI = (function() {
     return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/active/' + numericOwnerId + '?limit=' + limit);
   }
 
-  // Інші функції історії
+  // Отримання історії подій рефералів
   function fetchReferralEventHistory(userId, eventType, options) {
     options = options || {};
     if (!userId || !eventType) {
@@ -743,6 +958,7 @@ window.ReferralAPI = (function() {
     return apiRequest(url);
   }
 
+  // Отримання зведених даних про активність рефералів
   function fetchReferralActivitySummary(userId, options) {
     options = options || {};
     if (!userId) {
@@ -776,6 +992,7 @@ window.ReferralAPI = (function() {
     return apiRequest(url);
   }
 
+  // Отримання тренду активності рефералів
   function fetchReferralActivityTrend(userId, period, options) {
     period = period || 'monthly';
     options = options || {};
@@ -813,6 +1030,30 @@ window.ReferralAPI = (function() {
     return apiRequest(url);
   }
 
+  // Отримання деталей реферала
+  function fetchReferralDetails(referralId) {
+    if (!referralId) {
+      return Promise.reject(new Error('ID реферала обов\'язковий'));
+    }
+
+    const numericReferralId = parseInt(referralId);
+    if (isNaN(numericReferralId)) {
+      return Promise.reject(new Error('ID реферала повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/details/' + numericReferralId)
+      .catch(function(error) {
+        console.error('❌ [API] Помилка отримання деталей реферала:', error);
+        // Повертаємо базову структуру при помилці
+        return {
+          success: true,
+          id: referralId,
+          active: false,
+          registrationDate: new Date().toISOString()
+        };
+      });
+  }
+
   // Функція для оновлення токена авторизації
   function refreshAuthToken() {
     const userId = getUserId();
@@ -820,61 +1061,62 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача відсутній'));
     }
 
-    console.log('Спроба оновити токен авторизації для користувача:', userId);
+    console.log('🔄 [API] Спроба оновити токен авторизації для користувача:', userId);
 
-    return fetch('/api/auth/refresh-token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Telegram-User-Id': userId
-      },
-      body: JSON.stringify({ telegram_id: userId })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.token || (data.data && data.data.token)) {
-        const newToken = data.token || data.data.token;
-        localStorage.setItem('auth_token', newToken);
-        console.log('Токен оновлено успішно!');
-        return newToken;
-      } else {
-        throw new Error('Не вдалося оновити токен авторизації');
-      }
-    });
-  }
-  // Додайте цю функцію до api.js
-function fetchReferralDetails(referralId) {
-  if (!referralId) {
-    return Promise.reject(new Error('ID реферала обов\'язковий'));
-  }
+    // Спочатку спробуємо через WinixAPI
+    if (window.WinixAPI && typeof window.WinixAPI.refreshToken === 'function') {
+      return window.WinixAPI.refreshToken()
+        .then(result => {
+          if (result === true) {
+            console.log('✅ [API] Токен оновлено через WinixAPI');
+            return getAuthToken() || 'success';
+          } else {
+            console.warn('⚠️ [API] WinixAPI.refreshToken повернув не true:', result);
+            return standardRefreshToken();
+          }
+        })
+        .catch(err => {
+          console.warn('⚠️ [API] Помилка оновлення токена через WinixAPI:', err);
+          return standardRefreshToken();
+        });
+    } else {
+      // Якщо WinixAPI недоступний, використовуємо стандартний метод
+      return standardRefreshToken();
+    }
 
-  const numericReferralId = parseInt(referralId);
-  if (isNaN(numericReferralId)) {
-    return Promise.reject(new Error('ID реферала повинен бути числом'));
+    // Стандартний метод оновлення токена
+    function standardRefreshToken() {
+      return fetch('/api/auth/refresh-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-User-Id': userId
+        },
+        body: JSON.stringify({ telegram_id: userId })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.token || (data.data && data.data.token)) {
+          const newToken = data.token || data.data.token;
+          localStorage.setItem('auth_token', newToken);
+          console.log('✅ [API] Токен оновлено успішно через стандартний метод!');
+          return newToken;
+        } else {
+          throw new Error('Не вдалося оновити токен авторизації');
+        }
+      });
+    }
   }
-
-  return apiRequest(API_CONFIG.baseUrl + '/referrals/details/' + numericReferralId)
-    .catch(function(error) {
-      console.error('Помилка отримання деталей реферала:', error);
-      // Повертаємо базову структуру при помилці
-      return {
-        success: true,
-        id: referralId,
-        active: false,
-        registrationDate: new Date().toISOString()
-      };
-    });
-}
 
   // Функція для перевірки доступності API
   function checkAPIHealth() {
     return apiRequest(API_CONFIG.baseUrl + '/health')
       .then(function() {
-        console.log('[REFERRAL_API] API доступний');
+        console.log('✅ [API] API доступний');
         return true;
       })
       .catch(function(error) {
-        console.warn('[REFERRAL_API] API недоступний:', error.message);
+        console.warn('⚠️ [API] API недоступний:', error.message);
         return false;
       });
   }
