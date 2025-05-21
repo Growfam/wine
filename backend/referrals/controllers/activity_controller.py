@@ -35,10 +35,13 @@ class ActivityController:
             dict: Результат операції
         """
         try:
+            # Конвертуємо ID в рядок для уніформності
+            user_id_str = str(user_id)
+
             # Знаходимо запис активності або створюємо новий
-            activity = ReferralActivity.query.filter_by(user_id=user_id).first()
+            activity = ReferralActivity.query.filter_by(user_id=user_id_str).first()
             if activity is None:
-                activity = ReferralActivity(user_id=user_id)
+                activity = ReferralActivity(user_id=user_id_str)
                 db.session.add(activity)
 
             # Оновлюємо значення, якщо вони надані
@@ -91,11 +94,15 @@ class ActivityController:
             dict: Результат операції
         """
         try:
+            # Конвертуємо ID в рядок для уніформності
+            user_id_str = str(user_id)
+            admin_id_str = str(admin_id)
+
             # Знаходимо запис активності або створюємо новий
-            activity = ReferralActivity.query.filter_by(user_id=user_id).first()
+            activity = ReferralActivity.query.filter_by(user_id=user_id_str).first()
             if activity is None:
                 activity = ReferralActivity(
-                    user_id=user_id,
+                    user_id=user_id_str,
                     is_active=True,
                     reason_for_activity='manual_activation'
                 )
@@ -107,13 +114,13 @@ class ActivityController:
             db.session.commit()
 
             # Логуємо хто активував для аудиту
-            logger.info(f"User {user_id} manually activated by admin {admin_id}")
+            logger.info(f"User {user_id_str} manually activated by admin {admin_id_str}")
 
             return {
                 'success': True,
                 'message': 'Referral manually activated' if activation_result else 'Referral already activated manually',
                 'activity': activity.to_dict(),
-                'admin_id': admin_id
+                'admin_id': admin_id_str
             }
         except SQLAlchemyError as e:
             db.session.rollback()
@@ -149,9 +156,12 @@ class ActivityController:
             options = {}
 
         try:
+            # Конвертуємо ID в рядок для уніформності
+            user_id_str = str(user_id)
+
             # Отримання рефералів користувача
-            level1_query = Referral.query.filter_by(referrer_id=user_id, level=1)
-            level2_query = Referral.query.filter_by(referrer_id=user_id, level=2)
+            level1_query = Referral.query.filter_by(referrer_id=user_id_str, level=1)
+            level2_query = Referral.query.filter_by(referrer_id=user_id_str, level=2)
 
             # Фільтрація за рівнем, якщо вказано
             if 'level' in options and options['level'] in [1, 2]:
@@ -165,6 +175,16 @@ class ActivityController:
 
             # Збираємо ID всіх рефералів
             referral_ids = [ref.referee_id for ref in level1_referrals] + [ref.referee_id for ref in level2_referrals]
+
+            # Оптимізація: якщо нема рефералів, повертаємо пусту відповідь
+            if not referral_ids:
+                return {
+                    'success': True,
+                    'userId': user_id_str,
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'level1Activity': [],
+                    'level2Activity': []
+                }
 
             # Отримуємо активність всіх рефералів
             activities = ReferralActivity.query.filter(
@@ -215,7 +235,7 @@ class ActivityController:
 
             return {
                 'success': True,
-                'userId': user_id,
+                'userId': user_id_str,
                 'timestamp': datetime.utcnow().isoformat(),
                 'level1Activity': level1_activities,
                 'level2Activity': level2_activities
@@ -240,14 +260,17 @@ class ActivityController:
             dict: Детальні дані про активність
         """
         try:
+            # Конвертуємо ID в рядок для уніформності
+            referral_id_str = str(referral_id)
+
             # Отримуємо активність реферала
-            activity = ReferralActivity.query.filter_by(user_id=referral_id).first()
+            activity = ReferralActivity.query.filter_by(user_id=referral_id_str).first()
 
             if not activity:
                 # Якщо запис активності відсутній, повертаємо базові дані
                 return {
                     'success': True,
-                    'id': f'WX{referral_id}',
+                    'id': f'WX{referral_id_str}',
                     'timestamp': datetime.utcnow().isoformat(),
                     'drawsParticipation': 0,
                     'invitedReferrals': 0,
@@ -264,7 +287,7 @@ class ActivityController:
 
             # Отримуємо дані для drawsHistory (з таблиці draw_participants)
             from models.draw import DrawParticipant, Draw
-            draws_participations = DrawParticipant.query.filter_by(user_id=referral_id).all()
+            draws_participations = DrawParticipant.query.filter_by(user_id=referral_id_str).all()
 
             draws_history = []
             for participation in draws_participations:
@@ -278,7 +301,7 @@ class ActivityController:
                     })
 
             # Отримуємо дані для invitedReferralsList (з таблиці referrals)
-            invited_referrals = Referral.query.filter_by(referrer_id=referral_id, level=1).all()
+            invited_referrals = Referral.query.filter_by(referrer_id=referral_id_str, level=1).all()
             invited_referrals_list = []
 
             for invited in invited_referrals:
@@ -308,14 +331,26 @@ class ActivityController:
             meets_draws_criteria = activity.draws_participation >= ActivityController.MIN_DRAWS_PARTICIPATION
             meets_invited_criteria = activity.invited_referrals >= ActivityController.MIN_INVITED_REFERRALS
 
+            # Уніфікована логіка перевірки активності
+            is_inactive_by_time = False
+            if activity.last_updated:
+                is_inactive_by_time = activity.last_updated < (
+                            datetime.utcnow() - timedelta(days=ActivityController.INACTIVE_DAYS_THRESHOLD))
+
+            is_active = (
+                    activity.is_active and
+                    (meets_draws_criteria or meets_invited_criteria) and
+                    not is_inactive_by_time
+            )
+
             return {
                 'success': True,
-                'id': f'WX{referral_id}',
+                'id': f'WX{referral_id_str}',
                 'timestamp': datetime.utcnow().isoformat(),
                 'drawsParticipation': activity.draws_participation,
                 'invitedReferrals': activity.invited_referrals,
-                'lastActivityDate': activity.last_updated.isoformat(),
-                'isActive': activity.is_active,
+                'lastActivityDate': activity.last_updated.isoformat() if activity.last_updated else None,
+                'isActive': is_active,  # Використовуємо уніфіковану логіку
                 'manuallyActivated': activity.reason_for_activity == 'manual_activation',
                 'meetsDrawsCriteria': meets_draws_criteria,
                 'meetsInvitedCriteria': meets_invited_criteria,
@@ -344,8 +379,11 @@ class ActivityController:
             dict: Зведена інформація про активність
         """
         try:
+            # Конвертуємо ID в рядок для уніформності
+            user_id_str = str(user_id)
+
             # Отримуємо дані про активність рефералів
-            activity_result = ActivityController.get_referral_activity(user_id)
+            activity_result = ActivityController.get_referral_activity(user_id_str)
 
             if not activity_result['success']:
                 return activity_result
@@ -362,7 +400,7 @@ class ActivityController:
             total_active = active_level1 + active_level2
 
             # Розраховуємо конверсію (відсоток активних рефералів)
-            conversion_rate = total_active / total_referrals if total_referrals > 0 else 0
+            conversion_rate = (total_active / total_referrals * 100) if total_referrals > 0 else 0
 
             # Підраховуємо кількість рефералів за причиною активності
             activity_reasons = {
@@ -379,7 +417,7 @@ class ActivityController:
 
             return {
                 'success': True,
-                'userId': user_id,
+                'userId': user_id_str,
                 'timestamp': datetime.utcnow().isoformat(),
                 'totalReferrals': total_referrals,
                 'activeReferrals': total_active,
@@ -416,25 +454,38 @@ class ActivityController:
         Returns:
             dict: Підготовлені дані про активність
         """
+        # Конвертуємо ID в рядок для уніформності
+        referral_id_str = str(referral_id)
+
         if activity:
             # Перевірка активності за реальними критеріями
             meets_draws_criteria = activity.draws_participation >= ActivityController.MIN_DRAWS_PARTICIPATION
             meets_invited_criteria = activity.invited_referrals >= ActivityController.MIN_INVITED_REFERRALS
 
             # Додаткова перевірка на неактивність за часом (не заходив тиждень)
-            last_active_date = activity.last_updated
-            inactive_threshold = datetime.utcnow() - timedelta(days=ActivityController.INACTIVE_DAYS_THRESHOLD)
-            is_inactive_by_time = last_active_date < inactive_threshold if last_active_date else True
+            is_inactive_by_time = False
+            if activity.last_updated:
+                is_inactive_by_time = activity.last_updated < (
+                            datetime.utcnow() - timedelta(days=ActivityController.INACTIVE_DAYS_THRESHOLD))
 
-            # Користувач активний, якщо виконується умова активності і він не неактивний за часом
-            is_active = activity.is_active and not is_inactive_by_time
+            # Уніфікована логіка активності:
+            # користувач активний, якщо:
+            # 1. Він позначений як активний (is_active=True)
+            # 2. Виконує хоча б один з критеріїв активності (участь у розіграшах або запрошені)
+            # 3. Був активний протягом останнього тижня
+            is_active = (
+                    activity.is_active and
+                    (meets_draws_criteria or meets_invited_criteria) and
+                    not is_inactive_by_time
+            )
 
+            # Форматуємо відповідь у форматі, який очікує фронтенд
             return {
-                'id': f'WX{referral_id}',
+                'id': f'WX{referral_id_str}',  # Завжди додаємо префікс WX
                 'drawsParticipation': activity.draws_participation,
                 'invitedReferrals': activity.invited_referrals,
                 'lastActivityDate': activity.last_updated.isoformat() if activity.last_updated else None,
-                'isActive': is_active,
+                'isActive': is_active,  # Використовуємо уніфіковану логіку
                 'manuallyActivated': activity.reason_for_activity == 'manual_activation',
                 'meetsDrawsCriteria': meets_draws_criteria,
                 'meetsInvitedCriteria': meets_invited_criteria,
@@ -443,7 +494,7 @@ class ActivityController:
         else:
             # Якщо запис активності відсутній, повертаємо базові дані
             return {
-                'id': f'WX{referral_id}',
+                'id': f'WX{referral_id_str}',  # Завжди додаємо префікс WX
                 'drawsParticipation': 0,
                 'invitedReferrals': 0,
                 'lastActivityDate': None,

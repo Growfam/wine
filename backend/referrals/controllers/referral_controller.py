@@ -37,17 +37,19 @@ class ReferralController:
                     'details': 'User ID cannot be empty'
                 }
 
-            # Конвертуємо ID в рядок, якщо потрібно
-            user_id = str(user_id)
+            # Конвертуємо ID в рядок для уніформності
+            user_id_str = str(user_id)
 
             # Новий формат посилання: https://t.me/WINIX_Official_bot?start={user_id}
-            referral_link = f"https://t.me/WINIX_Official_bot?start={user_id}"
-            logger.info(f"generate_referral_link: Згенеровано посилання для користувача {user_id}: {referral_link}")
+            referral_link = f"https://t.me/WINIX_Official_bot?start={user_id_str}"
+            logger.info(f"generate_referral_link: Згенеровано посилання для користувача {user_id_str}: {referral_link}")
 
+            # Повертаємо уніформну відповідь для фронтенду
             return {
                 'success': True,
-                'user_id': user_id,
-                'referral_link': referral_link
+                'user_id': user_id_str,
+                'referral_link': referral_link,
+                'link': referral_link  # Додаємо поле 'link' для сумісності зі старим кодом
             }
         except Exception as e:
             error_details = traceback.format_exc()
@@ -81,35 +83,24 @@ class ReferralController:
                     'details': 'Both referrer_id and referee_id must be provided'
                 }
 
-            # Конвертуємо ID в цілі числа, якщо вони були передані як рядки
-            if isinstance(referrer_id, str):
-                try:
-                    referrer_id = int(referrer_id)
-                except ValueError:
-                    logger.warning(
-                        f"register_referral: Не вдалося конвертувати referrer_id '{referrer_id}' до int. Використовуємо як є.")
-
-            if isinstance(referee_id, str):
-                try:
-                    referee_id = int(referee_id)
-                except ValueError:
-                    logger.warning(
-                        f"register_referral: Не вдалося конвертувати referee_id '{referee_id}' до int. Використовуємо як є.")
+            # Конвертуємо ID в рядки для уніформності
+            referrer_id_str = str(referrer_id)
+            referee_id_str = str(referee_id)
 
             # Перевірка, чи реферал вже зареєстрований (правило: користувач може бути рефералом тільки одного користувача)
-            existing_referral = Referral.query.filter_by(referee_id=referee_id, level=1).first()
+            existing_referral = Referral.query.filter_by(referee_id=referee_id_str, level=1).first()
             if existing_referral:
-                logger.warning(f"register_referral: Користувач {referee_id} вже зареєстрований як реферал "
+                logger.warning(f"register_referral: Користувач {referee_id_str} вже зареєстрований як реферал "
                                f"для користувача {existing_referral.referrer_id}")
                 return {
                     'success': False,
                     'error': 'User is already registered as a referral',
-                    'details': f'Referee ID {referee_id} is already linked to referrer ID {existing_referral.referrer_id}'
+                    'details': f'Referee ID {referee_id_str} is already linked to referrer ID {existing_referral.referrer_id}'
                 }
 
             # Перевірка, що користувач не реєструє себе як реферала
-            if referrer_id == referee_id:
-                logger.error(f"register_referral: Спроба зареєструвати себе як реферала. ID: {referrer_id}")
+            if referrer_id_str == referee_id_str:
+                logger.error(f"register_referral: Спроба зареєструвати себе як реферала. ID: {referrer_id_str}")
                 return {
                     'success': False,
                     'error': 'User cannot refer themselves',
@@ -119,11 +110,11 @@ class ReferralController:
             # Використовуємо транзакцію для атомарності операцій
             try:
                 # Створення запису про прямого реферала (1-й рівень)
-                new_referral = Referral(referrer_id=referrer_id, referee_id=referee_id, level=1)
+                new_referral = Referral(referrer_id=referrer_id_str, referee_id=referee_id_str, level=1)
                 db.session.add(new_referral)
 
                 # Оновлюємо кількість запрошених для активності реферера
-                referrer_activity = ReferralActivity.query.filter_by(user_id=referrer_id).first()
+                referrer_activity = ReferralActivity.query.filter_by(user_id=referrer_id_str).first()
                 if referrer_activity:
                     referrer_activity.invited_referrals += 1
                     # Перевіряємо активність на основі нових даних
@@ -131,7 +122,7 @@ class ReferralController:
                 else:
                     # Створюємо запис активності, якщо його не існує
                     referrer_activity = ReferralActivity(
-                        user_id=referrer_id,
+                        user_id=referrer_id_str,
                         invited_referrals=1
                     )
                     # Перевіряємо активність
@@ -140,19 +131,19 @@ class ReferralController:
 
                 # Створюємо запис активності для нового реферала
                 referee_activity = ReferralActivity(
-                    user_id=referee_id,
+                    user_id=referee_id_str,
                     invited_referrals=0,
                     draws_participation=0
                 )
                 db.session.add(referee_activity)
 
                 # Знаходимо реферера для поточного реферера (якщо є), щоб створити зв'язок 2-го рівня
-                higher_referral = Referral.query.filter_by(referee_id=referrer_id, level=1).first()
-                if higher_referral and higher_referral.referrer_id != referee_id:  # Перевірка, щоб уникнути циклічних посилань
+                higher_referral = Referral.query.filter_by(referee_id=referrer_id_str, level=1).first()
+                if higher_referral and higher_referral.referrer_id != referee_id_str:  # Перевірка, щоб уникнути циклічних посилань
                     # Перевіряємо, чи вже існує такий зв'язок 2-го рівня
                     existing_lvl2 = Referral.query.filter_by(
                         referrer_id=higher_referral.referrer_id,
-                        referee_id=referee_id,
+                        referee_id=referee_id_str,
                         level=2
                     ).first()
 
@@ -160,17 +151,17 @@ class ReferralController:
                     if not existing_lvl2:
                         second_level_referral = Referral(
                             referrer_id=higher_referral.referrer_id,
-                            referee_id=referee_id,
+                            referee_id=referee_id_str,
                             level=2
                         )
                         db.session.add(second_level_referral)
                         logger.info(
-                            f"register_referral: Створено реферальний зв'язок 2-го рівня: {higher_referral.referrer_id} -> {referee_id}")
+                            f"register_referral: Створено реферальний зв'язок 2-го рівня: {higher_referral.referrer_id} -> {referee_id_str}")
 
                 # Зберігаємо всі зміни
                 db.session.commit()
                 logger.info(
-                    f"register_referral: Успішно створено реферальний зв'язок між {referrer_id} та {referee_id}")
+                    f"register_referral: Успішно створено реферальний зв'язок між {referrer_id_str} та {referee_id_str}")
 
                 return {
                     'success': True,
@@ -227,37 +218,33 @@ class ReferralController:
                     'details': 'User ID cannot be empty'
                 }
 
-            # Конвертуємо ID в ціле число, якщо воно було передано як рядок
-            if isinstance(user_id, str):
-                try:
-                    user_id = int(user_id)
-                except ValueError:
-                    logger.warning(
-                        f"get_referral_structure: Не вдалося конвертувати user_id '{user_id}' до int. Використовуємо як є.")
+            # Конвертуємо ID в рядок для уніформності
+            user_id_str = str(user_id)
 
             try:
                 # Отримання рефералів 1-го рівня
-                level1_referrals = Referral.query.filter_by(referrer_id=user_id, level=1).all()
+                level1_referrals = Referral.query.filter_by(referrer_id=user_id_str, level=1).all()
                 logger.debug(
-                    f"get_referral_structure: Знайдено {len(level1_referrals)} рефералів 1-го рівня для {user_id}")
+                    f"get_referral_structure: Знайдено {len(level1_referrals)} рефералів 1-го рівня для {user_id_str}")
 
                 # Отримання рефералів 2-го рівня
-                level2_referrals = Referral.query.filter_by(referrer_id=user_id, level=2).all()
+                level2_referrals = Referral.query.filter_by(referrer_id=user_id_str, level=2).all()
                 logger.debug(
-                    f"get_referral_structure: Знайдено {len(level2_referrals)} рефералів 2-го рівня для {user_id}")
+                    f"get_referral_structure: Знайдено {len(level2_referrals)} рефералів 2-го рівня для {user_id_str}")
 
                 # Підрахунок активних рефералів на основі реальних даних з таблиці активності
                 active_referrals = ReferralController._count_active_referrals(level1_referrals, level2_referrals)
                 total_referrals = len(level1_referrals) + len(level2_referrals)
 
-                # Формування відповіді для фронтенду
+                # Розрахунок конверсії
+                conversion_rate = 0
+                if total_referrals > 0:
+                    conversion_rate = active_referrals / total_referrals
+
+                # Формування відповіді для фронтенду у форматі, який очікує клієнт
                 return {
                     'success': True,
-                    'user': {
-                        'id': user_id,
-                        'registrationDate': datetime.utcnow().isoformat()
-                        # Використовуємо поточну дату як запасний варіант
-                    },
+                    'user_id': user_id_str,  # Використовуємо формат, який очікує фронтенд
                     'referrals': {
                         'level1': [ReferralController._format_referral_data(ref) for ref in level1_referrals],
                         'level2': [ReferralController._format_referral_data(ref, with_referrer_id=True) for ref in
@@ -269,8 +256,7 @@ class ReferralController:
                         'level2Count': len(level2_referrals),
                         'activeReferrals': active_referrals,
                         'inactiveReferrals': total_referrals - active_referrals,
-                        'conversionRate': ReferralController._calculate_conversion_rate(active_referrals,
-                                                                                        total_referrals)
+                        'conversionRate': conversion_rate
                     }
                 }
             except SQLAlchemyError as e:
@@ -314,17 +300,26 @@ class ReferralController:
                 # Критерій 3: Заходив у додаток протягом останнього тижня
                 min_draws = 3
                 min_invites = 1
+                is_inactive_by_time = False
+
+                if activity.last_updated:
+                    is_inactive_by_time = activity.last_updated < (datetime.utcnow() - timedelta(days=7))
+
+                # Уніфікована логіка активності
+                meets_draws_criteria = activity.draws_participation >= min_draws
+                meets_invited_criteria = activity.invited_referrals >= min_invites
 
                 is_active = (
                         activity.is_active and
-                        (activity.draws_participation >= min_draws or activity.invited_referrals >= min_invites) and
-                        (activity.last_updated > (datetime.utcnow() - timedelta(days=7)))
+                        (meets_draws_criteria or meets_invited_criteria) and
+                        not is_inactive_by_time
                 )
 
+            # Завжди використовуємо формат, який очікує фронтенд
             result = {
-                'id': f'WX{referral.referee_id}',
-                'rawId': str(referral.referee_id),  # Додаємо "сирий" ID для зручності бекенда
-                'registrationDate': referral.created_at.isoformat(),
+                'id': f'WX{referral.referee_id}',  # Завжди додаємо префікс WX для фронтенду
+                'rawId': str(referral.referee_id),  # Зберігаємо "сирий" ID для зручності бекенда
+                'registrationDate': referral.created_at.isoformat(),  # Стандартний ISO формат для всіх дат
                 'active': is_active
             }
 
@@ -337,7 +332,7 @@ class ReferralController:
                     ).first()
 
                     if first_level_ref:
-                        result['referrerId'] = f'WX{first_level_ref.referrer_id}'
+                        result['referrerId'] = f'WX{first_level_ref.referrer_id}'  # Додаємо префікс WX
                         result['rawReferrerId'] = str(first_level_ref.referrer_id)  # Додаємо "сирий" ID реферера
                     else:
                         logger.warning(
@@ -352,6 +347,9 @@ class ReferralController:
             return {
                 'id': f'WX{referral.referee_id}',
                 'rawId': str(referral.referee_id),
+                'registrationDate': referral.created_at.isoformat() if hasattr(referral,
+                                                                               'created_at') else datetime.utcnow().isoformat(),
+                'active': False,
                 'error': f"Помилка форматування: {str(e)}"
             }
 
@@ -374,13 +372,27 @@ class ReferralController:
             if not referral_ids:
                 return 0
 
+            # Оптимізація: при порожньому списку зразу повертаємо 0
+            if not referral_ids:
+                return 0
+
             # Запит до таблиці активності для пошуку активних рефералів
             one_week_ago = datetime.utcnow() - timedelta(days=7)
+
+            # Критерії активності:
+            # 1. Маркер is_active = True
+            # 2. Був активний протягом останнього тижня
+            # 3. Має достатньо участей у розіграшах або запрошених рефералів
+            min_draws = 3
+            min_invites = 1
 
             active_count = ReferralActivity.query.filter(
                 ReferralActivity.user_id.in_(referral_ids),
                 ReferralActivity.is_active == True,
-                ReferralActivity.last_updated > one_week_ago
+                ReferralActivity.last_updated > one_week_ago,
+                # Додаємо умову для критеріїв активності
+                ((ReferralActivity.draws_participation >= min_draws) |
+                 (ReferralActivity.invited_referrals >= min_invites))
             ).count()
 
             return active_count
