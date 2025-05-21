@@ -114,11 +114,34 @@ def create_app(config_name=None):
     # Налаштовуємо обробники помилок
     register_error_handlers(app)
 
-    # Додаємо after_request обробник для JS файлів
+    # Додаємо обробник OPTIONS запитів для CORS preflight
+    @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+    @app.route('/<path:path>', methods=['OPTIONS'])
+    def handle_options(path):
+        return '', 200
+
+    # Додаємо after_request обробник для JS файлів і CORS заголовків
     @app.after_request
-    def add_js_headers(response):
+    def add_headers(response):
+        # Налаштування MIME типу для JS файлів
         if request.path.endswith('.js'):
             response.headers['Content-Type'] = 'application/javascript'
+
+        # Налаштування заголовків CORS для всіх відповідей
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Telegram-User-Id'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '86400'  # 24 години кешування preflight запитів
+
+        # Налаштування заголовків безпеки
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+
+        # Дозволяємо кешування API на стороні клієнта (відповідно до потреб)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+
         return response
 
     # Створення таблиць БД при запуску
@@ -131,11 +154,13 @@ def create_app(config_name=None):
 
 def setup_cors(app):
     """Налаштування CORS для API"""
+    # Оновлена конфігурація CORS для кращої сумісності з реферальною системою
     CORS(app,
          resources={r"/*": {"origins": "*"}},
          supports_credentials=True,
-         expose_headers=["Content-Type", "X-CSRFToken"],
-         allow_headers=["Content-Type", "X-Requested-With", "Authorization", "X-Telegram-User-Id"])
+         expose_headers=["Content-Type", "X-CSRFToken", "Authorization"],
+         allow_headers=["Content-Type", "X-Requested-With", "Authorization",
+                        "X-Telegram-User-Id", "Accept", "Origin", "Cache-Control"])
     logger.info("CORS налаштовано")
 
 
@@ -399,6 +424,25 @@ def register_utility_routes(app):
             result['api_files'] = os.listdir(api_dir)
 
         return jsonify(result)
+
+    # Новий діагностичний ендпоінт для тестування CORS
+    @app.route('/api/cors-test', methods=['GET', 'POST', 'OPTIONS'])
+    def cors_test():
+        """Ендпоінт для тестування налаштувань CORS"""
+        if request.method == 'OPTIONS':
+            return '', 200
+
+        method = request.method
+        headers = dict(request.headers)
+        data = request.json if request.is_json else None
+
+        return jsonify({
+            "status": "success",
+            "method": method,
+            "headers": headers,
+            "data": data,
+            "timestamp": datetime.utcnow().isoformat()
+        })
 
 
 def register_static_routes(app):
