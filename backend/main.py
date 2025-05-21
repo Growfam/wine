@@ -136,7 +136,14 @@ def create_app(config_name=None):
 
         # Налаштування заголовків безпеки
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'DENY'
+        # Дозволяємо відображення в iframe для Telegram WebApp
+        if request.headers.get('User-Agent') and 'Telegram' in request.headers.get('User-Agent'):
+            # Видаляємо заголовок X-Frame-Options для Telegram
+            if 'X-Frame-Options' in response.headers:
+                del response.headers['X-Frame-Options']
+        else:
+            # Для інших запитів встановлюємо SAMEORIGIN замість DENY
+            response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-XSS-Protection'] = '1; mode=block'
 
         # Дозволяємо кешування API на стороні клієнта (відповідно до потреб)
