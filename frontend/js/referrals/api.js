@@ -1,4 +1,4 @@
-// api.js - Виправлена версія з підтримкою авторизації
+// api.js - Виправлена версія з підтримкою авторизації (без process.env)
 /**
  * API функції для реферальної системи
  */
@@ -12,6 +12,9 @@ window.ReferralAPI = (function() {
     retryAttempts: 3,
     retryDelay: 1000
   };
+
+  // Налаштування логування
+  const DEBUG = true; // Прапорець для режиму відлагодження
 
   // Утилітарна функція для отримання токена авторизації
   function getAuthToken() {
@@ -65,8 +68,8 @@ window.ReferralAPI = (function() {
       userId: userId
     });
 
-    // Логуємо заголовки у розробці
-    if (process.env.NODE_ENV !== 'production') {
+    // Логуємо заголовки для відлагодження
+    if (DEBUG) {
       console.debug('Request headers:', fetchOptions.headers);
     }
 
@@ -211,13 +214,13 @@ window.ReferralAPI = (function() {
     })
     .then(function(data) {
       // Якщо успішно, спробуємо оновити баланс
-      if (data.success && window.updateUserBalanceDisplay && data.reward_amount) {
-        try {
+      try {
+        if (data.success && window.updateUserBalanceDisplay && data.reward_amount) {
           const currentBalance = parseFloat(localStorage.getItem('winix_balance') || '0');
           window.updateUserBalanceDisplay(currentBalance + data.reward_amount, true);
-        } catch (e) {
-          console.warn('Не вдалося оновити відображення балансу:', e);
         }
+      } catch (e) {
+        console.warn('Не вдалося оновити відображення балансу:', e);
       }
       return data;
     });
@@ -264,9 +267,17 @@ window.ReferralAPI = (function() {
 
     return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + numericUserId)
       .then(function(data) {
-        // API тепер повертає повне посилання формату: https://t.me/WINIX_Official_bot?start={id}
-        const fullLink = data.referral_link || ('https://t.me/WINIX_Official_bot?start=' + numericUserId);
-        return fullLink;
+        // Запасний варіант, якщо не вдалося отримати посилання з API
+        if (!data || !data.referral_link) {
+          console.warn('Не вдалося отримати реферальне посилання. Використовуємо запасний варіант.');
+          return 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+        }
+        return data.referral_link;
+      })
+      .catch(function(error) {
+        console.error('Помилка отримання реферального посилання:', error);
+        // Запасний варіант у випадку помилки
+        return 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
       });
   }
 
@@ -464,13 +475,13 @@ window.ReferralAPI = (function() {
     })
     .then(function(data) {
       // Якщо успішно, спробуємо оновити баланс
-      if (data.success && window.updateUserBalanceDisplay && data.reward_amount) {
-        try {
+      try {
+        if (data.success && window.updateUserBalanceDisplay && data.reward_amount) {
           const currentBalance = parseFloat(localStorage.getItem('winix_balance') || '0');
           window.updateUserBalanceDisplay(currentBalance + data.reward_amount, true);
-        } catch (e) {
-          console.warn('Не вдалося оновити відображення балансу:', e);
         }
+      } catch (e) {
+        console.warn('Не вдалося оновити відображення балансу:', e);
       }
       return data;
     });
