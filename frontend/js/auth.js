@@ -1,7 +1,7 @@
 /**
  * auth.js - Модуль авторизації для Telegram Mini App
  * Оптимізована версія з покращеним управлінням та інтеграцією з API
- * @version 1.2.0
+ * @version 1.3.0
  */
 
 (function() {
@@ -89,19 +89,23 @@
             id === 'null' ||
             typeof id === 'function' ||
             (typeof id === 'string' && id.trim() === '')) {
+            console.warn(`🔐 AUTH: Невалідне значення ID: ${id}`);
             return false;
         }
 
-        // Перевіряємо чи не місить функціональних блоків
-        const strValue = String(id);
+        // Перетворюємо на рядок для подальшої перевірки
+        const strValue = String(id).trim();
+
+        // Перевіряємо чи не містить функціональних блоків
         if (strValue.includes('function') ||
             strValue.includes('=>') ||
             strValue.includes('undefined') ||
             strValue.includes('null')) {
+            console.warn(`🔐 AUTH: ID містить невалідні значення: ${strValue}`);
             return false;
         }
 
-        // Перевіряємо формат Telegram ID (має бути цифровим, можливо з префіксом -100 для чатів)
+        // Перевіряємо формат Telegram ID
         // 1. Звичайні ID користувачів - просто цифри
         if (/^\d+$/.test(strValue)) {
             return true;
@@ -112,13 +116,14 @@
             return true;
         }
 
-        // Додаткова перевірка на типову довжину Telegram ID (більше 5 цифр)
+        // Додаткова перевірка: якщо ID містить тільки цифри після очищення
         const digitsOnly = strValue.replace(/\D/g, '');
         if (digitsOnly.length >= 5 && !isNaN(Number(digitsOnly))) {
-            console.warn(`🔐 AUTH: ID "${strValue}" має нестандартний формат, але може бути валідним`);
-            return true;
+            console.log(`⚠️ AUTH: Нестандартний формат ID "${strValue}", спроба нормалізації до ${digitsOnly}`);
+            return true; // Дозволяємо подальшу обробку через normalizeId
         }
 
+        console.warn(`🔐 AUTH: ID не пройшов жодну валідацію: ${strValue}`);
         return false;
     }
 
@@ -145,9 +150,14 @@
         const digitsOnly = strId.replace(/\D/g, '');
 
         if (digitsOnly.length > 0) {
+            // Логуємо, якщо відбулась нормалізація
+            if (digitsOnly !== strId) {
+                console.log(`🔄 AUTH: ID нормалізовано з "${strId}" в "${digitsOnly}"`);
+            }
             return digitsOnly;
         }
 
+        console.error(`🔐 AUTH: Неможливо нормалізувати ID: ${strId}`);
         return null;
     }
 
@@ -293,7 +303,7 @@
      */
     function getUserIdFromAllSources() {
         try {
-            console.log("🔐 AUTH: Спроба отримання ID користувача з усіх джерел");
+            console.log("🔍 AUTH: Спроба отримання ID користувача з усіх джерел");
 
             // Список для зберігання всіх знайдених ID для подальшого аналізу
             const foundIds = [];
@@ -306,9 +316,13 @@
 
             // 2. Перевірка API модуля
             if (hasApiModule()) {
-                const apiId = window.WinixAPI.getUserId();
-                if (isValidId(apiId)) {
-                    foundIds.push({id: apiId, source: 'api', priority: 4});
+                try {
+                    const apiId = window.WinixAPI.getUserId();
+                    if (isValidId(apiId)) {
+                        foundIds.push({id: apiId, source: 'api', priority: 4});
+                    }
+                } catch (e) {
+                    console.warn("⚠️ AUTH: Помилка отримання ID через API:", e);
                 }
             }
 
@@ -331,7 +345,7 @@
                     foundIds.push({id: localId, source: 'localStorage', priority});
                 }
             } catch (e) {
-                console.warn("🔐 AUTH: Помилка доступу до localStorage:", e);
+                console.warn("⚠️ AUTH: Помилка доступу до localStorage:", e);
             }
 
             // 5. Перевірка sessionStorage
@@ -341,7 +355,7 @@
                     foundIds.push({id: sessionId, source: 'sessionStorage', priority: 3});
                 }
             } catch (e) {
-                console.warn("🔐 AUTH: Помилка доступу до sessionStorage:", e);
+                console.warn("⚠️ AUTH: Помилка доступу до sessionStorage:", e);
             }
 
             // 6. Перевірка DOM елементу
@@ -354,7 +368,7 @@
                     }
                 }
             } catch (e) {
-                console.warn("🔐 AUTH: Помилка отримання ID з DOM:", e);
+                console.warn("⚠️ AUTH: Помилка отримання ID з DOM:", e);
             }
 
             // 7. Перевірка URL параметрів
@@ -365,7 +379,7 @@
                     foundIds.push({id: urlId, source: 'url', priority: 2});
                 }
             } catch (e) {
-                console.warn("🔐 AUTH: Помилка отримання ID з URL:", e);
+                console.warn("⚠️ AUTH: Помилка отримання ID з URL:", e);
             }
 
             // 8. Перевірка JWT токена, якщо він є
@@ -389,12 +403,17 @@
                                 }
                             }
                         } catch (decodeError) {
-                            console.warn("🔐 AUTH: Помилка декодування JWT:", decodeError);
+                            console.warn("⚠️ AUTH: Помилка декодування JWT:", decodeError);
                         }
                     }
                 }
             } catch (e) {
-                console.warn("🔐 AUTH: Помилка доступу до JWT токена:", e);
+                console.warn("⚠️ AUTH: Помилка доступу до JWT токена:", e);
+            }
+
+            // Логуємо всі знайдені ID для діагностики
+            if (foundIds.length > 0) {
+                console.log("🔍 AUTH: Знайдені ID:", foundIds.map(item => `${item.id} (${item.source})`).join(', '));
             }
 
             // Якщо знайдено хоча б один ID, сортуємо за пріоритетом і повертаємо найкращий
@@ -479,7 +498,7 @@
 
             console.log(`🔐 AUTH: ID користувача ${normalizedId} збережено у всі сховища`);
         } catch (e) {
-            console.warn("🔐 AUTH: Помилка збереження ID:", e);
+            console.warn("⚠️ AUTH: Помилка збереження ID:", e);
         }
     }
 
@@ -542,7 +561,7 @@
             console.log("🔐 AUTH: Часті виклики init, використовуємо кешовані дані");
 
             // Якщо є кешовані дані користувача, повертаємо їх
-            if (window.WinixAuth.currentUser) {
+            if (window.WinixAuth && window.WinixAuth.currentUser) {
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
@@ -760,7 +779,10 @@
 
             // Виконуємо запит авторизації через WinixAPI
             try {
-                console.log("🔐 AUTH: Відправка запиту авторизації з даними:", {...authData, initData: authData.initData ? "..." : undefined});
+                console.log("🔐 AUTH: Відправка запиту авторизації з даними:", {
+                    ...authData,
+                    initData: authData.initData ? "..." : undefined
+                });
 
                 const response = await window.WinixAPI.apiRequest('api/auth', 'POST', authData, {
                     timeout: 15000, // Збільшуємо таймаут для авторизації
@@ -883,7 +905,7 @@
             console.warn("🔐 AUTH: Пристрій офлайн, використовуємо кешовані дані");
 
             // Якщо є кешовані дані, повертаємо їх
-            if (window.WinixAuth.currentUser) {
+            if (window.WinixAuth && window.WinixAuth.currentUser) {
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
@@ -902,7 +924,7 @@
             console.log("🔐 AUTH: Запит даних користувача вже виконується");
 
             // Якщо є кешовані дані, повертаємо їх
-            if (window.WinixAuth.currentUser) {
+            if (window.WinixAuth && window.WinixAuth.currentUser) {
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
@@ -916,7 +938,7 @@
             console.log(`🔐 AUTH: Занадто частий запит даних користувача, залишилось ${Math.ceil((MIN_REQUEST_INTERVAL - timeSinceLastRequest)/1000)}с`);
 
             // Якщо є кешовані дані, повертаємо їх
-            if (window.WinixAuth.currentUser) {
+            if (window.WinixAuth && window.WinixAuth.currentUser) {
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
@@ -952,7 +974,7 @@
                 if (spinner) spinner.classList.remove('show');
 
                 // Якщо API недоступний, але є кешовані дані - повертаємо їх
-                if (window.WinixAuth.currentUser) {
+                if (window.WinixAuth && window.WinixAuth.currentUser) {
                     return window.WinixAuth.currentUser;
                 }
 
@@ -970,7 +992,7 @@
             if (!tokenStatus.valid) {
                 console.warn("🔐 AUTH: Токен недійсний перед getUserData, намагаємося оновити");
                 try {
-                    if (window.WinixAPI.refreshToken) {
+                    if (window.WinixAPI && window.WinixAPI.refreshToken) {
                         const refreshResult = await window.WinixAPI.refreshToken();
                         console.log("🔐 AUTH: Результат оновлення токена:", refreshResult);
 
@@ -1079,7 +1101,7 @@
                 showError(getLocalizedText('dataError'));
 
                 // Якщо не вдалося отримати свіжі дані, повертаємо старі (якщо вони є)
-                if (window.WinixAuth.currentUser) {
+                if (window.WinixAuth && window.WinixAuth.currentUser) {
                     console.warn("⚠️ AUTH: Використовуємо кешовані дані користувача");
                     return window.WinixAuth.currentUser;
                 }
@@ -1096,7 +1118,7 @@
             console.error("❌ AUTH: Неочікувана помилка в getUserData:", e);
 
             // Якщо є кешовані дані - повертаємо їх
-            if (window.WinixAuth.currentUser) {
+            if (window.WinixAuth && window.WinixAuth.currentUser) {
                 return window.WinixAuth.currentUser;
             }
 
@@ -1255,7 +1277,7 @@
             console.warn("🔐 AUTH: Пристрій офлайн, пропускаємо оновлення даних");
 
             // Повертаємо кешовані дані, якщо є
-            if (window.WinixAuth.currentUser) {
+            if (window.WinixAuth && window.WinixAuth.currentUser) {
                 return window.WinixAuth.currentUser;
             }
 
@@ -1376,7 +1398,7 @@
         stopPeriodicUpdate,
 
         // Технічна інформація
-        version: '1.2.0'
+        version: '1.3.0'
     };
 
     // ======== АВТОМАТИЧНА ІНІЦІАЛІЗАЦІЯ ========
