@@ -711,7 +711,16 @@ def get_referral_history(user_id):
         logger.warning(f"get_referral_history: Невалідні параметри: {str(e)}")
         options = {}
 
-    result = HistoryController.get_referral_history(user_id, options)
+    # Перевіряємо, чи HistoryController є методом або класом
+    if hasattr(HistoryController, 'get_referral_history'):
+        result = HistoryController.get_referral_history(user_id, options)
+    else:
+        # Запасний варіант, якщо контролер недоступний
+        result = {
+            'success': False,
+            'error': 'HistoryController недоступний',
+            'history': []
+        }
 
     # Визначаємо код статусу відповіді
     status_code = 200 if result.get('success', False) else 400

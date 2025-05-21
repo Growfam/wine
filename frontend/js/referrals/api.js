@@ -230,56 +230,54 @@ window.ReferralAPI = (function() {
   function fetchReferralStats(userId) {
     console.log('📊 [API] Запит статистики рефералів для ID:', userId);
     if (!userId) {
-      return Promise.reject(new Error('ID користувача обов\'язковий для отримання статистики рефералів'));
+        return Promise.reject(new Error('ID користувача обов\'язковий для отримання статистики рефералів'));
     }
 
     const numericUserId = parseInt(userId);
     if (isNaN(numericUserId)) {
-      return Promise.reject(new Error('ID користувача повинен бути числом'));
+        return Promise.reject(new Error('ID користувача повинен бути числом'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/stats/' + numericUserId);
-  }
-
-  function fetchReferralDetails(referralId) {
-    if (!referralId) {
-      return Promise.reject(new Error('ID реферала обов\'язковий'));
-    }
-
-    const numericReferralId = parseInt(referralId);
-    if (isNaN(numericReferralId)) {
-      return Promise.reject(new Error('ID реферала повинен бути числом'));
-    }
-
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/details/' + numericReferralId);
-  }
-
-  // fetchReferralLink.js
-  function fetchReferralLink(userId) {
-    if (!userId) {
-      return Promise.reject(new Error('ID користувача обов\'язковий для отримання реферального посилання'));
-    }
-
-    const numericUserId = parseInt(userId);
-    if (isNaN(numericUserId)) {
-      return Promise.reject(new Error('ID користувача повинен бути числом'));
-    }
-
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + numericUserId)
-      .then(function(data) {
-        // Запасний варіант, якщо не вдалося отримати посилання з API
-        if (!data || !data.referral_link) {
-          console.warn('Не вдалося отримати реферальне посилання. Використовуємо запасний варіант.');
-          return 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
-        }
-        return data.referral_link;
-      })
-      .catch(function(error) {
-        console.error('Помилка отримання реферального посилання:', error);
-        // Запасний варіант у випадку помилки
-        return 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
-      });
-  }
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/stats/' + numericUserId)
+        .then(function(response) {
+            console.log('✅ [API] Отримано відповідь про статистику рефералів:', response);
+            // Перевірка та обробка відповіді
+            if (!response || (response.status && response.status !== 'success')) {
+                console.warn('⚠️ [API] Неправильний формат відповіді:', response);
+                // Повертаємо структуру за замовчуванням
+                return {
+                    success: true,
+                    statistics: {
+                        totalReferrals: 0,
+                        activeReferrals: 0,
+                        conversionRate: 0
+                    },
+                    referrals: {
+                        level1: [],
+                        level2: []
+                    }
+                };
+            }
+            return response;
+        })
+        .catch(function(error) {
+            console.error('❌ [API] Помилка завантаження статистики рефералів:', error);
+            console.error('❌ [API] Stack trace:', error.stack);
+            // Повертаємо структуру за замовчуванням при помилці
+            return {
+                success: true,
+                statistics: {
+                    totalReferrals: 0,
+                    activeReferrals: 0,
+                    conversionRate: 0
+                },
+                referrals: {
+                    level1: [],
+                    level2: []
+                }
+            };
+        });
+}
 
   // fetchReferralEarnings.js
   function fetchReferralEarnings(userId, options) {
