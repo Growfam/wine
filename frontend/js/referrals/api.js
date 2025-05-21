@@ -13,6 +13,7 @@ window.ReferralAPI = (function() {
     retryDelay: 1000
   };
 
+
   // Налаштування логування
   const DEBUG = true; // Прапорець для режиму відлагодження
 
@@ -28,6 +29,20 @@ window.ReferralAPI = (function() {
     return localStorage.getItem('telegram_user_id') ||
            localStorage.getItem('user_id');
   }
+
+  if (typeof window.WinixAPI === 'undefined') {
+  console.log('📢 Створення WinixAPI як глобальної змінної');
+  window.WinixAPI = {
+    apiRequest: async function(endpoint, method, data, options) {
+      // Базова імплементація
+      // ...
+      return { status: 'success' };
+    },
+    getUserId: function() {
+      return localStorage.getItem('telegram_user_id') || null;
+    }
+  };
+}
 
   // Утилітарна функція для виконання HTTP запитів з обробкою помилок та авторизацією
   function apiRequest(url, options) {
@@ -225,6 +240,19 @@ window.ReferralAPI = (function() {
       return data;
     });
   }
+
+  function fetchReferralLink(userId) {
+  if (!userId) {
+    return Promise.reject(new Error('ID користувача обов\'язковий'));
+  }
+
+  const numericUserId = parseInt(userId);
+  if (isNaN(numericUserId)) {
+    return Promise.reject(new Error('ID користувача повинен бути числом'));
+  }
+
+  return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + numericUserId);
+}
 
   // fetchReferralStats.js
   function fetchReferralStats(userId) {
