@@ -826,6 +826,29 @@ window.ReferralAPI = (function() {
       }
     });
   }
+  // Додайте цю функцію до api.js
+function fetchReferralDetails(referralId) {
+  if (!referralId) {
+    return Promise.reject(new Error('ID реферала обов\'язковий'));
+  }
+
+  const numericReferralId = parseInt(referralId);
+  if (isNaN(numericReferralId)) {
+    return Promise.reject(new Error('ID реферала повинен бути числом'));
+  }
+
+  return apiRequest(API_CONFIG.baseUrl + '/referrals/details/' + numericReferralId)
+    .catch(function(error) {
+      console.error('Помилка отримання деталей реферала:', error);
+      // Повертаємо базову структуру при помилці
+      return {
+        success: true,
+        id: referralId,
+        active: false,
+        registrationDate: new Date().toISOString()
+      };
+    });
+}
 
   // Функція для перевірки доступності API
   function checkAPIHealth() {
