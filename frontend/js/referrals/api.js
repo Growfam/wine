@@ -269,12 +269,19 @@ window.ReferralAPI = (function() {
     return apiRequest(API_CONFIG.baseUrl + '/referrals/stats/' + numericUserId)
         .then(function(response) {
             console.log('✅ [API] Отримано відповідь про статистику рефералів:', response);
-            // Перевірка та обробка відповіді
-            if (!response || (response.status && response.status !== 'success')) {
+
+            // Розширена перевірка відповіді
+            if (!response ||
+                typeof response !== 'object' ||
+                (response.status && response.status !== 'success') ||
+                (!response.statistics && !response.referrals)) {
+
                 console.warn('⚠️ [API] Неправильний формат відповіді:', response);
-                // Повертаємо структуру за замовчуванням
+
+                // Повертаємо структуру за замовчуванням з кращою документацією
                 return {
                     success: true,
+                    source: 'fallback_invalid_response',
                     statistics: {
                         totalReferrals: 0,
                         activeReferrals: 0,
@@ -286,14 +293,23 @@ window.ReferralAPI = (function() {
                     }
                 };
             }
+
+            // Додаємо поле для відстеження джерела даних
+            if (response) {
+                response.source = response.source || 'api_success';
+            }
+
             return response;
         })
         .catch(function(error) {
             console.error('❌ [API] Помилка завантаження статистики рефералів:', error);
             console.error('❌ [API] Stack trace:', error.stack);
-            // Повертаємо структуру за замовчуванням при помилці
+
+            // Повертаємо структуру за замовчуванням при помилці з детальнішою інформацією
             return {
                 success: true,
+                source: 'api_error_fallback',
+                error: error.message,
                 statistics: {
                     totalReferrals: 0,
                     activeReferrals: 0,
