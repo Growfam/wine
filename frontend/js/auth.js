@@ -487,22 +487,29 @@ if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
 
                 if (response.status === 'success') {
                     // Зберігаємо дані користувача
-                    const userData = response.data;
-                    window.WinixAuth.currentUser = userData;
-                    console.log("✅ AUTH: Користувача успішно авторизовано", userData);
+                    // Зберігаємо дані користувача
+const userData = response.data;
+window.WinixAuth.currentUser = userData;
+console.log("✅ AUTH: Користувача успішно авторизовано", userData);
 
-                    // Перевіряємо валідність ID перед збереженням
-                    if (isValidId(userData.telegram_id)) {
-                        localStorage.setItem('telegram_user_id', userData.telegram_id);
+// Перевіряємо валідність ID перед збереженням
+if (userData && userData.telegram_id && isValidId(userData.telegram_id)) {
+    localStorage.setItem('telegram_user_id', userData.telegram_id);
 
-                        // Оновлюємо елемент на сторінці
-                        const userIdElement = document.getElementById('user-id');
-                        if (userIdElement) {
-                            userIdElement.textContent = userData.telegram_id;
-                        }
-                    } else {
-                        console.warn("⚠️ AUTH: API повернув невалідний ID користувача:", userData.telegram_id);
-                    }
+    // Оновлюємо елемент на сторінці
+    const userIdElement = document.getElementById('user-id');
+    if (userIdElement) {
+        userIdElement.textContent = userData.telegram_id;
+    }
+} else {
+    console.warn("⚠️ AUTH: API повернув невалідний ID користувача або userData.telegram_id відсутній");
+    // Шукаємо ID в інших джерелах
+    const altId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || userId;
+    if (isValidId(altId)) {
+        localStorage.setItem('telegram_user_id', altId.toString());
+        console.log("✅ AUTH: Використовуємо альтернативний ID:", altId);
+    }
+}
 
                     // Зберігаємо баланс і жетони в localStorage
                     if (userData.balance !== undefined) {

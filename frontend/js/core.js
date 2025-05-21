@@ -914,6 +914,21 @@
      * @returns {Promise<Object>} Дані користувача
      */
     async function getUserData(forceRefresh = false) {
+
+          // Додаткова перевірка ID і обробка помилок
+  const userId = getUserId();
+  if (!userId) {
+    console.warn("⚠️ Core: Не вдалося отримати ID користувача");
+    // Повертаємо мінімальні дані з локального сховища
+    _userData = {
+      telegram_id: 'unknown',
+      balance: parseFloat(getFromStorage('userTokens', '0')),
+      coins: parseInt(getFromStorage('userCoins', '0')),
+      source: 'fallback_no_id'
+    };
+    return _userData;
+  }
+
         // Перевіряємо, чи пристрій онлайн
         if (!isOnline() && !forceRefresh) {
             console.warn("⚠️ Core: Пристрій офлайн, використовуємо кешовані дані");
