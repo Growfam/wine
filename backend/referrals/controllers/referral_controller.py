@@ -1,7 +1,9 @@
 from models.referral import Referral
+from models.activity import ReferralActivity
 from database import db
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime, timedelta
 import logging
 import traceback
 
@@ -94,8 +96,8 @@ class ReferralController:
                     logger.warning(
                         f"register_referral: Не вдалося конвертувати referee_id '{referee_id}' до int. Використовуємо як є.")
 
-            # Перевірка, чи реферал вже зареєстрований
-            existing_referral = Referral.query.filter_by(referee_id=referee_id).first()
+            # Перевірка, чи реферал вже зареєстрований (правило: користувач може бути рефералом тільки одного користувача)
+            existing_referral = Referral.query.filter_by(referee_id=referee_id, level=1).first()
             if existing_referral:
                 logger.warning(f"register_referral: Користувач {referee_id} вже зареєстрований як реферал "
                                f"для користувача {existing_referral.referrer_id}")
@@ -120,19 +122,52 @@ class ReferralController:
                 new_referral = Referral(referrer_id=referrer_id, referee_id=referee_id, level=1)
                 db.session.add(new_referral)
 
+                # Оновлюємо кількість запрошених для активності реферера
+                referrer_activity = ReferralActivity.query.filter_by(user_id=referrer_id).first()
+                if referrer_activity:
+                    referrer_activity.invited_referrals += 1
+                    # Перевіряємо активність на основі нових даних
+                    referrer_activity.check_activity(min_draws=3, min_invites=1)
+                else:
+                    # Створюємо запис активності, якщо його не існує
+                    referrer_activity = ReferralActivity(
+                        user_id=referrer_id,
+                        invited_referrals=1
+                    )
+                    # Перевіряємо активність
+                    referrer_activity.check_activity(min_draws=3, min_invites=1)
+                    db.session.add(referrer_activity)
+
+                # Створюємо запис активності для нового реферала
+                referee_activity = ReferralActivity(
+                    user_id=referee_id,
+                    invited_referrals=0,
+                    draws_participation=0
+                )
+                db.session.add(referee_activity)
+
                 # Знаходимо реферера для поточного реферера (якщо є), щоб створити зв'язок 2-го рівня
-                higher_referral = Referral.query.filter_by(referee_id=referrer_id).first()
-                if higher_referral:
-                    # Створення запису про реферала 2-го рівня
-                    second_level_referral = Referral(
+                higher_referral = Referral.query.filter_by(referee_id=referrer_id, level=1).first()
+                if higher_referral and higher_referral.referrer_id != referee_id:  # Перевірка, щоб уникнути циклічних посилань
+                    # Перевіряємо, чи вже існує такий зв'язок 2-го рівня
+                    existing_lvl2 = Referral.query.filter_by(
                         referrer_id=higher_referral.referrer_id,
                         referee_id=referee_id,
                         level=2
-                    )
-                    db.session.add(second_level_referral)
-                    logger.info(
-                        f"register_referral: Створено реферальний зв'язок 2-го рівня: {higher_referral.referrer_id} -> {referee_id}")
+                    ).first()
 
+                    # Якщо зв'язок 2-го рівня ще не існує, створюємо його
+                    if not existing_lvl2:
+                        second_level_referral = Referral(
+                            referrer_id=higher_referral.referrer_id,
+                            referee_id=referee_id,
+                            level=2
+                        )
+                        db.session.add(second_level_referral)
+                        logger.info(
+                            f"register_referral: Створено реферальний зв'язок 2-го рівня: {higher_referral.referrer_id} -> {referee_id}")
+
+                # Зберігаємо всі зміни
                 db.session.commit()
                 logger.info(
                     f"register_referral: Успішно створено реферальний зв'язок між {referrer_id} та {referee_id}")
@@ -211,7 +246,7 @@ class ReferralController:
                 logger.debug(
                     f"get_referral_structure: Знайдено {len(level2_referrals)} рефералів 2-го рівня для {user_id}")
 
-                # Підрахунок активних рефералів
+                # Підрахунок активних рефералів на основі реальних даних з таблиці активності
                 active_referrals = ReferralController._count_active_referrals(level1_referrals, level2_referrals)
                 total_referrals = len(level1_referrals) + len(level2_referrals)
 
@@ -220,7 +255,8 @@ class ReferralController:
                     'success': True,
                     'user': {
                         'id': user_id,
-                        'registrationDate': '2024-01-15T10:30:00Z'  # У реальному додатку беремо з БД
+                        'registrationDate': datetime.utcnow().isoformat()
+                        # Використовуємо поточну дату як запасний варіант
                     },
                     'referrals': {
                         'level1': [ReferralController._format_referral_data(ref) for ref in level1_referrals],
@@ -233,8 +269,8 @@ class ReferralController:
                         'level2Count': len(level2_referrals),
                         'activeReferrals': active_referrals,
                         'inactiveReferrals': total_referrals - active_referrals,
-                        'conversionRate': ReferralController._calculate_conversion_rate(level1_referrals,
-                                                                                        level2_referrals)
+                        'conversionRate': ReferralController._calculate_conversion_rate(active_referrals,
+                                                                                        total_referrals)
                     }
                 }
             except SQLAlchemyError as e:
@@ -267,8 +303,23 @@ class ReferralController:
             dict: Відформатовані дані про реферала
         """
         try:
-            # У реальній системі ці дані будуть братися з бази даних або інших моделей
-            is_active = (referral.referee_id % 2 == 1)  # Для прикладу: непарні ID активні
+            # Отримуємо реальні дані активності для цього реферала
+            activity = ReferralActivity.query.filter_by(user_id=referral.referee_id).first()
+
+            is_active = False
+            if activity:
+                # Перевіряємо активність на основі критеріїв
+                # Критерій 1: Має мінімум 3 участі в розіграшах
+                # Критерій 2: Запросив мінімум 1 реферала
+                # Критерій 3: Заходив у додаток протягом останнього тижня
+                min_draws = 3
+                min_invites = 1
+
+                is_active = (
+                        activity.is_active and
+                        (activity.draws_participation >= min_draws or activity.invited_referrals >= min_invites) and
+                        (activity.last_updated > (datetime.utcnow() - timedelta(days=7)))
+                )
 
             result = {
                 'id': f'WX{referral.referee_id}',
@@ -307,7 +358,7 @@ class ReferralController:
     @staticmethod
     def _count_active_referrals(level1_referrals, level2_referrals):
         """
-        Підраховує кількість активних рефералів
+        Підраховує кількість активних рефералів на основі реальних даних
 
         Args:
             level1_referrals (list): Список рефералів 1-го рівня
@@ -317,35 +368,44 @@ class ReferralController:
             int: Кількість активних рефералів
         """
         try:
-            # У реальній системі активність визначатиметься за даними з бази або іншої моделі
-            active_level1 = sum(1 for ref in level1_referrals if ref.referee_id % 2 == 1)
-            active_level2 = sum(1 for ref in level2_referrals if ref.referee_id % 2 == 1)
+            # Збираємо всі ID рефералів
+            referral_ids = [ref.referee_id for ref in level1_referrals + level2_referrals]
 
-            return active_level1 + active_level2
+            if not referral_ids:
+                return 0
+
+            # Запит до таблиці активності для пошуку активних рефералів
+            one_week_ago = datetime.utcnow() - timedelta(days=7)
+
+            active_count = ReferralActivity.query.filter(
+                ReferralActivity.user_id.in_(referral_ids),
+                ReferralActivity.is_active == True,
+                ReferralActivity.last_updated > one_week_ago
+            ).count()
+
+            return active_count
         except Exception as e:
             logger.error(f"_count_active_referrals: Помилка підрахунку активних рефералів: {str(e)}")
             # Повертаємо 0, якщо виникла помилка
             return 0
 
     @staticmethod
-    def _calculate_conversion_rate(level1_referrals, level2_referrals):
+    def _calculate_conversion_rate(active_referrals, total_referrals):
         """
         Розраховує конверсію (відсоток активних рефералів)
 
         Args:
-            level1_referrals (list): Список рефералів 1-го рівня
-            level2_referrals (list): Список рефералів 2-го рівня
+            active_referrals (int): Кількість активних рефералів
+            total_referrals (int): Загальна кількість рефералів
 
         Returns:
             float: Конверсія від 0 до 1
         """
         try:
-            total = len(level1_referrals) + len(level2_referrals)
-            if total == 0:
+            if total_referrals == 0:
                 return 0
 
-            active = ReferralController._count_active_referrals(level1_referrals, level2_referrals)
-            return active / total
+            return active_referrals / total_referrals
         except Exception as e:
             logger.error(f"_calculate_conversion_rate: Помилка розрахунку конверсії: {str(e)}")
             # Повертаємо 0, якщо виникла помилка

@@ -4,6 +4,10 @@ from database import db
 from flask import jsonify, current_app
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
+import logging
+
+# Налаштування логування
+logger = logging.getLogger(__name__)
 
 
 class BonusController:
@@ -11,20 +15,27 @@ class BonusController:
     Контролер для управління прямими бонусами за запрошення рефералів
     """
 
+    # Константа для розміру прямого бонусу
+    DIRECT_BONUS_AMOUNT = 50  # 50 winix за запрошення реферала
+
     @staticmethod
-    def award_direct_bonus(referrer_id, referee_id, amount=50):
+    def award_direct_bonus(referrer_id, referee_id, amount=None):
         """
         Нараховує прямий бонус за запрошення реферала
 
         Args:
             referrer_id (int): ID користувача, який отримує бонус
             referee_id (int): ID запрошеного користувача
-            amount (int, optional): Сума бонусу. Defaults to 50.
+            amount (int, optional): Сума бонусу. Defaults to None (використовуватиметься стандартна сума).
 
         Returns:
             dict: Результат операції
         """
         try:
+            # Якщо сума не вказана, використовуємо стандартну
+            if amount is None:
+                amount = BonusController.DIRECT_BONUS_AMOUNT
+
             # Конвертуємо ID в цілі числа, якщо вони були передані як рядки
             if isinstance(referrer_id, str):
                 try:
@@ -72,6 +83,65 @@ class BonusController:
                 amount=amount
             )
             db.session.add(new_bonus)
+
+            # Оновлення балансу користувача в таблиці winix (якщо це можливо)
+            try:
+                # Спроба імпортувати функцію update_user_balance
+                from users.controllers import update_user_balance
+
+                # Нарахування бонусу до балансу
+                balance_update = {
+                    "balance": f"balance + {amount}"  # SQL вираз для збільшення балансу
+                }
+
+                update_result = update_user_balance(referrer_id, balance_update)
+
+                logger.info(f"Оновлення балансу для користувача {referrer_id}: {update_result}")
+
+            except ImportError:
+                # Якщо функція недоступна, оновлюємо безпосередньо через Supabase
+                try:
+                    from supabase_client import supabase
+
+                    # Отримуємо поточний баланс
+                    response = supabase.table("winix").select("balance").eq("telegram_id", referrer_id).execute()
+
+                    if response.data:
+                        current_balance = float(response.data[0].get('balance', 0))
+                        new_balance = current_balance + amount
+
+                        # Оновлюємо баланс
+                        supabase.table("winix").update({"balance": new_balance}).eq("telegram_id",
+                                                                                    referrer_id).execute()
+                except ImportError:
+                    logger.warning(f"Не вдалося імпортувати supabase_client для оновлення балансу")
+                except Exception as e:
+                    logger.error(f"Помилка при оновленні балансу через Supabase: {str(e)}")
+
+            # Запис транзакції (якщо таблиця існує)
+            try:
+                transaction_data = {
+                    "telegram_id": referrer_id,
+                    "type": "referral_bonus",
+                    "amount": amount,
+                    "description": f"Бонус за запрошення реферала {referee_id}",
+                    "status": "completed",
+                    "created_at": datetime.now().isoformat()
+                }
+
+                # Спочатку через db.session
+                from models.transaction import Transaction
+                new_transaction = Transaction(**transaction_data)
+                db.session.add(new_transaction)
+            except ImportError:
+                # Якщо модель Transaction недоступна, використовуємо Supabase
+                try:
+                    from supabase_client import supabase
+                    supabase.table("transactions").insert(transaction_data).execute()
+                except:
+                    logger.info("Запис транзакції не доданий - таблиця або клієнт недоступні")
+
+            # Фіналізуємо транзакцію
             db.session.commit()
 
             current_app.logger.info(
@@ -128,6 +198,26 @@ class BonusController:
             # Форматування бонусів для відповіді
             formatted_bonuses = []
             for bonus in bonuses:
+                # Отримуємо інформацію про реферала, якщо це можливо
+                referee_info = None
+                try:
+                    # Спроба отримати базову інформацію про реферала
+                    from users.controllers import get_user_info
+                    referee = get_user_info(bonus.referee_id)
+
+                    if referee:
+                        referee_info = {
+                            'id': f'WX{bonus.referee_id}',
+                            'username': referee.get('username', 'User'),
+                            'registrationDate': bonus.created_at.isoformat()
+                        }
+                except ImportError:
+                    # Якщо функція недоступна, створюємо базову інформацію
+                    referee_info = {
+                        'id': f'WX{bonus.referee_id}',
+                        'registrationDate': bonus.created_at.isoformat()
+                    }
+
                 formatted_bonus = {
                     'id': bonus.id,
                     'referrer_id': bonus.referrer_id,
@@ -135,7 +225,7 @@ class BonusController:
                     'amount': bonus.amount,
                     'created_at': bonus.created_at.isoformat(),
                     # Додаткові дані для відображення на фронтенді
-                    'referee_info': {
+                    'referee_info': referee_info or {
                         'id': f'WX{bonus.referee_id}',
                         'registrationDate': bonus.created_at.isoformat()
                     }

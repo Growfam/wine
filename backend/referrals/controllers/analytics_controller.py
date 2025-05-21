@@ -5,9 +5,13 @@ from models.activity import ReferralActivity
 from models.draw import Draw, DrawParticipant
 from database import db
 from flask import current_app
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, and_, or_
 from datetime import datetime, timedelta
 import json
+import logging
+
+# Налаштування логування
+logger = logging.getLogger(__name__)
 
 
 class AnalyticsController:
@@ -47,10 +51,25 @@ class AnalyticsController:
 
             # В залежності від критерію сортування, додаємо відповідні дані
             if sort_by == 'earnings':
-                # Отримуємо дані про заробітки рефералів
-                # В реальному додатку - з іншої таблиці
+                # Отримуємо дані про заробітки від рефералів з бази даних
                 for referral_id in referral_ids:
-                    earnings = AnalyticsController._get_mock_earnings(referral_id)
+                    # Отримуємо суму відсоткових винагород
+                    percentage_rewards = PercentageReward.query.filter_by(
+                        user_id=user_id,
+                        referral_id=referral_id
+                    ).all()
+
+                    earnings = sum(reward.reward_amount for reward in percentage_rewards)
+
+                    # Додаємо прямий бонус, якщо він є
+                    direct_bonus = DirectBonus.query.filter_by(
+                        referrer_id=user_id,
+                        referee_id=referral_id
+                    ).first()
+
+                    if direct_bonus:
+                        earnings += direct_bonus.amount
+
                     result_referrals.append({
                         'id': f'WX{referral_id}',
                         'earnings': earnings,
@@ -61,10 +80,11 @@ class AnalyticsController:
                 result_referrals.sort(key=lambda r: r['earnings'], reverse=True)
 
             elif sort_by == 'invites':
-                # Отримуємо дані про кількість запрошених рефералами
-                # В реальному додатку - підрахунок з таблиці referrals
+                # Отримуємо дані про кількість запрошених рефералами з бази даних
                 for referral_id in referral_ids:
+                    # Підраховуємо кількість рефералів, запрошених цим рефералом
                     invites_count = Referral.query.filter_by(referrer_id=referral_id).count()
+
                     result_referrals.append({
                         'id': f'WX{referral_id}',
                         'invites_count': invites_count,
@@ -75,10 +95,11 @@ class AnalyticsController:
                 result_referrals.sort(key=lambda r: r['invites_count'], reverse=True)
 
             elif sort_by == 'draws':
-                # Отримуємо дані про участь у розіграшах
-                # В реальному додатку - підрахунок з таблиці draw_participants
+                # Отримуємо дані про участь у розіграшах з бази даних
                 for referral_id in referral_ids:
+                    # Підраховуємо кількість участей у розіграшах
                     draws_participation = DrawParticipant.query.filter_by(user_id=referral_id).count()
+
                     result_referrals.append({
                         'id': f'WX{referral_id}',
                         'draws_participation': draws_participation,
@@ -89,23 +110,30 @@ class AnalyticsController:
                 result_referrals.sort(key=lambda r: r['draws_participation'], reverse=True)
 
             elif sort_by == 'activity':
-                # Отримуємо дані про активність рефералів
-                # В реальному додатку - з таблиці активності
+                # Отримуємо дані про активність рефералів з таблиці активності
                 for referral_id in referral_ids:
                     activity = ReferralActivity.query.filter_by(user_id=referral_id).first()
-                    activity_score = 0
 
                     if activity:
-                        # Обчислюємо "рахунок" активності
+                        # Обчислюємо "рахунок" активності на основі реальних даних
                         activity_score = (
                                 (activity.draws_participation * 2) +  # Кожна участь у розіграші = 2 бали
                                 (activity.invited_referrals * 5)  # Кожен запрошений = 5 балів
                         )
 
+                        # Додатковий бонус за активну участь у проекті (на основі last_updated)
+                        if activity.last_updated:
+                            days_since_last_activity = (datetime.utcnow() - activity.last_updated).days
+                            if days_since_last_activity < 7:  # Якщо заходив протягом останнього тижня
+                                activity_score += 10
+                    else:
+                        activity_score = 0
+
                     result_referrals.append({
                         'id': f'WX{referral_id}',
                         'activity_score': activity_score,
-                        'level': Referral.query.filter_by(referee_id=referral_id, referrer_id=user_id).first().level
+                        'level': Referral.query.filter_by(referee_id=referral_id, referrer_id=user_id).first().level,
+                        'isActive': activity.is_active if activity else False
                     })
 
                 # Сортуємо за активністю (від більшого до меншого)
@@ -175,20 +203,20 @@ class AnalyticsController:
             dict: Загальний заробіток
         """
         try:
-            # Отримуємо суму прямих бонусів
+            # Отримуємо суму прямих бонусів з бази даних
             direct_bonuses = DirectBonus.query.filter_by(referrer_id=user_id).all()
             direct_bonuses_total = sum(bonus.amount for bonus in direct_bonuses)
 
-            # Отримуємо суму відсоткових винагород
+            # Отримуємо суму відсоткових винагород з бази даних
             percentage_rewards = PercentageReward.query.filter_by(user_id=user_id).all()
             percentage_rewards_total = sum(reward.reward_amount for reward in percentage_rewards)
 
-            # Отримуємо суму винагород за бейджі (в реальному додатку - з таблиці бейджів)
+            # Отримуємо суму винагород за бейджі з бази даних
             from models.badge import UserBadge
             badges = UserBadge.query.filter_by(user_id=user_id, claimed=True).all()
             badges_total = sum(badge.reward_amount for badge in badges)
 
-            # Отримуємо суму винагород за завдання (в реальному додатку - з таблиці завдань)
+            # Отримуємо суму винагород за завдання з бази даних
             from models.task import UserTask
             tasks = UserTask.query.filter_by(user_id=user_id, claimed=True).all()
             tasks_total = sum(task.reward_amount for task in tasks)
@@ -226,28 +254,66 @@ class AnalyticsController:
             dict: Прогноз заробітків
         """
         try:
-            # Отримуємо історію заробітків
-            earnings_history = AnalyticsController._get_earnings_history(user_id)
+            # Отримуємо реальну історію заробітків за останні 6 місяців
+            earnings_history = []
+            now = datetime.utcnow()
 
-            # Розраховуємо середній щомісячний приріст
-            if len(earnings_history) > 1:
+            # Рахуємо заробітки за кожен з останніх 6 місяців
+            for i in range(6):
+                month_start = (now.replace(day=1) - timedelta(days=30 * i)).replace(hour=0, minute=0, second=0,
+                                                                                    microsecond=0)
+                month_end = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(seconds=1)
+
+                # Заробітки від прямих бонусів за цей місяць
+                direct_bonuses = DirectBonus.query.filter(
+                    DirectBonus.referrer_id == user_id,
+                    DirectBonus.created_at >= month_start,
+                    DirectBonus.created_at <= month_end
+                ).all()
+                month_direct_bonuses = sum(bonus.amount for bonus in direct_bonuses)
+
+                # Заробітки від відсоткових винагород за цей місяць
+                percentage_rewards = PercentageReward.query.filter(
+                    PercentageReward.user_id == user_id,
+                    PercentageReward.created_at >= month_start,
+                    PercentageReward.created_at <= month_end
+                ).all()
+                month_percentage_rewards = sum(reward.reward_amount for reward in percentage_rewards)
+
+                # Загальний заробіток за місяць
+                month_total = month_direct_bonuses + month_percentage_rewards
+
+                earnings_history.append({
+                    'date': month_start.strftime('%Y-%m'),
+                    'amount': month_total
+                })
+
+            # Сортуємо історію за датою (від найстарішої до найновішої)
+            earnings_history.sort(key=lambda x: x['date'])
+
+            # Розраховуємо середній щомісячний приріст на основі реальних даних
+            if len(earnings_history) > 1 and earnings_history[0]['amount'] != earnings_history[-1]['amount']:
                 # Обчислюємо середній приріст за місяць
                 total_growth = earnings_history[-1]['amount'] - earnings_history[0]['amount']
                 months_count = max(1, len(earnings_history) - 1)
                 monthly_growth = total_growth / months_count
             else:
-                # Якщо недостатньо даних, використовуємо значення за замовчуванням
-                monthly_growth = 100  # Припустимо, що зростання становить 100 winix на місяць
+                # Якщо недостатньо даних для розрахунку, використовуємо значення за замовчуванням
+                # Розраховуємо на основі кількості рефералів та середнього бонусу
+                referral_count = Referral.query.filter_by(referrer_id=user_id).count()
+                monthly_growth = referral_count * 10 + 50  # Припускаємо середній ріст
+
+            # Останній місячний заробіток
+            last_amount = earnings_history[-1]['amount'] if earnings_history else 0
 
             # Прогноз на наступні 3 місяці
-            last_amount = earnings_history[-1]['amount'] if earnings_history else 0
             predictions = []
-
             for i in range(1, 4):
+                next_month = (now + timedelta(days=30 * i)).replace(day=1)
                 predicted_amount = last_amount + (monthly_growth * i)
                 predictions.append({
-                    'month': i,
-                    'amount': int(predicted_amount)
+                    'month': next_month.strftime('%Y-%m'),
+                    'amount': int(max(0, predicted_amount))  # Не допускаємо від'ємні значення
                 })
 
             # Формуємо результат
@@ -256,7 +322,8 @@ class AnalyticsController:
                 'user_id': user_id,
                 'current_earnings': last_amount,
                 'monthly_growth': monthly_growth,
-                'predictions': predictions
+                'predictions': predictions,
+                'history': earnings_history
             }
         except Exception as e:
             current_app.logger.error(f"Error predicting earnings: {str(e)}")
@@ -286,20 +353,38 @@ class AnalyticsController:
 
             total_earnings = total_earnings_result['total_earnings']
 
-            # Отримуємо дані про витрати (в реальному додатку - з інших таблиць)
-            # Для прикладу використовуємо моковані дані
-            expenses = {
-                'promotion': 1000,  # Витрати на просування реферального посилання
-                'bonuses': 500,  # Додаткові бонуси, які користувач надав рефералам
-                'other': 200  # Інші витрати
-            }
+            # Підраховуємо витрати на основі реальних даних
+            # Тут ми можемо врахувати різні типи витрат (в залежності від бізнес-логіки проекту)
 
-            total_expenses = sum(expenses.values())
+            # Витрати на просування (можна отримати з бази, якщо є така інформація)
+            # Наразі використовуємо константу, але в реальному додатку це може бути таблиця marketing_expenses
+            promotion_expenses = 0
+
+            # Додаткові бонуси від користувача (якщо є така інформація)
+            user_bonuses = 0
+
+            # Інші витрати (якщо є така інформація)
+            other_expenses = 0
+
+            # Тут ви можете додати логіку для отримання реальних витрат з бази даних
+
+            # Загальні витрати
+            total_expenses = promotion_expenses + user_bonuses + other_expenses
+
+            # Якщо витрати відсутні, встановлюємо мінімальне значення для уникнення ділення на нуль
+            if total_expenses == 0:
+                # Використовуємо кількість рефералів як базу для розрахунку витрат
+                referrals_count = Referral.query.filter_by(referrer_id=user_id).count()
+                if referrals_count > 0:
+                    # Оцінюємо витрати як 10% від загального заробітку або 50 winix за реферала
+                    estimated_expenses = max(total_earnings * 0.1, referrals_count * 50)
+                    total_expenses = estimated_expenses
+                else:
+                    # Якщо немає рефералів, просто використовуємо мінімальне значення
+                    total_expenses = 1
 
             # Розраховуємо ROI
-            roi = 0
-            if total_expenses > 0:
-                roi = ((total_earnings - total_expenses) / total_expenses) * 100
+            roi = ((total_earnings - total_expenses) / total_expenses) * 100
 
             # Формуємо результат
             return {
@@ -307,7 +392,11 @@ class AnalyticsController:
                 'user_id': user_id,
                 'total_earnings': total_earnings,
                 'total_expenses': total_expenses,
-                'expenses': expenses,
+                'expenses': {
+                    'promotion': promotion_expenses,
+                    'bonuses': user_bonuses,
+                    'other': other_expenses
+                },
                 'roi': roi
             }
         except Exception as e:
@@ -386,54 +475,6 @@ class AnalyticsController:
                 'error': 'Failed to get earnings distribution',
                 'details': str(e)
             }
-
-    @staticmethod
-    def _get_mock_earnings(referral_id):
-        """
-        Генерує моковані дані про заробітки реферала (для тестування)
-
-        Args:
-            referral_id (int): ID реферала
-
-        Returns:
-            int: Сума заробітків
-        """
-        # Для прикладу використовуємо ID реферала для генерації випадкового значення
-        return referral_id * 10 + (referral_id % 100) * 5
-
-    @staticmethod
-    def _get_earnings_history(user_id):
-        """
-        Отримує історію заробітків користувача (для прогнозування)
-
-        Args:
-            user_id (int): ID користувача
-
-        Returns:
-            list: Історія заробітків
-        """
-        # В реальному додатку це буде запит до бази даних
-        # Для прикладу генеруємо моковані дані
-
-        # Останні 6 місяців
-        current_date = datetime.utcnow()
-        history = []
-
-        # Базовий заробіток
-        base_amount = user_id * 100
-
-        for i in range(6):
-            month_date = current_date - timedelta(days=30 * (5 - i))
-
-            # Генеруємо заробіток для кожного місяця з невеликим зростанням
-            amount = base_amount + (i * 150) + (i * i * 10)
-
-            history.append({
-                'date': month_date.strftime('%Y-%m'),
-                'amount': amount
-            })
-
-        return history
 
     @staticmethod
     def _calculate_percentage(part, whole):
