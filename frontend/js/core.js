@@ -664,6 +664,12 @@
         // Початок відліку часу для вимірювання тривалості запиту
         const startTime = Date.now();
 
+        // Додаємо захист від невалідного endpoint
+    if (!endpoint) {
+        console.error("❌ Core: Невалідний endpoint для запиту");
+        return { status: 'error', message: 'Невалідний endpoint', offline: false };
+    }
+
         // Параметри за замовчуванням
         const defaultOptions = {
             timeout: _config.requestTimeout,
@@ -914,180 +920,130 @@
      * @returns {Promise<Object>} Дані користувача
      */
     async function getUserData(forceRefresh = false) {
+    // Захисний блок try-catch для всієї функції
+    try {
+        console.log("🔄 Core: Запит даних користувача (forceRefresh=" + forceRefresh + ")");
 
-          // Додаткова перевірка ID і обробка помилок
-  const userId = getUserId();
-  if (!userId) {
-    console.warn("⚠️ Core: Не вдалося отримати ID користувача");
-    // Повертаємо мінімальні дані з локального сховища
-    _userData = {
-      telegram_id: 'unknown',
-      balance: parseFloat(getFromStorage('userTokens', '0')),
-      coins: parseInt(getFromStorage('userCoins', '0')),
-      source: 'fallback_no_id'
-    };
-    return _userData;
-  }
-
-        // Перевіряємо, чи пристрій онлайн
+        // 1. Спершу перевіряємо, чи пристрій онлайн
         if (!isOnline() && !forceRefresh) {
             console.warn("⚠️ Core: Пристрій офлайн, використовуємо кешовані дані");
-
-            // Якщо є збережені дані, повертаємо їх
-            if (_userData) {
-                return _userData;
-            }
-
-            // Створюємо базові дані з localStorage
-            const storedData = getFromStorage('userData', null, true);
-            if (storedData) {
-                _userData = storedData;
-                return _userData;
-            }
-
-            // Створюємо мінімальні дані користувача з localStorage
-            const userId = getUserId();
-            _userData = {
-                telegram_id: userId || 'unknown',
-                balance: parseFloat(getFromStorage('userTokens', '0')),
-                coins: parseInt(getFromStorage('userCoins', '0')),
-                source: 'localStorage_offline'
-            };
-
-            return _userData;
+            return getFallbackUserData("offline");
         }
 
-        // Перевіряємо частоту запитів і наявність кешу
+        // 2. Перевіряємо інтервал запитів і наявність кешу
         const now = Date.now();
         if (!forceRefresh && (now - _state.lastRequestTime < _config.minRequestInterval)) {
             console.log("⏳ Core: Занадто частий запит даних користувача, використовуємо кеш");
+            if (_userData) return _userData;
 
-            // Якщо у нас вже є дані і не потрібно оновлювати
-            if (_userData) {
-                return _userData;
-            }
-
-            // Намагаємося завантажити з localStorage
             const storedData = getFromStorage('userData', null, true);
             if (storedData) {
                 _userData = storedData;
                 return _userData;
             }
+
+            return getFallbackUserData("throttled");
         }
 
-        // Запобігаємо паралельним запитам
+        // 3. Перевіряємо паралельні запити
         if (_state.requestInProgress && !forceRefresh) {
             console.log("⏳ Core: Запит даних користувача вже виконується");
+            if (_userData) return _userData;
 
-            // Якщо у нас вже є дані, повертаємо їх
-            if (_userData) {
-                return _userData;
-            }
-
-            // Завантажуємо з localStorage
             const storedData = getFromStorage('userData', null, true);
             if (storedData) {
                 _userData = storedData;
                 return _userData;
             }
+
+            return getFallbackUserData("in_progress");
         }
 
-        // Оновлюємо час останнього запиту і встановлюємо блокування
+        // 4. Встановлюємо блокування запитів
         _state.lastRequestTime = now;
         _state.requestInProgress = true;
 
+        // 5. Отримуємо ID користувача
+        const userId = getUserId();
+        if (!userId) {
+            console.warn("⚠️ Core: ID користувача не знайдено");
+            _state.requestInProgress = false;
+            return getFallbackUserData("no_id");
+        }
+
+        // 6. Спробуємо зробити прямий запит
         try {
-            // Формуємо запит
-            const userId = getUserId();
-            if (!userId) {
-                throw new Error('ID користувача не знайдено');
-            }
+            console.log("🔄 Core: Виконуємо запит даних для користувача:", userId);
 
-            // Додаємо параметр запобігання кешування
-            const endpoint = `user/${userId}?t=${now}`;
-
-            // Виконуємо запит через executeApiRequest
-            const response = await executeApiRequest(endpoint, 'GET', null, {
-                suppressErrors: true,
-                timeout: 10000
+            // Створюємо запит напряму, не через executeApiRequest
+            const response = await fetch(`/api/user/${userId}?t=${now}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
             });
 
             _state.requestInProgress = false;
 
-            if (response && response.status === 'success' && response.data) {
-                _userData = response.data;
-
-                // Оновлюємо дані в localStorage
-                saveToStorage('userData', _userData);
-
-                // Зберігаємо також окремі поля для сумісності
-                if (_userData.balance !== undefined) {
-                    saveToStorage('userTokens', _userData.balance.toString());
-                    saveToStorage('winix_balance', _userData.balance.toString());
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.success !== false) {
+                    processUserData(data);
+                    return _userData;
                 }
-
-                if (_userData.coins !== undefined) {
-                    saveToStorage('userCoins', _userData.coins.toString());
-                    saveToStorage('winix_coins', _userData.coins.toString());
-                }
-
-                // Оновлюємо час кешування
-                saveToStorage('userData_timestamp', now.toString());
-
-                // Генеруємо подію оновлення
-                document.dispatchEvent(new CustomEvent('user-data-updated', {
-                    detail: { userData: _userData },
-                    source: 'core.js'
-                }));
-
-                // Скидаємо лічильник помилок при успішному запиті
-                _state.errorCounter = 0;
-
-                return _userData;
-            } else {
-                throw new Error(response?.message || 'Не вдалося отримати дані користувача');
             }
+
+            // Якщо запит не вдався, використовуємо запасний варіант
+            console.warn("⚠️ Core: Запит до API не вдався, використовуємо локальні дані");
+            return getFallbackUserData("api_error");
+
         } catch (error) {
-            console.error('❌ Core: Помилка отримання даних користувача:', error);
+            console.error("❌ Core: Помилка запиту даних користувача:", error);
             _state.requestInProgress = false;
-
-            // Збільшуємо лічильник помилок
-            _state.errorCounter++;
-            _state.lastErrorTime = now;
-
-            // Перевірка на критичну кількість помилок
-            if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
-                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), скидання стану...`);
-
-                // Показуємо повідомлення користувачу
-                showErrorMessage('Виникли проблеми з підключенням. Спроба відновлення...', 'warning');
-
-                // Скидаємо лічильник помилок
-                _state.errorCounter = 0;
-
-                // Запускаємо скидання стану
-                setTimeout(resetAndReloadApplication, 1000);
-            }
-
-            // У випадку помилки використовуємо дані з localStorage
-            const storedUserData = getFromStorage('userData', null, true);
-            if (storedUserData) {
-                _userData = storedUserData;
-                return _userData;
-            }
-
-            // Створюємо мінімальні дані користувача
-            const userId = getUserId();
-            _userData = {
-                telegram_id: userId || 'unknown',
-                balance: parseFloat(getFromStorage('userTokens', '0')),
-                coins: parseInt(getFromStorage('userCoins', '0')),
-                source: 'localStorage_after_error'
-            };
-
-            return _userData;
+            return getFallbackUserData("fetch_error");
         }
+    } catch (outerError) {
+        console.error("❌ Core: Критична помилка в getUserData:", outerError);
+        return getFallbackUserData("critical_error");
     }
+
+    // Допоміжна функція для отримання запасних даних
+    function getFallbackUserData(source) {
+        const userId = getUserId() || localStorage.getItem('telegram_user_id') || 'unknown';
+        _userData = {
+            telegram_id: userId,
+            balance: parseFloat(getFromStorage('userTokens', '0')),
+            coins: parseInt(getFromStorage('userCoins', '0')),
+            source: 'fallback_' + source
+        };
+        return _userData;
+    }
+
+    // Допоміжна функція для обробки даних користувача
+    function processUserData(data) {
+        _userData = data.data || data;
+
+        // Зберігаємо дані в localStorage
+        saveToStorage('userData', _userData);
+
+        // Зберігаємо також окремі поля для сумісності
+        if (_userData.balance !== undefined) {
+            saveToStorage('userTokens', _userData.balance.toString());
+            saveToStorage('winix_balance', _userData.balance.toString());
+        }
+
+        if (_userData.coins !== undefined) {
+            saveToStorage('userCoins', _userData.coins.toString());
+            saveToStorage('winix_coins', _userData.coins.toString());
+        }
+
+        // Генеруємо подію оновлення
+        document.dispatchEvent(new CustomEvent('user-data-updated', {
+            detail: { userData: _userData },
+            source: 'core.js'
+        }));
+
+        return _userData;
+    }
+}
 
     /**
      * Отримання ID користувача
@@ -1184,8 +1140,16 @@
         try {
             // Отримуємо дані користувача
             const userData = _userData || {};
-            const userId = userData.telegram_id || getUserId() || getFromStorage('telegram_user_id', 'Unknown ID');
-            const username = userData.username || getFromStorage('username', 'User');
+
+            // Захисна перевірка на наявність ID
+        const userId = userData.telegram_id ||
+                     getUserId() ||
+                     getFromStorage('telegram_user_id', '') ||
+                     'ID не знайдено';
+
+        const username = userData.username ||
+                        getFromStorage('username', '') ||
+                        'Користувач';
 
             // Оновлюємо ID користувача
             const userIdElement = getElement('#header-user-id');
@@ -1524,10 +1488,40 @@
             const endpoint = `user/${userId}/balance?t=${Date.now()}`;
 
             // Виконуємо запит через executeApiRequest
-            const response = await executeApiRequest(endpoint, 'GET', null, {
-                suppressErrors: true,
-                timeout: 10000
-            });
+            let response;
+try {
+    response = await executeApiRequest(endpoint, 'GET', null, {
+        suppressErrors: true,
+        timeout: 10000
+    });
+
+    // Якщо відповідь невалідна, створюємо заглушку
+    if (!response || (response.status !== 'success' && !response.data)) {
+        console.warn("⚠️ Core: API повернув невалідну відповідь:", response);
+        response = {
+            status: 'success',
+            data: {
+                telegram_id: userId,
+                balance: parseFloat(getFromStorage('userTokens', '0')),
+                coins: parseInt(getFromStorage('userCoins', '0')),
+                source: 'fallback_invalid_response'
+            }
+        };
+    }
+} catch (requestError) {
+    console.error("❌ Core: Помилка виконання executeApiRequest:", requestError);
+    response = {
+        status: 'success',
+        data: {
+            telegram_id: userId,
+            balance: parseFloat(getFromStorage('userTokens', '0')),
+            coins: parseInt(getFromStorage('userCoins', '0')),
+            source: 'fallback_request_error'
+        }
+    };
+}
+
+_state.requestInProgress = false;
 
             // Завершуємо запит
             _state.requestInProgress = false;

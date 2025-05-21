@@ -519,9 +519,9 @@ if (userData && userData.balance !== undefined) {
 }
 
                     // Показуємо вітальне повідомлення для нових користувачів
-                    if (response.data.is_new_user) {
-                        showWelcomeMessage();
-                    }
+                    if (response && response.data && response.data.is_new_user) {
+    showWelcomeMessage();
+}
 
                     // Відправляємо подію про успішну авторизацію
                     document.dispatchEvent(new CustomEvent(EVENT_AUTH_SUCCESS, {
@@ -686,7 +686,22 @@ if (userData && userData.balance !== undefined) {
 
             try {
                 // Отримуємо дані користувача через WinixAPI
-                const response = await window.WinixAPI.getUserData(forceRefresh);
+               let response;
+if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
+    response = await window.WinixAPI.getUserData(forceRefresh);
+} else {
+    // Запасний варіант, якщо функція недоступна
+    const userId = getUserId();
+    response = {
+        status: 'success',
+        data: {
+            telegram_id: userId || 'unknown',
+            balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+            coins: parseInt(localStorage.getItem('userCoins') || '0')
+        }
+    };
+    console.log("⚠️ AUTH: Використовуємо запасні дані, getUserData недоступний");
+}
 
                 // Приховуємо індикатор завантаження
                 if (spinner) spinner.classList.remove('show');
