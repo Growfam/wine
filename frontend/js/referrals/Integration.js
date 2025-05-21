@@ -318,85 +318,108 @@ window.ReferralIntegration = (function() {
    * Оновлює відображення статистики рефералів
    */
   ReferralIntegration.prototype.updateReferralStatsDisplay = function(statsData) {
-    if (!statsData || !statsData.statistics) {
-      // Якщо немає даних, показуємо нулі
-      this.updateElement('.total-referrals-count', 0);
-      this.updateElement('.active-referrals-count', 0);
-      this.updateElement('.conversion-rate', '0%');
-      this.updateElement('#active-referrals-count', 0);
-      this.updateElement('#inactive-referrals-count', 0);
-      this.updateElement('#conversion-rate', '0%');
-      return;
+    console.log('📊 [INTEGRATION] Оновлення відображення статистики:', statsData);
+
+    // Установка даних за замовчуванням, якщо не отримано дані
+    const stats = {
+        totalReferrals: 0,
+        activeReferrals: 0,
+        inactiveReferrals: 0,
+        conversionRate: "0"
+    };
+
+    if (statsData && statsData.statistics) {
+        stats.totalReferrals = statsData.statistics.totalReferrals || 0;
+        stats.activeReferrals = statsData.statistics.activeReferrals || 0;
+        stats.inactiveReferrals = (stats.totalReferrals - stats.activeReferrals);
+
+        // Розрахунок відсотка конверсії
+        if (stats.totalReferrals > 0) {
+            stats.conversionRate = ((stats.activeReferrals / stats.totalReferrals) * 100).toFixed(1);
+        }
+    } else if (statsData && statsData.referrals) {
+        // Альтернативний формат відповіді
+        if (Array.isArray(statsData.referrals.level1)) {
+            stats.totalReferrals = statsData.referrals.level1.length;
+            stats.activeReferrals = statsData.referrals.level1.filter(ref => ref.active).length;
+            stats.inactiveReferrals = stats.totalReferrals - stats.activeReferrals;
+
+            if (stats.totalReferrals > 0) {
+                stats.conversionRate = ((stats.activeReferrals / stats.totalReferrals) * 100).toFixed(1);
+            }
+        }
     }
 
-    const stats = statsData.statistics;
+    console.log('📊 [INTEGRATION] Розраховані значення для відображення:', stats);
 
     // Оновлюємо загальні показники
-    this.updateElement('.total-referrals-count', stats.totalReferrals || 0);
-    this.updateElement('.active-referrals-count', stats.activeReferrals || 0);
-
-    const conversionRate = stats.totalReferrals > 0
-      ? ((stats.activeReferrals / stats.totalReferrals) * 100).toFixed(1)
-      : '0';
-    this.updateElement('.conversion-rate', conversionRate + '%');
+    this.updateElement('.total-referrals-count', stats.totalReferrals);
+    this.updateElement('.active-referrals-count', stats.activeReferrals);
+    this.updateElement('.conversion-rate', stats.conversionRate + '%');
 
     // Оновлюємо статистику активності
-    this.updateElement('#active-referrals-count', stats.activeReferrals || 0);
-    this.updateElement('#inactive-referrals-count', (stats.totalReferrals || 0) - (stats.activeReferrals || 0));
-    this.updateElement('#conversion-rate', conversionRate + '%');
+    this.updateElement('#active-referrals-count', stats.activeReferrals);
+    this.updateElement('#inactive-referrals-count', stats.inactiveReferrals);
+    this.updateElement('#conversion-rate', stats.conversionRate + '%');
 
     // Оновлюємо прогрес бейджів
-    this.updateBadgeProgress(stats.totalReferrals || 0);
-  };
+    this.updateBadgeProgress(stats.totalReferrals);
+};
 
   /**
    * Оновлює прогрес бейджів
    */
   ReferralIntegration.prototype.updateBadgeProgress = function(referralsCount) {
+    console.log('🔄 [INTEGRATION] Оновлення прогресу бейджів для кількості рефералів:', referralsCount);
+
     if (!window.ReferralServices || !window.ReferralServices.checkBadgesProgress) {
-      console.warn('ReferralServices недоступний для розрахунку прогресу бейджів');
-      return;
+        console.warn('ReferralServices недоступний для розрахунку прогресу бейджів');
+        return;
     }
+
+    // Переконаємося, що це число, а не текст
+    referralsCount = parseInt(referralsCount) || 0;
 
     const badgeProgress = window.ReferralServices.checkBadgesProgress(referralsCount);
+    console.log('📊 [INTEGRATION] Розрахований прогрес бейджів:', badgeProgress);
 
     if (badgeProgress) {
-      // Оновлюємо загальну статистику бейджів
-      this.updateElement('#earned-badges-count', badgeProgress.earnedBadgesCount);
-      this.updateElement('#remaining-badges-count', 4 - badgeProgress.earnedBadgesCount);
+        // Оновлюємо загальну статистику бейджів
+        this.updateElement('#earned-badges-count', badgeProgress.earnedBadgesCount);
+        this.updateElement('#remaining-badges-count', 4 - badgeProgress.earnedBadgesCount);
 
-      // Оновлюємо прогрес наступного бейджа
-      if (badgeProgress.nextBadge) {
-        const nextBadgeTitle = this.getBadgeTitle(badgeProgress.nextBadge.type);
-        const nextBadgeTitleElement = document.querySelector('.next-badge-title');
-        if (nextBadgeTitleElement) {
-          nextBadgeTitleElement.textContent = 'Наступний бейдж: ' + nextBadgeTitle;
+        // Оновлюємо прогрес наступного бейджа
+        if (badgeProgress.nextBadge) {
+            const nextBadgeTitle = this.getBadgeTitle(badgeProgress.nextBadge.type);
+            const nextBadgeTitleElement = document.querySelector('.next-badge-title');
+            if (nextBadgeTitleElement) {
+                nextBadgeTitleElement.textContent = 'Наступний бейдж: ' + nextBadgeTitle;
+            }
+
+            const progressPercent = Math.round(badgeProgress.nextBadge.progress);
+            const progressBar = document.querySelector('.next-badge-container .progress-fill');
+            if (progressBar) {
+                progressBar.style.width = progressPercent + '%';
+            }
+
+            const progressText = document.querySelector('.next-badge-container .progress-text');
+            if (progressText) {
+                progressText.textContent = progressPercent + '% (' + referralsCount + '/' + badgeProgress.nextBadge.threshold + ')';
+            }
+
+            const remainingText = document.querySelector('.next-badge-remaining');
+            if (remainingText) {
+                remainingText.textContent = 'Залишилось: ' + badgeProgress.nextBadge.remaining + ' рефералів';
+            }
         }
 
-        const progressPercent = Math.round(badgeProgress.nextBadge.progress);
-        const progressBar = document.querySelector('.next-badge-container .progress-fill');
-        if (progressBar) {
-          progressBar.style.width = progressPercent + '%';
-        }
-
-        const progressText = document.querySelector('.next-badge-container .progress-text');
-        if (progressText) {
-          progressText.textContent = progressPercent + '% (' + referralsCount + '/' + badgeProgress.nextBadge.threshold + ')';
-        }
-
-        const remainingText = document.querySelector('.next-badge-remaining');
-        if (remainingText) {
-          remainingText.textContent = 'Залишилось: ' + badgeProgress.nextBadge.remaining + ' рефералів';
-        }
-      }
-
-      // Оновлюємо індивідуальні прогрес-бари бейджів
-      const self = this;
-      badgeProgress.badgeProgress.forEach(function(badge) {
-        self.updateBadgeItem(badge);
-      });
+        // Оновлюємо індивідуальні прогрес-бари бейджів
+        const self = this;
+        badgeProgress.badgeProgress.forEach(function(badge) {
+            self.updateBadgeItem(badge);
+        });
     }
-  };
+};
 
   /**
    * Оновлює конкретний елемент бейджа
