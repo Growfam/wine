@@ -3,6 +3,10 @@ from sqlalchemy import Column, Integer, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import db
 
+# Додаємо відсутні константи
+REWARD_STATUS_PENDING = 'pending'
+REWARD_STATUS_PAID = 'paid'
+
 class Referral(db.Model):
     """
     Модель для зберігання реферальних зв'язків між користувачами.
