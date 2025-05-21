@@ -492,35 +492,31 @@ const userData = response.data;
 window.WinixAuth.currentUser = userData;
 console.log("✅ AUTH: Користувача успішно авторизовано", userData);
 
-// Перевіряємо валідність ID перед збереженням
-if (userData && userData.telegram_id && isValidId(userData.telegram_id)) {
-    localStorage.setItem('telegram_user_id', userData.telegram_id);
-
-    // Оновлюємо елемент на сторінці
-    const userIdElement = document.getElementById('user-id');
-    if (userIdElement) {
-        userIdElement.textContent = userData.telegram_id;
-    }
+if (userData && userData.balance !== undefined) {
+    localStorage.setItem('userTokens', String(userData.balance));
+    localStorage.setItem('winix_balance', String(userData.balance));
 } else {
-    console.warn("⚠️ AUTH: API повернув невалідний ID користувача або userData.telegram_id відсутній");
-    // Шукаємо ID в інших джерелах
-    const altId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || userId;
-    if (isValidId(altId)) {
-        localStorage.setItem('telegram_user_id', altId.toString());
-        console.log("✅ AUTH: Використовуємо альтернативний ID:", altId);
-    }
+    console.warn("⚠️ AUTH: Баланс користувача відсутній або невалідний");
+    // Залишаємо попереднє значення
 }
 
-                    // Зберігаємо баланс і жетони в localStorage
-                    if (userData.balance !== undefined) {
-                        localStorage.setItem('userTokens', userData.balance.toString());
-                        localStorage.setItem('winix_balance', userData.balance.toString());
-                    }
+if (userData && userData.coins !== undefined) {
+    localStorage.setItem('userCoins', String(userData.coins));
+    localStorage.setItem('winix_coins', String(userData.coins));
+} else {
+    console.warn("⚠️ AUTH: Монети користувача відсутні або невалідні");
+    // Залишаємо попереднє значення
+}
 
-                    if (userData.coins !== undefined) {
-                        localStorage.setItem('userCoins', userData.coins.toString());
-                        localStorage.setItem('winix_coins', userData.coins.toString());
-                    }
+                   // Зберігаємо баланс і жетони в localStorage
+if (userData && userData.balance !== undefined) {
+    localStorage.setItem('userTokens', userData.balance.toString());
+    localStorage.setItem('winix_balance', userData.balance.toString());
+} else if (userData) {
+    // Встановлюємо значення за замовчуванням, якщо balance відсутній
+    localStorage.setItem('userTokens', '0');
+    localStorage.setItem('winix_balance', '0');
+}
 
                     // Показуємо вітальне повідомлення для нових користувачів
                     if (response.data.is_new_user) {
