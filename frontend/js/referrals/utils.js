@@ -5,6 +5,23 @@
 window.ReferralUtils = (function() {
   'use strict';
 
+  // Безпечна функція для перевірки включення підрядка
+window.safeIncludes = function(str, search) {
+    // Перевіряємо, чи str це рядок
+    if (typeof str !== 'string') {
+        console.warn('safeIncludes: перший аргумент не є рядком', str);
+        return false;
+    }
+
+    // Перевіряємо, чи search це рядок
+    if (typeof search !== 'string') {
+        console.warn('safeIncludes: другий аргумент не є рядком', search);
+        return false;
+    }
+
+    return str.indexOf(search) >= 0;
+};
+
   // calculatePercentage.js
   function calculatePercentage(amount, rate, round) {
     round = round !== false; // default true

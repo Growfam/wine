@@ -192,10 +192,18 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.updateReferralLinkDisplay = function(link) {
     const linkDisplay = document.querySelector('.link-display');
     if (linkDisplay) {
-      linkDisplay.textContent = link;
-      linkDisplay.dataset.link = link;
+        // Переконаємося, що link це рядок
+        if (typeof link !== 'string') {
+            console.warn("⚠️ [INTEGRATION] Отримано некоректний формат посилання:", link);
+            // Отримаємо ID користувача
+            const userId = this.userId || localStorage.getItem('telegram_user_id') || '6859825214';
+            link = 'https://t.me/WINIX_Official_bot?start=' + userId;
+        }
+
+        linkDisplay.textContent = link;
+        linkDisplay.dataset.link = link;
     }
-  };
+};
 
   /**
    * Ініціалізує відображення винагород

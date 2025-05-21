@@ -388,11 +388,18 @@ window.ReferralStore = (function() {
   }
 
   function fetchReferralLinkSuccess(link) {
+    // Переконаємося, що link це рядок
+    const validLink = typeof link === 'string'
+        ? link
+        : (link && typeof link.toString === 'function'
+            ? link.toString()
+            : 'https://t.me/WINIX_Official_bot?start=');
+
     return {
-      type: ReferralLinkActionTypes.FETCH_REFERRAL_LINK_SUCCESS,
-      payload: { link: link }
+        type: ReferralLinkActionTypes.FETCH_REFERRAL_LINK_SUCCESS,
+        payload: { link: validLink }
     };
-  }
+}
 
   function fetchReferralLinkFailure(error) {
     return {
@@ -418,21 +425,24 @@ window.ReferralStore = (function() {
         return Promise.reject(new Error('Некоректний ID користувача'));
       }
 
-      return window.ReferralAPI.fetchReferralLink(numericUserId)
-        .then(function(link) {
-          // API тепер повертає повну ссилку формату: https://t.me/WINIX_Official_bot?start={id}
-          // Якщо ссилка не містить повний домен, форматуємо її
-          const formattedLink = link.includes('t.me/WINIX_Official_bot')
-            ? link
-            : 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+     return window.ReferralAPI.fetchReferralLink(numericUserId)
+    .then(function(link) {
+        // Безпечна перевірка формату посилання
+        let formattedLink;
 
-          dispatch(fetchReferralLinkSuccess(formattedLink));
-          return formattedLink;
-        })
-        .catch(function(error) {
-          dispatch(fetchReferralLinkFailure(error));
-          throw error;
-        });
+        if (typeof link === 'string') {
+            formattedLink = link.indexOf('t.me/WINIX_Official_bot') >= 0
+                ? link
+                : 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+        } else {
+            // Якщо link не рядок, просто створюємо посилання
+            formattedLink = 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+            console.warn("⚠️ [STORE] Отримано некоректний формат посилання:", link);
+        }
+
+        dispatch(fetchReferralLinkSuccess(formattedLink));
+        return formattedLink;
+    })
     };
   }
 
