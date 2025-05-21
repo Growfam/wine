@@ -176,7 +176,7 @@ def register_auth_routes(app):
                 logger.debug(f"[{request_id}] Тіло запиту: {safe_data}")
 
             # Отримуємо користувача
-            user = controllers.verify_user(data)
+            user = controllers.verify_telegram_mini_app_user(data)
 
             if not user:
                 logger.warning(f"[{request_id}] Помилка верифікації користувача")

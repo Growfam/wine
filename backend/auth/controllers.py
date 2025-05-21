@@ -74,11 +74,16 @@ def validate_telegram_id(telegram_id):
     Raises:
         ValueError: Якщо ID невалідний з детальним поясненням
     """
+    # Логування вхідного значення для діагностики
+    logger.debug(f"validate_telegram_id: Отримано ID для валідації: {telegram_id} (тип: {type(telegram_id).__name__})")
+
     # Базові перевірки на None, undefined та порожні значення
     if telegram_id is None:
+        logger.error("ID користувача не вказано (None)")
         raise ValueError("ID користувача не вказано (None)")
 
     if isinstance(telegram_id, str) and telegram_id.lower() in ['undefined', 'null', '']:
+        logger.error(f"Невалідний формат Telegram ID: '{telegram_id}'")
         raise ValueError(f"Невалідний формат Telegram ID: '{telegram_id}'")
 
     # Перевірка на різні типи і конвертація до рядка
@@ -86,33 +91,53 @@ def validate_telegram_id(telegram_id):
     try:
         telegram_id = str(telegram_id).strip()
     except Exception as e:
+        logger.error(f"Неможливо конвертувати ID до рядка: {original_id}, помилка: {str(e)}")
         raise ValueError(f"Неможливо конвертувати ID до рядка: {original_id}, помилка: {str(e)}")
 
     # Перевірка на порожній рядок після обробки
     if not telegram_id:
+        logger.error("ID користувача порожній після обробки")
         raise ValueError("ID користувача порожній після обробки")
 
-    # Перевірка на валідні формати:
-    # 1. Цифровий ID користувача (може мати різну довжину)
-    # 2. ID групового чату, починається з -100
-    if re.match(r'^\d+$', telegram_id) or re.match(r'^-100\d+$', telegram_id):
+    # Видалення всіх нецифрових символів для звичайних ID
+    telegram_id_clean = re.sub(r'\D', '', telegram_id)
+
+    # Якщо оригінальний ID починався з -100 (для групових чатів), зберігаємо цей префікс
+    if telegram_id.startswith('-100'):
+        if re.match(r'^-100\d+$', telegram_id):
+            logger.info(f"Валідний ID групового чату: {telegram_id}")
+            return telegram_id
+        # Якщо після -100 є інші нецифрові символи, очищаємо їх, але зберігаємо префікс
+        elif telegram_id_clean:
+            logger.warning(f"ID групового чату містив невалідні символи: '{telegram_id}' -> '-100{telegram_id_clean}'")
+            return f"-100{telegram_id_clean}"
+
+    # Для звичайних ID: якщо це лише цифри, повертаємо як є
+    if re.match(r'^\d+$', telegram_id):
+        logger.info(f"Валідний ID користувача: {telegram_id}")
         return telegram_id
 
-    # Додаткові перевірки для виявлення проблем з форматом
+    # Якщо ID містить як цифри, так і нецифрові символи, спробуємо вилучити лише цифри
+    if telegram_id_clean:
+        # Перевіряємо, чи має отриманий ID достатню довжину (зазвичай 8+ цифр)
+        if len(telegram_id_clean) > 7:
+            logger.warning(
+                f"ID містив невалідні символи, вилучено лише цифри: '{telegram_id}' -> '{telegram_id_clean}'")
+            return telegram_id_clean
+        else:
+            logger.warning(f"Вилучені цифри з ID занадто короткі: '{telegram_id_clean}' (з '{telegram_id}')")
+
+    # Перевіряємо наявність символів, що можуть вказувати на проблему
     if re.search(r'[a-zA-Z]', telegram_id):
+        logger.error(f"ID містить літери: {telegram_id}")
         raise ValueError(f"ID містить літери: {telegram_id}")
 
     if "undefined" in telegram_id.lower() or "null" in telegram_id.lower():
+        logger.error(f"ID містить невалідні ключові слова: {telegram_id}")
         raise ValueError(f"ID містить невалідні ключові слова: {telegram_id}")
 
-    # Якщо ID містить цифри, але має інші символи, спробуємо вилучити лише цифри
-    if re.search(r'\d', telegram_id):
-        digits_only = re.sub(r'\D', '', telegram_id)
-        if digits_only:
-            logger.warning(f"ID містив невалідні символи, вилучено лише цифри: '{telegram_id}' -> '{digits_only}'")
-            return digits_only
-
     # Якщо ми дійшли сюди, ID не відповідає жодному з відомих форматів
+    logger.error(f"Невалідний формат Telegram ID: {telegram_id}")
     raise ValueError(f"Невалідний формат Telegram ID: {telegram_id}")
 
 
