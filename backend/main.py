@@ -141,8 +141,7 @@ def create_app(config_name=None):
         # Налаштування заголовків CORS для всіх відповідей
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers[
-            'Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Telegram-User-Id'
+        response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Telegram-User-Id'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Max-Age'] = '86400'  # 24 години кешування preflight запитів
 
@@ -150,30 +149,11 @@ def create_app(config_name=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-XSS-Protection'] = '1; mode=block'
 
-        # Виправлена логіка для Telegram WebApp
-        # Перевіряємо чи це запит з Telegram WebApp (різні способи детекції)
-        is_telegram_webapp = (
-            # Перевірка User-Agent
-                (request.headers.get('User-Agent') and 'Telegram' in request.headers.get('User-Agent')) or
-                # Перевірка Referer (Telegram WebApp може мати telegram.org в referer)
-                (request.headers.get('Referer') and ('telegram.org' in request.headers.get(
-                    'Referer') or 'web.telegram.org' in request.headers.get('Referer'))) or
-                # Перевірка наявності tgWebAppData в URL (характерно для Telegram WebApp)
-                (request.url and 'tgWebAppData' in request.url) or
-                # Перевірка специфічних заголовків Telegram
-                request.headers.get('X-Telegram-Bot-Api-Secret-Token') is not None
-        )
+        # ПОВНІСТЮ ВИДАЛЯЄМО X-Frame-Options для підтримки Telegram WebApp
+        # НЕ встановлюємо жодних X-Frame-Options заголовків
 
-        if is_telegram_webapp:
-            # Для Telegram WebApp повністю видаляємо X-Frame-Options
-            if 'X-Frame-Options' in response.headers:
-                del response.headers['X-Frame-Options']
-            # Додаємо CSP який дозволяє Telegram домени
-            response.headers[
-                'Content-Security-Policy'] = "frame-ancestors 'self' https://web.telegram.org https://telegram.org"
-        else:
-            # Для інших запитів встановлюємо SAMEORIGIN
-            response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        # Замість X-Frame-Options використовуємо Content-Security-Policy
+        response.headers['Content-Security-Policy'] = "frame-ancestors 'self' https://web.telegram.org https://telegram.org *"
 
         # Налаштування кешування
         if request.path.startswith('/api/'):
