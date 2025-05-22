@@ -1,8 +1,5 @@
-from models.referral import Referral
-from models.activity import ReferralActivity
-from database import db
+from supabase_client import supabase
 from flask import current_app
-from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime, timedelta
 import logging
 import traceback
@@ -87,15 +84,16 @@ class ReferralController:
             referrer_id_str = str(referrer_id)
             referee_id_str = str(referee_id)
 
-            # Перевірка, чи реферал вже зареєстрований (правило: користувач може бути рефералом тільки одного користувача)
-            existing_referral = Referral.query.filter_by(referee_id=referee_id_str, level=1).first()
-            if existing_referral:
+            # Перевірка, чи реферал вже зареєстрований
+            existing_referral = supabase.table("referrals").select("*").eq("referee_id", referee_id_str).eq("level",
+                                                                                                            1).execute()
+            if existing_referral.data:
                 logger.warning(f"register_referral: Користувач {referee_id_str} вже зареєстрований як реферал "
-                               f"для користувача {existing_referral.referrer_id}")
+                               f"для користувача {existing_referral.data[0]['referrer_id']}")
                 return {
                     'success': False,
                     'error': 'User is already registered as a referral',
-                    'details': f'Referee ID {referee_id_str} is already linked to referrer ID {existing_referral.referrer_id}'
+                    'details': f'Referee ID {referee_id_str} is already linked to referrer ID {existing_referral.data[0]["referrer_id"]}'
                 }
 
             # Перевірка, що користувач не реєструє себе як реферала
@@ -107,69 +105,97 @@ class ReferralController:
                     'details': 'Referrer ID and referee ID must be different'
                 }
 
-            # Використовуємо транзакцію для атомарності операцій
             try:
                 # Створення запису про прямого реферала (1-й рівень)
-                new_referral = Referral(referrer_id=referrer_id_str, referee_id=referee_id_str, level=1)
-                db.session.add(new_referral)
+                new_referral_data = {
+                    "referrer_id": referrer_id_str,
+                    "referee_id": referee_id_str,
+                    "level": 1,
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                new_referral_result = supabase.table("referrals").insert(new_referral_data).execute()
 
                 # Оновлюємо кількість запрошених для активності реферера
-                referrer_activity = ReferralActivity.query.filter_by(user_id=referrer_id_str).first()
-                if referrer_activity:
-                    referrer_activity.invited_referrals += 1
+                referrer_activity = supabase.table("referral_activities").select("*").eq("user_id",
+                                                                                         referrer_id_str).execute()
+
+                if referrer_activity.data:
+                    # Оновлюємо існуючий запис
+                    current_invited = referrer_activity.data[0].get('invited_referrals', 0)
+                    update_data = {
+                        "invited_referrals": current_invited + 1,
+                        "last_updated": datetime.utcnow().isoformat()
+                    }
+
                     # Перевіряємо активність на основі нових даних
-                    referrer_activity.check_activity(min_draws=3, min_invites=1)
+                    draws_participation = referrer_activity.data[0].get('draws_participation', 0)
+                    if (current_invited + 1) >= 1 or draws_participation >= 3:
+                        update_data["is_active"] = True
+                        update_data["reason_for_activity"] = "invited_criteria" if (
+                                                                                               current_invited + 1) >= 1 else "draws_criteria"
+
+                    supabase.table("referral_activities").update(update_data).eq("user_id", referrer_id_str).execute()
                 else:
-                    # Створюємо запис активності, якщо його не існує
-                    referrer_activity = ReferralActivity(
-                        user_id=referrer_id_str,
-                        invited_referrals=1
-                    )
-                    # Перевіряємо активність
-                    referrer_activity.check_activity(min_draws=3, min_invites=1)
-                    db.session.add(referrer_activity)
+                    # Створюємо новий запис активності
+                    new_activity_data = {
+                        "user_id": referrer_id_str,
+                        "invited_referrals": 1,
+                        "draws_participation": 0,
+                        "is_active": True,  # Активний, бо вже запросив 1 реферала
+                        "reason_for_activity": "invited_criteria",
+                        "last_updated": datetime.utcnow().isoformat()
+                    }
+                    supabase.table("referral_activities").insert(new_activity_data).execute()
 
                 # Створюємо запис активності для нового реферала
-                referee_activity = ReferralActivity(
-                    user_id=referee_id_str,
-                    invited_referrals=0,
-                    draws_participation=0
-                )
-                db.session.add(referee_activity)
+                referee_activity_data = {
+                    "user_id": referee_id_str,
+                    "invited_referrals": 0,
+                    "draws_participation": 0,
+                    "is_active": False,
+                    "last_updated": datetime.utcnow().isoformat()
+                }
+                supabase.table("referral_activities").insert(referee_activity_data).execute()
 
                 # Знаходимо реферера для поточного реферера (якщо є), щоб створити зв'язок 2-го рівня
-                higher_referral = Referral.query.filter_by(referee_id=referrer_id_str, level=1).first()
-                if higher_referral and higher_referral.referrer_id != referee_id_str:  # Перевірка, щоб уникнути циклічних посилань
+                higher_referral = supabase.table("referrals").select("*").eq("referee_id", referrer_id_str).eq("level",
+                                                                                                               1).execute()
+
+                if higher_referral.data and higher_referral.data[0]['referrer_id'] != referee_id_str:
                     # Перевіряємо, чи вже існує такий зв'язок 2-го рівня
-                    existing_lvl2 = Referral.query.filter_by(
-                        referrer_id=higher_referral.referrer_id,
-                        referee_id=referee_id_str,
-                        level=2
-                    ).first()
+                    existing_lvl2 = supabase.table("referrals").select("*").eq(
+                        "referrer_id", higher_referral.data[0]['referrer_id']
+                    ).eq(
+                        "referee_id", referee_id_str
+                    ).eq("level", 2).execute()
 
                     # Якщо зв'язок 2-го рівня ще не існує, створюємо його
-                    if not existing_lvl2:
-                        second_level_referral = Referral(
-                            referrer_id=higher_referral.referrer_id,
-                            referee_id=referee_id_str,
-                            level=2
-                        )
-                        db.session.add(second_level_referral)
+                    if not existing_lvl2.data:
+                        second_level_referral_data = {
+                            "referrer_id": higher_referral.data[0]['referrer_id'],
+                            "referee_id": referee_id_str,
+                            "level": 2,
+                            "created_at": datetime.utcnow().isoformat()
+                        }
+                        supabase.table("referrals").insert(second_level_referral_data).execute()
                         logger.info(
-                            f"register_referral: Створено реферальний зв'язок 2-го рівня: {higher_referral.referrer_id} -> {referee_id_str}")
+                            f"register_referral: Створено реферальний зв'язок 2-го рівня: {higher_referral.data[0]['referrer_id']} -> {referee_id_str}")
 
-                # Зберігаємо всі зміни
-                db.session.commit()
                 logger.info(
                     f"register_referral: Успішно створено реферальний зв'язок між {referrer_id_str} та {referee_id_str}")
 
                 return {
                     'success': True,
                     'message': 'Referral successfully registered',
-                    'referral': new_referral.to_dict()
+                    'referral': {
+                        'id': new_referral_result.data[0]['id'] if new_referral_result.data else None,
+                        'referrer_id': referrer_id_str,
+                        'referee_id': referee_id_str,
+                        'level': 1,
+                        'created_at': new_referral_data['created_at']
+                    }
                 }
-            except SQLAlchemyError as e:
-                db.session.rollback()
+            except Exception as e:
                 error_details = traceback.format_exc()
                 logger.error(f"register_referral: Помилка в транзакції: {str(e)}\n{error_details}")
                 return {
@@ -178,17 +204,7 @@ class ReferralController:
                     'details': str(e)
                 }
 
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            error_details = traceback.format_exc()
-            logger.error(f"Database error during referral registration: {str(e)}\n{error_details}")
-            return {
-                'success': False,
-                'error': 'Database error during referral registration',
-                'details': str(e)
-            }
         except Exception as e:
-            db.session.rollback()
             error_details = traceback.format_exc()
             logger.error(f"Error registering referral: {str(e)}\n{error_details}")
             return {
@@ -223,18 +239,21 @@ class ReferralController:
 
             try:
                 # Отримання рефералів 1-го рівня
-                level1_referrals = Referral.query.filter_by(referrer_id=user_id_str, level=1).all()
+                level1_referrals = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).eq("level",
+                                                                                                             1).execute()
                 logger.debug(
-                    f"get_referral_structure: Знайдено {len(level1_referrals)} рефералів 1-го рівня для {user_id_str}")
+                    f"get_referral_structure: Знайдено {len(level1_referrals.data)} рефералів 1-го рівня для {user_id_str}")
 
                 # Отримання рефералів 2-го рівня
-                level2_referrals = Referral.query.filter_by(referrer_id=user_id_str, level=2).all()
+                level2_referrals = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).eq("level",
+                                                                                                             2).execute()
                 logger.debug(
-                    f"get_referral_structure: Знайдено {len(level2_referrals)} рефералів 2-го рівня для {user_id_str}")
+                    f"get_referral_structure: Знайдено {len(level2_referrals.data)} рефералів 2-го рівня для {user_id_str}")
 
                 # Підрахунок активних рефералів на основі реальних даних з таблиці активності
-                active_referrals = ReferralController._count_active_referrals(level1_referrals, level2_referrals)
-                total_referrals = len(level1_referrals) + len(level2_referrals)
+                active_referrals = ReferralController._count_active_referrals(level1_referrals.data,
+                                                                              level2_referrals.data)
+                total_referrals = len(level1_referrals.data) + len(level2_referrals.data)
 
                 # Розрахунок конверсії
                 conversion_rate = 0
@@ -244,22 +263,22 @@ class ReferralController:
                 # Формування відповіді для фронтенду у форматі, який очікує клієнт
                 return {
                     'success': True,
-                    'user_id': user_id_str,  # Використовуємо формат, який очікує фронтенд
+                    'user_id': user_id_str,
                     'referrals': {
-                        'level1': [ReferralController._format_referral_data(ref) for ref in level1_referrals],
+                        'level1': [ReferralController._format_referral_data(ref) for ref in level1_referrals.data],
                         'level2': [ReferralController._format_referral_data(ref, with_referrer_id=True) for ref in
-                                   level2_referrals]
+                                   level2_referrals.data]
                     },
                     'statistics': {
                         'totalReferrals': total_referrals,
-                        'level1Count': len(level1_referrals),
-                        'level2Count': len(level2_referrals),
+                        'level1Count': len(level1_referrals.data),
+                        'level2Count': len(level2_referrals.data),
                         'activeReferrals': active_referrals,
                         'inactiveReferrals': total_referrals - active_referrals,
                         'conversionRate': conversion_rate
                     }
                 }
-            except SQLAlchemyError as e:
+            except Exception as e:
                 error_details = traceback.format_exc()
                 logger.error(f"get_referral_structure: Помилка бази даних: {str(e)}\n{error_details}")
                 return {
@@ -282,7 +301,7 @@ class ReferralController:
         Форматує дані про реферала у формат, який очікує фронтенд
 
         Args:
-            referral (Referral): Об'єкт реферала
+            referral (dict): Об'єкт реферала
             with_referrer_id (bool): Чи додавати referrerId до відповіді (для 2-го рівня)
 
         Returns:
@@ -290,65 +309,64 @@ class ReferralController:
         """
         try:
             # Отримуємо реальні дані активності для цього реферала
-            activity = ReferralActivity.query.filter_by(user_id=referral.referee_id).first()
+            activity = supabase.table("referral_activities").select("*").eq("user_id", referral['referee_id']).execute()
 
             is_active = False
-            if activity:
+            if activity.data:
+                activity_data = activity.data[0]
                 # Перевіряємо активність на основі критеріїв
-                # Критерій 1: Має мінімум 3 участі в розіграшах
-                # Критерій 2: Запросив мінімум 1 реферала
-                # Критерій 3: Заходив у додаток протягом останнього тижня
                 min_draws = 3
                 min_invites = 1
                 is_inactive_by_time = False
 
-                if activity.last_updated:
-                    is_inactive_by_time = activity.last_updated < (datetime.utcnow() - timedelta(days=7))
+                if activity_data.get('last_updated'):
+                    last_updated = datetime.fromisoformat(activity_data['last_updated'].replace('Z', '+00:00'))
+                    is_inactive_by_time = last_updated < (datetime.utcnow() - timedelta(days=7))
 
                 # Уніфікована логіка активності
-                meets_draws_criteria = activity.draws_participation >= min_draws
-                meets_invited_criteria = activity.invited_referrals >= min_invites
+                meets_draws_criteria = activity_data.get('draws_participation', 0) >= min_draws
+                meets_invited_criteria = activity_data.get('invited_referrals', 0) >= min_invites
 
                 is_active = (
-                        activity.is_active and
+                        activity_data.get('is_active', False) and
                         (meets_draws_criteria or meets_invited_criteria) and
                         not is_inactive_by_time
                 )
 
             # Завжди використовуємо формат, який очікує фронтенд
             result = {
-                'id': f'WX{referral.referee_id}',  # Завжди додаємо префікс WX для фронтенду
-                'rawId': str(referral.referee_id),  # Зберігаємо "сирий" ID для зручності бекенда
-                'registrationDate': referral.created_at.isoformat(),  # Стандартний ISO формат для всіх дат
+                'id': f'WX{referral["referee_id"]}',  # Завжди додаємо префікс WX для фронтенду
+                'rawId': str(referral['referee_id']),  # Зберігаємо "сирий" ID для зручності бекенда
+                'registrationDate': referral['created_at'],  # Стандартний ISO формат для всіх дат
                 'active': is_active
             }
 
             if with_referrer_id:
                 # Знаходимо реферера 1-го рівня для цього реферала 2-го рівня
                 try:
-                    first_level_ref = Referral.query.filter_by(
-                        referee_id=referral.referee_id,
-                        level=1
-                    ).first()
+                    first_level_ref = supabase.table("referrals").select("*").eq(
+                        "referee_id", referral['referee_id']
+                    ).eq("level", 1).execute()
 
-                    if first_level_ref:
-                        result['referrerId'] = f'WX{first_level_ref.referrer_id}'  # Додаємо префікс WX
-                        result['rawReferrerId'] = str(first_level_ref.referrer_id)  # Додаємо "сирий" ID реферера
+                    if first_level_ref.data:
+                        result['referrerId'] = f'WX{first_level_ref.data[0]["referrer_id"]}'  # Додаємо префікс WX
+                        result['rawReferrerId'] = str(
+                            first_level_ref.data[0]['referrer_id'])  # Додаємо "сирий" ID реферера
                     else:
                         logger.warning(
-                            f"_format_referral_data: Не знайдено реферера 1-го рівня для {referral.referee_id}")
+                            f"_format_referral_data: Не знайдено реферера 1-го рівня для {referral['referee_id']}")
                 except Exception as e:
                     logger.error(f"_format_referral_data: Помилка пошуку реферера 1-го рівня: {str(e)}")
 
             return result
         except Exception as e:
-            logger.error(f"_format_referral_data: Помилка форматування даних реферала {referral.id}: {str(e)}")
+            logger.error(
+                f"_format_referral_data: Помилка форматування даних реферала {referral.get('id', 'unknown')}: {str(e)}")
             # Повертаємо базову інформацію, щоб не втратити дані повністю
             return {
-                'id': f'WX{referral.referee_id}',
-                'rawId': str(referral.referee_id),
-                'registrationDate': referral.created_at.isoformat() if hasattr(referral,
-                                                                               'created_at') else datetime.utcnow().isoformat(),
+                'id': f'WX{referral["referee_id"]}',
+                'rawId': str(referral['referee_id']),
+                'registrationDate': referral.get('created_at', datetime.utcnow().isoformat()),
                 'active': False,
                 'error': f"Помилка форматування: {str(e)}"
             }
@@ -367,38 +385,40 @@ class ReferralController:
         """
         try:
             # Збираємо всі ID рефералів
-            referral_ids = [ref.referee_id for ref in level1_referrals + level2_referrals]
+            referral_ids = [ref['referee_id'] for ref in level1_referrals + level2_referrals]
 
             if not referral_ids:
                 return 0
 
-            # Оптимізація: при порожньому списку зразу повертаємо 0
-            if not referral_ids:
-                return 0
+            # Отримуємо активності для всіх рефералів одним запитом
+            activities = supabase.table("referral_activities").select("*").in_("user_id", referral_ids).execute()
 
-            # Запит до таблиці активності для пошуку активних рефералів
+            active_count = 0
             one_week_ago = datetime.utcnow() - timedelta(days=7)
-
-            # Критерії активності:
-            # 1. Маркер is_active = True
-            # 2. Був активний протягом останнього тижня
-            # 3. Має достатньо участей у розіграшах або запрошених рефералів
             min_draws = 3
             min_invites = 1
 
-            active_count = ReferralActivity.query.filter(
-                ReferralActivity.user_id.in_(referral_ids),
-                ReferralActivity.is_active == True,
-                ReferralActivity.last_updated > one_week_ago,
-                # Додаємо умову для критеріїв активності
-                ((ReferralActivity.draws_participation >= min_draws) |
-                 (ReferralActivity.invited_referrals >= min_invites))
-            ).count()
+            for activity in activities.data:
+                # Перевіряємо всі критерії активності
+                if not activity.get('is_active', False):
+                    continue
+
+                # Перевіряємо час останньої активності
+                if activity.get('last_updated'):
+                    last_updated = datetime.fromisoformat(activity['last_updated'].replace('Z', '+00:00'))
+                    if last_updated < one_week_ago:
+                        continue
+
+                # Перевіряємо критерії активності
+                meets_draws = activity.get('draws_participation', 0) >= min_draws
+                meets_invites = activity.get('invited_referrals', 0) >= min_invites
+
+                if meets_draws or meets_invites:
+                    active_count += 1
 
             return active_count
         except Exception as e:
             logger.error(f"_count_active_referrals: Помилка підрахунку активних рефералів: {str(e)}")
-            # Повертаємо 0, якщо виникла помилка
             return 0
 
     @staticmethod
@@ -420,5 +440,4 @@ class ReferralController:
             return active_referrals / total_referrals
         except Exception as e:
             logger.error(f"_calculate_conversion_rate: Помилка розрахунку конверсії: {str(e)}")
-            # Повертаємо 0, якщо виникла помилка
             return 0
