@@ -13,7 +13,6 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 import traceback
-from settings.config import get_config
 
 # Сторонні бібліотеки
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, g, abort
@@ -21,7 +20,6 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
 
-config = get_config()
 # Завантажуємо змінні середовища
 load_dotenv()
 
@@ -60,6 +58,16 @@ def is_valid_uuid(uuid_string):
 
 def create_app(config_name=None):
     """Фабрика для створення застосунку Flask"""
+
+    # Завантажуємо конфігурацію на початку функції
+    from settings.config import get_config
+    config = get_config()
+    logger.info(f"Завантажена конфігурація: {type(config)}")
+
+    if config is None:
+        logger.critical("❌ Конфігурація не завантажена!")
+        exit(1)
+
     # Ініціалізація Flask з абсолютними шляхами для шаблонів та статики
     app = Flask(
         __name__,
@@ -70,11 +78,12 @@ def create_app(config_name=None):
 
     # Завантажуємо конфігурацію
     try:
-        from settings import current_config
-        app.config.from_object(current_config)
+        app.config.from_object(config)
         # Секретний ключ для сесій
-        app.secret_key = current_config.SECRET_KEY
-    except ImportError:
+        app.secret_key = config.SECRET_KEY
+        logger.info("Конфігурація успішно завантажена")
+    except Exception as e:
+        logger.error(f"Помилка завантаження конфігурації: {str(e)}")
         # Базові налаштування, якщо settings не знайдено
         app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
         app.config['DEBUG'] = os.environ.get('FLASK_ENV') == 'development'
@@ -182,6 +191,9 @@ def create_app(config_name=None):
     with app.app_context():
         db.create_all()
         logger.info("Таблиці бази даних створено")
+
+    return app  # КРИТИЧНО ВАЖЛИВО - повертаємо створений app
+
 
 def setup_cors(app):
     """Налаштування CORS для API"""
@@ -737,7 +749,7 @@ def setup_staking_routes(app):
             """Глибоке відновлення стану стейкінгу з перевіркою цілісності даних"""
             return deep_repair_user_staking(telegram_id)
 
-        logger.info("Маршрути для стейкінгу зареєстровано")
+        logger.info("✅ Маршрути для стейкінгу зареєстровано")
     except ImportError as e:
         logger.warning(f"Неможливо налаштувати маршрути стейкінгу: модуль не знайдено - {str(e)}")
     except Exception as e:
