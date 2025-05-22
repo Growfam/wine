@@ -2,6 +2,49 @@ from supabase_client import supabase
 from flask import current_app
 from datetime import datetime, timedelta
 import logging
+import sys
+import os
+
+# Додаємо шлях до utils
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'utils'))
+try:
+    from date_utils import parse_datetime, format_datetime
+except ImportError:
+    # Fallback функції якщо не вдалося імпортувати
+    def parse_datetime(date_string):
+        if not date_string:
+            return None
+        try:
+            # Очищаємо мілісекунди
+            if '.' in date_string:
+                date_parts = date_string.split('.')
+                if len(date_parts) > 1:
+                    # Обрізаємо мілісекунди до 6 цифр
+                    ms_part = date_parts[1][:6].ljust(6, '0')
+                    date_string = f"{date_parts[0]}.{ms_part}"
+                    if 'Z' in date_parts[1]:
+                        date_string += 'Z'
+
+            # Пробуємо різні формати
+            for suffix in ['Z', '+00:00', '']:
+                try:
+                    test_string = date_string.rstrip('Z').rstrip('+00:00') + suffix
+                    return datetime.fromisoformat(test_string.replace('Z', '+00:00'))
+                except:
+                    continue
+
+            # Якщо нічого не вийшло, повертаємо поточну дату
+            return datetime.utcnow()
+        except:
+            return datetime.utcnow()
+
+
+    def format_datetime(dt):
+        if not dt:
+            return None
+        if isinstance(dt, str):
+            return dt
+        return dt.isoformat()
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
@@ -218,9 +261,12 @@ class HistoryController:
                 summary['eventsByType'][event_type] = summary['eventsByType'].get(event_type, 0) + 1
 
                 # Рахуємо події за датою
-                event_date = datetime.fromisoformat(event.get('timestamp').replace('Z', '+00:00'))
-                date_key = event_date.strftime('%Y-%m-%d')
-                summary['eventsByDate'][date_key] = summary['eventsByDate'].get(date_key, 0) + 1
+                try:
+                    event_date = parse_datetime(event.get('timestamp'))
+                    date_key = event_date.strftime('%Y-%m-%d')
+                    summary['eventsByDate'][date_key] = summary['eventsByDate'].get(date_key, 0) + 1
+                except Exception as e:
+                    logger.warning(f"Error parsing event date: {str(e)}")
 
                 # Рахуємо специфічні метрики залежно від типу події
                 if event_type == 'referral':
@@ -263,7 +309,7 @@ class HistoryController:
                 }
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting referral activity summary: {str(e)}")
+            logger.error(f"Error getting referral activity summary: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get referral activity summary',
@@ -298,7 +344,7 @@ class HistoryController:
             # Сортуємо історію за датою (від найстарішої до найновішої)
             sorted_history = sorted(
                 history,
-                key=lambda e: datetime.fromisoformat(e.get('timestamp').replace('Z', '+00:00'))
+                key=lambda e: parse_datetime(e.get('timestamp')) or datetime.min
             )
 
             # Агрегуємо дані по періодах
@@ -306,7 +352,9 @@ class HistoryController:
 
             for event in sorted_history:
                 # Отримуємо дату події
-                event_date = datetime.fromisoformat(event.get('timestamp').replace('Z', '+00:00'))
+                event_date = parse_datetime(event.get('timestamp'))
+                if not event_date:
+                    continue
 
                 # Визначаємо ключ періоду
                 period_key = HistoryController._get_period_key(event_date, period)
@@ -375,7 +423,7 @@ class HistoryController:
                 'trendData': trend_data
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting referral activity trend: {str(e)}")
+            logger.error(f"Error getting referral activity trend: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get referral activity trend',
@@ -415,7 +463,7 @@ class HistoryController:
 
             for referral in referrals.data:
                 # Перевіряємо фільтрацію за датою
-                created_at = datetime.fromisoformat(referral['created_at'].replace('Z', '+00:00'))
+                created_at = parse_datetime(referral['created_at'])
                 if not HistoryController._filter_by_date(created_at, options):
                     continue
 
@@ -472,7 +520,7 @@ class HistoryController:
 
             for bonus in bonuses.data:
                 # Перевіряємо фільтрацію за датою
-                created_at = datetime.fromisoformat(bonus['created_at'].replace('Z', '+00:00'))
+                created_at = parse_datetime(bonus['created_at'])
                 if not HistoryController._filter_by_date(created_at, options):
                     continue
 
@@ -529,7 +577,7 @@ class HistoryController:
 
             for reward in rewards.data:
                 # Перевіряємо фільтрацію за датою
-                created_at = datetime.fromisoformat(reward['created_at'].replace('Z', '+00:00'))
+                created_at = parse_datetime(reward['created_at'])
                 if not HistoryController._filter_by_date(created_at, options):
                     continue
 
@@ -578,7 +626,7 @@ class HistoryController:
 
             for badge in badges.data:
                 # Перевіряємо фільтрацію за датою
-                earned_at = datetime.fromisoformat(badge['earned_at'].replace('Z', '+00:00'))
+                earned_at = parse_datetime(badge['earned_at'])
                 if not HistoryController._filter_by_date(earned_at, options):
                     continue
 
@@ -636,7 +684,9 @@ class HistoryController:
                 if not task_date_str:
                     continue
 
-                task_date = datetime.fromisoformat(task_date_str.replace('Z', '+00:00'))
+                task_date = parse_datetime(task_date_str)
+                if not task_date:
+                    continue
 
                 # Перевіряємо фільтрацію за датою
                 if not HistoryController._filter_by_date(task_date, options):
@@ -720,7 +770,7 @@ class HistoryController:
                     continue
 
                 # Перевіряємо фільтрацію за датою
-                draw_date = datetime.fromisoformat(draw['date'].replace('Z', '+00:00'))
+                draw_date = parse_datetime(draw['date'])
                 if not HistoryController._filter_by_date(draw_date, options):
                     continue
 

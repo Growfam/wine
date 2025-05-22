@@ -1,6 +1,8 @@
 from supabase_client import supabase
-from flask import current_app
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BadgeController:
@@ -74,7 +76,7 @@ class BadgeController:
                 'new_badges': new_badges
             }
         except Exception as e:
-            current_app.logger.error(f"Error checking badges: {str(e)}")
+            logger.error(f"Error checking badges: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to check badges',
@@ -126,7 +128,7 @@ class BadgeController:
                 'available_badges': available_badges
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting user badges: {str(e)}")
+            logger.error(f"Error getting user badges: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get user badges',
@@ -209,10 +211,10 @@ class BadgeController:
                     }
                     supabase.table("transactions").insert(transaction_data).execute()
 
-                    current_app.logger.info(
+                    logger.info(
                         f"Badge reward claimed: user {user_id_str}, badge {badge_type}, amount {badge['reward_amount']}")
             except Exception as e:
-                current_app.logger.error(f"Error updating user balance: {str(e)}")
+                logger.error(f"Error updating user balance: {str(e)}")
 
             # Отримуємо оновлені дані бейджа
             updated_badge = supabase.table("user_badges").select("*").eq("id", badge['id']).execute()
@@ -224,7 +226,7 @@ class BadgeController:
                 'reward_amount': badge['reward_amount']
             }
         except Exception as e:
-            current_app.logger.error(f"Error claiming badge reward: {str(e)}")
+            logger.error(f"Error claiming badge reward: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to claim badge reward',

@@ -45,7 +45,7 @@ class BonusController:
             ).eq("level", 1).execute()
 
             if not referral.data:
-                current_app.logger.warning(
+                logger.warning(
                     f"award_direct_bonus: Не знайдено реферальний зв'язок між {referrer_id_str} та {referee_id_str}")
                 return {
                     'success': False,
@@ -108,7 +108,7 @@ class BonusController:
             except Exception as e:
                 logger.info(f"Запис транзакції не доданий: {str(e)}")
 
-            current_app.logger.info(
+            logger.info(
                 f"award_direct_bonus: Успішно нараховано бонус {amount} для {referrer_id_str} за реферала {referee_id_str}")
 
             return {
@@ -123,7 +123,7 @@ class BonusController:
                 }
             }
         except Exception as e:
-            current_app.logger.error(f"Error awarding direct bonus: {str(e)}")
+            logger.error(f"Error awarding direct bonus: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to award direct bonus',
@@ -190,7 +190,7 @@ class BonusController:
                 'bonuses': formatted_bonuses
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting bonus history: {str(e)}")
+            logger.error(f"Error getting bonus history: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get bonus history',

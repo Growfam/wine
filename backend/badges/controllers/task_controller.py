@@ -1,6 +1,8 @@
 from supabase_client import supabase
-from flask import current_app
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TaskController:
@@ -97,7 +99,7 @@ class TaskController:
                 'all_tasks': updated_tasks_result.data
             }
         except Exception as e:
-            current_app.logger.error(f"Error initializing tasks: {str(e)}")
+            logger.error(f"Error initializing tasks: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to initialize tasks',
@@ -155,7 +157,7 @@ class TaskController:
                 'completed_tasks': completed_tasks
             }
         except Exception as e:
-            current_app.logger.error(f"Error updating tasks: {str(e)}")
+            logger.error(f"Error updating tasks: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to update tasks',
@@ -208,7 +210,7 @@ class TaskController:
                 'tasks': enhanced_tasks
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting user tasks: {str(e)}")
+            logger.error(f"Error getting user tasks: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get user tasks',
@@ -299,10 +301,10 @@ class TaskController:
                     }
                     supabase.table("transactions").insert(transaction_data).execute()
 
-                    current_app.logger.info(
+                    logger.info(
                         f"Task reward claimed: user {user_id_str}, task {task_type}, amount {task['reward_amount']}")
             except Exception as e:
-                current_app.logger.error(f"Error updating user balance: {str(e)}")
+                logger.error(f"Error updating user balance: {str(e)}")
 
             # Отримуємо оновлені дані завдання
             updated_task = supabase.table("user_tasks").select("*").eq("id", task['id']).execute()
@@ -314,7 +316,7 @@ class TaskController:
                 'reward_amount': task['reward_amount']
             }
         except Exception as e:
-            current_app.logger.error(f"Error claiming task reward: {str(e)}")
+            logger.error(f"Error claiming task reward: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to claim task reward',
@@ -357,5 +359,5 @@ class TaskController:
                 # Для невідомих типів завдань повертаємо 0
                 return 0
         except Exception as e:
-            current_app.logger.error(f"Error getting task progress: {str(e)}")
+            logger.error(f"Error getting task progress: {str(e)}")
             return 0

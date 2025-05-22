@@ -1,5 +1,4 @@
 from supabase_client import supabase
-from flask import current_app
 from datetime import datetime, timedelta
 import logging
 
@@ -111,7 +110,7 @@ class ActivityController:
                 }
 
         except Exception as e:
-            current_app.logger.error(f"Error updating activity: {str(e)}")
+            logger.error(f"Error updating activity: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to update activity',
@@ -174,7 +173,7 @@ class ActivityController:
                 'admin_id': admin_id_str
             }
         except Exception as e:
-            current_app.logger.error(f"Error during manual activation: {str(e)}")
+            logger.error(f"Error during manual activation: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to manually activate referral',
@@ -284,7 +283,7 @@ class ActivityController:
                 'level2Activity': level2_activities
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting referral activity: {str(e)}")
+            logger.error(f"Error getting referral activity: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get referral activity',
@@ -407,7 +406,7 @@ class ActivityController:
                 'manualActivationInfo': manual_activation_info
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting detailed activity: {str(e)}")
+            logger.error(f"Error getting detailed activity: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get detailed activity',
@@ -482,7 +481,7 @@ class ActivityController:
                 }
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting activity summary: {str(e)}")
+            logger.error(f"Error getting activity summary: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get activity summary',
