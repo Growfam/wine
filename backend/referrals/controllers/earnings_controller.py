@@ -2,6 +2,32 @@ from supabase_client import supabase
 from flask import jsonify
 from datetime import datetime, timedelta
 import logging
+import sys
+import os
+
+
+# Додаємо шлях до utils
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'utils'))
+try:
+    from date_utils import parse_datetime
+except ImportError:
+    # Fallback функція якщо не вдалося імпортувати
+    def parse_datetime(date_string):
+        if not date_string:
+            return None
+        try:
+            # Очищаємо мілісекунди
+            if '.' in date_string:
+                date_parts = date_string.split('.')
+                if len(date_parts) > 1:
+                    ms_part = date_parts[1][:6].ljust(6, '0')
+                    date_string = f"{date_parts[0]}.{ms_part}"
+                    if 'Z' in date_parts[1]:
+                        date_string += 'Z'
+
+            return datetime.fromisoformat(date_string.replace('Z', '+00:00'))
+        except:
+            return datetime.utcnow()
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
@@ -74,7 +100,7 @@ class EarningsController:
                     # Перевірка активності за критеріями
                     is_active = activity.get('is_active', False)
                     if activity.get('last_updated'):
-                        last_updated = datetime.fromisoformat(activity['last_updated'].replace('Z', '+00:00'))
+                        last_updated = parse_datetime(activity['last_updated'])
                         is_active = is_active and (last_updated > datetime.utcnow() - timedelta(days=7))
 
                 # Рахуємо загальні заробітки реферала
@@ -108,7 +134,7 @@ class EarningsController:
                     # Перевірка активності за критеріями
                     is_active = activity.get('is_active', False)
                     if activity.get('last_updated'):
-                        last_updated = datetime.fromisoformat(activity['last_updated'].replace('Z', '+00:00'))
+                        last_updated = parse_datetime(activity['last_updated'])
                         is_active = is_active and (last_updated > datetime.utcnow() - timedelta(days=7))
 
                 # Рахуємо загальні заробітки реферала
@@ -187,7 +213,7 @@ class EarningsController:
             one_month_ago = datetime.utcnow() - timedelta(days=30)
             period_earnings = 0
             for reward in referral_rewards.data:
-                reward_date = datetime.fromisoformat(reward['created_at'].replace('Z', '+00:00'))
+                reward_date = parse_datetime(reward['created_at'])
                 if reward_date > one_month_ago:
                     period_earnings += reward['reward_amount']
 
@@ -390,14 +416,12 @@ class EarningsController:
 
             # Фільтрація за датою, якщо вказано
             if 'startDate' in options and options['startDate']:
-                start_date = datetime.fromisoformat(options['startDate'].replace('Z', '+00:00'))
-                rewards = [r for r in rewards if
-                           datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) >= start_date]
+                start_date = parse_datetime(options['startDate'])
+                rewards = [r for r in rewards if parse_datetime(r['created_at']) >= start_date]
 
             if 'endDate' in options and options['endDate']:
-                end_date = datetime.fromisoformat(options['endDate'].replace('Z', '+00:00'))
-                rewards = [r for r in rewards if
-                           datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) <= end_date]
+                end_date = parse_datetime(options['endDate'])
+                rewards = [r for r in rewards if parse_datetime(r['created_at']) <= end_date]
 
             # Сортування за датою (найновіші спочатку)
             rewards.sort(key=lambda x: x['created_at'], reverse=True)
@@ -500,12 +524,12 @@ class EarningsController:
             recent_bonuses = 0
 
             for reward in percentage_rewards.data:
-                reward_date = datetime.fromisoformat(reward['created_at'].replace('Z', '+00:00'))
+                reward_date = parse_datetime(reward['created_at'])
                 if reward_date > one_month_ago:
                     recent_rewards += reward['reward_amount']
 
             for bonus in direct_bonuses.data:
-                bonus_date = datetime.fromisoformat(bonus['created_at'].replace('Z', '+00:00'))
+                bonus_date = parse_datetime(bonus['created_at'])
                 if bonus_date > one_month_ago:
                     recent_bonuses += bonus['amount']
 
