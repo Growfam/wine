@@ -1,5 +1,5 @@
 from supabase_client import supabase
-from flask import jsonify, current_app
+from flask import jsonify
 from datetime import datetime, timedelta
 import logging
 
@@ -146,7 +146,7 @@ class EarningsController:
                 'level2Referrals': level2_data
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting referral earnings: {str(e)}")
+            logger.error(f"Error getting referral earnings: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get referral earnings',
@@ -235,7 +235,7 @@ class EarningsController:
                 'activities': activities
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting detailed earnings: {str(e)}")
+            logger.error(f"Error getting detailed earnings: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get detailed earnings',
@@ -351,7 +351,7 @@ class EarningsController:
                 }
             }
         except Exception as e:
-            current_app.logger.error(f"Error calculating percentage reward: {str(e)}")
+            logger.error(f"Error calculating percentage reward: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to calculate percentage reward',
@@ -456,7 +456,7 @@ class EarningsController:
                 'rewards': detailed_rewards
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting percentage rewards: {str(e)}")
+            logger.error(f"Error getting percentage rewards: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get percentage rewards',
@@ -535,7 +535,7 @@ class EarningsController:
 
             return summary
         except Exception as e:
-            current_app.logger.error(f"Error getting earnings summary: {str(e)}")
+            logger.error(f"Error getting earnings summary: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get earnings summary',

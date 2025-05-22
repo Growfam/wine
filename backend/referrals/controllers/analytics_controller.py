@@ -1,5 +1,4 @@
 from supabase_client import supabase
-from flask import current_app
 from datetime import datetime, timedelta
 import json
 import logging
@@ -161,7 +160,7 @@ class AnalyticsController:
                 'referrals': result_referrals
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting referrals ranking: {str(e)}")
+            logger.error(f"Error getting referrals ranking: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get referrals ranking',
@@ -199,7 +198,7 @@ class AnalyticsController:
                 'top_referrals': top_referrals
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting top referrals: {str(e)}")
+            logger.error(f"Error getting top referrals: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get top referrals',
@@ -250,7 +249,7 @@ class AnalyticsController:
                 'tasks': tasks_total
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting total earnings: {str(e)}")
+            logger.error(f"Error getting total earnings: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get total earnings',
@@ -345,7 +344,7 @@ class AnalyticsController:
                 'history': earnings_history
             }
         except Exception as e:
-            current_app.logger.error(f"Error predicting earnings: {str(e)}")
+            logger.error(f"Error predicting earnings: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to predict earnings',
@@ -417,7 +416,7 @@ class AnalyticsController:
                 'roi': roi
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting earnings ROI: {str(e)}")
+            logger.error(f"Error getting earnings ROI: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get earnings ROI',
@@ -486,7 +485,7 @@ class AnalyticsController:
                 'distribution': distribution
             }
         except Exception as e:
-            current_app.logger.error(f"Error getting earnings distribution: {str(e)}")
+            logger.error(f"Error getting earnings distribution: {str(e)}")
             return {
                 'success': False,
                 'error': 'Failed to get earnings distribution',
