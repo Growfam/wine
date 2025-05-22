@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 import traceback
+from settings.config import get_config
 
 # Сторонні бібліотеки
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, g, abort
@@ -20,6 +21,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
 
+config = get_config()
 # Завантажуємо змінні середовища
 load_dotenv()
 
@@ -908,16 +910,18 @@ init_raffle_service()
 
 # Запуск застосунку
 if __name__ == '__main__':
-    try:
-        # Отримуємо порт з конфігурації або середовища
-        port = int(os.environ.get("PORT", app.config.get("PORT", 5000)))
-        debug_mode = app.config.get("DEBUG", False)
+    # Додайте перевірку на None
+    if app is None:
+        logger.critical("❌ Додаток не ініціалізовано!")
+        exit(1)
 
-        # Виводимо інформацію про запуск
-        logger.info(f"Запуск застосунку на порту {port}, режим налагодження: {debug_mode}")
+    # Визначення порту
+    port = int(os.environ.get('PORT', 8080))
 
-        # Запускаємо застосунок
-        app.run(debug=debug_mode, host='0.0.0.0', port=port)
-    except Exception as e:
-        logger.critical(f"Критична помилка запуску застосунку: {str(e)}")
-        traceback.print_exc()
+    # Безпечне отримання DEBUG
+    debug = getattr(app.config, 'DEBUG', True) if hasattr(app, 'config') else True
+
+    logger.info(f"Запуск застосунку на порту {port}, режим налагодження: {debug}")
+
+    # Запуск сервера
+    app.run(host='0.0.0.0', port=port, debug=debug)
