@@ -7,20 +7,11 @@ from database import db
 class ReferralActivity(db.Model):
     """
     Модель для зберігання інформації про активність рефералів.
-
-    Attributes:
-        id (int): Унікальний ідентифікатор запису
-        user_id (int): ID користувача (реферала)
-        draws_participation (int): Кількість участі в розіграшах
-        invited_referrals (int): Кількість запрошених рефералів
-        is_active (bool): Чи активний реферал
-        reason_for_activity (str): Причина активності (draws_criteria, invited_criteria, both_criteria, manual_activation)
-        last_updated (datetime): Дата та час останнього оновлення статусу
     """
     __tablename__ = 'referral_activities'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False, unique=True)
+    user_id = Column(String, nullable=False, unique=True)  # Змінено на String
     draws_participation = Column(Integer, default=0)
     invited_referrals = Column(Integer, default=0)
     is_active = Column(Boolean, default=False)
@@ -28,17 +19,7 @@ class ReferralActivity(db.Model):
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __init__(self, user_id, draws_participation=0, invited_referrals=0, is_active=False, reason_for_activity=None):
-        """
-        Ініціалізує новий запис активності реферала
-
-        Args:
-            user_id (int): ID користувача
-            draws_participation (int, optional): Кількість участі в розіграшах. Defaults to 0.
-            invited_referrals (int, optional): Кількість запрошених рефералів. Defaults to 0.
-            is_active (bool, optional): Чи активний реферал. Defaults to False.
-            reason_for_activity (str, optional): Причина активності. Defaults to None.
-        """
-        self.user_id = user_id
+        self.user_id = str(user_id)  # Конвертуємо в String
         self.draws_participation = draws_participation
         self.invited_referrals = invited_referrals
         self.is_active = is_active

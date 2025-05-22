@@ -1,8 +1,5 @@
-from models.task import UserTask
-from models.referral import Referral
-from database import db
+from supabase_client import supabase
 from flask import current_app
-from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 
 
@@ -39,9 +36,12 @@ class TaskController:
             dict: Результат ініціалізації завдань
         """
         try:
+            user_id_str = str(user_id)
+
             # Перевіряємо, чи вже є завдання для цього користувача
-            existing_tasks = UserTask.query.filter_by(user_id=user_id).all()
-            existing_task_types = set(task.task_type for task in existing_tasks)
+            existing_tasks_result = supabase.table("user_tasks").select("*").eq("user_id", user_id_str).execute()
+            existing_tasks = existing_tasks_result.data
+            existing_task_types = set(task['task_type'] for task in existing_tasks)
 
             # Створюємо завдання, які ще не існують
             new_tasks = []
@@ -49,43 +49,54 @@ class TaskController:
             for task_type, task_data in TaskController.TASK_THRESHOLDS.items():
                 if task_type not in existing_task_types:
                     # Отримуємо поточний прогрес для завдання
-                    progress = TaskController._get_task_progress(user_id, task_type)
+                    progress = TaskController._get_task_progress(user_id_str, task_type)
 
                     # Створюємо нове завдання
-                    new_task = UserTask(
-                        user_id=user_id,
-                        task_type=task_type,
-                        threshold=task_data['threshold'],
-                        reward_amount=task_data['reward'],
-                        progress=progress
-                    )
-                    db.session.add(new_task)
-                    new_tasks.append(new_task)
+                    new_task_data = {
+                        "user_id": user_id_str,
+                        "task_type": task_type,
+                        "threshold": task_data['threshold'],
+                        "reward_amount": task_data['reward'],
+                        "progress": progress,
+                        "completed": progress >= task_data['threshold'],
+                        "claimed": False,
+                        "last_updated": datetime.utcnow().isoformat()
+                    }
+
+                    if progress >= task_data['threshold']:
+                        new_task_data["completed_at"] = datetime.utcnow().isoformat()
+
+                    result = supabase.table("user_tasks").insert(new_task_data).execute()
+                    if result.data:
+                        new_tasks.append(result.data[0])
 
             # Оновлюємо прогрес для існуючих завдань
             for task in existing_tasks:
-                progress = TaskController._get_task_progress(user_id, task.task_type)
-                task.update_progress(progress)
+                progress = TaskController._get_task_progress(user_id_str, task['task_type'])
 
-            # Зберігаємо зміни в базі даних
-            db.session.commit()
+                update_data = {
+                    "progress": progress,
+                    "last_updated": datetime.utcnow().isoformat()
+                }
+
+                # Якщо завдання тільки що виконано
+                if progress >= task['threshold'] and not task['completed']:
+                    update_data["completed"] = True
+                    update_data["completed_at"] = datetime.utcnow().isoformat()
+
+                supabase.table("user_tasks").update(update_data).eq("id", task['id']).execute()
+
+            # Отримуємо оновлені завдання
+            updated_tasks_result = supabase.table("user_tasks").select("*").eq("user_id", user_id_str).execute()
 
             return {
                 'success': True,
-                'user_id': user_id,
-                'existing_tasks': [task.to_dict() for task in existing_tasks],
-                'new_tasks': [task.to_dict() for task in new_tasks]
-            }
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            current_app.logger.error(f"Database error during task initialization: {str(e)}")
-            return {
-                'success': False,
-                'error': 'Database error during task initialization',
-                'details': str(e)
+                'user_id': user_id_str,
+                'existing_tasks': existing_tasks,
+                'new_tasks': new_tasks,
+                'all_tasks': updated_tasks_result.data
             }
         except Exception as e:
-            db.session.rollback()
             current_app.logger.error(f"Error initializing tasks: {str(e)}")
             return {
                 'success': False,
@@ -105,8 +116,11 @@ class TaskController:
             dict: Результат оновлення завдань
         """
         try:
+            user_id_str = str(user_id)
+
             # Отримуємо всі завдання користувача
-            tasks = UserTask.query.filter_by(user_id=user_id).all()
+            tasks_result = supabase.table("user_tasks").select("*").eq("user_id", user_id_str).execute()
+            tasks = tasks_result.data
 
             # Якщо завдань немає, ініціалізуємо їх
             if not tasks:
@@ -116,31 +130,31 @@ class TaskController:
             completed_tasks = []
 
             for task in tasks:
-                progress = TaskController._get_task_progress(user_id, task.task_type)
-                task_completed = task.update_progress(progress)
+                progress = TaskController._get_task_progress(user_id_str, task['task_type'])
 
-                if task_completed:
+                update_data = {
+                    "progress": progress,
+                    "last_updated": datetime.utcnow().isoformat()
+                }
+
+                # Перевіряємо, чи тільки що виконано завдання
+                if progress >= task['threshold'] and not task['completed']:
+                    update_data["completed"] = True
+                    update_data["completed_at"] = datetime.utcnow().isoformat()
                     completed_tasks.append(task)
 
-            # Зберігаємо зміни в базі даних
-            db.session.commit()
+                supabase.table("user_tasks").update(update_data).eq("id", task['id']).execute()
+
+            # Отримуємо оновлені завдання
+            updated_tasks_result = supabase.table("user_tasks").select("*").eq("user_id", user_id_str).execute()
 
             return {
                 'success': True,
-                'user_id': user_id,
-                'tasks': [task.to_dict() for task in tasks],
-                'completed_tasks': [task.to_dict() for task in completed_tasks]
-            }
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            current_app.logger.error(f"Database error during task update: {str(e)}")
-            return {
-                'success': False,
-                'error': 'Database error during task update',
-                'details': str(e)
+                'user_id': user_id_str,
+                'tasks': updated_tasks_result.data,
+                'completed_tasks': completed_tasks
             }
         except Exception as e:
-            db.session.rollback()
             current_app.logger.error(f"Error updating tasks: {str(e)}")
             return {
                 'success': False,
@@ -160,6 +174,8 @@ class TaskController:
             dict: Інформація про завдання користувача
         """
         try:
+            user_id_str = str(user_id)
+
             # Перевіряємо, чи є завдання для цього користувача і оновлюємо їх
             update_result = TaskController.update_tasks(user_id)
 
@@ -180,11 +196,15 @@ class TaskController:
                     task_info['title'] = task_data['title']
                     task_info['description'] = task_data['description']
 
+                    # Розраховуємо відсоток виконання
+                    task_info['completion_percentage'] = min(100, int((task['progress'] / task['threshold']) * 100)) if \
+                    task['threshold'] > 0 else 0
+
                 enhanced_tasks.append(task_info)
 
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': user_id_str,
                 'tasks': enhanced_tasks
             }
         except Exception as e:
@@ -208,21 +228,24 @@ class TaskController:
             dict: Результат отримання винагороди
         """
         try:
-            # Перевіряємо, чи є таке завдання у користувача
-            task = UserTask.query.filter_by(
-                user_id=user_id,
-                task_type=task_type
-            ).first()
+            user_id_str = str(user_id)
 
-            if not task:
+            # Перевіряємо, чи є таке завдання у користувача
+            task_result = supabase.table("user_tasks").select("*").eq(
+                "user_id", user_id_str
+            ).eq("task_type", task_type).execute()
+
+            if not task_result.data:
                 return {
                     'success': False,
                     'error': 'Task not found',
-                    'details': f'User {user_id} does not have task {task_type}'
+                    'details': f'User {user_id_str} does not have task {task_type}'
                 }
 
+            task = task_result.data[0]
+
             # Перевіряємо, чи виконано завдання
-            if not task.completed:
+            if not task['completed']:
                 return {
                     'success': False,
                     'error': 'Task not completed',
@@ -230,35 +253,67 @@ class TaskController:
                 }
 
             # Перевіряємо, чи не була вже отримана винагорода
-            if task.claimed:
+            if task['claimed']:
                 return {
                     'success': False,
                     'error': 'Reward already claimed',
                     'details': f'Reward for task {task_type} has already been claimed'
                 }
 
-            # Отримуємо винагороду
-            task.claim_reward()
-            db.session.commit()
+            # Оновлюємо статус отримання винагороди
+            update_result = supabase.table("user_tasks").update({
+                "claimed": True,
+                "claimed_at": datetime.utcnow().isoformat()
+            }).eq("id", task['id']).execute()
 
-            # В реальному додатку тут буде код для нарахування валюти користувачу
+            if not update_result.data:
+                return {
+                    'success': False,
+                    'error': 'Failed to update task status',
+                    'details': 'Database error while updating task'
+                }
+
+            # Оновлюємо баланс користувача
+            try:
+                # Отримуємо поточний баланс
+                user_response = supabase.table("winix").select("balance").eq("telegram_id", user_id_str).execute()
+
+                if user_response.data:
+                    current_balance = float(user_response.data[0].get('balance', 0))
+                    new_balance = current_balance + task['reward_amount']
+
+                    # Оновлюємо баланс
+                    supabase.table("winix").update({
+                        "balance": new_balance,
+                        "updated_at": datetime.utcnow().isoformat()
+                    }).eq("telegram_id", user_id_str).execute()
+
+                    # Записуємо транзакцію
+                    transaction_data = {
+                        "telegram_id": user_id_str,
+                        "type": "task_reward",
+                        "amount": task['reward_amount'],
+                        "description": f"Винагорода за виконання завдання: {TaskController.TASK_THRESHOLDS[task_type]['title']}",
+                        "status": "completed",
+                        "created_at": datetime.utcnow().isoformat()
+                    }
+                    supabase.table("transactions").insert(transaction_data).execute()
+
+                    current_app.logger.info(
+                        f"Task reward claimed: user {user_id_str}, task {task_type}, amount {task['reward_amount']}")
+            except Exception as e:
+                current_app.logger.error(f"Error updating user balance: {str(e)}")
+
+            # Отримуємо оновлені дані завдання
+            updated_task = supabase.table("user_tasks").select("*").eq("id", task['id']).execute()
 
             return {
                 'success': True,
                 'message': 'Task reward successfully claimed',
-                'task': task.to_dict(),
-                'reward_amount': task.reward_amount
-            }
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            current_app.logger.error(f"Database error during task reward claim: {str(e)}")
-            return {
-                'success': False,
-                'error': 'Database error during task reward claim',
-                'details': str(e)
+                'task': updated_task.data[0] if updated_task.data else task,
+                'reward_amount': task['reward_amount']
             }
         except Exception as e:
-            db.session.rollback()
             current_app.logger.error(f"Error claiming task reward: {str(e)}")
             return {
                 'success': False,
@@ -272,31 +327,35 @@ class TaskController:
         Отримує поточний прогрес для завдання
 
         Args:
-            user_id (int): ID користувача
+            user_id (str): ID користувача
             task_type (str): Тип завдання
 
         Returns:
             int: Поточний прогрес
         """
-        if task_type == 'REFERRAL_COUNT':
-            # Підраховуємо загальну кількість рефералів
-            return Referral.query.filter_by(referrer_id=user_id).count()
-        elif task_type == 'ACTIVE_REFERRALS':
-            # Підраховуємо кількість активних рефералів
-            # В реальному додатку це буде запит до таблиці активності
-            from models.activity import ReferralActivity
+        try:
+            if task_type == 'REFERRAL_COUNT':
+                # Підраховуємо загальну кількість рефералів
+                referrals_result = supabase.table("referrals").select("*").eq("referrer_id", user_id).execute()
+                return len(referrals_result.data)
 
-            # Отримуємо ID рефералів користувача
-            referrals = Referral.query.filter_by(referrer_id=user_id).all()
-            referral_ids = [ref.referee_id for ref in referrals]
+            elif task_type == 'ACTIVE_REFERRALS':
+                # Підраховуємо кількість активних рефералів
+                # Отримуємо ID рефералів користувача
+                referrals_result = supabase.table("referrals").select("referee_id").eq("referrer_id", user_id).execute()
+                referral_ids = [ref['referee_id'] for ref in referrals_result.data]
 
-            # Підраховуємо кількість активних рефералів
-            active_count = ReferralActivity.query.filter(
-                ReferralActivity.user_id.in_(referral_ids),
-                ReferralActivity.is_active == True
-            ).count()
+                if not referral_ids:
+                    return 0
 
-            return active_count
-        else:
-            # Для невідомих типів завдань повертаємо 0
+                # Підраховуємо кількість активних рефералів
+                activities_result = supabase.table("referral_activities").select("*").in_("user_id", referral_ids).eq(
+                    "is_active", True).execute()
+
+                return len(activities_result.data)
+            else:
+                # Для невідомих типів завдань повертаємо 0
+                return 0
+        except Exception as e:
+            current_app.logger.error(f"Error getting task progress: {str(e)}")
             return 0

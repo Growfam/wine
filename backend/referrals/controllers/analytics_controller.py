@@ -1,11 +1,5 @@
-from models.referral import Referral
-from models.direct_bonus import DirectBonus
-from models.percentage_reward import PercentageReward
-from models.activity import ReferralActivity
-from models.draw import Draw, DrawParticipant
-from database import db
+from supabase_client import supabase
 from flask import current_app
-from sqlalchemy import func, desc, and_, or_
 from datetime import datetime, timedelta
 import json
 import logging
@@ -32,19 +26,21 @@ class AnalyticsController:
             dict: Рейтинг рефералів
         """
         try:
-            # Отримуємо всіх рефералів користувача
-            referrals = Referral.query.filter_by(referrer_id=user_id).all()
+            user_id_str = str(user_id)
 
-            if not referrals:
+            # Отримуємо всіх рефералів користувача
+            referrals = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).execute()
+
+            if not referrals.data:
                 return {
                     'success': True,
-                    'user_id': user_id,
+                    'user_id': user_id_str,
                     'sort_by': sort_by,
                     'referrals': []
                 }
 
             # Збираємо ID всіх рефералів
-            referral_ids = [referral.referee_id for referral in referrals]
+            referral_ids = [referral['referee_id'] for referral in referrals.data]
 
             # Формуємо результат
             result_referrals = []
@@ -54,26 +50,28 @@ class AnalyticsController:
                 # Отримуємо дані про заробітки від рефералів з бази даних
                 for referral_id in referral_ids:
                     # Отримуємо суму відсоткових винагород
-                    percentage_rewards = PercentageReward.query.filter_by(
-                        user_id=user_id,
-                        referral_id=referral_id
-                    ).all()
+                    percentage_rewards = supabase.table("percentage_rewards").select("*").eq(
+                        "user_id", user_id_str
+                    ).eq("referral_id", referral_id).execute()
 
-                    earnings = sum(reward.reward_amount for reward in percentage_rewards)
+                    earnings = sum(reward['reward_amount'] for reward in percentage_rewards.data)
 
                     # Додаємо прямий бонус, якщо він є
-                    direct_bonus = DirectBonus.query.filter_by(
-                        referrer_id=user_id,
-                        referee_id=referral_id
-                    ).first()
+                    direct_bonus = supabase.table("direct_bonuses").select("*").eq(
+                        "referrer_id", user_id_str
+                    ).eq("referee_id", referral_id).execute()
 
-                    if direct_bonus:
-                        earnings += direct_bonus.amount
+                    if direct_bonus.data:
+                        earnings += direct_bonus.data[0]['amount']
+
+                    # Знаходимо рівень реферала
+                    referral_level = next((ref['level'] for ref in referrals.data if ref['referee_id'] == referral_id),
+                                          1)
 
                     result_referrals.append({
                         'id': f'WX{referral_id}',
                         'earnings': earnings,
-                        'level': Referral.query.filter_by(referee_id=referral_id, referrer_id=user_id).first().level
+                        'level': referral_level
                     })
 
                 # Сортуємо за заробітками (від більшого до меншого)
@@ -83,12 +81,17 @@ class AnalyticsController:
                 # Отримуємо дані про кількість запрошених рефералами з бази даних
                 for referral_id in referral_ids:
                     # Підраховуємо кількість рефералів, запрошених цим рефералом
-                    invites_count = Referral.query.filter_by(referrer_id=referral_id).count()
+                    invites_count = len(
+                        supabase.table("referrals").select("*").eq("referrer_id", referral_id).execute().data)
+
+                    # Знаходимо рівень реферала
+                    referral_level = next((ref['level'] for ref in referrals.data if ref['referee_id'] == referral_id),
+                                          1)
 
                     result_referrals.append({
                         'id': f'WX{referral_id}',
                         'invites_count': invites_count,
-                        'level': Referral.query.filter_by(referee_id=referral_id, referrer_id=user_id).first().level
+                        'level': referral_level
                     })
 
                 # Сортуємо за кількістю запрошених (від більшого до меншого)
@@ -98,12 +101,17 @@ class AnalyticsController:
                 # Отримуємо дані про участь у розіграшах з бази даних
                 for referral_id in referral_ids:
                     # Підраховуємо кількість участей у розіграшах
-                    draws_participation = DrawParticipant.query.filter_by(user_id=referral_id).count()
+                    draws_participation = len(
+                        supabase.table("draw_participants").select("*").eq("user_id", referral_id).execute().data)
+
+                    # Знаходимо рівень реферала
+                    referral_level = next((ref['level'] for ref in referrals.data if ref['referee_id'] == referral_id),
+                                          1)
 
                     result_referrals.append({
                         'id': f'WX{referral_id}',
                         'draws_participation': draws_participation,
-                        'level': Referral.query.filter_by(referee_id=referral_id, referrer_id=user_id).first().level
+                        'level': referral_level
                     })
 
                 # Сортуємо за участю в розіграшах (від більшого до меншого)
@@ -112,28 +120,35 @@ class AnalyticsController:
             elif sort_by == 'activity':
                 # Отримуємо дані про активність рефералів з таблиці активності
                 for referral_id in referral_ids:
-                    activity = ReferralActivity.query.filter_by(user_id=referral_id).first()
+                    activity_result = supabase.table("referral_activities").select("*").eq("user_id",
+                                                                                           referral_id).execute()
 
-                    if activity:
+                    if activity_result.data:
+                        activity = activity_result.data[0]
                         # Обчислюємо "рахунок" активності на основі реальних даних
                         activity_score = (
-                                (activity.draws_participation * 2) +  # Кожна участь у розіграші = 2 бали
-                                (activity.invited_referrals * 5)  # Кожен запрошений = 5 балів
+                                (activity['draws_participation'] * 2) +  # Кожна участь у розіграші = 2 бали
+                                (activity['invited_referrals'] * 5)  # Кожен запрошений = 5 балів
                         )
 
-                        # Додатковий бонус за активну участь у проекті (на основі last_updated)
-                        if activity.last_updated:
-                            days_since_last_activity = (datetime.utcnow() - activity.last_updated).days
+                        # Додатковий бонус за активну участь у проекті
+                        if activity.get('last_updated'):
+                            last_updated = datetime.fromisoformat(activity['last_updated'].replace('Z', '+00:00'))
+                            days_since_last_activity = (datetime.utcnow() - last_updated).days
                             if days_since_last_activity < 7:  # Якщо заходив протягом останнього тижня
                                 activity_score += 10
                     else:
                         activity_score = 0
 
+                    # Знаходимо рівень реферала
+                    referral_level = next((ref['level'] for ref in referrals.data if ref['referee_id'] == referral_id),
+                                          1)
+
                     result_referrals.append({
                         'id': f'WX{referral_id}',
                         'activity_score': activity_score,
-                        'level': Referral.query.filter_by(referee_id=referral_id, referrer_id=user_id).first().level,
-                        'isActive': activity.is_active if activity else False
+                        'level': referral_level,
+                        'isActive': activity.get('is_active', False) if activity_result.data else False
                     })
 
                 # Сортуємо за активністю (від більшого до меншого)
@@ -141,7 +156,7 @@ class AnalyticsController:
 
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': user_id_str,
                 'sort_by': sort_by,
                 'referrals': result_referrals
             }
@@ -178,7 +193,7 @@ class AnalyticsController:
 
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': str(user_id),
                 'metric': metric,
                 'limit': limit,
                 'top_referrals': top_referrals
@@ -203,23 +218,23 @@ class AnalyticsController:
             dict: Загальний заробіток
         """
         try:
+            user_id_str = str(user_id)
+
             # Отримуємо суму прямих бонусів з бази даних
-            direct_bonuses = DirectBonus.query.filter_by(referrer_id=user_id).all()
-            direct_bonuses_total = sum(bonus.amount for bonus in direct_bonuses)
+            direct_bonuses = supabase.table("direct_bonuses").select("*").eq("referrer_id", user_id_str).execute()
+            direct_bonuses_total = sum(bonus['amount'] for bonus in direct_bonuses.data)
 
             # Отримуємо суму відсоткових винагород з бази даних
-            percentage_rewards = PercentageReward.query.filter_by(user_id=user_id).all()
-            percentage_rewards_total = sum(reward.reward_amount for reward in percentage_rewards)
+            percentage_rewards = supabase.table("percentage_rewards").select("*").eq("user_id", user_id_str).execute()
+            percentage_rewards_total = sum(reward['reward_amount'] for reward in percentage_rewards.data)
 
             # Отримуємо суму винагород за бейджі з бази даних
-            from models.badge import UserBadge
-            badges = UserBadge.query.filter_by(user_id=user_id, claimed=True).all()
-            badges_total = sum(badge.reward_amount for badge in badges)
+            badges = supabase.table("user_badges").select("*").eq("user_id", user_id_str).eq("claimed", True).execute()
+            badges_total = sum(badge['reward_amount'] for badge in badges.data)
 
             # Отримуємо суму винагород за завдання з бази даних
-            from models.task import UserTask
-            tasks = UserTask.query.filter_by(user_id=user_id, claimed=True).all()
-            tasks_total = sum(task.reward_amount for task in tasks)
+            tasks = supabase.table("user_tasks").select("*").eq("user_id", user_id_str).eq("claimed", True).execute()
+            tasks_total = sum(task['reward_amount'] for task in tasks.data)
 
             # Загальний заробіток
             total_earnings = direct_bonuses_total + percentage_rewards_total + badges_total + tasks_total
@@ -227,7 +242,7 @@ class AnalyticsController:
             # Формуємо результат
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': user_id_str,
                 'total_earnings': total_earnings,
                 'direct_bonuses': direct_bonuses_total,
                 'percentage_rewards': percentage_rewards_total,
@@ -254,6 +269,8 @@ class AnalyticsController:
             dict: Прогноз заробітків
         """
         try:
+            user_id_str = str(user_id)
+
             # Отримуємо реальну історію заробітків за останні 6 місяців
             earnings_history = []
             now = datetime.utcnow()
@@ -265,20 +282,21 @@ class AnalyticsController:
                 month_end = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(seconds=1)
 
                 # Заробітки від прямих бонусів за цей місяць
-                direct_bonuses = DirectBonus.query.filter(
-                    DirectBonus.referrer_id == user_id,
-                    DirectBonus.created_at >= month_start,
-                    DirectBonus.created_at <= month_end
-                ).all()
-                month_direct_bonuses = sum(bonus.amount for bonus in direct_bonuses)
+                month_direct_bonuses = 0
+                direct_bonuses = supabase.table("direct_bonuses").select("*").eq("referrer_id", user_id_str).execute()
+                for bonus in direct_bonuses.data:
+                    bonus_date = datetime.fromisoformat(bonus['created_at'].replace('Z', '+00:00'))
+                    if month_start <= bonus_date <= month_end:
+                        month_direct_bonuses += bonus['amount']
 
                 # Заробітки від відсоткових винагород за цей місяць
-                percentage_rewards = PercentageReward.query.filter(
-                    PercentageReward.user_id == user_id,
-                    PercentageReward.created_at >= month_start,
-                    PercentageReward.created_at <= month_end
-                ).all()
-                month_percentage_rewards = sum(reward.reward_amount for reward in percentage_rewards)
+                month_percentage_rewards = 0
+                percentage_rewards = supabase.table("percentage_rewards").select("*").eq("user_id",
+                                                                                         user_id_str).execute()
+                for reward in percentage_rewards.data:
+                    reward_date = datetime.fromisoformat(reward['created_at'].replace('Z', '+00:00'))
+                    if month_start <= reward_date <= month_end:
+                        month_percentage_rewards += reward['reward_amount']
 
                 # Загальний заробіток за місяць
                 month_total = month_direct_bonuses + month_percentage_rewards
@@ -300,7 +318,8 @@ class AnalyticsController:
             else:
                 # Якщо недостатньо даних для розрахунку, використовуємо значення за замовчуванням
                 # Розраховуємо на основі кількості рефералів та середнього бонусу
-                referral_count = Referral.query.filter_by(referrer_id=user_id).count()
+                referral_count = len(
+                    supabase.table("referrals").select("*").eq("referrer_id", user_id_str).execute().data)
                 monthly_growth = referral_count * 10 + 50  # Припускаємо середній ріст
 
             # Останній місячний заробіток
@@ -319,7 +338,7 @@ class AnalyticsController:
             # Формуємо результат
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': user_id_str,
                 'current_earnings': last_amount,
                 'monthly_growth': monthly_growth,
                 'predictions': predictions,
@@ -357,7 +376,6 @@ class AnalyticsController:
             # Тут ми можемо врахувати різні типи витрат (в залежності від бізнес-логіки проекту)
 
             # Витрати на просування (можна отримати з бази, якщо є така інформація)
-            # Наразі використовуємо константу, але в реальному додатку це може бути таблиця marketing_expenses
             promotion_expenses = 0
 
             # Додаткові бонуси від користувача (якщо є така інформація)
@@ -366,15 +384,14 @@ class AnalyticsController:
             # Інші витрати (якщо є така інформація)
             other_expenses = 0
 
-            # Тут ви можете додати логіку для отримання реальних витрат з бази даних
-
             # Загальні витрати
             total_expenses = promotion_expenses + user_bonuses + other_expenses
 
             # Якщо витрати відсутні, встановлюємо мінімальне значення для уникнення ділення на нуль
             if total_expenses == 0:
                 # Використовуємо кількість рефералів як базу для розрахунку витрат
-                referrals_count = Referral.query.filter_by(referrer_id=user_id).count()
+                referrals_count = len(
+                    supabase.table("referrals").select("*").eq("referrer_id", str(user_id)).execute().data)
                 if referrals_count > 0:
                     # Оцінюємо витрати як 10% від загального заробітку або 50 winix за реферала
                     estimated_expenses = max(total_earnings * 0.1, referrals_count * 50)
@@ -389,7 +406,7 @@ class AnalyticsController:
             # Формуємо результат
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': str(user_id),
                 'total_earnings': total_earnings,
                 'total_expenses': total_expenses,
                 'expenses': {
@@ -464,7 +481,7 @@ class AnalyticsController:
             # Формуємо результат
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': str(user_id),
                 'total_earnings': total_earnings_result['total_earnings'],
                 'distribution': distribution
             }

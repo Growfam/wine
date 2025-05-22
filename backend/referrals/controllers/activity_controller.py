@@ -1,9 +1,5 @@
-from models.activity import ReferralActivity
-from models.referral import Referral
-from database import db
+from supabase_client import supabase
 from flask import current_app
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import and_, or_
 from datetime import datetime, timedelta
 import logging
 
@@ -38,42 +34,83 @@ class ActivityController:
             # Конвертуємо ID в рядок для уніформності
             user_id_str = str(user_id)
 
-            # Знаходимо запис активності або створюємо новий
-            activity = ReferralActivity.query.filter_by(user_id=user_id_str).first()
-            if activity is None:
-                activity = ReferralActivity(user_id=user_id_str)
-                db.session.add(activity)
+            # Знаходимо запис активності
+            activity_result = supabase.table("referral_activities").select("*").eq("user_id", user_id_str).execute()
 
-            # Оновлюємо значення, якщо вони надані
-            if draws_participation is not None:
-                activity.draws_participation = draws_participation
+            if activity_result.data:
+                # Оновлюємо існуючий запис
+                activity = activity_result.data[0]
+                update_data = {
+                    "last_updated": datetime.utcnow().isoformat()
+                }
 
-            if invited_referrals is not None:
-                activity.invited_referrals = invited_referrals
+                # Оновлюємо значення, якщо вони надані
+                if draws_participation is not None:
+                    update_data["draws_participation"] = draws_participation
+                else:
+                    draws_participation = activity.get('draws_participation', 0)
 
-            # Перевіряємо активність з використанням реальних критеріїв
-            activity.check_activity(
-                min_draws=ActivityController.MIN_DRAWS_PARTICIPATION,
-                min_invites=ActivityController.MIN_INVITED_REFERRALS
-            )
+                if invited_referrals is not None:
+                    update_data["invited_referrals"] = invited_referrals
+                else:
+                    invited_referrals = activity.get('invited_referrals', 0)
 
-            db.session.commit()
+                # Перевіряємо активність з використанням реальних критеріїв
+                meets_draws = draws_participation >= ActivityController.MIN_DRAWS_PARTICIPATION
+                meets_invites = invited_referrals >= ActivityController.MIN_INVITED_REFERRALS
 
-            return {
-                'success': True,
-                'message': 'Activity updated successfully',
-                'activity': activity.to_dict()
-            }
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            current_app.logger.error(f"Database error during activity update: {str(e)}")
-            return {
-                'success': False,
-                'error': 'Database error during activity update',
-                'details': str(e)
-            }
+                if meets_draws or meets_invites:
+                    update_data["is_active"] = True
+                    if meets_draws and meets_invites:
+                        update_data["reason_for_activity"] = "both_criteria"
+                    elif meets_draws:
+                        update_data["reason_for_activity"] = "draws_criteria"
+                    else:
+                        update_data["reason_for_activity"] = "invited_criteria"
+
+                supabase.table("referral_activities").update(update_data).eq("user_id", user_id_str).execute()
+
+                # Отримуємо оновлені дані
+                updated_activity = supabase.table("referral_activities").select("*").eq("user_id",
+                                                                                        user_id_str).execute()
+
+                return {
+                    'success': True,
+                    'message': 'Activity updated successfully',
+                    'activity': updated_activity.data[0] if updated_activity.data else None
+                }
+            else:
+                # Створюємо новий запис
+                new_activity_data = {
+                    "user_id": user_id_str,
+                    "draws_participation": draws_participation or 0,
+                    "invited_referrals": invited_referrals or 0,
+                    "is_active": False,
+                    "last_updated": datetime.utcnow().isoformat()
+                }
+
+                # Перевіряємо активність
+                meets_draws = new_activity_data["draws_participation"] >= ActivityController.MIN_DRAWS_PARTICIPATION
+                meets_invites = new_activity_data["invited_referrals"] >= ActivityController.MIN_INVITED_REFERRALS
+
+                if meets_draws or meets_invites:
+                    new_activity_data["is_active"] = True
+                    if meets_draws and meets_invites:
+                        new_activity_data["reason_for_activity"] = "both_criteria"
+                    elif meets_draws:
+                        new_activity_data["reason_for_activity"] = "draws_criteria"
+                    else:
+                        new_activity_data["reason_for_activity"] = "invited_criteria"
+
+                result = supabase.table("referral_activities").insert(new_activity_data).execute()
+
+                return {
+                    'success': True,
+                    'message': 'Activity created successfully',
+                    'activity': result.data[0] if result.data else None
+                }
+
         except Exception as e:
-            db.session.rollback()
             current_app.logger.error(f"Error updating activity: {str(e)}")
             return {
                 'success': False,
@@ -98,40 +135,45 @@ class ActivityController:
             user_id_str = str(user_id)
             admin_id_str = str(admin_id)
 
-            # Знаходимо запис активності або створюємо новий
-            activity = ReferralActivity.query.filter_by(user_id=user_id_str).first()
-            if activity is None:
-                activity = ReferralActivity(
-                    user_id=user_id_str,
-                    is_active=True,
-                    reason_for_activity='manual_activation'
-                )
-                db.session.add(activity)
+            # Знаходимо запис активності
+            activity_result = supabase.table("referral_activities").select("*").eq("user_id", user_id_str).execute()
+
+            if activity_result.data:
+                # Оновлюємо існуючий запис
+                update_data = {
+                    "is_active": True,
+                    "reason_for_activity": "manual_activation",
+                    "last_updated": datetime.utcnow().isoformat()
+                }
+
+                supabase.table("referral_activities").update(update_data).eq("user_id", user_id_str).execute()
                 activation_result = True
             else:
-                activation_result = activity.activate_manually()
+                # Створюємо новий запис
+                new_activity_data = {
+                    "user_id": user_id_str,
+                    "is_active": True,
+                    "reason_for_activity": "manual_activation",
+                    "draws_participation": 0,
+                    "invited_referrals": 0,
+                    "last_updated": datetime.utcnow().isoformat()
+                }
+                supabase.table("referral_activities").insert(new_activity_data).execute()
+                activation_result = True
 
-            db.session.commit()
+            # Отримуємо оновлені дані
+            updated_activity = supabase.table("referral_activities").select("*").eq("user_id", user_id_str).execute()
 
             # Логуємо хто активував для аудиту
             logger.info(f"User {user_id_str} manually activated by admin {admin_id_str}")
 
             return {
                 'success': True,
-                'message': 'Referral manually activated' if activation_result else 'Referral already activated manually',
-                'activity': activity.to_dict(),
+                'message': 'Referral manually activated',
+                'activity': updated_activity.data[0] if updated_activity.data else None,
                 'admin_id': admin_id_str
             }
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            current_app.logger.error(f"Database error during manual activation: {str(e)}")
-            return {
-                'success': False,
-                'error': 'Database error during manual activation',
-                'details': str(e)
-            }
         except Exception as e:
-            db.session.rollback()
             current_app.logger.error(f"Error during manual activation: {str(e)}")
             return {
                 'success': False,
@@ -160,21 +202,24 @@ class ActivityController:
             user_id_str = str(user_id)
 
             # Отримання рефералів користувача
-            level1_query = Referral.query.filter_by(referrer_id=user_id_str, level=1)
-            level2_query = Referral.query.filter_by(referrer_id=user_id_str, level=2)
+            level1_query = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).eq("level", 1)
+            level2_query = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).eq("level", 2)
 
             # Фільтрація за рівнем, якщо вказано
             if 'level' in options and options['level'] in [1, 2]:
                 if options['level'] == 1:
-                    level2_query = db.session.query(Referral).filter_by(id=-1)  # Порожній запит
+                    level2_referrals = []
+                    level1_referrals = level1_query.execute().data
                 else:
-                    level1_query = db.session.query(Referral).filter_by(id=-1)  # Порожній запит
-
-            level1_referrals = level1_query.all()
-            level2_referrals = level2_query.all()
+                    level1_referrals = []
+                    level2_referrals = level2_query.execute().data
+            else:
+                level1_referrals = level1_query.execute().data
+                level2_referrals = level2_query.execute().data
 
             # Збираємо ID всіх рефералів
-            referral_ids = [ref.referee_id for ref in level1_referrals] + [ref.referee_id for ref in level2_referrals]
+            referral_ids = [ref['referee_id'] for ref in level1_referrals] + [ref['referee_id'] for ref in
+                                                                              level2_referrals]
 
             # Оптимізація: якщо нема рефералів, повертаємо пусту відповідь
             if not referral_ids:
@@ -187,11 +232,10 @@ class ActivityController:
                 }
 
             # Отримуємо активність всіх рефералів
-            activities = ReferralActivity.query.filter(
-                ReferralActivity.user_id.in_(referral_ids)).all() if referral_ids else []
+            activities_result = supabase.table("referral_activities").select("*").in_("user_id", referral_ids).execute()
 
             # Створюємо мапу активності для швидкого доступу
-            activity_map = {act.user_id: act for act in activities}
+            activity_map = {act['user_id']: act for act in activities_result.data}
 
             # Підготовлюємо дані про активність рефералів
             level1_activities = []
@@ -200,8 +244,8 @@ class ActivityController:
             # Заповнюємо дані про активність для рефералів 1-го рівня
             for referral in level1_referrals:
                 activity_data = ActivityController._prepare_activity_data(
-                    referral.referee_id,
-                    activity_map.get(referral.referee_id)
+                    referral['referee_id'],
+                    activity_map.get(referral['referee_id'])
                 )
 
                 # Фільтрація за активністю, якщо вказано
@@ -213,19 +257,18 @@ class ActivityController:
             # Заповнюємо дані про активність для рефералів 2-го рівня
             for referral in level2_referrals:
                 # Знаходимо реферера 1-го рівня для цього реферала 2-го рівня
-                referrer_1lvl = Referral.query.filter_by(
-                    referee_id=referral.referee_id,
-                    level=1
-                ).first()
+                referrer_1lvl = supabase.table("referrals").select("*").eq(
+                    "referee_id", referral['referee_id']
+                ).eq("level", 1).execute()
 
                 activity_data = ActivityController._prepare_activity_data(
-                    referral.referee_id,
-                    activity_map.get(referral.referee_id)
+                    referral['referee_id'],
+                    activity_map.get(referral['referee_id'])
                 )
 
                 # Додаємо referrerId для рефералів 2-го рівня
-                if referrer_1lvl:
-                    activity_data['referrerId'] = f'WX{referrer_1lvl.referrer_id}'
+                if referrer_1lvl.data:
+                    activity_data['referrerId'] = f'WX{referrer_1lvl.data[0]["referrer_id"]}'
 
                 # Фільтрація за активністю, якщо вказано
                 if options.get('activeOnly', False) and not activity_data['isActive']:
@@ -264,7 +307,8 @@ class ActivityController:
             referral_id_str = str(referral_id)
 
             # Отримуємо активність реферала
-            activity = ReferralActivity.query.filter_by(user_id=referral_id_str).first()
+            activity_result = supabase.table("referral_activities").select("*").eq("user_id", referral_id_str).execute()
+            activity = activity_result.data[0] if activity_result.data else None
 
             if not activity:
                 # Якщо запис активності відсутній, повертаємо базові дані
@@ -285,60 +329,63 @@ class ActivityController:
                     'manualActivationInfo': None
                 }
 
-            # Отримуємо дані для drawsHistory (з таблиці draw_participants)
-            from models.draw import DrawParticipant, Draw
-            draws_participations = DrawParticipant.query.filter_by(user_id=referral_id_str).all()
+            # Отримуємо дані для drawsHistory
+            draws_participations = supabase.table("draw_participants").select("*").eq("user_id",
+                                                                                      referral_id_str).execute()
 
             draws_history = []
-            for participation in draws_participations:
-                draw = Draw.query.get(participation.draw_id)
-                if draw:
+            for participation in draws_participations.data:
+                draw = supabase.table("draws").select("*").eq("id", participation['draw_id']).execute()
+                if draw.data:
                     draws_history.append({
-                        'drawId': f'DRAW{draw.id}',
-                        'date': draw.date.isoformat(),
-                        'prizeName': draw.name,
-                        'prizeAmount': participation.prize_amount if participation.is_winner else 0
+                        'drawId': f'DRAW{draw.data[0]["id"]}',
+                        'date': draw.data[0]['date'],
+                        'prizeName': draw.data[0]['name'],
+                        'prizeAmount': participation['prize_amount'] if participation['is_winner'] else 0
                     })
 
-            # Отримуємо дані для invitedReferralsList (з таблиці referrals)
-            invited_referrals = Referral.query.filter_by(referrer_id=referral_id_str, level=1).all()
+            # Отримуємо дані для invitedReferralsList
+            invited_referrals = supabase.table("referrals").select("*").eq("referrer_id", referral_id_str).eq("level",
+                                                                                                              1).execute()
             invited_referrals_list = []
 
-            for invited in invited_referrals:
+            for invited in invited_referrals.data:
                 # Перевіряємо активність запрошеного реферала
-                invited_activity = ReferralActivity.query.filter_by(user_id=invited.referee_id).first()
+                invited_activity = supabase.table("referral_activities").select("*").eq("user_id",
+                                                                                        invited['referee_id']).execute()
                 is_active = False
 
-                if invited_activity:
-                    is_active = invited_activity.is_active
+                if invited_activity.data:
+                    is_active = invited_activity.data[0].get('is_active', False)
 
                 invited_referrals_list.append({
-                    'id': f'WX{invited.referee_id}',
-                    'registrationDate': invited.created_at.isoformat(),
+                    'id': f'WX{invited["referee_id"]}',
+                    'registrationDate': invited['created_at'],
                     'isActive': is_active
                 })
 
             # Інформація про ручну активацію (якщо є)
             manual_activation_info = None
-            if activity.reason_for_activity == 'manual_activation':
+            if activity.get('reason_for_activity') == 'manual_activation':
                 manual_activation_info = {
                     'activatedBy': 'admin',
-                    'activationDate': activity.last_updated.isoformat(),
+                    'activationDate': activity['last_updated'],
                     'reason': 'Manual activation by administrator'
                 }
 
             # Формуємо відповідь у форматі, очікуваному фронтендом
-            meets_draws_criteria = activity.draws_participation >= ActivityController.MIN_DRAWS_PARTICIPATION
-            meets_invited_criteria = activity.invited_referrals >= ActivityController.MIN_INVITED_REFERRALS
+            meets_draws_criteria = activity['draws_participation'] >= ActivityController.MIN_DRAWS_PARTICIPATION
+            meets_invited_criteria = activity['invited_referrals'] >= ActivityController.MIN_INVITED_REFERRALS
 
             # Уніфікована логіка перевірки активності
             is_inactive_by_time = False
-            if activity.last_updated:
-                is_inactive_by_time = activity.last_updated < (
+            if activity.get('last_updated'):
+                last_updated = datetime.fromisoformat(activity['last_updated'].replace('Z', '+00:00'))
+                is_inactive_by_time = last_updated < (
                             datetime.utcnow() - timedelta(days=ActivityController.INACTIVE_DAYS_THRESHOLD))
 
             is_active = (
-                    activity.is_active and
+                    activity.get('is_active', False) and
                     (meets_draws_criteria or meets_invited_criteria) and
                     not is_inactive_by_time
             )
@@ -347,14 +394,14 @@ class ActivityController:
                 'success': True,
                 'id': f'WX{referral_id_str}',
                 'timestamp': datetime.utcnow().isoformat(),
-                'drawsParticipation': activity.draws_participation,
-                'invitedReferrals': activity.invited_referrals,
-                'lastActivityDate': activity.last_updated.isoformat() if activity.last_updated else None,
-                'isActive': is_active,  # Використовуємо уніфіковану логіку
-                'manuallyActivated': activity.reason_for_activity == 'manual_activation',
+                'drawsParticipation': activity['draws_participation'],
+                'invitedReferrals': activity['invited_referrals'],
+                'lastActivityDate': activity['last_updated'],
+                'isActive': is_active,
+                'manuallyActivated': activity.get('reason_for_activity') == 'manual_activation',
                 'meetsDrawsCriteria': meets_draws_criteria,
                 'meetsInvitedCriteria': meets_invited_criteria,
-                'reasonForActivity': activity.reason_for_activity,
+                'reasonForActivity': activity.get('reason_for_activity'),
                 'drawsHistory': draws_history,
                 'invitedReferralsList': invited_referrals_list,
                 'manualActivationInfo': manual_activation_info
@@ -449,7 +496,7 @@ class ActivityController:
 
         Args:
             referral_id (int): ID реферала
-            activity (ReferralActivity): Об'єкт активності або None
+            activity (dict): Об'єкт активності або None
 
         Returns:
             dict: Підготовлені дані про активність
@@ -459,42 +506,39 @@ class ActivityController:
 
         if activity:
             # Перевірка активності за реальними критеріями
-            meets_draws_criteria = activity.draws_participation >= ActivityController.MIN_DRAWS_PARTICIPATION
-            meets_invited_criteria = activity.invited_referrals >= ActivityController.MIN_INVITED_REFERRALS
+            meets_draws_criteria = activity['draws_participation'] >= ActivityController.MIN_DRAWS_PARTICIPATION
+            meets_invited_criteria = activity['invited_referrals'] >= ActivityController.MIN_INVITED_REFERRALS
 
-            # Додаткова перевірка на неактивність за часом (не заходив тиждень)
+            # Додаткова перевірка на неактивність за часом
             is_inactive_by_time = False
-            if activity.last_updated:
-                is_inactive_by_time = activity.last_updated < (
+            if activity.get('last_updated'):
+                last_updated = datetime.fromisoformat(activity['last_updated'].replace('Z', '+00:00'))
+                is_inactive_by_time = last_updated < (
                             datetime.utcnow() - timedelta(days=ActivityController.INACTIVE_DAYS_THRESHOLD))
 
-            # Уніфікована логіка активності:
-            # користувач активний, якщо:
-            # 1. Він позначений як активний (is_active=True)
-            # 2. Виконує хоча б один з критеріїв активності (участь у розіграшах або запрошені)
-            # 3. Був активний протягом останнього тижня
+            # Уніфікована логіка активності
             is_active = (
-                    activity.is_active and
+                    activity.get('is_active', False) and
                     (meets_draws_criteria or meets_invited_criteria) and
                     not is_inactive_by_time
             )
 
             # Форматуємо відповідь у форматі, який очікує фронтенд
             return {
-                'id': f'WX{referral_id_str}',  # Завжди додаємо префікс WX
-                'drawsParticipation': activity.draws_participation,
-                'invitedReferrals': activity.invited_referrals,
-                'lastActivityDate': activity.last_updated.isoformat() if activity.last_updated else None,
-                'isActive': is_active,  # Використовуємо уніфіковану логіку
-                'manuallyActivated': activity.reason_for_activity == 'manual_activation',
+                'id': f'WX{referral_id_str}',
+                'drawsParticipation': activity['draws_participation'],
+                'invitedReferrals': activity['invited_referrals'],
+                'lastActivityDate': activity['last_updated'],
+                'isActive': is_active,
+                'manuallyActivated': activity.get('reason_for_activity') == 'manual_activation',
                 'meetsDrawsCriteria': meets_draws_criteria,
                 'meetsInvitedCriteria': meets_invited_criteria,
-                'reasonForActivity': activity.reason_for_activity
+                'reasonForActivity': activity.get('reason_for_activity')
             }
         else:
             # Якщо запис активності відсутній, повертаємо базові дані
             return {
-                'id': f'WX{referral_id_str}',  # Завжди додаємо префікс WX
+                'id': f'WX{referral_id_str}',
                 'drawsParticipation': 0,
                 'invitedReferrals': 0,
                 'lastActivityDate': None,

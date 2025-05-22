@@ -1,19 +1,11 @@
-from models.referral import Referral
-from models.direct_bonus import DirectBonus
-from models.percentage_reward import PercentageReward
-from models.activity import ReferralActivity
-from models.badge import UserBadge
-from models.task import UserTask
-from models.draw import DrawParticipant, Draw
-from database import db
+from supabase_client import supabase
 from flask import current_app
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import and_, or_, desc
 from datetime import datetime, timedelta
 import logging
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
+
 
 class HistoryController:
     """
@@ -42,17 +34,8 @@ class HistoryController:
         history_type = options.get('type')
 
         try:
-            # Конвертуємо user_id в числовий формат, якщо потрібно
-            if isinstance(user_id, str):
-                try:
-                    user_id = int(user_id)
-                except ValueError:
-                    logger.warning(f"get_referral_history: Невалідний формат user_id: {user_id}")
-                    return {
-                        'success': False,
-                        'error': 'Invalid user ID format',
-                        'history': []
-                    }
+            # Конвертуємо user_id в рядок
+            user_id_str = str(user_id)
 
             # Перевіряємо limit
             if limit is not None:
@@ -88,7 +71,7 @@ class HistoryController:
 
             # Додаємо події реєстрації рефералів
             if not history_type or history_type == 'referral':
-                referral_events = HistoryController._get_referral_registration_events(user_id, {
+                referral_events = HistoryController._get_referral_registration_events(user_id_str, {
                     'startDate': start_date_obj,
                     'endDate': end_date_obj
                 })
@@ -96,7 +79,7 @@ class HistoryController:
 
             # Додаємо події прямих бонусів
             if not history_type or history_type == 'bonus':
-                bonus_events = HistoryController._get_direct_bonus_events(user_id, {
+                bonus_events = HistoryController._get_direct_bonus_events(user_id_str, {
                     'startDate': start_date_obj,
                     'endDate': end_date_obj
                 })
@@ -104,7 +87,7 @@ class HistoryController:
 
             # Додаємо події відсоткових винагород
             if not history_type or history_type == 'reward':
-                reward_events = HistoryController._get_percentage_reward_events(user_id, {
+                reward_events = HistoryController._get_percentage_reward_events(user_id_str, {
                     'startDate': start_date_obj,
                     'endDate': end_date_obj
                 })
@@ -112,7 +95,7 @@ class HistoryController:
 
             # Додаємо події бейджів
             if not history_type or history_type == 'badge':
-                badge_events = HistoryController._get_badge_events(user_id, {
+                badge_events = HistoryController._get_badge_events(user_id_str, {
                     'startDate': start_date_obj,
                     'endDate': end_date_obj
                 })
@@ -120,7 +103,7 @@ class HistoryController:
 
             # Додаємо події виконання завдань
             if not history_type or history_type == 'task':
-                task_events = HistoryController._get_task_events(user_id, {
+                task_events = HistoryController._get_task_events(user_id_str, {
                     'startDate': start_date_obj,
                     'endDate': end_date_obj
                 })
@@ -128,7 +111,7 @@ class HistoryController:
 
             # Додаємо події участі в розіграшах
             if not history_type or history_type == 'draw':
-                draw_events = HistoryController._get_draw_events(user_id, {
+                draw_events = HistoryController._get_draw_events(user_id_str, {
                     'startDate': start_date_obj,
                     'endDate': end_date_obj
                 })
@@ -146,7 +129,7 @@ class HistoryController:
                 'success': True,
                 'history': all_events,
                 'meta': {
-                    'user_id': user_id,
+                    'user_id': user_id_str,
                     'total_events': len(all_events),
                     'limit': limit,
                     'type': history_type,
@@ -405,7 +388,7 @@ class HistoryController:
         Отримує події реєстрації рефералів
 
         Args:
-            user_id (int): ID користувача
+            user_id (str): ID користувача
             options (dict, optional): Опції для фільтрації
 
         Returns:
@@ -416,38 +399,43 @@ class HistoryController:
 
         events = []
 
-        # Отримуємо всі реферали користувача
-        referrals = Referral.query.filter_by(referrer_id=user_id).all()
+        try:
+            # Отримуємо всі реферали користувача
+            referrals = supabase.table("referrals").select("*").eq("referrer_id", user_id).execute()
 
-        for referral in referrals:
-            # Перевіряємо фільтрацію за датою
-            if not HistoryController._filter_by_date(referral.created_at, options):
-                continue
+            # Отримуємо імена рефералів одним запитом
+            if referrals.data:
+                referee_ids = [ref['referee_id'] for ref in referrals.data]
+                users_response = supabase.table("winix").select("telegram_id, username").in_("telegram_id",
+                                                                                             referee_ids).execute()
+                user_map = {user['telegram_id']: user.get('username', f'User {user["telegram_id"]}') for user in
+                            users_response.data}
+            else:
+                user_map = {}
 
-            # Отримуємо базові дані про реферала
-            referee_data = None
-            try:
-                from supabase_client import supabase
-                response = supabase.table("winix").select("username").eq("telegram_id", referral.referee_id).execute()
-                if response.data:
-                    referee_data = {
-                        'username': response.data[0].get('username', f'User {referral.referee_id}')
-                    }
-            except:
-                pass
+            for referral in referrals.data:
+                # Перевіряємо фільтрацію за датою
+                created_at = datetime.fromisoformat(referral['created_at'].replace('Z', '+00:00'))
+                if not HistoryController._filter_by_date(created_at, options):
+                    continue
 
-            # Створюємо запис події
-            event = {
-                'id': f'referral_{referral.id}',
-                'userId': user_id,
-                'type': 'referral',
-                'timestamp': referral.created_at.isoformat(),
-                'referralId': referral.referee_id,
-                'level': referral.level,
-                'description': f"Реєстрація реферала {referee_data['username'] if referee_data else referral.referee_id} (рівень {referral.level})"
-            }
+                # Отримуємо базові дані про реферала
+                referee_username = user_map.get(referral['referee_id'], f'User {referral["referee_id"]}')
 
-            events.append(event)
+                # Створюємо запис події
+                event = {
+                    'id': f'referral_{referral["id"]}',
+                    'userId': user_id,
+                    'type': 'referral',
+                    'timestamp': referral['created_at'],
+                    'referralId': referral['referee_id'],
+                    'level': referral['level'],
+                    'description': f"Реєстрація реферала {referee_username} (рівень {referral['level']})"
+                }
+
+                events.append(event)
+        except Exception as e:
+            logger.error(f"Error getting referral registration events: {str(e)}")
 
         return events
 
@@ -457,7 +445,7 @@ class HistoryController:
         Отримує події прямих бонусів
 
         Args:
-            user_id (int): ID користувача
+            user_id (str): ID користувача
             options (dict, optional): Опції для фільтрації
 
         Returns:
@@ -468,38 +456,43 @@ class HistoryController:
 
         events = []
 
-        # Отримуємо всі прямі бонуси користувача
-        bonuses = DirectBonus.query.filter_by(referrer_id=user_id).all()
+        try:
+            # Отримуємо всі прямі бонуси користувача
+            bonuses = supabase.table("direct_bonuses").select("*").eq("referrer_id", user_id).execute()
 
-        for bonus in bonuses:
-            # Перевіряємо фільтрацію за датою
-            if not HistoryController._filter_by_date(bonus.created_at, options):
-                continue
+            # Отримуємо імена рефералів одним запитом
+            if bonuses.data:
+                referee_ids = [bonus['referee_id'] for bonus in bonuses.data]
+                users_response = supabase.table("winix").select("telegram_id, username").in_("telegram_id",
+                                                                                             referee_ids).execute()
+                user_map = {user['telegram_id']: user.get('username', f'User {user["telegram_id"]}') for user in
+                            users_response.data}
+            else:
+                user_map = {}
 
-            # Отримуємо базові дані про реферала
-            referee_data = None
-            try:
-                from supabase_client import supabase
-                response = supabase.table("winix").select("username").eq("telegram_id", bonus.referee_id).execute()
-                if response.data:
-                    referee_data = {
-                        'username': response.data[0].get('username', f'User {bonus.referee_id}')
-                    }
-            except:
-                pass
+            for bonus in bonuses.data:
+                # Перевіряємо фільтрацію за датою
+                created_at = datetime.fromisoformat(bonus['created_at'].replace('Z', '+00:00'))
+                if not HistoryController._filter_by_date(created_at, options):
+                    continue
 
-            # Створюємо запис події
-            event = {
-                'id': f'bonus_{bonus.id}',
-                'userId': user_id,
-                'type': 'bonus',
-                'timestamp': bonus.created_at.isoformat(),
-                'referralId': bonus.referee_id,
-                'amount': bonus.amount,
-                'description': f"Прямий бонус за реферала {referee_data['username'] if referee_data else bonus.referee_id}"
-            }
+                # Отримуємо базові дані про реферала
+                referee_username = user_map.get(bonus['referee_id'], f'User {bonus["referee_id"]}')
 
-            events.append(event)
+                # Створюємо запис події
+                event = {
+                    'id': f'bonus_{bonus["id"]}',
+                    'userId': user_id,
+                    'type': 'bonus',
+                    'timestamp': bonus['created_at'],
+                    'referralId': bonus['referee_id'],
+                    'amount': bonus['amount'],
+                    'description': f"Прямий бонус за реферала {referee_username}"
+                }
+
+                events.append(event)
+        except Exception as e:
+            logger.error(f"Error getting direct bonus events: {str(e)}")
 
         return events
 
@@ -509,7 +502,7 @@ class HistoryController:
         Отримує події відсоткових винагород
 
         Args:
-            user_id (int): ID користувача
+            user_id (str): ID користувача
             options (dict, optional): Опції для фільтрації
 
         Returns:
@@ -520,40 +513,45 @@ class HistoryController:
 
         events = []
 
-        # Отримуємо всі відсоткові винагороди користувача
-        rewards = PercentageReward.query.filter_by(user_id=user_id).all()
+        try:
+            # Отримуємо всі відсоткові винагороди користувача
+            rewards = supabase.table("percentage_rewards").select("*").eq("user_id", user_id).execute()
 
-        for reward in rewards:
-            # Перевіряємо фільтрацію за датою
-            if not HistoryController._filter_by_date(reward.created_at, options):
-                continue
+            # Отримуємо імена рефералів одним запитом
+            if rewards.data:
+                referral_ids = [reward['referral_id'] for reward in rewards.data]
+                users_response = supabase.table("winix").select("telegram_id, username").in_("telegram_id",
+                                                                                             referral_ids).execute()
+                user_map = {user['telegram_id']: user.get('username', f'User {user["telegram_id"]}') for user in
+                            users_response.data}
+            else:
+                user_map = {}
 
-            # Отримуємо базові дані про реферала
-            referral_data = None
-            try:
-                from supabase_client import supabase
-                response = supabase.table("winix").select("username").eq("telegram_id", reward.referral_id).execute()
-                if response.data:
-                    referral_data = {
-                        'username': response.data[0].get('username', f'User {reward.referral_id}')
-                    }
-            except:
-                pass
+            for reward in rewards.data:
+                # Перевіряємо фільтрацію за датою
+                created_at = datetime.fromisoformat(reward['created_at'].replace('Z', '+00:00'))
+                if not HistoryController._filter_by_date(created_at, options):
+                    continue
 
-            # Створюємо запис події
-            event = {
-                'id': f'reward_{reward.id}',
-                'userId': user_id,
-                'type': 'reward',
-                'timestamp': reward.created_at.isoformat(),
-                'referralId': reward.referral_id,
-                'amount': reward.reward_amount,
-                'description': f"Відсоткова винагорода ({int(reward.rate * 100)}%) від активності реферала {referral_data['username'] if referral_data else reward.referral_id}",
-                'level': reward.level,
-                'baseAmount': reward.base_amount
-            }
+                # Отримуємо базові дані про реферала
+                referral_username = user_map.get(reward['referral_id'], f'User {reward["referral_id"]}')
 
-            events.append(event)
+                # Створюємо запис події
+                event = {
+                    'id': f'reward_{reward["id"]}',
+                    'userId': user_id,
+                    'type': 'reward',
+                    'timestamp': reward['created_at'],
+                    'referralId': reward['referral_id'],
+                    'amount': reward['reward_amount'],
+                    'description': f"Відсоткова винагорода ({int(reward['rate'] * 100)}%) від активності реферала {referral_username}",
+                    'level': reward['level'],
+                    'baseAmount': reward['base_amount']
+                }
+
+                events.append(event)
+        except Exception as e:
+            logger.error(f"Error getting percentage reward events: {str(e)}")
 
         return events
 
@@ -563,7 +561,7 @@ class HistoryController:
         Отримує події отримання бейджів
 
         Args:
-            user_id (int): ID користувача
+            user_id (str): ID користувача
             options (dict, optional): Опції для фільтрації
 
         Returns:
@@ -574,36 +572,40 @@ class HistoryController:
 
         events = []
 
-        # Отримуємо всі бейджі користувача
-        badges = UserBadge.query.filter_by(user_id=user_id).all()
+        try:
+            # Отримуємо всі бейджі користувача
+            badges = supabase.table("user_badges").select("*").eq("user_id", user_id).execute()
 
-        for badge in badges:
-            # Перевіряємо фільтрацію за датою
-            if not HistoryController._filter_by_date(badge.earned_at, options):
-                continue
+            for badge in badges.data:
+                # Перевіряємо фільтрацію за датою
+                earned_at = datetime.fromisoformat(badge['earned_at'].replace('Z', '+00:00'))
+                if not HistoryController._filter_by_date(earned_at, options):
+                    continue
 
-            # Переклад типів бейджів для опису
-            badge_names = {
-                'BRONZE': 'бронзовий',
-                'SILVER': 'срібний',
-                'GOLD': 'золотий',
-                'PLATINUM': 'платиновий'
-            }
-            badge_name = badge_names.get(badge.badge_type, badge.badge_type)
+                # Переклад типів бейджів для опису
+                badge_names = {
+                    'BRONZE': 'бронзовий',
+                    'SILVER': 'срібний',
+                    'GOLD': 'золотий',
+                    'PLATINUM': 'платиновий'
+                }
+                badge_name = badge_names.get(badge['badge_type'], badge['badge_type'])
 
-            # Створюємо запис події
-            event = {
-                'id': f'badge_{badge.id}',
-                'userId': user_id,
-                'type': 'badge',
-                'timestamp': badge.earned_at.isoformat(),
-                'badgeType': badge.badge_type,
-                'amount': badge.reward_amount,
-                'description': f'Отримано {badge_name} бейдж',
-                'claimed': badge.claimed
-            }
+                # Створюємо запис події
+                event = {
+                    'id': f'badge_{badge["id"]}',
+                    'userId': user_id,
+                    'type': 'badge',
+                    'timestamp': badge['earned_at'],
+                    'badgeType': badge['badge_type'],
+                    'amount': badge['reward_amount'],
+                    'description': f'Отримано {badge_name} бейдж',
+                    'claimed': badge['claimed']
+                }
 
-            events.append(event)
+                events.append(event)
+        except Exception as e:
+            logger.error(f"Error getting badge events: {str(e)}")
 
         return events
 
@@ -613,7 +615,7 @@ class HistoryController:
         Отримує події виконання завдань
 
         Args:
-            user_id (int): ID користувача
+            user_id (str): ID користувача
             options (dict, optional): Опції для фільтрації
 
         Returns:
@@ -624,38 +626,45 @@ class HistoryController:
 
         events = []
 
-        # Отримуємо всі завдання користувача
-        tasks = UserTask.query.filter_by(user_id=user_id, completed=True).all()
+        try:
+            # Отримуємо всі завдання користувача
+            tasks = supabase.table("user_tasks").select("*").eq("user_id", user_id).eq("completed", True).execute()
 
-        for task in tasks:
-            # Для завдань використовуємо дату завершення або останнього оновлення
-            task_date = task.completed_at if task.completed_at else task.last_updated
+            for task in tasks.data:
+                # Для завдань використовуємо дату завершення або останнього оновлення
+                task_date_str = task.get('completed_at') or task.get('last_updated')
+                if not task_date_str:
+                    continue
 
-            # Перевіряємо фільтрацію за датою
-            if not HistoryController._filter_by_date(task_date, options):
-                continue
+                task_date = datetime.fromisoformat(task_date_str.replace('Z', '+00:00'))
 
-            # Створюємо опис залежно від типу завдання
-            if task.task_type == 'REFERRAL_COUNT':
-                description = 'Виконано завдання з запрошення 100 рефералів'
-            elif task.task_type == 'ACTIVE_REFERRALS':
-                description = 'Виконано завдання із залучення 50 активних рефералів'
-            else:
-                description = f'Виконано завдання {task.task_type}'
+                # Перевіряємо фільтрацію за датою
+                if not HistoryController._filter_by_date(task_date, options):
+                    continue
 
-            # Створюємо запис події
-            event = {
-                'id': f'task_{task.id}',
-                'userId': user_id,
-                'type': 'task',
-                'timestamp': task_date.isoformat(),
-                'taskType': task.task_type,
-                'amount': task.reward_amount,
-                'description': description,
-                'claimed': task.claimed
-            }
+                # Створюємо опис залежно від типу завдання
+                if task['task_type'] == 'REFERRAL_COUNT':
+                    description = 'Виконано завдання з запрошення 100 рефералів'
+                elif task['task_type'] == 'ACTIVE_REFERRALS':
+                    description = 'Виконано завдання із залучення 50 активних рефералів'
+                else:
+                    description = f'Виконано завдання {task["task_type"]}'
 
-            events.append(event)
+                # Створюємо запис події
+                event = {
+                    'id': f'task_{task["id"]}',
+                    'userId': user_id,
+                    'type': 'task',
+                    'timestamp': task_date_str,
+                    'taskType': task['task_type'],
+                    'amount': task['reward_amount'],
+                    'description': description,
+                    'claimed': task['claimed']
+                }
+
+                events.append(event)
+        except Exception as e:
+            logger.error(f"Error getting task events: {str(e)}")
 
         return events
 
@@ -665,7 +674,7 @@ class HistoryController:
         Отримує події участі рефералів у розіграшах
 
         Args:
-            user_id (int): ID користувача
+            user_id (str): ID користувача
             options (dict, optional): Опції для фільтрації
 
         Returns:
@@ -676,68 +685,71 @@ class HistoryController:
 
         events = []
 
-        # Отримуємо ІД всіх рефералів цього користувача
-        referrals = Referral.query.filter_by(referrer_id=user_id).all()
-        referral_ids = [ref.referee_id for ref in referrals]
+        try:
+            # Отримуємо ІД всіх рефералів цього користувача
+            referrals = supabase.table("referrals").select("*").eq("referrer_id", user_id).execute()
+            referral_ids = [ref['referee_id'] for ref in referrals.data]
 
-        # Якщо немає рефералів, повертаємо порожній список
-        if not referral_ids:
-            return events
+            # Якщо немає рефералів, повертаємо порожній список
+            if not referral_ids:
+                return events
 
-        # Отримуємо всі участі в розіграшах для рефералів
-        participations = DrawParticipant.query.filter(DrawParticipant.user_id.in_(referral_ids)).all()
+            # Отримуємо всі участі в розіграшах для рефералів
+            participations = supabase.table("draw_participants").select("*").in_("user_id", referral_ids).execute()
 
-        # Отримуємо інформацію про всі розіграші
-        draw_ids = [p.draw_id for p in participations]
-        draws = {}
-        if draw_ids:
-            draw_results = Draw.query.filter(Draw.id.in_(draw_ids)).all()
-            draws = {d.id: d for d in draw_results}
+            # Отримуємо інформацію про всі розіграші
+            if participations.data:
+                draw_ids = list(set([p['draw_id'] for p in participations.data]))
+                draws_result = supabase.table("draws").select("*").in_("id", draw_ids).execute()
+                draws = {d['id']: d for d in draws_result.data}
 
-        # Створюємо події для кожної участі
-        for participation in participations:
-            # Отримуємо дані розіграшу
-            draw = draws.get(participation.draw_id)
-            if not draw:
-                continue
-
-            # Перевіряємо фільтрацію за датою
-            if not HistoryController._filter_by_date(draw.date, options):
-                continue
-
-            # Отримуємо дані про реферала
-            referral_data = None
-            try:
-                from supabase_client import supabase
-                response = supabase.table("winix").select("username").eq("telegram_id", participation.user_id).execute()
-                if response.data:
-                    referral_data = {
-                        'username': response.data[0].get('username', f'User {participation.user_id}')
-                    }
-            except:
-                pass
-
-            # Визначаємо опис події та статус виграшу
-            if participation.is_winner:
-                description = f"Реферал {referral_data['username'] if referral_data else participation.user_id} виграв у розіграші '{draw.name}'"
+                # Отримуємо імена рефералів
+                users_response = supabase.table("winix").select("telegram_id, username").in_("telegram_id",
+                                                                                             referral_ids).execute()
+                user_map = {user['telegram_id']: user.get('username', f'User {user["telegram_id"]}') for user in
+                            users_response.data}
             else:
-                description = f"Реферал {referral_data['username'] if referral_data else participation.user_id} взяв участь у розіграші '{draw.name}'"
+                draws = {}
+                user_map = {}
 
-            # Створюємо запис події
-            event = {
-                'id': f'draw_{participation.id}',
-                'userId': user_id,
-                'type': 'draw',
-                'timestamp': draw.date.isoformat(),
-                'drawId': participation.draw_id,
-                'won': participation.is_winner,
-                'amount': participation.prize_amount if participation.is_winner else 0,
-                'description': description,
-                'referralId': participation.user_id,
-                'drawName': draw.name
-            }
+            # Створюємо події для кожної участі
+            for participation in participations.data:
+                # Отримуємо дані розіграшу
+                draw = draws.get(participation['draw_id'])
+                if not draw:
+                    continue
 
-            events.append(event)
+                # Перевіряємо фільтрацію за датою
+                draw_date = datetime.fromisoformat(draw['date'].replace('Z', '+00:00'))
+                if not HistoryController._filter_by_date(draw_date, options):
+                    continue
+
+                # Отримуємо дані про реферала
+                referral_username = user_map.get(participation['user_id'], f'User {participation["user_id"]}')
+
+                # Визначаємо опис події та статус виграшу
+                if participation['is_winner']:
+                    description = f"Реферал {referral_username} виграв у розіграші '{draw['name']}'"
+                else:
+                    description = f"Реферал {referral_username} взяв участь у розіграші '{draw['name']}'"
+
+                # Створюємо запис події
+                event = {
+                    'id': f'draw_{participation["id"]}',
+                    'userId': user_id,
+                    'type': 'draw',
+                    'timestamp': draw['date'],
+                    'drawId': participation['draw_id'],
+                    'won': participation['is_winner'],
+                    'amount': participation.get('prize_amount', 0) if participation['is_winner'] else 0,
+                    'description': description,
+                    'referralId': participation['user_id'],
+                    'drawName': draw['name']
+                }
+
+                events.append(event)
+        except Exception as e:
+            logger.error(f"Error getting draw events: {str(e)}")
 
         return events
 

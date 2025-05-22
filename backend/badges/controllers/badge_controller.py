@@ -1,8 +1,5 @@
-from models.badge import UserBadge
-from models.referral import Referral
-from database import db
+from supabase_client import supabase
 from flask import current_app
-from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 
 
@@ -39,12 +36,16 @@ class BadgeController:
             dict: Результат перевірки бейджів
         """
         try:
+            user_id_str = str(user_id)
+
             # Отримуємо загальну кількість рефералів користувача
-            referrals_count = Referral.query.filter_by(referrer_id=user_id).count()
+            referrals_result = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).execute()
+            referrals_count = len(referrals_result.data)
 
             # Отримуємо всі існуючі бейджі користувача
-            existing_badges = UserBadge.query.filter_by(user_id=user_id).all()
-            existing_badge_types = set(badge.badge_type for badge in existing_badges)
+            existing_badges_result = supabase.table("user_badges").select("*").eq("user_id", user_id_str).execute()
+            existing_badges = existing_badges_result.data
+            existing_badge_types = set(badge['badge_type'] for badge in existing_badges)
 
             # Перевіряємо досягнення нових бейджів
             new_badges = []
@@ -52,36 +53,27 @@ class BadgeController:
             for badge_type, threshold in BadgeController.BADGE_THRESHOLDS.items():
                 if referrals_count >= threshold and badge_type not in existing_badge_types:
                     # Створюємо новий бейдж
-                    new_badge = UserBadge(
-                        user_id=user_id,
-                        badge_type=badge_type,
-                        reward_amount=BadgeController.BADGE_REWARDS[badge_type]
-                    )
-                    db.session.add(new_badge)
-                    new_badges.append(new_badge)
+                    new_badge_data = {
+                        "user_id": user_id_str,
+                        "badge_type": badge_type,
+                        "reward_amount": BadgeController.BADGE_REWARDS[badge_type],
+                        "earned_at": datetime.utcnow().isoformat(),
+                        "claimed": False
+                    }
 
-            # Зберігаємо зміни в базі даних
-            if new_badges:
-                db.session.commit()
+                    result = supabase.table("user_badges").insert(new_badge_data).execute()
+                    if result.data:
+                        new_badges.append(result.data[0])
 
             # Формуємо відповідь
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': user_id_str,
                 'total_referrals': referrals_count,
-                'existing_badges': [badge.to_dict() for badge in existing_badges],
-                'new_badges': [badge.to_dict() for badge in new_badges]
-            }
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            current_app.logger.error(f"Database error during badge check: {str(e)}")
-            return {
-                'success': False,
-                'error': 'Database error during badge check',
-                'details': str(e)
+                'existing_badges': existing_badges,
+                'new_badges': new_badges
             }
         except Exception as e:
-            db.session.rollback()
             current_app.logger.error(f"Error checking badges: {str(e)}")
             return {
                 'success': False,
@@ -101,14 +93,18 @@ class BadgeController:
             dict: Інформація про бейджі користувача
         """
         try:
+            user_id_str = str(user_id)
+
             # Отримуємо загальну кількість рефералів користувача
-            referrals_count = Referral.query.filter_by(referrer_id=user_id).count()
+            referrals_result = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).execute()
+            referrals_count = len(referrals_result.data)
 
             # Отримуємо всі бейджі користувача
-            badges = UserBadge.query.filter_by(user_id=user_id).all()
+            badges_result = supabase.table("user_badges").select("*").eq("user_id", user_id_str).execute()
+            badges = badges_result.data
 
             # Формуємо список доступних, але ще не отриманих бейджів
-            existing_badge_types = set(badge.badge_type for badge in badges)
+            existing_badge_types = set(badge['badge_type'] for badge in badges)
             available_badges = []
 
             for badge_type, threshold in BadgeController.BADGE_THRESHOLDS.items():
@@ -124,9 +120,9 @@ class BadgeController:
 
             return {
                 'success': True,
-                'user_id': user_id,
+                'user_id': user_id_str,
                 'total_referrals': referrals_count,
-                'badges': [badge.to_dict() for badge in badges],
+                'badges': badges,
                 'available_badges': available_badges
             }
         except Exception as e:
@@ -150,49 +146,84 @@ class BadgeController:
             dict: Результат отримання винагороди
         """
         try:
-            # Перевіряємо, чи є такий бейдж у користувача
-            badge = UserBadge.query.filter_by(
-                user_id=user_id,
-                badge_type=badge_type
-            ).first()
+            user_id_str = str(user_id)
 
-            if not badge:
+            # Перевіряємо, чи є такий бейдж у користувача
+            badge_result = supabase.table("user_badges").select("*").eq(
+                "user_id", user_id_str
+            ).eq("badge_type", badge_type).execute()
+
+            if not badge_result.data:
                 return {
                     'success': False,
                     'error': 'Badge not found',
-                    'details': f'User {user_id} does not have badge {badge_type}'
+                    'details': f'User {user_id_str} does not have badge {badge_type}'
                 }
 
+            badge = badge_result.data[0]
+
             # Перевіряємо, чи не була вже отримана винагорода
-            if badge.claimed:
+            if badge['claimed']:
                 return {
                     'success': False,
                     'error': 'Reward already claimed',
                     'details': f'Reward for badge {badge_type} has already been claimed'
                 }
 
-            # Отримуємо винагороду
-            badge.claim_reward()
-            db.session.commit()
+            # Оновлюємо статус отримання винагороди
+            update_result = supabase.table("user_badges").update({
+                "claimed": True,
+                "claimed_at": datetime.utcnow().isoformat()
+            }).eq("id", badge['id']).execute()
 
-            # В реальному додатку тут буде код для нарахування валюти користувачу
+            if not update_result.data:
+                return {
+                    'success': False,
+                    'error': 'Failed to update badge status',
+                    'details': 'Database error while updating badge'
+                }
+
+            # Оновлюємо баланс користувача
+            try:
+                # Отримуємо поточний баланс
+                user_response = supabase.table("winix").select("balance").eq("telegram_id", user_id_str).execute()
+
+                if user_response.data:
+                    current_balance = float(user_response.data[0].get('balance', 0))
+                    new_balance = current_balance + badge['reward_amount']
+
+                    # Оновлюємо баланс
+                    supabase.table("winix").update({
+                        "balance": new_balance,
+                        "updated_at": datetime.utcnow().isoformat()
+                    }).eq("telegram_id", user_id_str).execute()
+
+                    # Записуємо транзакцію
+                    transaction_data = {
+                        "telegram_id": user_id_str,
+                        "type": "badge_reward",
+                        "amount": badge['reward_amount'],
+                        "description": f"Винагорода за {badge_type} бейдж",
+                        "status": "completed",
+                        "created_at": datetime.utcnow().isoformat()
+                    }
+                    supabase.table("transactions").insert(transaction_data).execute()
+
+                    current_app.logger.info(
+                        f"Badge reward claimed: user {user_id_str}, badge {badge_type}, amount {badge['reward_amount']}")
+            except Exception as e:
+                current_app.logger.error(f"Error updating user balance: {str(e)}")
+
+            # Отримуємо оновлені дані бейджа
+            updated_badge = supabase.table("user_badges").select("*").eq("id", badge['id']).execute()
 
             return {
                 'success': True,
                 'message': 'Badge reward successfully claimed',
-                'badge': badge.to_dict(),
-                'reward_amount': badge.reward_amount
-            }
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            current_app.logger.error(f"Database error during badge reward claim: {str(e)}")
-            return {
-                'success': False,
-                'error': 'Database error during badge reward claim',
-                'details': str(e)
+                'badge': updated_badge.data[0] if updated_badge.data else badge,
+                'reward_amount': badge['reward_amount']
             }
         except Exception as e:
-            db.session.rollback()
             current_app.logger.error(f"Error claiming badge reward: {str(e)}")
             return {
                 'success': False,
