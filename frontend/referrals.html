@@ -4,61 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WINIX - Реферальна програма</title>
-    <link rel="stylesheet" href="css/referrals/styles.css">
-    <link rel="stylesheet" href="css/referrals/animations.css">
-    <link rel="stylesheet" href="css/referrals/winix-icons.css">
-    <link rel="stylesheet" href="css/referrals/referrals.css">
-    <link rel="stylesheet" href="css/referrals/referrals-animations.css">
-    <link rel="stylesheet" href="css/referrals/referrals-tabs.css">
-    <link rel="stylesheet" href="css/referrals/referral-levels.css">
-    <link rel="stylesheet" href="css/referrals/referral-structure.css">
-    <link rel="stylesheet" href="css/referrals/percentage-rewards.css">
-    <link rel="stylesheet" href="css/referrals/referral-activity.css">
-    <link rel="stylesheet" href="css/referrals/badges-tasks.css">
-    <link rel="preload" href="assets/badges-icons.svg" as="image" type="image/svg+xml">
+
+    <!-- Premium CSS файли -->
+    <link rel="stylesheet" href="css/referrals/premium-styles.css">
+    <link rel="stylesheet" href="css/referrals/premium-referrals.css">
+    <link rel="stylesheet" href="css/referrals/premium-badges-tasks.css">
+    <link rel="stylesheet" href="css/referrals/premium-statistics.css">
+    <link rel="stylesheet" href="css/referrals/premium-animations.css">
+    <link rel="stylesheet" href="css/referrals/premium-winix-icons.css">
+    <link rel="stylesheet" href="css/referrals/premium-form-responsive.css">
 </head>
 <body>
-    <!-- SVG фільтри для іконок -->
+    <!-- SVG фільтри для преміум ефектів -->
     <svg class="winix-filters">
-      <defs>
-        <!-- Синє світіння -->
-        <filter id="blue-glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-          <feFlood flood-color="#4EB5F7" flood-opacity="0.5" result="color" />
-          <feComposite in="color" in2="blur" operator="in" result="glow" />
-          <feMerge>
-            <feMergeNode in="glow" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
+        <defs>
+            <!-- Градієнти -->
+            <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#a855f7;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#d946ef;stop-opacity:1" />
+            </linearGradient>
 
-        <!-- Бірюзове світіння -->
-        <filter id="teal-glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-          <feFlood flood-color="#00C9A7" flood-opacity="0.5" result="color" />
-          <feComposite in="color" in2="blur" operator="in" result="glow" />
-          <feMerge>
-            <feMergeNode in="glow" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
+            <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
+            </linearGradient>
 
-        <!-- Золоте світіння -->
-        <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-          <feFlood flood-color="#FFD700" flood-opacity="0.5" result="color" />
-          <feComposite in="color" in2="blur" operator="in" result="glow" />
-          <feMerge>
-            <feMergeNode in="glow" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
+            <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+            </linearGradient>
+
+            <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#FFD700;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#FFA500;stop-opacity:1" />
+            </linearGradient>
+
+            <!-- Фільтри світіння -->
+            <filter id="glow">
+                <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+            </filter>
+        </defs>
     </svg>
 
     <div class="container">
-        <!-- Шапка сторінки -->
-        <header class="header" style="color: white;">
+        <!-- Premium шапка -->
+        <header class="header">
             <div class="user-profile">
                 <div class="profile-avatar">W</div>
                 <div class="user-id-container">
@@ -81,9 +76,9 @@
 
         <!-- Основний контент -->
         <section class="category-card referral-section">
-            <h2 class="category-title">Реферальна програма</h2>
+            <h2 class="category-title gradient-morph">Реферальна програма</h2>
 
-            <!-- Головні вкладки реферальної системи -->
+            <!-- Головні вкладки -->
             <div class="main-tabs">
                 <div class="tab-button active" data-tab="referrals">Реферали</div>
                 <div class="tab-button" data-tab="badges">Бейджі</div>
@@ -94,16 +89,35 @@
             <div class="tab-content">
                 <!-- ВКЛАДКА 1: РЕФЕРАЛИ -->
                 <div class="main-tab-pane active" id="referrals-tab">
+                    <!-- Статистика рефералів -->
+                    <div class="referral-stats">
+                        <div class="stats-card">
+                            <div class="stats-icon level-1-icon"></div>
+                            <div class="stats-value">0</div>
+                            <div class="stats-label">Рефералів 1 рівня</div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-icon level-2-icon"></div>
+                            <div class="stats-value">0</div>
+                            <div class="stats-label">Рефералів 2 рівня</div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-icon total-earnings-icon"></div>
+                            <div class="stats-value">0</div>
+                            <div class="stats-label">Загальний заробіток</div>
+                        </div>
+                    </div>
+
                     <!-- Реферальне посилання -->
                     <div class="rewards-container">
                         <h3 class="referral-subtitle">Ваше реферальне посилання</h3>
-                        <div class="rewards-box" style="flex-direction: column;">
+                        <div class="rewards-box">
                             <div class="reward-item">
                                 <div style="width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                                    <div class="link-display" style="width: 100%; margin-bottom: 15px;">Завантаження...</div>
-                                    <button class="copy-button" style="margin-top: 10px; width: 100%; display: flex; justify-content: center;">
+                                    <div class="link-display">Завантаження...</div>
+                                    <button class="copy-button">
                                         <span class="copy-icon"></span>
-                                        <span class="button-text">Копіювати</span>
+                                        <span class="button-text">Копіювати посилання</span>
                                     </button>
                                 </div>
                             </div>
@@ -145,7 +159,10 @@
                     <div class="bonus-history-container">
                         <h3 class="referral-subtitle">Історія бонусів</h3>
                         <div class="bonus-history-items">
-                            <p style="color: #888; text-align: center;">Завантаження історії бонусів...</p>
+                            <div class="loading-indicator">
+                                <div class="spinner"></div>
+                                <span style="color: var(--text-secondary);">Завантаження історії...</span>
+                            </div>
                         </div>
                     </div>
 
@@ -180,37 +197,6 @@
 
                 <!-- ВКЛАДКА 2: БЕЙДЖІ -->
                 <div class="main-tab-pane" id="badges-tab">
-                    <!-- SVG для бейджів -->
-                    <div style="display: none;">
-                        <svg width="0" height="0">
-                            <defs>
-                                <!-- Градієнт для бейджу "Сміливець" -->
-                                <linearGradient id="brave-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#ff7e5f" />
-                                    <stop offset="100%" stop-color="#feb47b" />
-                                </linearGradient>
-
-                                <!-- Градієнт для бейджу "Новатор" -->
-                                <linearGradient id="innovator-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#4eb5f7" />
-                                    <stop offset="100%" stop-color="#2b6ecf" />
-                                </linearGradient>
-
-                                <!-- Градієнт для бейджу "Легенда" -->
-                                <linearGradient id="legend-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#FFD700" />
-                                    <stop offset="100%" stop-color="#FFA500" />
-                                </linearGradient>
-
-                                <!-- Градієнт для бейджу "Візіонер" -->
-                                <linearGradient id="visionary-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#8E24AA" />
-                                    <stop offset="100%" stop-color="#3F51B5" />
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                    </div>
-
                     <!-- Статистика бейджів -->
                     <div class="badges-stats-container">
                         <div class="badges-stats-item">
@@ -248,72 +234,10 @@
                     <div class="badges-list-container">
                         <h3 class="referral-subtitle">Бейджі за запрошення</h3>
                         <div class="badges-list" id="badges-list">
-                            <!-- Бейдж "Сміливець" (замість Бронзовий) -->
-                            <div class="badge-item not-eligible">
-                                <div class="badge-icon brave-icon"></div>
-                                <div class="badge-info">
-                                    <div class="badge-title">Сміливець</div>
-                                    <div class="badge-description">Залучіть <span class="bronze-threshold">25</span> рефералів</div>
-                                    <div class="badge-reward">Винагорода: <span class="bronze-reward">2500</span> winix</div>
-                                    <div class="badge-progress-container">
-                                        <div class="badge-progress-bar">
-                                            <div class="badge-progress-fill bronze-progress" style="width: 0%"></div>
-                                        </div>
-                                        <div class="badge-progress-text">0% (0/25)</div>
-                                    </div>
-                                    <button class="claim-badge-button" data-badge="BRONZE" disabled>Недоступно</button>
-                                </div>
-                            </div>
-
-                            <!-- Бейдж "Новатор" (замість Срібний) -->
-                            <div class="badge-item not-eligible">
-                                <div class="badge-icon innovator-icon"></div>
-                                <div class="badge-info">
-                                    <div class="badge-title">Новатор</div>
-                                    <div class="badge-description">Залучіть <span class="silver-threshold">50</span> рефералів</div>
-                                    <div class="badge-reward">Винагорода: <span class="silver-reward">5000</span> winix</div>
-                                    <div class="badge-progress-container">
-                                        <div class="badge-progress-bar">
-                                            <div class="badge-progress-fill silver-progress" style="width: 0%"></div>
-                                        </div>
-                                        <div class="badge-progress-text">0% (0/50)</div>
-                                    </div>
-                                    <button class="claim-badge-button" data-badge="SILVER" disabled>Недоступно</button>
-                                </div>
-                            </div>
-
-                            <!-- Бейдж "Легенда" (замість Золотий) -->
-                            <div class="badge-item not-eligible">
-                                <div class="badge-icon legend-icon"></div>
-                                <div class="badge-info">
-                                    <div class="badge-title">Легенда</div>
-                                    <div class="badge-description">Залучіть <span class="gold-threshold">100</span> рефералів</div>
-                                    <div class="badge-reward">Винагорода: <span class="gold-reward">10000</span> winix</div>
-                                    <div class="badge-progress-container">
-                                        <div class="badge-progress-bar">
-                                            <div class="badge-progress-fill gold-progress" style="width: 0%"></div>
-                                        </div>
-                                        <div class="badge-progress-text">0% (0/100)</div>
-                                    </div>
-                                    <button class="claim-badge-button" data-badge="GOLD" disabled>Недоступно</button>
-                                </div>
-                            </div>
-
-                            <!-- Бейдж "Візіонер" (замість Платиновий) -->
-                            <div class="badge-item not-eligible">
-                                <div class="badge-icon visionary-icon"></div>
-                                <div class="badge-info">
-                                    <div class="badge-title">Візіонер</div>
-                                    <div class="badge-description">Залучіть <span class="platinum-threshold">500</span> рефералів</div>
-                                    <div class="badge-reward">Винагорода: <span class="platinum-reward">20000</span> winix</div>
-                                    <div class="badge-progress-container">
-                                        <div class="badge-progress-bar">
-                                            <div class="badge-progress-fill platinum-progress" style="width: 0%"></div>
-                                        </div>
-                                        <div class="badge-progress-text">0% (0/500)</div>
-                                    </div>
-                                    <button class="claim-badge-button" data-badge="PLATINUM" disabled>Недоступно</button>
-                                </div>
+                            <!-- Бейджі будуть додані динамічно -->
+                            <div class="loading-indicator">
+                                <div class="spinner"></div>
+                                <span style="color: var(--text-secondary);">Завантаження бейджів...</span>
                             </div>
                         </div>
                     </div>
@@ -367,16 +291,19 @@
                             <div class="activity-table-col activity-col-status">Статус</div>
                         </div>
                         <div class="activity-table-body" id="activity-table-body">
-                            <p style="color: #888; text-align: center; padding: 20px;">Завантаження даних про активність...</p>
+                            <div class="loading-indicator">
+                                <div class="spinner"></div>
+                                <span style="color: var(--text-secondary);">Завантаження даних...</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Рекомендації щодо активності -->
+                    <!-- Рекомендації -->
                     <div class="activity-recommendations">
                         <div class="recommendations-title">Рекомендації</div>
                         <div class="recommendations-list" id="activity-recommendations">
-                            <p style="color: white; margin-bottom: 10px;">Заохочуйте рефералів брати участь у розіграшах (мінімум 3 для активності).</p>
-                            <p style="color: white;">Мотивуйте рефералів запрошувати інших користувачів (достатньо 1 запрошення для активності).</p>
+                            <p>Заохочуйте рефералів брати участь у розіграшах (мінімум 3 для активності).</p>
+                            <p>Мотивуйте рефералів запрошувати інших користувачів (достатньо 1 запрошення для активності).</p>
                         </div>
                     </div>
 
@@ -407,24 +334,19 @@
 
                         <!-- Контент вкладок -->
                         <div class="referral-tab-content">
-                            <!-- Вкладка рефералів 1-го рівня -->
                             <div class="tab-pane active" id="level1-tab">
                                 <div class="referral-list" id="level1-list">
-                                    <p style="color: #888; text-align: center;">Завантаження рефералів 1-го рівня...</p>
+                                    <div class="empty-list">Рефералів 1-го рівня поки немає</div>
                                 </div>
                             </div>
-
-                            <!-- Вкладка рефералів 2-го рівня -->
                             <div class="tab-pane" id="level2-tab">
                                 <div class="referral-list" id="level2-list">
-                                    <p style="color: #888; text-align: center;">Завантаження рефералів 2-го рівня...</p>
+                                    <div class="empty-list">Рефералів 2-го рівня поки немає</div>
                                 </div>
                             </div>
-
-                            <!-- Вкладка ієрархії рефералів -->
                             <div class="tab-pane" id="hierarchy-tab">
                                 <div class="referral-hierarchy" id="referral-hierarchy">
-                                    <p style="color: #888; text-align: center;">Завантаження ієрархії рефералів...</p>
+                                    <div class="empty-list">Ієрархія рефералів порожня</div>
                                 </div>
                             </div>
                         </div>
@@ -432,7 +354,7 @@
                 </div>
             </div>
 
-            <!-- Деталі реферала (показується при кліку на реферала) -->
+            <!-- Деталі реферала -->
             <div class="referral-details" id="referral-details">
                 <div class="referral-details-header">
                     <div class="referral-details-title">Інформація про реферала</div>
@@ -471,43 +393,69 @@
                         <div class="detail-label">Запрошені реферали</div>
                         <div class="detail-value" id="detail-invited">-</div>
                     </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Причина активності</div>
-                        <div class="detail-value" id="detail-activity-reason">-</div>
-                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- Нижня навігаційна панель -->
+        <!-- Premium нижня навігація з SVG іконками -->
         <nav class="nav-bar">
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/home-icon.png" alt="Home">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 20V14H15V20M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"/>
+                    </svg>
                 </div>
                 <span>Home</span>
             </div>
+
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/earn-icon.png" alt="Earn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="8" r="7" stroke="currentColor" stroke-width="2"/>
+                        <path d="M12 1V8M12 8L16 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M3 15L6 18L9 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M15 15L18 18L21 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M6 18H18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M12 18V23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
                 </div>
                 <span>Earn</span>
             </div>
+
             <div class="nav-item active">
                 <div class="icon-wrapper">
-                    <img src="assets/referrals-icon.png" alt="Referral">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
+                        <path d="M3 21V19C3 16.7909 4.79086 15 7 15H11C13.2091 15 15 16.7909 15 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="18" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M21 15.5V14.5C21 13.1193 19.8807 12 18.5 12H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
                 </div>
                 <span>Referral</span>
             </div>
+
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/wallet-icon.png" alt="Wallet">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 8V7C21 5.89543 20.1046 5 19 5H5C3.89543 5 3 5.89543 3 7V17C3 18.1046 3.89543 19 5 19H19C20.1046 19 21 18.1046 21 17V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M3 8H21V16H3V8Z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M15 12H18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="18" cy="12" r="1" fill="currentColor"/>
+                    </svg>
                 </div>
                 <span>Wallet</span>
             </div>
+
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/general-icon.png" alt="General">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M19.622 10.395L18.575 9.689C18.516 9.648 18.479 9.582 18.479 9.514V8.352C18.479 6.76 17.208 5.486 15.622 5.486H14.461C14.391 5.486 14.326 5.449 14.285 5.39L13.577 4.342C12.707 3.078 11.293 3.078 10.423 4.342L9.715 5.39C9.674 5.449 9.609 5.486 9.539 5.486H8.378C6.792 5.486 5.521 6.76 5.521 8.352V9.514C5.521 9.582 5.484 9.648 5.425 9.689L4.378 10.395C3.108 11.265 3.108 12.735 4.378 13.605L5.425 14.311C5.484 14.352 5.521 14.418 5.521 14.486V15.648C5.521 17.24 6.792 18.514 8.378 18.514H9.539C9.609 18.514 9.674 18.551 9.715 18.61L10.423 19.658C11.293 20.922 12.707 20.922 13.577 19.658L14.285 18.61C14.326 18.551 14.391 18.514 14.461 18.514H15.622C17.208 18.514 18.479 17.24 18.479 15.648V14.486C18.479 14.418 18.516 14.352 18.575 14.311L19.622 13.605C20.892 12.735 20.892 11.265 19.622 10.395Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                 </div>
                 <span>General</span>
             </div>

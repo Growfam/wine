@@ -1,0 +1,511 @@
+/* WINIX Premium - Бейджі та завдання */
+
+/* ======== СТАТИСТИКА БЕЙДЖІВ ======== */
+.badges-stats-container,
+.tasks-stats-container {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.badges-stats-item,
+.tasks-stats-item {
+    flex: 1;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(168, 85, 247, 0.04));
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: var(--radius-lg);
+    padding: 24px 16px;
+    text-align: center;
+    transition: var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.badges-stats-item::before,
+.tasks-stats-item::before {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: -100%;
+    width: 300%;
+    height: 300%;
+    background: radial-gradient(circle, rgba(217, 70, 239, 0.15) 0%, transparent 50%);
+    animation: rotateGlow 20s linear infinite;
+    opacity: 0;
+    transition: var(--transition-base);
+}
+
+.badges-stats-item:hover::before,
+.tasks-stats-item:hover::before {
+    opacity: 1;
+}
+
+.badges-stats-item:hover,
+.tasks-stats-item:hover {
+    transform: translateY(-4px);
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 12px 32px rgba(139, 92, 246, 0.2);
+}
+
+@keyframes rotateGlow {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.badges-stats-icon,
+.tasks-stats-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    color: white;
+    position: relative;
+}
+
+/* Стилі для різних бейджів */
+.brave-badge-icon {
+    background: linear-gradient(135deg, #ff7e5f, #feb47b);
+    box-shadow: 0 0 30px rgba(255, 126, 95, 0.5);
+}
+
+.innovator-badge-icon {
+    background: linear-gradient(135deg, #4eb5f7, #2b6ecf);
+    box-shadow: 0 0 30px rgba(78, 181, 247, 0.5);
+}
+
+.legend-badge-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+}
+
+.visionary-badge-icon {
+    background: var(--primary-gradient);
+    box-shadow: var(--glow-intense);
+}
+
+/* Статистика завдань */
+.completed-task-icon {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.5);
+}
+
+.total-tasks-icon {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+}
+
+.task-reward-icon {
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.5);
+}
+
+.badges-stats-value,
+.tasks-stats-value {
+    font-size: 36px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+}
+
+.badges-stats-label,
+.tasks-stats-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ======== НАСТУПНИЙ БЕЙДЖ ======== */
+.next-badge-container {
+    background: linear-gradient(135deg, rgba(217, 70, 239, 0.1), rgba(139, 92, 246, 0.05));
+    border: 1px solid rgba(217, 70, 239, 0.3);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+}
+
+.next-badge-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(217, 70, 239, 0.2) 0%, transparent 60%);
+    transform: translate(50px, -50px);
+}
+
+.next-badge-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary-gradient);
+    border-radius: var(--radius-full);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: progressShine 2s linear infinite;
+}
+
+@keyframes progressShine {
+    0% { transform: translateX(-100px); }
+    100% { transform: translateX(100px); }
+}
+
+.progress-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-align: right;
+    margin-top: 8px;
+}
+
+.next-badge-remaining {
+    font-size: 16px;
+    color: var(--accent-primary);
+    font-weight: 600;
+    margin-top: 12px;
+}
+
+/* ======== СПИСОК БЕЙДЖІВ ======== */
+.badges-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.badge-item {
+    background: rgba(139, 92, 246, 0.05);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    display: flex;
+    gap: 20px;
+    transition: var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.badge-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, transparent, rgba(139, 92, 246, 0.05));
+    opacity: 0;
+    transition: var(--transition-base);
+}
+
+.badge-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(139, 92, 246, 0.3);
+    box-shadow: 0 12px 32px rgba(139, 92, 246, 0.15);
+}
+
+.badge-item:hover::before {
+    opacity: 1;
+}
+
+/* Стилі для різних станів бейджів */
+.badge-item.eligible {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.badge-item.claimed {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.05));
+    border-color: rgba(255, 215, 0, 0.3);
+}
+
+.badge-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    font-weight: 800;
+    color: white;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.badge-icon::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: var(--radius-full);
+    background: inherit;
+    filter: blur(12px);
+    opacity: 0.6;
+    z-index: -1;
+}
+
+.brave-icon {
+    background: linear-gradient(135deg, #ff7e5f, #feb47b);
+    box-shadow: 0 0 40px rgba(255, 126, 95, 0.5);
+}
+
+.innovator-icon {
+    background: linear-gradient(135deg, #4eb5f7, #2b6ecf);
+    box-shadow: 0 0 40px rgba(78, 181, 247, 0.5);
+}
+
+.legend-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
+}
+
+.visionary-icon {
+    background: var(--primary-gradient);
+    box-shadow: var(--glow-intense);
+}
+
+.badge-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.badge-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.badge-description {
+    font-size: 15px;
+    color: var(--text-secondary);
+}
+
+.badge-reward {
+    font-size: 16px;
+    color: var(--accent-primary);
+    font-weight: 600;
+}
+
+.badge-progress-container {
+    margin-top: 12px;
+}
+
+.badge-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.badge-progress-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.eligible .badge-progress-fill {
+    background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.not-eligible .badge-progress-fill {
+    background: linear-gradient(90deg, #8b5cf6, #a855f7);
+}
+
+.claimed .badge-progress-fill {
+    background: linear-gradient(90deg, #FFD700, #FFA500);
+}
+
+.badge-progress-text {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-top: 6px;
+    text-align: right;
+}
+
+/* ======== КНОПКА ОТРИМАННЯ БЕЙДЖА ======== */
+.claim-badge-button,
+.claim-task-button {
+    padding: 12px 24px;
+    border-radius: var(--radius-full);
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: var(--transition-base);
+    margin-top: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.claim-badge-button {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: var(--glow-primary);
+}
+
+.claim-badge-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--glow-intense);
+}
+
+.claim-badge-button:disabled {
+    background: rgba(139, 92, 246, 0.2);
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* ======== СПИСОК ЗАВДАНЬ ======== */
+.tasks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.task-item {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.04));
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    transition: var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.task-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 12px 32px rgba(59, 130, 246, 0.15);
+}
+
+.task-item.completed {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.task-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.task-description {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.task-reward {
+    font-size: 16px;
+    color: var(--accent-blue);
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.task-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.task-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    border-radius: var(--radius-full);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+.completed .task-progress-fill {
+    background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.claim-task-button {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+}
+
+.claim-task-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.7);
+}
+
+/* Медіа запити */
+@media (max-width: 600px) {
+    .badges-stats-container,
+    .tasks-stats-container {
+        flex-direction: column;
+    }
+
+    .badge-item {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .badge-icon {
+        margin: 0 auto 16px;
+    }
+}
+
+@media (max-width: 400px) {
+    .badges-stats-icon,
+    .tasks-stats-icon {
+        width: 56px;
+        height: 56px;
+        font-size: 24px;
+    }
+
+    .badges-stats-value,
+    .tasks-stats-value {
+        font-size: 28px;
+    }
+
+    .badge-icon {
+        width: 64px;
+        height: 64px;
+        font-size: 28px;
+    }
+}
