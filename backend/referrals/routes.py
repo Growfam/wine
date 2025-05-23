@@ -11,6 +11,7 @@ from referrals.controllers import (
 import logging
 import traceback
 import json
+from datetime import datetime
 
 # Налаштування логування для детальнішого відстеження
 logger = logging.getLogger(__name__)
@@ -953,6 +954,200 @@ def fix_all_users():
 
     status_code = 200 if result.get('success', False) else 400
     return jsonify(result), status_code
+
+
+# ===== ДІАГНОСТИЧНІ ЕНДПОІНТИ =====
+
+@referrals_bp.route('/debug/<user_id>', methods=['GET'])
+@handle_api_exceptions
+def debug_referrals(user_id):
+    """Діагностичний ендпоінт для перевірки даних"""
+    logger.info(f"=== DEBUG: Починаємо діагностику для user_id: {user_id} ===")
+
+    debug_info = {
+        'user_id': str(user_id),
+        'timestamp': datetime.utcnow().isoformat(),
+        'checks': {}
+    }
+
+    try:
+        # 1. Перевірка з'єднання
+        from supabase_client import supabase
+        debug_info['checks']['supabase_connected'] = supabase is not None
+
+        # 2. Перевірка користувача
+        user_query = supabase.table("winix").select("*").eq("telegram_id", str(user_id))
+        logger.info(f"DEBUG: Виконуємо запит користувача")
+        user_result = user_query.execute()
+
+        debug_info['checks']['user_exists'] = bool(user_result.data)
+        debug_info['checks']['user_data'] = user_result.data[0] if user_result.data else None
+
+        # 3. Перевірка рефералів
+        try:
+            referrals_query = supabase.table("referrals").select("*").eq("referrer_id", str(user_id))
+            logger.info(f"DEBUG: Виконуємо запит рефералів")
+            referrals_result = referrals_query.execute()
+
+            debug_info['checks']['referrals_count'] = len(referrals_result.data)
+            debug_info['checks']['referrals_sample'] = referrals_result.data[:3] if referrals_result.data else []
+        except Exception as e:
+            debug_info['checks']['referrals_error'] = str(e)
+            logger.error(f"DEBUG: Помилка запиту рефералів: {str(e)}")
+
+        # 4. Перевірка активностей
+        try:
+            activities_query = supabase.table("referral_activities").select("*").limit(5)
+            activities_result = activities_query.execute()
+            debug_info['checks']['activities_count'] = len(activities_result.data)
+        except Exception as e:
+            debug_info['checks']['activities_error'] = str(e)
+
+        # 5. Перевірка прямих бонусів
+        try:
+            bonuses_query = supabase.table("direct_bonuses").select("*").eq("referrer_id", str(user_id))
+            bonuses_result = bonuses_query.execute()
+            debug_info['checks']['bonuses_count'] = len(bonuses_result.data)
+        except Exception as e:
+            debug_info['checks']['bonuses_error'] = str(e)
+
+        # 6. Тест контролерів
+        try:
+            structure_result = ReferralController.get_referral_structure(user_id)
+            debug_info['checks']['controller_works'] = structure_result.get('success', False)
+            debug_info['checks']['controller_result'] = structure_result
+        except Exception as e:
+            debug_info['checks']['controller_error'] = str(e)
+            logger.error(f"DEBUG: Помилка контролера: {str(e)}", exc_info=True)
+
+    except Exception as e:
+        debug_info['error'] = str(e)
+        logger.error(f"DEBUG: Критична помилка: {str(e)}", exc_info=True)
+
+    logger.info(f"=== DEBUG: Результати діагностики: {json.dumps(debug_info, indent=2)} ===")
+    return jsonify(debug_info)
+
+
+@referrals_bp.route('/debug-structure/<user_id>', methods=['GET'])
+@handle_api_exceptions
+def debug_structure(user_id):
+    """Діагностика структури рефералів"""
+    # Викликаємо debug метод
+    debug_result = ReferralController.debug_referral_structure(user_id) if hasattr(ReferralController,
+                                                                                   'debug_referral_structure') else {
+        'error': 'Debug method not found'}
+
+    # Також викликаємо звичайний метод для порівняння
+    normal_result = ReferralController.get_referral_structure(user_id)
+
+    return jsonify({
+        'debug': debug_result,
+        'normal': normal_result,
+        'comparison': {
+            'debug_total': debug_result.get('all_count', 0) if isinstance(debug_result, dict) else 0,
+            'normal_total': normal_result.get('statistics', {}).get('totalReferrals', 0)
+        }
+    })
+
+
+@referrals_bp.route('/full-debug/<user_id>', methods=['GET'])
+@handle_api_exceptions
+def full_debug_referrals(user_id):
+    """Повна діагностика реферальної системи"""
+    from supabase_client import supabase
+
+    user_id_str = str(user_id)
+    logger.info(f"=== FULL DEBUG START for {user_id_str} ===")
+
+    debug_data = {
+        'user_id': user_id_str,
+        'timestamp': datetime.utcnow().isoformat(),
+        'checks': {}
+    }
+
+    try:
+        # 1. Перевірка прямими SQL запитами
+        logger.info("1. Перевірка прямими запитами...")
+
+        # Рефералі level 1
+        level1_query = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).eq("level", 1)
+        level1_result = level1_query.execute()
+        debug_data['checks']['direct_level1_count'] = len(level1_result.data or [])
+        debug_data['checks']['direct_level1_sample'] = (level1_result.data or [])[:2]
+
+        # Рефералі level 2
+        level2_query = supabase.table("referrals").select("*").eq("referrer_id", user_id_str).eq("level", 2)
+        level2_result = level2_query.execute()
+        debug_data['checks']['direct_level2_count'] = len(level2_result.data or [])
+        debug_data['checks']['direct_level2_sample'] = (level2_result.data or [])[:2]
+
+        # Всі рефералі
+        all_query = supabase.table("referrals").select("*").eq("referrer_id", user_id_str)
+        all_result = all_query.execute()
+        debug_data['checks']['direct_all_count'] = len(all_result.data or [])
+
+        # 2. Перевірка через контролер
+        logger.info("2. Перевірка через контролер...")
+        controller_result = ReferralController.get_referral_structure(user_id)
+        debug_data['checks']['controller_success'] = controller_result.get('success', False)
+        debug_data['checks']['controller_stats'] = controller_result.get('statistics', {})
+
+        # 3. Перевірка бонусів
+        logger.info("3. Перевірка бонусів...")
+        bonuses_query = supabase.table("direct_bonuses").select("*").eq("referrer_id", user_id_str)
+        bonuses_result = bonuses_query.execute()
+        debug_data['checks']['direct_bonuses_count'] = len(bonuses_result.data or [])
+        debug_data['checks']['direct_bonuses_total'] = sum(b.get('amount', 0) for b in bonuses_result.data or [])
+
+        # 4. Перевірка активностей
+        logger.info("4. Перевірка активностей...")
+        if all_result.data:
+            referee_ids = [ref['referee_id'] for ref in all_result.data]
+            activities_query = supabase.table("referral_activities").select("*").in_("user_id", referee_ids[:10])
+            activities_result = activities_query.execute()
+            debug_data['checks']['activities_found'] = len(activities_result.data or [])
+
+        # 5. Перевірка аналітики
+        logger.info("5. Перевірка аналітики...")
+        analytics_result = AnalyticsController.get_total_earnings(user_id)
+        debug_data['checks']['analytics_success'] = analytics_result.get('success', False)
+        debug_data['checks']['analytics_total'] = analytics_result.get('total_earnings', 0)
+
+        # 6. Порівняння результатів
+        debug_data['comparison'] = {
+            'direct_total': debug_data['checks']['direct_all_count'],
+            'controller_total': controller_result.get('statistics', {}).get('totalReferrals', 0),
+            'match': debug_data['checks']['direct_all_count'] == controller_result.get('statistics', {}).get(
+                'totalReferrals', 0)
+        }
+
+    except Exception as e:
+        logger.error(f"FULL DEBUG ERROR: {str(e)}", exc_info=True)
+        debug_data['error'] = str(e)
+        debug_data['traceback'] = traceback.format_exc()
+
+    logger.info(f"=== FULL DEBUG END ===")
+    return jsonify(debug_data)
+
+
+@referrals_bp.route('/ensure-activities/<user_id>', methods=['POST'])
+@handle_api_exceptions
+def ensure_activities(user_id):
+    """Переконується що всі рефералі мають записи активності"""
+    logger.info(f"Запит на перевірку активностей для користувача {user_id}")
+
+    if hasattr(ActivityController, 'ensure_activities_exist'):
+        created_count = ActivityController.ensure_activities_exist(user_id)
+        return jsonify({
+            'success': True,
+            'user_id': str(user_id),
+            'created_activities': created_count
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Method ensure_activities_exist not found'
+        }), 500
 
 
 # Ініціалізація Blueprint для маршрутів реферальної системи
