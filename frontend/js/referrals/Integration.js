@@ -1,4 +1,4 @@
-// Integration.js - Версія з детальним логуванням
+// Integration.js - Версія з виправленим парсингом даних та детальним логуванням
 /**
  * Головний інтеграційний модуль для реферальної системи
  * Ініціалізує всі компоненти та забезпечує взаємодію з DOM
@@ -20,7 +20,7 @@ window.ReferralIntegration = (function() {
    * Ініціалізація реферальної системи
    */
   ReferralIntegration.prototype.init = function() {
-    const self = this;
+    var self = this;
     console.log('🚀 [INTEGRATION] ===== ПОЧАТОК ІНІЦІАЛІЗАЦІЇ =====');
     console.log('🕐 [INTEGRATION] Час початку:', new Date().toISOString());
 
@@ -37,7 +37,7 @@ window.ReferralIntegration = (function() {
         });
 
         if (!self.userId) {
-          const error = new Error('Не вдалося отримати ID користувача. Переконайтеся, що ви авторизовані.');
+          var error = new Error('Не вдалося отримати ID користувача. Переконайтеся, що ви авторизовані.');
           console.error('❌ [INTEGRATION] КРИТИЧНА ПОМИЛКА: ID користувача відсутній');
           console.error('❌ [INTEGRATION] Деталі помилки:', error);
           self.showErrorMessage(error.message);
@@ -109,7 +109,7 @@ window.ReferralIntegration = (function() {
     if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
       console.log('🔍 [INTEGRATION] Спроба отримати ID через WinixAPI...');
       try {
-        const apiId = window.WinixAPI.getUserId();
+        var apiId = window.WinixAPI.getUserId();
         console.log('🔍 [INTEGRATION] WinixAPI.getUserId() повернув:', {
           value: apiId,
           type: typeof apiId,
@@ -117,7 +117,7 @@ window.ReferralIntegration = (function() {
         });
 
         if (apiId && apiId !== 'undefined' && apiId !== 'null') {
-          const numericId = parseInt(apiId);
+          var numericId = parseInt(apiId);
           console.log('✅ [INTEGRATION] ID успішно отримано з WinixAPI:', numericId);
           return numericId;
         }
@@ -137,7 +137,7 @@ window.ReferralIntegration = (function() {
       if (window.Telegram.WebApp.initDataUnsafe &&
           window.Telegram.WebApp.initDataUnsafe.user &&
           window.Telegram.WebApp.initDataUnsafe.user.id) {
-        const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id;
+        var tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id;
         console.log('✅ [INTEGRATION] ID успішно отримано з Telegram:', tgUserId);
         return parseInt(tgUserId);
       } else {
@@ -149,16 +149,16 @@ window.ReferralIntegration = (function() {
 
     // Потім з localStorage
     console.log('🔍 [INTEGRATION] Спроба отримати ID з localStorage...');
-    const telegramId = localStorage.getItem('telegram_user_id');
-    const userId = localStorage.getItem('user_id');
+    var telegramId = localStorage.getItem('telegram_user_id');
+    var userId = localStorage.getItem('user_id');
     console.log('📊 [INTEGRATION] Дані з localStorage:', {
       telegram_user_id: telegramId,
       user_id: userId
     });
 
-    const storedId = telegramId || userId;
+    var storedId = telegramId || userId;
     if (storedId) {
-      const numericId = parseInt(storedId);
+      var numericId = parseInt(storedId);
       console.log('📊 [INTEGRATION] Конвертація ID:', {
         original: storedId,
         numeric: numericId,
@@ -188,7 +188,7 @@ window.ReferralIntegration = (function() {
     });
 
     try {
-      const reducers = {
+      var reducers = {
         referralLink: window.ReferralStore.referralLinkReducer,
         directBonus: window.ReferralStore.directBonusReducer,
         referralLevels: window.ReferralStore.referralLevelsReducer,
@@ -207,8 +207,8 @@ window.ReferralIntegration = (function() {
       });
 
       // Підписуємося на зміни стану
-      const self = this;
-      const unsubscribe = this.store.subscribe(function() {
+      var self = this;
+      var unsubscribe = this.store.subscribe(function() {
         console.log('🔄 [INTEGRATION] Store state змінився');
         self.handleStateChange();
       });
@@ -227,7 +227,7 @@ window.ReferralIntegration = (function() {
    * Ініціалізує інтерфейс користувача
    */
   ReferralIntegration.prototype.initUI = function() {
-    const self = this;
+    var self = this;
     console.log('🎨 [INTEGRATION] === initUI START ===');
 
     return new Promise(function(resolve, reject) {
@@ -268,14 +268,14 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.setUserIdInHeader = function() {
     console.log('🏷️ [INTEGRATION] === setUserIdInHeader START ===');
 
-    const userIdElements = document.querySelectorAll('.user-id-value, #header-user-id');
+    var userIdElements = document.querySelectorAll('.user-id-value, #header-user-id');
     console.log('📊 [INTEGRATION] Знайдено елементів для ID:', userIdElements.length);
 
-    const self = this;
+    var self = this;
     userIdElements.forEach(function(element, index) {
       if (element) {
-        const value = self.userId || 'Не визначено';
-        console.log(`🏷️ [INTEGRATION] Встановлення ID в елемент ${index}:`, {
+        var value = self.userId || 'Не визначено';
+        console.log('🏷️ [INTEGRATION] Встановлення ID в елемент ' + index + ':', {
           element: element,
           oldValue: element.textContent,
           newValue: value
@@ -291,7 +291,7 @@ window.ReferralIntegration = (function() {
    * Ініціалізує реферальне посилання
    */
   ReferralIntegration.prototype.initReferralLink = function() {
-    const self = this;
+    var self = this;
     console.log('🔗 [INTEGRATION] === initReferralLink START ===');
     console.log('📊 [INTEGRATION] Параметри:', {
       userId: self.userId,
@@ -340,7 +340,7 @@ window.ReferralIntegration = (function() {
       length: link ? link.length : 0
     });
 
-    const linkDisplay = document.querySelector('.link-display');
+    var linkDisplay = document.querySelector('.link-display');
     console.log('📊 [INTEGRATION] Елемент для відображення:', {
       found: !!linkDisplay,
       currentText: linkDisplay ? linkDisplay.textContent : null
@@ -371,8 +371,8 @@ window.ReferralIntegration = (function() {
     console.log('💰 [INTEGRATION] === initRewardsDisplay START ===');
 
     // Встановлюємо базові значення винагород
-    const bonusAmountElements = document.querySelectorAll('.bonus-amount');
-    const bonusAmount = window.ReferralConstants.DIRECT_BONUS_AMOUNT || 50;
+    var bonusAmountElements = document.querySelectorAll('.bonus-amount');
+    var bonusAmount = window.ReferralConstants.DIRECT_BONUS_AMOUNT || 50;
 
     console.log('📊 [INTEGRATION] Налаштування бонусів:', {
       elementsFound: bonusAmountElements.length,
@@ -380,7 +380,7 @@ window.ReferralIntegration = (function() {
     });
 
     bonusAmountElements.forEach(function(element, index) {
-      console.log(`💰 [INTEGRATION] Встановлення бонусу в елемент ${index}`);
+      console.log('💰 [INTEGRATION] Встановлення бонусу в елемент ' + index);
       element.textContent = bonusAmount;
     });
 
@@ -397,7 +397,7 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.updateBadgeThresholds = function() {
     console.log('🏆 [INTEGRATION] === updateBadgeThresholds START ===');
 
-    const thresholdElements = {
+    var thresholdElements = {
       '.bronze-threshold': window.ReferralConstants.BRONZE_BADGE_THRESHOLD || 25,
       '.silver-threshold': window.ReferralConstants.SILVER_BADGE_THRESHOLD || 50,
       '.gold-threshold': window.ReferralConstants.GOLD_BADGE_THRESHOLD || 100,
@@ -407,9 +407,9 @@ window.ReferralIntegration = (function() {
     console.log('📊 [INTEGRATION] Пороги бейджів:', thresholdElements);
 
     Object.keys(thresholdElements).forEach(function(selector) {
-      const value = thresholdElements[selector];
-      const element = document.querySelector(selector);
-      console.log(`🏆 [INTEGRATION] Оновлення ${selector}:`, {
+      var value = thresholdElements[selector];
+      var element = document.querySelector(selector);
+      console.log('🏆 [INTEGRATION] Оновлення ' + selector + ':', {
         found: !!element,
         value: value
       });
@@ -418,7 +418,7 @@ window.ReferralIntegration = (function() {
       }
     });
 
-    const rewardElements = {
+    var rewardElements = {
       '.bronze-reward': window.ReferralConstants.BRONZE_BADGE_REWARD || 2500,
       '.silver-reward': window.ReferralConstants.SILVER_BADGE_REWARD || 5000,
       '.gold-reward': window.ReferralConstants.GOLD_BADGE_REWARD || 10000,
@@ -428,9 +428,9 @@ window.ReferralIntegration = (function() {
     console.log('📊 [INTEGRATION] Винагороди бейджів:', rewardElements);
 
     Object.keys(rewardElements).forEach(function(selector) {
-      const value = rewardElements[selector];
-      const element = document.querySelector(selector);
-      console.log(`💰 [INTEGRATION] Оновлення винагороди ${selector}:`, {
+      var value = rewardElements[selector];
+      var element = document.querySelector(selector);
+      console.log('💰 [INTEGRATION] Оновлення винагороди ' + selector + ':', {
         found: !!element,
         value: value
       });
@@ -446,12 +446,12 @@ window.ReferralIntegration = (function() {
    * Завантажує початкові дані
    */
   ReferralIntegration.prototype.loadInitialData = function() {
-    const self = this;
+    var self = this;
     console.log('📊 [INTEGRATION] === loadInitialData START ===');
     console.log('🕐 [INTEGRATION] Час початку завантаження:', new Date().toISOString());
 
     // Завантажуємо дані паралельно, але не зупиняємо весь процес при помилці
-    const promises = [
+    var promises = [
       self.loadReferralStats().catch(function(error) {
         console.error('❌ [INTEGRATION] ПОМИЛКА loadReferralStats:', error);
         self.showErrorMessage('Не вдалося завантажити статистику рефералів');
@@ -480,14 +480,14 @@ window.ReferralIntegration = (function() {
         });
 
         // Перевіряємо чи хоча б щось завантажилось
-        const hasAnyData = results.some(function(result) {
+        var hasAnyData = results.some(function(result) {
           return result !== null;
         });
 
         console.log('📊 [INTEGRATION] Статус завантаження:', {
           hasAnyData: hasAnyData,
-          successCount: results.filter(r => r !== null).length,
-          failureCount: results.filter(r => r === null).length
+          successCount: results.filter(function(r) { return r !== null; }).length,
+          failureCount: results.filter(function(r) { return r === null; }).length
         });
 
         if (!hasAnyData) {
@@ -505,7 +505,7 @@ window.ReferralIntegration = (function() {
    * Завантажує статистику рефералів
    */
   ReferralIntegration.prototype.loadReferralStats = function() {
-    const self = this;
+    var self = this;
     console.log('📊 [INTEGRATION] === loadReferralStats START ===');
     console.log('🔄 [INTEGRATION] Запит статистики для userId:', this.userId);
 
@@ -538,7 +538,7 @@ window.ReferralIntegration = (function() {
    * Завантажує дані про бейджі
    */
   ReferralIntegration.prototype.loadBadgesData = function() {
-    const self = this;
+    var self = this;
     console.log('🏆 [INTEGRATION] === loadBadgesData START ===');
     console.log('🔄 [INTEGRATION] Запит бейджів для userId:', this.userId);
 
@@ -561,7 +561,7 @@ window.ReferralIntegration = (function() {
    * Завантажує історію прямих бонусів
    */
   ReferralIntegration.prototype.loadDirectBonusHistory = function() {
-    const self = this;
+    var self = this;
     console.log('💰 [INTEGRATION] === loadDirectBonusHistory START ===');
     console.log('🔄 [INTEGRATION] Запит історії бонусів для userId:', this.userId);
 
@@ -581,7 +581,7 @@ window.ReferralIntegration = (function() {
   };
 
   /**
-   * Оновлює відображення статистики рефералів
+   * ВИПРАВЛЕНИЙ МЕТОД: Оновлює відображення статистики рефералів
    */
   ReferralIntegration.prototype.updateReferralStatsDisplay = function(statsData) {
     console.log('📊 [INTEGRATION] === updateReferralStatsDisplay START ===');
@@ -593,8 +593,15 @@ window.ReferralIntegration = (function() {
       return;
     }
 
-    // Извлекаем данные из разных возможных форматов
-    let stats = {
+    // Перевіряємо чи дані успішні
+    if (statsData.success === false) {
+      console.error('❌ [INTEGRATION] Відповідь містить помилку:', statsData.error);
+      this.showErrorMessage('Помилка отримання статистики: ' + (statsData.error || 'Невідома помилка'));
+      return;
+    }
+
+    // ВИПРАВЛЕНО: Правильне отримання даних згідно структури бекенду
+    var stats = {
       totalReferrals: 0,
       activeReferrals: 0,
       inactiveReferrals: 0,
@@ -603,49 +610,237 @@ window.ReferralIntegration = (function() {
 
     console.log('📊 [INTEGRATION] Аналіз структури даних...');
 
-    // Обробка для різних форматів відповіді
-    if (statsData.statistics) {
+    // Перевіряємо наявність поля statistics (пріоритетне)
+    if (statsData.statistics && typeof statsData.statistics === 'object') {
       console.log('📊 [INTEGRATION] Знайдено поле statistics:', statsData.statistics);
+
+      // Безпечне отримання даних з перевіркою на undefined/null
       stats.totalReferrals = statsData.statistics.totalReferrals || 0;
       stats.activeReferrals = statsData.statistics.activeReferrals || 0;
-    } else if (statsData.referrals) {
-      console.log('📊 [INTEGRATION] Знайдено поле referrals:', statsData.referrals);
-      // Альтернативний формат відповіді
-      if (Array.isArray(statsData.referrals.level1)) {
-        console.log('📊 [INTEGRATION] referrals.level1 є масивом, довжина:', statsData.referrals.level1.length);
-        stats.totalReferrals = statsData.referrals.level1.length;
-        stats.activeReferrals = statsData.referrals.level1.filter(ref => ref.active).length;
+      stats.inactiveReferrals = statsData.statistics.inactiveReferrals || 0;
+
+      // Конверсія може бути числом або потребувати розрахунку
+      if (typeof statsData.statistics.conversionRate !== 'undefined') {
+        stats.conversionRate = statsData.statistics.conversionRate;
       }
-    } else if (typeof statsData.totalReferrals === 'number') {
-      console.log('📊 [INTEGRATION] Знайдено пряме поле totalReferrals:', statsData.totalReferrals);
-      // Пряме передавання значень
-      stats.totalReferrals = statsData.totalReferrals;
-      stats.activeReferrals = statsData.activeReferrals || 0;
+
+      console.log('📊 [INTEGRATION] Дані з поля statistics:', stats);
     }
 
-    stats.inactiveReferrals = stats.totalReferrals - stats.activeReferrals;
-    if (stats.totalReferrals > 0) {
+    // Додатково перевіряємо поле referrals для підрахунку (якщо statistics не повне)
+    if (statsData.referrals && typeof statsData.referrals === 'object') {
+      console.log('📊 [INTEGRATION] Знайдено поле referrals:', {
+        hasLevel1: Array.isArray(statsData.referrals.level1),
+        hasLevel2: Array.isArray(statsData.referrals.level2),
+        level1Length: statsData.referrals.level1 ? statsData.referrals.level1.length : 0,
+        level2Length: statsData.referrals.level2 ? statsData.referrals.level2.length : 0
+      });
+
+      // Якщо totalReferrals ще 0, рахуємо з масивів
+      if (stats.totalReferrals === 0) {
+        var level1Count = 0;
+        var level2Count = 0;
+        var activeCount = 0;
+
+        if (Array.isArray(statsData.referrals.level1)) {
+          level1Count = statsData.referrals.level1.length;
+          // Рахуємо активних рефералів 1-го рівня
+          activeCount += statsData.referrals.level1.filter(function(ref) {
+            return ref && ref.active === true;
+          }).length;
+        }
+
+        if (Array.isArray(statsData.referrals.level2)) {
+          level2Count = statsData.referrals.level2.length;
+          // Рахуємо активних рефералів 2-го рівня
+          activeCount += statsData.referrals.level2.filter(function(ref) {
+            return ref && ref.active === true;
+          }).length;
+        }
+
+        stats.totalReferrals = level1Count + level2Count;
+
+        // Якщо activeReferrals ще 0, використовуємо підрахований
+        if (stats.activeReferrals === 0) {
+          stats.activeReferrals = activeCount;
+        }
+
+        console.log('📊 [INTEGRATION] Підраховано з масивів referrals:', {
+          level1Count: level1Count,
+          level2Count: level2Count,
+          activeCount: activeCount,
+          totalReferrals: stats.totalReferrals
+        });
+      }
+    }
+
+    // Розраховуємо неактивних рефералів
+    stats.inactiveReferrals = Math.max(0, stats.totalReferrals - stats.activeReferrals);
+
+    // Розраховуємо конверсію якщо вона не задана
+    if (stats.conversionRate === "0" && stats.totalReferrals > 0) {
       stats.conversionRate = ((stats.activeReferrals / stats.totalReferrals) * 100).toFixed(1);
+    } else if (typeof stats.conversionRate === 'number') {
+      // Якщо конверсія прийшла як число, форматуємо до рядка
+      stats.conversionRate = stats.conversionRate.toFixed(1);
     }
 
-    console.log('📊 [INTEGRATION] Розраховані значення:', stats);
+    console.log('📊 [INTEGRATION] Фінальні розраховані значення:', stats);
+
+    // Оновлюємо DOM елементи
+    console.log('🔄 [INTEGRATION] Оновлення DOM елементів...');
 
     // Оновлюємо загальні показники
-    console.log('🔄 [INTEGRATION] Оновлення DOM елементів...');
     this.updateElement('.total-referrals-count', stats.totalReferrals);
     this.updateElement('.active-referrals-count', stats.activeReferrals);
     this.updateElement('.conversion-rate', stats.conversionRate + '%');
 
-    // Оновлюємо статистику активності
+    // Оновлюємо статистику активності (з #)
     this.updateElement('#active-referrals-count', stats.activeReferrals);
     this.updateElement('#inactive-referrals-count', stats.inactiveReferrals);
     this.updateElement('#conversion-rate', stats.conversionRate + '%');
 
-    // Оновлюємо прогрес бейджів
-    console.log('🏆 [INTEGRATION] Оновлення прогресу бейджів...');
+    // ВАЖЛИВО: Оновлюємо прогрес бейджів з правильним числом рефералів
+    console.log('🏆 [INTEGRATION] Оновлення прогресу бейджів з totalReferrals:', stats.totalReferrals);
     this.updateBadgeProgress(stats.totalReferrals);
 
+    // Оновлюємо таблицю активності якщо є дані
+    if (statsData.referrals) {
+      this.updateActivityTable(statsData.referrals);
+    }
+
+    // Оновлюємо списки рефералів якщо є дані
+    if (statsData.referrals) {
+      this.updateReferralLists(statsData.referrals);
+    }
+
     console.log('✅ [INTEGRATION] === updateReferralStatsDisplay COMPLETE ===');
+  };
+
+  /**
+   * Оновлює таблицю активності рефералів
+   */
+  ReferralIntegration.prototype.updateActivityTable = function(referralsData) {
+    console.log('📊 [INTEGRATION] === updateActivityTable START ===');
+
+    var tableBody = document.getElementById('activity-table-body');
+    if (!tableBody) {
+      console.error('❌ [INTEGRATION] Елемент activity-table-body не знайдено');
+      return;
+    }
+
+    // Очищуємо таблицю
+    tableBody.innerHTML = '';
+
+    // Об'єднуємо рефералів обох рівнів
+    var allReferrals = [];
+
+    if (Array.isArray(referralsData.level1)) {
+      allReferrals = allReferrals.concat(referralsData.level1);
+    }
+
+    if (Array.isArray(referralsData.level2)) {
+      allReferrals = allReferrals.concat(referralsData.level2);
+    }
+
+    console.log('📊 [INTEGRATION] Всього рефералів для таблиці:', allReferrals.length);
+
+    if (allReferrals.length === 0) {
+      tableBody.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">Немає даних про рефералів</p>';
+      return;
+    }
+
+    // Створюємо рядки таблиці
+    allReferrals.forEach(function(referral, index) {
+      var row = document.createElement('div');
+      row.className = 'activity-table-row';
+
+      // Безпечне отримання даних
+      var refId = referral.id || referral.rawId || 'N/A';
+      var isActive = referral.active === true;
+
+      row.innerHTML = [
+        '<div class="activity-table-data activity-data-id">' + refId + '</div>',
+        '<div class="activity-table-data activity-data-draws">-</div>',
+        '<div class="activity-table-data activity-data-invited">-</div>',
+        '<div class="activity-table-data activity-data-status">',
+        '  <span class="activity-status-badge ' + (isActive ? 'status-active' : 'status-inactive') + '">',
+        isActive ? 'Активний' : 'Неактивний',
+        '  </span>',
+        '</div>'
+      ].join('');
+
+      tableBody.appendChild(row);
+    });
+
+    console.log('✅ [INTEGRATION] === updateActivityTable COMPLETE ===');
+  };
+
+  /**
+   * Оновлює списки рефералів у вкладках
+   */
+  ReferralIntegration.prototype.updateReferralLists = function(referralsData) {
+    console.log('📊 [INTEGRATION] === updateReferralLists START ===');
+
+    // Оновлюємо список 1-го рівня
+    var level1List = document.getElementById('level1-list');
+    if (level1List && Array.isArray(referralsData.level1)) {
+      this.renderReferralList(level1List, referralsData.level1, 1);
+    }
+
+    // Оновлюємо список 2-го рівня
+    var level2List = document.getElementById('level2-list');
+    if (level2List && Array.isArray(referralsData.level2)) {
+      this.renderReferralList(level2List, referralsData.level2, 2);
+    }
+
+    console.log('✅ [INTEGRATION] === updateReferralLists COMPLETE ===');
+  };
+
+  /**
+   * Рендерить список рефералів
+   */
+  ReferralIntegration.prototype.renderReferralList = function(container, referrals, level) {
+    console.log('📊 [INTEGRATION] Рендеринг списку рефералів рівня ' + level + ', кількість:', referrals.length);
+
+    container.innerHTML = '';
+
+    if (referrals.length === 0) {
+      container.innerHTML = '<p style="color: #888; text-align: center;">Немає рефералів ' + level + '-го рівня</p>';
+      return;
+    }
+
+    referrals.forEach(function(referral) {
+      var item = document.createElement('div');
+      item.className = 'referral-item level-' + level;
+
+      var refId = referral.id || referral.rawId || 'N/A';
+      var isActive = referral.active === true;
+      var regDate = 'Невідома дата';
+
+      if (referral.registrationDate) {
+        try {
+          regDate = new Date(referral.registrationDate).toLocaleDateString('uk-UA');
+        } catch (e) {
+          console.error('❌ [INTEGRATION] Помилка парсингу дати:', e);
+        }
+      }
+
+      item.innerHTML = [
+        '<div class="referral-id">' + refId + '</div>',
+        '<div class="referral-info">',
+        '  <div class="referral-date">Реєстрація: ' + regDate + '</div>',
+        '</div>',
+        '<div class="referral-stats">',
+        '  <div class="referral-earnings">0 winix</div>',
+        '  <span class="referral-status ' + (isActive ? 'active' : 'inactive') + '">',
+        isActive ? 'Активний' : 'Неактивний',
+        '  </span>',
+        '</div>'
+      ].join('');
+
+      container.appendChild(item);
+    });
   };
 
   /**
@@ -664,7 +859,7 @@ window.ReferralIntegration = (function() {
     referralsCount = parseInt(referralsCount) || 0;
     console.log('📊 [INTEGRATION] Нормалізована кількість:', referralsCount);
 
-    const badgeProgress = window.ReferralServices.checkBadgesProgress(referralsCount);
+    var badgeProgress = window.ReferralServices.checkBadgesProgress(referralsCount);
     console.log('📊 [INTEGRATION] Результат checkBadgesProgress:', JSON.stringify(badgeProgress, null, 2));
 
     if (badgeProgress) {
@@ -677,25 +872,25 @@ window.ReferralIntegration = (function() {
       if (badgeProgress.nextBadge) {
         console.log('🏆 [INTEGRATION] Оновлення прогресу наступного бейджа:', badgeProgress.nextBadge);
 
-        const nextBadgeTitle = this.getBadgeTitle(badgeProgress.nextBadge.type);
-        const nextBadgeTitleElement = document.querySelector('.next-badge-title');
+        var nextBadgeTitle = this.getBadgeTitle(badgeProgress.nextBadge.type);
+        var nextBadgeTitleElement = document.querySelector('.next-badge-title');
         if (nextBadgeTitleElement) {
           nextBadgeTitleElement.textContent = 'Наступний бейдж: ' + nextBadgeTitle;
         }
 
-        const progressPercent = Math.round(badgeProgress.nextBadge.progress);
-        const progressBar = document.querySelector('.next-badge-container .progress-fill');
+        var progressPercent = Math.round(badgeProgress.nextBadge.progress);
+        var progressBar = document.querySelector('.next-badge-container .progress-fill');
         if (progressBar) {
-          console.log(`🔄 [INTEGRATION] Встановлення ширини прогрес-бару: ${progressPercent}%`);
+          console.log('🔄 [INTEGRATION] Встановлення ширини прогрес-бару: ' + progressPercent + '%');
           progressBar.style.width = progressPercent + '%';
         }
 
-        const progressText = document.querySelector('.next-badge-container .progress-text');
+        var progressText = document.querySelector('.next-badge-container .progress-text');
         if (progressText) {
           progressText.textContent = progressPercent + '% (' + referralsCount + '/' + badgeProgress.nextBadge.threshold + ')';
         }
 
-        const remainingText = document.querySelector('.next-badge-remaining');
+        var remainingText = document.querySelector('.next-badge-remaining');
         if (remainingText) {
           remainingText.textContent = 'Залишилось: ' + badgeProgress.nextBadge.remaining + ' рефералів';
         }
@@ -703,9 +898,9 @@ window.ReferralIntegration = (function() {
 
       // Оновлюємо індивідуальні прогрес-бари бейджів
       console.log('🔄 [INTEGRATION] Оновлення індивідуальних бейджів...');
-      const self = this;
+      var self = this;
       badgeProgress.badgeProgress.forEach(function(badge, index) {
-        console.log(`🏆 [INTEGRATION] Оновлення бейджа ${index}:`, badge);
+        console.log('🏆 [INTEGRATION] Оновлення бейджа ' + index + ':', badge);
         self.updateBadgeItem(badge);
       });
     }
@@ -720,19 +915,19 @@ window.ReferralIntegration = (function() {
     console.log('🏆 [INTEGRATION] === updateBadgeItem START ===');
     console.log('📊 [INTEGRATION] Дані бейджа:', badge);
 
-    const badgeClass = badge.type.toLowerCase();
-    const badgeItems = document.querySelectorAll('.badge-item');
-    let badgeItem = null;
+    var badgeClass = badge.type.toLowerCase();
+    var badgeItems = document.querySelectorAll('.badge-item');
+    var badgeItem = null;
 
     // Знаходимо елемент бейджа за іконкою
-    const iconClasses = {
+    var iconClasses = {
       'bronze': 'brave-icon',
       'silver': 'innovator-icon',
       'gold': 'legend-icon',
       'platinum': 'visionary-icon'
     };
 
-    console.log(`🔍 [INTEGRATION] Пошук елемента з класом ${iconClasses[badgeClass]}`);
+    console.log('🔍 [INTEGRATION] Пошук елемента з класом ' + iconClasses[badgeClass]);
 
     badgeItems.forEach(function(item) {
       if (item.querySelector('.' + iconClasses[badgeClass])) {
@@ -742,24 +937,24 @@ window.ReferralIntegration = (function() {
     });
 
     if (badgeItem) {
-      const progressBar = badgeItem.querySelector('.badge-progress-fill');
-      const progressText = badgeItem.querySelector('.badge-progress-text');
-      const button = badgeItem.querySelector('.claim-badge-button');
+      var progressBar = badgeItem.querySelector('.badge-progress-fill');
+      var progressText = badgeItem.querySelector('.badge-progress-text');
+      var button = badgeItem.querySelector('.claim-badge-button');
 
       if (progressBar) {
-        console.log(`🔄 [INTEGRATION] Оновлення прогрес-бару: ${badge.progress}%`);
+        console.log('🔄 [INTEGRATION] Оновлення прогрес-бару: ' + badge.progress + '%');
         progressBar.style.width = badge.progress + '%';
       }
 
       if (progressText) {
-        const current = Math.min(Math.round((badge.progress / 100) * badge.threshold), badge.threshold);
-        const text = Math.round(badge.progress) + '% (' + current + '/' + badge.threshold + ')';
-        console.log(`🔄 [INTEGRATION] Оновлення тексту прогресу: ${text}`);
+        var current = Math.min(Math.round((badge.progress / 100) * badge.threshold), badge.threshold);
+        var text = Math.round(badge.progress) + '% (' + current + '/' + badge.threshold + ')';
+        console.log('🔄 [INTEGRATION] Оновлення тексту прогресу: ' + text);
         progressText.textContent = text;
       }
 
       if (button) {
-        console.log(`🔄 [INTEGRATION] Оновлення кнопки. isEligible: ${badge.isEligible}`);
+        console.log('🔄 [INTEGRATION] Оновлення кнопки. isEligible: ' + badge.isEligible);
         if (badge.isEligible) {
           button.textContent = 'Отримати';
           button.disabled = false;
@@ -785,14 +980,14 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.getBadgeTitle = function(badgeType) {
     console.log('🏷️ [INTEGRATION] getBadgeTitle для:', badgeType);
 
-    const titles = {
+    var titles = {
       'BRONZE': 'Сміливець',
       'SILVER': 'Новатор',
       'GOLD': 'Легенда',
       'PLATINUM': 'Візіонер'
     };
 
-    const title = titles[badgeType] || badgeType;
+    var title = titles[badgeType] || badgeType;
     console.log('🏷️ [INTEGRATION] Повертаємо назву:', title);
     return title;
   };
@@ -801,14 +996,14 @@ window.ReferralIntegration = (function() {
    * Допоміжна функція для оновлення тексту елемента
    */
   ReferralIntegration.prototype.updateElement = function(selector, value) {
-    console.log(`🔄 [INTEGRATION] updateElement: ${selector} = ${value}`);
+    console.log('🔄 [INTEGRATION] updateElement: ' + selector + ' = ' + value);
 
-    const element = document.querySelector(selector);
+    var element = document.querySelector(selector);
     if (element) {
-      console.log(`✅ [INTEGRATION] Елемент знайдено, оновлюємо значення`);
+      console.log('✅ [INTEGRATION] Елемент знайдено, оновлюємо значення');
       element.textContent = value;
     } else {
-      console.warn(`⚠️ [INTEGRATION] Елемент не знайдено: ${selector}`);
+      console.warn('⚠️ [INTEGRATION] Елемент не знайдено: ' + selector);
     }
   };
 
@@ -818,14 +1013,14 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.setupEventListeners = function() {
     console.log('🎯 [INTEGRATION] === setupEventListeners START ===');
 
-    const self = this;
+    var self = this;
 
     // Обробник для кнопок отримання винагороди за бейджі
     console.log('🎯 [INTEGRATION] Додавання глобального обробника кліків...');
     document.addEventListener('click', function(event) {
       if (event.target.classList.contains('claim-badge-button') && !event.target.disabled) {
         console.log('🎯 [INTEGRATION] Клік на кнопку claim badge:', event.target);
-        const badgeType = event.target.dataset.badge;
+        var badgeType = event.target.dataset.badge;
         console.log('🏆 [INTEGRATION] Тип бейджа:', badgeType);
 
         if (badgeType) {
@@ -835,7 +1030,7 @@ window.ReferralIntegration = (function() {
     });
 
     // Обробник для копіювання реферального посилання
-    const copyButton = document.querySelector('.copy-link-button, .copy-button');
+    var copyButton = document.querySelector('.copy-link-button, .copy-button');
     console.log('🔍 [INTEGRATION] Пошук кнопки копіювання:', {
       found: !!copyButton,
       selector: '.copy-link-button, .copy-button'
@@ -845,7 +1040,7 @@ window.ReferralIntegration = (function() {
       copyButton.addEventListener('click', function() {
         console.log('📋 [INTEGRATION] Клік на кнопку копіювання');
 
-        const linkDisplay = document.querySelector('.link-display');
+        var linkDisplay = document.querySelector('.link-display');
         console.log('📊 [INTEGRATION] Дані для копіювання:', {
           linkElement: !!linkDisplay,
           linkText: linkDisplay ? linkDisplay.textContent : null,
@@ -882,11 +1077,11 @@ window.ReferralIntegration = (function() {
     console.log('📋 [INTEGRATION] === fallbackCopyToClipboard START ===');
     console.log('📊 [INTEGRATION] Текст для копіювання:', text);
 
-    const self = this;
+    var self = this;
 
     try {
       // Створюємо тимчасовий елемент
-      const textarea = document.createElement('textarea');
+      var textarea = document.createElement('textarea');
       textarea.value = text;
 
       // Ховаємо елемент від користувача
@@ -907,7 +1102,7 @@ window.ReferralIntegration = (function() {
 
       console.log('📋 [INTEGRATION] Спроба execCommand("copy")...');
       try {
-        const successful = document.execCommand('copy');
+        var successful = document.execCommand('copy');
         console.log('📊 [INTEGRATION] Результат execCommand:', successful);
 
         if (successful) {
@@ -941,7 +1136,7 @@ window.ReferralIntegration = (function() {
       buttonText: button.textContent
     });
 
-    const self = this;
+    var self = this;
 
     // Діактивуємо кнопку
     button.disabled = true;
@@ -994,7 +1189,7 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.showSuccessMessage = function(message) {
     console.log('✅ [INTEGRATION] showSuccessMessage:', message);
 
-    const toast = document.getElementById('copy-toast');
+    var toast = document.getElementById('copy-toast');
     if (toast) {
       toast.textContent = message;
       toast.classList.add('show', 'success');
@@ -1013,7 +1208,7 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.showErrorMessage = function(message) {
     console.error('❌ [INTEGRATION] showErrorMessage:', message);
 
-    const toast = document.getElementById('copy-toast');
+    var toast = document.getElementById('copy-toast');
     if (toast) {
       toast.textContent = message;
       toast.classList.add('show', 'error');
@@ -1032,7 +1227,7 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.handleStateChange = function() {
     console.log('🔄 [INTEGRATION] === handleStateChange START ===');
 
-    const state = this.store.getState();
+    var state = this.store.getState();
     console.log('📊 [INTEGRATION] Поточний стан store:', JSON.stringify(state, null, 2));
 
     // Перевіряємо помилки в різних частинах стану
@@ -1079,7 +1274,7 @@ window.ReferralIntegration = (function() {
     console.log('💰 [INTEGRATION] === updateBonusHistory START ===');
     console.log('📊 [INTEGRATION] Історія:', history);
 
-    const container = document.querySelector('.bonus-history-items');
+    var container = document.querySelector('.bonus-history-items');
     if (!container) {
       console.error('❌ [INTEGRATION] Контейнер .bonus-history-items не знайдено');
       return;
@@ -1103,17 +1298,17 @@ window.ReferralIntegration = (function() {
 
     console.log('🔄 [INTEGRATION] Відображення перших 5 записів...');
     history.slice(0, 5).forEach(function(item, index) {
-      console.log(`💰 [INTEGRATION] Запис ${index}:`, item);
+      console.log('💰 [INTEGRATION] Запис ' + index + ':', item);
 
-      const historyItem = document.createElement('div');
+      var historyItem = document.createElement('div');
       historyItem.className = 'bonus-history-item';
 
-      let date;
+      var date;
       try {
         date = new Date(item.timestamp).toLocaleDateString('uk-UA');
-        console.log(`📅 [INTEGRATION] Дата запису ${index}: ${date}`);
+        console.log('📅 [INTEGRATION] Дата запису ' + index + ': ' + date);
       } catch (e) {
-        console.error(`❌ [INTEGRATION] Помилка парсингу дати для запису ${index}:`, e);
+        console.error('❌ [INTEGRATION] Помилка парсингу дати для запису ' + index + ':', e);
         date = 'Невідома дата';
       }
 
@@ -1144,7 +1339,7 @@ window.initReferralSystem = function() {
   return new Promise(function(resolve, reject) {
     try {
       console.log('🏗️ [GLOBAL] Створення екземпляру ReferralIntegration...');
-      const integration = new window.ReferralIntegration();
+      var integration = new window.ReferralIntegration();
 
       console.log('🚀 [GLOBAL] Запуск integration.init()...');
       integration.init()
