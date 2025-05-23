@@ -83,6 +83,5 @@ def test_user_referrals(user_id):
 
 # Використання
 if __name__ == "__main__":
-    # Замініть на ваш реальний user_id
-    TEST_USER_ID = "YOUR_USER_ID"
+    TEST_USER_ID = "6859825214"
     test_user_referrals(TEST_USER_ID)
