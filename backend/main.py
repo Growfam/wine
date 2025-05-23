@@ -289,7 +289,8 @@ def register_api_routes(app):
     # Реєстрація маршрутів рефералів
     try:
         from referrals.routes import referrals_bp
-        app.register_blueprint(referrals_bp)
+        # ВАЖЛИВО: Додаємо url_prefix тут замість дублювання в routes.py
+        app.register_blueprint(referrals_bp, url_prefix='/api/referrals')
         log_registration_result("рефералів", True)
     except Exception as e:
         log_registration_result("рефералів", False, str(e))
@@ -297,7 +298,8 @@ def register_api_routes(app):
     # Реєстрація маршрутів бейджів та завдань
     try:
         from badges.routes import badges_bp
-        app.register_blueprint(badges_bp)
+        # ВАЖЛИВО: Додаємо url_prefix тут замість дублювання в routes.py
+        app.register_blueprint(badges_bp, url_prefix='/api')
         log_registration_result("бейджів та завдань", True)
     except Exception as e:
         log_registration_result("бейджів та завдань", False, str(e))
