@@ -32,7 +32,7 @@ class UserTask(db.Model):
     __tablename__ = 'user_tasks'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False)
+    user_id = Column(String, nullable=False)
     task_type = Column(String(30), nullable=False)
     progress = Column(Integer, default=0)
     threshold = Column(Integer, nullable=False)

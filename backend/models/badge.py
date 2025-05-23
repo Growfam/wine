@@ -19,7 +19,7 @@ class UserBadge(db.Model):
     __tablename__ = 'user_badges'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False)
+    user_id = Column(String, nullable=False)
     badge_type = Column(String(20), nullable=False)
     earned_at = Column(DateTime, default=datetime.utcnow)
     claimed = Column(Boolean, default=False)
