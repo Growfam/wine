@@ -3,14 +3,57 @@
  * iOS 18 Premium Style - Purple Theme
  */
 
+/* ======== CSS ЗМІННІ ======== */
+:root {
+    /* Фіолетова палітра кольорів */
+    --primary-gradient: linear-gradient(135deg, #1a1b2e, #16213e, #0f1420);
+    --secondary-color: #b366ff;
+    --accent-color: #b366ff;
+    --bg-card: rgba(139, 92, 246, 0.1);
+    --bg-item: rgba(89, 52, 153, 0.08);
+    --bg-active: rgba(179, 102, 255, 0.3);
+    --text-color: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --glow-color: rgba(179, 102, 255, 0.5);
+    --border-color: rgba(179, 102, 255, 0.2);
+    --gold-color: #FFD700;
+    --success-color: #4CAF50;
+    --error-color: #F44336;
+
+    /* Градієнти */
+    --gradient-1: #b366ff;
+    --gradient-2: #8b5cf6;
+    --gradient-3: #7c3aed;
+    --primary-bg: #0a0b14;
+    --secondary-bg: #13141f;
+    --accent-glow: rgba(179, 102, 255, 0.4);
+
+    /* Розміри і відступи */
+    --border-radius-sm: 0.75rem;
+    --border-radius-md: 1rem;
+    --border-radius-lg: 1.5rem;
+    --space-xs: 0.3125rem;
+    --space-sm: 0.625rem;
+    --space-md: 0.9375rem;
+    --space-lg: 1.25rem;
+    --space-xl: 1.875rem;
+
+    /* Анімації */
+    --animation-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --animation-smooth: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --animation-ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --animation-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
 /* ======== ОСНОВНА СЕКЦІЯ ЗАВДАНЬ ======== */
 .tasks-section {
     display: flex;
     flex-direction: column;
     width: 100%;
-    gap: 1.25rem;
-    color: #ffffff;
-    animation: section-appear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    gap: var(--space-lg);
+    color: var(--text-color);
+    animation: section-appear 0.6s var(--animation-spring);
 }
 
 @keyframes section-appear {
@@ -29,6 +72,88 @@
     }
 }
 
+/* ======== ГОЛОВНІ ВКЛАДКИ З ПРЕМІАЛЬНИМ ДИЗАЙНОМ ======== */
+.main-tabs {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    background: rgba(139, 92, 246, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--border-radius-md);
+    padding: 0.25rem;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    position: relative;
+    z-index: 1;
+    border: 1px solid var(--border-color);
+}
+
+.tab-button {
+    flex: 1;
+    text-align: center;
+    padding: 0.875rem 0.75rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: var(--border-radius-sm);
+    transition: all 0.3s var(--animation-smooth);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.tab-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.tab-button:hover {
+    color: var(--text-color);
+    background: rgba(179, 102, 255, 0.1);
+}
+
+.tab-button:hover::before {
+    opacity: 1;
+}
+
+.tab-button.active {
+    background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
+    color: white;
+    box-shadow:
+        0 4px 16px rgba(179, 102, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: tab-active-glow 3s ease-in-out infinite;
+}
+
+@keyframes tab-active-glow {
+    0%, 100% {
+        box-shadow:
+            0 4px 16px rgba(179, 102, 255, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    50% {
+        box-shadow:
+            0 6px 24px rgba(179, 102, 255, 0.5),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+}
+
 /* ======== КОНТЕНТ ВКЛАДОК ======== */
 .tab-content {
     position: relative;
@@ -37,7 +162,7 @@
 
 .main-tab-pane {
     display: none;
-    animation: pane-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: pane-appear 0.4s var(--animation-spring);
 }
 
 .main-tab-pane.active {
@@ -55,198 +180,119 @@
     }
 }
 
-/* ======== ЗАГАЛЬНІ СТИЛІ ДЛЯ КАРТОК ЗАВДАНЬ ======== */
-.task-card {
-    background: rgba(139, 92, 246, 0.1);
+/* ======== ЗАГАЛЬНІ СТИЛІ ДЛЯ КАРТОК ======== */
+.card-base {
+    background: var(--bg-card);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-radius: 1.5rem;
-    padding: 1.25rem;
-    border: 1px solid rgba(179, 102, 255, 0.2);
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--border-color);
     box-shadow:
         0 4px 24px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 rgba(179, 102, 255, 0.1);
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: all 0.3s var(--animation-smooth);
     position: relative;
     overflow: hidden;
 }
 
-.task-card::before {
+.card-base::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 70% 50%, rgba(179, 102, 255, 0.05), transparent 70%);
+    background: radial-gradient(circle at 70% 50%, var(--accent-glow), transparent 70%);
     opacity: 0;
     transition: opacity 0.5s ease;
     pointer-events: none;
 }
 
-.task-card:hover {
+.card-base:hover {
     transform: translateY(-3px) scale(1.01);
     box-shadow:
         0 8px 32px rgba(179, 102, 255, 0.25),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.task-card:hover::before {
-    opacity: 1;
+.card-base:hover::before {
+    opacity: 0.2;
 }
 
 /* ======== ЗАГОЛОВКИ СЕКЦІЙ ======== */
 .section-title {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--text-color);
     margin-bottom: 1rem;
     text-align: center;
-    background: linear-gradient(45deg, #ffffff, #b366ff);
+    background: linear-gradient(45deg, var(--text-color), var(--gradient-1));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     letter-spacing: -0.02em;
+    animation: title-shimmer 6s ease-in-out infinite;
 }
 
-/* ======== СТИЛІ ДЛЯ ЗАВДАНЬ ======== */
-.tasks-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    width: 100%;
-}
-
-.task-item {
-    background: rgba(139, 92, 246, 0.1);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 1.25rem;
-    padding: 1rem;
-    border: 1px solid rgba(179, 102, 255, 0.2);
-    box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(179, 102, 255, 0.1);
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    position: relative;
-    overflow: hidden;
-    cursor: pointer;
-}
-
-.task-item:hover {
-    transform: translateY(-2px) scale(1.01);
-    box-shadow:
-        0 6px 24px rgba(179, 102, 255, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-/* Статуси завдань */
-.task-item.completed {
-    border-left: 3px solid #4CAF50;
-    background: linear-gradient(135deg,
-        rgba(76, 175, 80, 0.05) 0%,
-        rgba(76, 175, 80, 0.02) 100%);
-}
-
-.task-item.available {
-    border-left: 3px solid #b366ff;
-}
-
-.task-item.locked {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.task-item.locked:hover {
-    transform: none;
-}
-
-/* ======== ІНФОРМАЦІЯ ПРО ЗАВДАННЯ ======== */
-.task-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
-}
-
-.task-icon {
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    flex-shrink: 0;
-    box-shadow:
-        0 3px 12px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.task-info {
-    flex: 1;
-}
-
-.task-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #ffffff;
-    margin-bottom: 0.25rem;
-}
-
-.task-description {
-    font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.7);
-    line-height: 1.3;
-}
-
-/* ======== ВИНАГОРОДИ ЗАВДАНЬ ======== */
-.task-reward {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-    font-size: 0.9375rem;
-    color: #b366ff;
-    font-weight: 600;
-}
-
-.reward-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.75rem;
-    background: rgba(179, 102, 255, 0.1);
-    border: 1px solid rgba(179, 102, 255, 0.2);
-    border-radius: 1rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
-.reward-icon {
-    font-size: 1rem;
+@keyframes title-shimmer {
+    0%, 100% {
+        background-position: 0% 50%;
+        filter: brightness(1);
+    }
+    50% {
+        background-position: 100% 50%;
+        filter: brightness(1.1);
+    }
 }
 
 /* ======== КНОПКИ ДІЙСУ ======== */
 .action-button {
-    padding: 0.75rem 1.5rem;
-    border-radius: 1.5rem;
+    padding: 0.875rem 1.5rem;
+    border-radius: var(--border-radius-lg);
     font-size: 0.875rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: all 0.3s var(--animation-spring);
     border: none;
     color: white;
     position: relative;
     overflow: hidden;
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.action-button::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.3), transparent 70%);
+    transform: rotate(0deg);
+    animation: rotate-glow 8s linear infinite;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+@keyframes rotate-glow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .action-button.primary {
-    background: linear-gradient(135deg, #b366ff, #8b5cf6);
+    background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
     box-shadow:
         0 4px 12px rgba(179, 102, 255, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.action-button.primary:hover:not(:disabled)::before {
+    opacity: 1;
 }
 
 .action-button.primary:hover:not(:disabled) {
@@ -276,36 +322,6 @@
     background: linear-gradient(135deg, #666, #555);
 }
 
-/* ======== ТАЙМЕРИ ======== */
-.timer-container {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.7);
-}
-
-.timer-icon {
-    width: 1.25rem;
-    height: 1.25rem;
-    filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.5));
-}
-
-.timer-value {
-    font-weight: 600;
-    color: #FFD700;
-    animation: timer-pulse 2s ease-in-out infinite;
-}
-
-@keyframes timer-pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.7;
-    }
-}
-
 /* ======== ПРОГРЕС БАРИ ======== */
 .progress-container {
     margin: 0.75rem 0;
@@ -327,9 +343,10 @@
         rgba(139, 92, 246, 0.9) 50%,
         rgba(179, 102, 255, 0.8) 100%);
     border-radius: 1rem;
-    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: width 0.6s var(--animation-spring);
     background-size: 200% 100%;
     animation: progress-shimmer 3s linear infinite;
+    position: relative;
 }
 
 @keyframes progress-shimmer {
@@ -337,150 +354,36 @@
     100% { background-position: 200% 0; }
 }
 
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+    background: white;
+    border-radius: 2px;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    animation: progress-glow 2s ease-in-out infinite;
+}
+
+@keyframes progress-glow {
+    0%, 100% {
+        opacity: 0.6;
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    }
+    50% {
+        opacity: 1;
+        box-shadow: 0 0 20px rgba(255, 255, 255, 1);
+    }
+}
+
 .progress-text {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.7);
-    text-align: right;
+    color: var(--text-secondary);
+    text-align: center;
     margin-top: 0.375rem;
     font-weight: 500;
-}
-
-/* ======== АНІМАЦІЇ ВИНАГОРОД ======== */
-.reward-animation {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0);
-    background: linear-gradient(135deg,
-        rgba(179, 102, 255, 0.95) 0%,
-        rgba(139, 92, 246, 0.95) 100%);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    color: white;
-    font-size: 1.25rem;
-    font-weight: 600;
-    padding: 1.25rem 2rem;
-    border-radius: 1.5rem;
-    box-shadow:
-        0 20px 40px rgba(179, 102, 255, 0.3),
-        0 10px 20px rgba(179, 102, 255, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    z-index: 1000;
-    opacity: 0;
-    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.reward-animation.show {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
-}
-
-/* ======== ПЛЕЙСХОЛДЕРИ ======== */
-.empty-state {
-    text-align: center;
-    padding: 3rem 1rem;
-    color: rgba(255, 255, 255, 0.5);
-}
-
-.empty-state-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    opacity: 0.5;
-}
-
-.empty-state-text {
-    font-size: 1rem;
-    line-height: 1.5;
-}
-
-/* ======== ІНДИКАТОР ЗАВАНТАЖЕННЯ ======== */
-.loading-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 2rem;
-    color: rgba(255, 255, 255, 0.7);
-}
-
-.spinner {
-    width: 2rem;
-    height: 2rem;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
-    border-top-color: #b366ff;
-    border-right-color: #b366ff;
-    animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* ======== МЕДІА-ЗАПИТИ ======== */
-@media (max-width: 450px) {
-    .section-title {
-        font-size: 1.125rem;
-    }
-
-    .task-item {
-        padding: 0.875rem;
-    }
-
-    .task-title {
-        font-size: 0.9375rem;
-    }
-
-    .task-description {
-        font-size: 0.8125rem;
-    }
-
-    .action-button {
-        padding: 0.625rem 1.25rem;
-        font-size: 0.8125rem;
-    }
-}
-
-@media (max-width: 350px) {
-    .task-header {
-        gap: 0.75rem;
-    }
-
-    .task-icon {
-        width: 2rem;
-        height: 2rem;
-        font-size: 1rem;
-    }
-
-    .reward-badge {
-        font-size: 0.8125rem;
-        padding: 0.25rem 0.625rem;
-    }
-}
-/* ======== ІНДИКАТОР ЗАВАНТАЖЕННЯ ======== */
-.loading-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 2rem;
-    color: rgba(255, 255, 255, 0.7);
-}
-
-.spinner {
-    width: 2rem;
-    height: 2rem;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
-    border-top-color: #b366ff;
-    border-right-color: #b366ff;
-    animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
 }
 
 /* ======== TOAST ПОВІДОМЛЕННЯ ======== */
@@ -494,17 +397,18 @@
     -webkit-backdrop-filter: blur(20px);
     color: white;
     padding: 1rem 2rem;
-    border-radius: 1.5rem;
+    border-radius: var(--border-radius-lg);
     font-size: 0.9375rem;
     font-weight: 500;
     box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
     z-index: 2000;
     opacity: 0;
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: all 0.3s var(--animation-spring);
     min-width: 250px;
     text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .toast-message.show {
@@ -528,55 +432,229 @@
     background: linear-gradient(135deg, rgba(33, 150, 243, 0.95), rgba(30, 136, 229, 0.95));
 }
 
-/* ======== МЕДІА-ЗАПИТИ ======== */
-@media (max-width: 450px) {
-    .section-title {
-        font-size: 1.125rem;
-    }
+/* ======== ІНДИКАТОР ЗАВАНТАЖЕННЯ ======== */
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
 
-    .task-item {
-        padding: 0.875rem;
-    }
+.spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--gradient-1);
+    border-right-color: var(--gradient-1);
+    animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
 
-    .task-title {
-        font-size: 0.9375rem;
-    }
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
 
-    .task-description {
-        font-size: 0.8125rem;
-    }
+/* ======== ПОРОЖНІЙ СТАН ======== */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-secondary);
+}
 
-    .action-button {
-        padding: 0.625rem 1.25rem;
-        font-size: 0.8125rem;
-    }
+.empty-state-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+    display: inline-block;
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+}
 
-    .toast-message {
-        top: 1rem;
-        padding: 0.875rem 1.5rem;
-        font-size: 0.875rem;
+.empty-state-text {
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+/* ======== АНІМАЦІЇ ЕЛЕМЕНТІВ ======== */
+.fade-in {
+    animation: fade-in 0.5s var(--animation-spring);
+}
+
+@keyframes fade-in {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
-@media (max-width: 350px) {
-    .task-header {
-        gap: 0.75rem;
-    }
+.slide-up {
+    animation: slide-up 0.6s var(--animation-spring);
+}
 
-    .task-icon {
-        width: 2rem;
-        height: 2rem;
-        font-size: 1rem;
+@keyframes slide-up {
+    0% {
+        opacity: 0;
+        transform: translateY(30px);
     }
-
-    .reward-badge {
-        font-size: 0.8125rem;
-        padding: 0.25rem 0.625rem;
+    100% {
+        opacity: 1;
+        transform: translateY(0);
     }
+}
 
-    .toast-message {
-        padding: 0.75rem 1.25rem;
-        font-size: 0.8125rem;
-        min-width: 200px;
+/* ======== СТИЛІ ДЛЯ БЛОКУ СТАТИСТИКИ ======== */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stats-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--border-radius-md);
+    padding: 1.25rem;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
+    transition: all 0.3s var(--animation-smooth);
+    position: relative;
+    overflow: hidden;
+}
+
+.stats-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, var(--accent-glow), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.stats-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow:
+        0 8px 24px rgba(179, 102, 255, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.stats-card:hover::before {
+    opacity: 0.2;
+}
+
+.stats-icon {
+    width: 3rem;
+    height: 3rem;
+    margin: 0 auto 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
+    box-shadow:
+        0 4px 16px rgba(179, 102, 255, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    position: relative;
+}
+
+.stats-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-color);
+    margin-bottom: 0.25rem;
+}
+
+.stats-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* ======== BADGE СТИЛІ ======== */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    background: rgba(179, 102, 255, 0.1);
+    border: 1px solid rgba(179, 102, 255, 0.2);
+    border-radius: 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.badge.success {
+    background: rgba(76, 175, 80, 0.1);
+    border-color: rgba(76, 175, 80, 0.3);
+    color: var(--success-color);
+}
+
+.badge.warning {
+    background: rgba(255, 152, 0, 0.1);
+    border-color: rgba(255, 152, 0, 0.3);
+    color: #FF9800;
+}
+
+.badge.error {
+    background: rgba(244, 67, 54, 0.1);
+    border-color: rgba(244, 67, 54, 0.3);
+    color: var(--error-color);
+}
+
+.badge.gold {
+    background: rgba(255, 215, 0, 0.1);
+    border-color: rgba(255, 215, 0, 0.3);
+    color: var(--gold-color);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+/* ======== ЕФЕКТИ СВІТІННЯ ======== */
+.glow-purple {
+    box-shadow: 0 0 20px var(--glow-color);
+    animation: glow-purple 2s ease-in-out infinite;
+}
+
+@keyframes glow-purple {
+    0%, 100% {
+        box-shadow: 0 0 20px var(--glow-color);
+    }
+    50% {
+        box-shadow: 0 0 30px var(--glow-color), 0 0 40px var(--glow-color);
+    }
+}
+
+.glow-gold {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    animation: glow-gold 2s ease-in-out infinite;
+}
+
+@keyframes glow-gold {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.7), 0 0 40px rgba(255, 215, 0, 0.5);
     }
 }

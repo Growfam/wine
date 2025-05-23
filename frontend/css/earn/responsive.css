@@ -5,28 +5,34 @@
 
 /* ======== ПЛАНШЕТИ (768px і менше) ======== */
 @media (max-width: 768px) {
+    :root {
+        --space-xs: 0.25rem;
+        --space-sm: 0.5rem;
+        --space-md: 0.75rem;
+        --space-lg: 1rem;
+        --space-xl: 1.5rem;
+    }
+
     .tasks-section {
         gap: 1rem;
     }
 
     .main-tabs {
         margin-bottom: 1.25rem;
+        padding: 0.125rem;
     }
 
-    .flex-task-card {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .card-base {
         padding: 1.125rem;
     }
 
-    .task-header {
-        gap: 0.875rem;
-    }
-
-    .task-rewards {
-        padding: 0.625rem;
-    }
-
-    .wallet-status-card {
-        padding: 1.25rem;
+    .section-title {
+        font-size: 1.125rem;
     }
 }
 
@@ -37,6 +43,7 @@
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
+        scroll-behavior: smooth;
     }
 
     .main-tabs::-webkit-scrollbar {
@@ -47,25 +54,28 @@
         white-space: nowrap;
         min-width: fit-content;
         padding: 0.75rem 1rem;
+        font-size: 0.875rem;
     }
 
-    .flex-task-card {
-        padding: 1rem;
-    }
-
-    .task-rewards {
-        flex-direction: column;
+    .stats-grid {
         gap: 0.5rem;
-        align-items: flex-start;
     }
 
     .progress-bar {
         height: 0.625rem;
     }
 
-    .claim-button {
-        padding: 0.75rem;
+    .action-button {
+        padding: 0.75rem 1.25rem;
         font-size: 0.8125rem;
+    }
+
+    .toast-message {
+        top: 1rem;
+        padding: 0.875rem 1.5rem;
+        font-size: 0.875rem;
+        min-width: 90%;
+        max-width: calc(100% - 2rem);
     }
 }
 
@@ -82,116 +92,75 @@
         padding: 0.125rem;
         gap: 0.125rem;
         margin-bottom: 1rem;
+        border-radius: 0.875rem;
     }
 
     .tab-button {
         padding: 0.625rem 0.75rem;
         font-size: 0.8125rem;
         border-radius: 0.625rem;
+        gap: 0.375rem;
     }
 
-    .flex-icon {
+    /* SVG іконки у вкладках */
+    .tab-button svg {
         width: 16px;
         height: 16px;
     }
 
-    /* Статус кошелька */
-    .wallet-status-card {
+    /* Картки */
+    .card-base {
         padding: 1rem;
         border-radius: 1.25rem;
     }
 
-    .wallet-icon {
-        width: 3rem;
-        height: 3rem;
+    .stats-card {
+        padding: 1rem;
     }
 
-    .wallet-icon svg {
-        width: 1.5rem;
-        height: 1.5rem;
-    }
-
-    .wallet-status {
-        font-size: 1rem;
-    }
-
-    .wallet-hint {
-        font-size: 0.8125rem;
-    }
-
-    .connect-wallet-redirect {
-        padding: 0.625rem 1.25rem;
-        font-size: 0.8125rem;
-    }
-
-    /* Картки завдань */
-    .flex-task-card {
-        padding: 0.875rem;
-        border-radius: 1.25rem;
-    }
-
-    .task-header {
-        gap: 0.75rem;
-    }
-
-    .task-icon {
+    .stats-icon {
         width: 2.5rem;
         height: 2.5rem;
     }
 
-    .task-icon svg {
-        width: 1.25rem;
-        height: 1.25rem;
+    .stats-value {
+        font-size: 1.25rem;
     }
 
-    .task-title {
-        font-size: 0.9375rem;
+    .stats-label {
+        font-size: 0.6875rem;
     }
 
-    .task-requirement {
-        font-size: 0.75rem;
-    }
-
-    /* Винагороди */
-    .task-rewards {
-        flex-direction: row;
-        gap: 0.75rem;
-        padding: 0.5rem;
-        background: rgba(0, 0, 0, 0.15);
-    }
-
-    .reward-item {
-        gap: 0.375rem;
-    }
-
-    .reward-icon {
-        width: 0.875rem;
-        height: 0.875rem;
-    }
-
-    .reward-text {
-        font-size: 0.75rem;
-    }
-
-    /* Прогрес */
+    /* Прогрес бари */
     .progress-bar {
         height: 0.5rem;
     }
 
     .progress-text {
         font-size: 0.6875rem;
-        margin-top: 0.375rem;
+        margin-top: 0.25rem;
     }
 
     /* Кнопки */
-    .claim-button {
-        padding: 0.625rem;
+    .action-button {
+        padding: 0.625rem 1rem;
         font-size: 0.75rem;
         border-radius: 1.25rem;
     }
 
+    .action-button svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* Badge */
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.625rem;
+    }
+
     /* Анімація винагороди */
-    .reward-claimed {
+    .reward-animation {
         font-size: 1.125rem;
         padding: 1rem 1.5rem;
         border-radius: 1.5rem;
@@ -200,6 +169,20 @@
     .reward-icon-large svg {
         width: 36px;
         height: 36px;
+    }
+
+    /* Порожній стан */
+    .empty-state {
+        padding: 2rem 1rem;
+    }
+
+    .empty-state-icon {
+        width: 60px;
+        height: 60px;
+    }
+
+    .empty-state-text {
+        font-size: 0.875rem;
     }
 }
 
@@ -212,58 +195,38 @@
         gap: 0.25rem;
     }
 
-    .flex-icon {
+    .tab-button svg {
         width: 14px;
         height: 14px;
     }
 
-    /* Статус кошелька */
-    .wallet-status {
-        font-size: 0.9375rem;
+    /* Статистика */
+    .stats-grid {
+        grid-template-columns: 1fr;
     }
 
-    .wallet-hint {
-        font-size: 0.75rem;
-        line-height: 1.3;
+    .stats-value {
+        font-size: 1.125rem;
     }
 
-    /* Картки завдань */
-    .flex-task-card {
-        padding: 0.75rem;
-    }
-
-    .task-icon {
-        width: 2rem;
-        height: 2rem;
-    }
-
-    .task-icon svg {
-        width: 1rem;
-        height: 1rem;
-    }
-
-    .task-title {
-        font-size: 0.875rem;
-    }
-
-    .task-requirement {
-        font-size: 0.6875rem;
-    }
-
-    /* Винагороди */
-    .task-rewards {
-        padding: 0.375rem;
-        gap: 0.5rem;
-    }
-
-    .reward-text {
-        font-size: 0.6875rem;
+    /* Картки */
+    .card-base {
+        padding: 0.875rem;
     }
 
     /* Кнопки */
-    .claim-button {
-        padding: 0.5rem;
+    .action-button {
+        padding: 0.5rem 0.875rem;
         font-size: 0.6875rem;
+    }
+
+    /* Заголовки */
+    .section-title {
+        font-size: 1rem;
+    }
+
+    .category-title {
+        font-size: 1.25rem;
     }
 }
 
@@ -273,23 +236,17 @@
         padding-bottom: 3rem;
     }
 
-    .flex-tasks-container {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.75rem;
-    }
-
-    .flex-task-card {
-        padding: 0.75rem;
-    }
-
-    .task-rewards {
-        flex-direction: row;
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
         gap: 0.5rem;
     }
 
-    .reward-text {
-        font-size: 0.75rem;
+    .main-tabs {
+        margin-bottom: 0.75rem;
+    }
+
+    .card-base {
+        padding: 0.75rem;
     }
 }
 
@@ -299,27 +256,27 @@
         gap: 1.25rem;
     }
 
-    .flex-tasks-container {
-        gap: 1rem;
+    .card-base {
+        padding: 1.125rem;
     }
 
-    .flex-task-card {
-        padding: 1rem;
+    .action-button {
+        padding: 0.75rem 1.25rem;
     }
 }
 
 /* ======== ДУЖЕ ВИСОКІ ЕКРАНИ (iPhone 12 Pro Max) ======== */
 @media (max-width: 450px) and (min-height: 800px) {
-    .flex-tasks-container {
-        gap: 1.25rem;
+    .tasks-section {
+        gap: 1.5rem;
     }
 
-    .flex-task-card {
-        padding: 1.125rem;
+    .stats-grid {
+        gap: 1rem;
     }
 
-    .task-rewards {
-        padding: 0.75rem;
+    .card-base {
+        padding: 1.25rem;
     }
 }
 
@@ -335,15 +292,109 @@
     }
 
     /* Покращуємо скролінг */
-    .flex-tasks-container {
+    .main-tabs,
+    .tab-content {
         -webkit-overflow-scrolling: touch;
     }
 
     /* Фіксимо проблеми з tap highlight */
     .tab-button,
-    .claim-button,
-    .connect-wallet-redirect {
+    .action-button,
+    .card-base {
         -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Покращуємо анімації для iOS */
+    * {
+        -webkit-transform: translateZ(0);
+        -webkit-backface-visibility: hidden;
+    }
+}
+
+/* ======== АДАПТИВНІСТЬ ДЛЯ СКЛАДНИХ КОМПОНЕНТІВ ======== */
+
+/* Flex Earn картки */
+@media (max-width: 450px) {
+    .flex-task-card {
+        padding: 1rem;
+    }
+
+    .task-header {
+        gap: 0.75rem;
+    }
+
+    .task-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+
+    .task-title {
+        font-size: 0.9375rem;
+    }
+
+    .task-requirement {
+        font-size: 0.75rem;
+    }
+
+    .task-rewards {
+        flex-direction: row;
+        gap: 0.75rem;
+        padding: 0.5rem;
+    }
+
+    .reward-item {
+        gap: 0.375rem;
+    }
+
+    .reward-text {
+        font-size: 0.75rem;
+    }
+}
+
+/* Daily Bonus календар */
+@media (max-width: 450px) {
+    .daily-calendar {
+        gap: 0.375rem;
+    }
+
+    .day-cell {
+        font-size: 0.875rem;
+    }
+
+    .day-number {
+        font-size: 0.8125rem;
+    }
+
+    .day-reward {
+        font-size: 0.6875rem;
+    }
+
+    .ticket-indicator {
+        width: 1.25rem;
+        height: 1.25rem;
+        font-size: 0.625rem;
+    }
+}
+
+/* Social Tasks картки */
+@media (max-width: 450px) {
+    .social-task-card {
+        padding: 1rem;
+    }
+
+    .platform-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+
+    .task-rewards-row {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .reward-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
     }
 }
 
@@ -351,19 +402,44 @@
 @media print {
     .nav-bar,
     .main-tabs,
-    .claim-button,
-    .connect-wallet-redirect {
+    .action-button {
         display: none !important;
     }
 
-    .flex-task-card {
+    .card-base {
         page-break-inside: avoid;
         border: 1px solid #ddd;
         box-shadow: none;
     }
 
-    .task-rewards {
-        background: #f5f5f5;
-        color: #333;
+    .progress-fill {
+        animation: none;
+    }
+
+    * {
+        -webkit-print-color-adjust: exact;
+        color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+/* ======== ТЕМНА ТЕМА (якщо потрібно) ======== */
+@media (prefers-color-scheme: dark) {
+    /* Всі стилі вже адаптовані під темну тему */
+}
+
+/* ======== АНІМАЦІЇ ДЛЯ REDUCED MOTION ======== */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .progress-fill::after {
+        display: none;
     }
 }

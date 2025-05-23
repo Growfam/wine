@@ -1,7 +1,7 @@
 /**
  * Базові стилі для Daily Bonus
  * iOS 18 Premium Style - Purple Theme
- * Буде розширено в Етапі 2
+ * Преміальний дизайн з прогрес баром та календарем
  */
 
 /* ======== КОНТЕЙНЕР ЩОДЕННОГО БОНУСУ ======== */
@@ -11,21 +11,330 @@
     animation: fade-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* ======== КАЛЕНДАР ДНІВ ======== */
-.daily-calendar {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.day-cell {
-    aspect-ratio: 1;
+/* ======== ПРОГРЕС БАР МІСЯЦЯ ======== */
+.month-progress-container {
     background: rgba(139, 92, 246, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-radius: 1rem;
+    border-radius: 1.5rem;
+    padding: 1.5rem;
     border: 1px solid rgba(179, 102, 255, 0.2);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.month-progress-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 30% 50%, rgba(255, 215, 0, 0.05), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.month-progress-container:hover::before {
+    opacity: 1;
+}
+
+.month-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.month-progress-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.month-progress-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.progress-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.progress-stat-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}
+
+.fire-icon {
+    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M19 12C19 15.866 15.866 19 12 19C8.13401 19 5 15.866 5 12C5 10.5 5.5 8 7 6C7 8 8 9 9 9C9 7 10 3 12 2C12 5 13 8 14 8C15 8 15 7 15 6C16.5 8 19 10.5 19 12Z' stroke='%23FFD700' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.star-icon {
+    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z' stroke='%23b366ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* Прогрес бар */
+.month-progress-bar {
+    width: 100%;
+    height: 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 1rem;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 0.75rem;
+}
+
+.month-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg,
+        rgba(255, 215, 0, 0.8) 0%,
+        rgba(255, 165, 0, 0.9) 50%,
+        rgba(255, 215, 0, 0.8) 100%);
+    border-radius: 1rem;
+    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background-size: 200% 100%;
+    animation: progress-shimmer 3s linear infinite;
+    position: relative;
+}
+
+.month-progress-fill::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1rem;
+    height: 1rem;
+    background: radial-gradient(circle, #FFD700, #FFA500);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+}
+
+.month-progress-text {
+    text-align: center;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+}
+
+/* ======== ОСТАННІ 5 ДНІВ ======== */
+.recent-days-container {
+    background: rgba(139, 92, 246, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid rgba(179, 102, 255, 0.2);
+    margin-bottom: 1.5rem;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
+}
+
+.recent-days-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.recent-days-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.75rem;
+}
+
+.recent-day-card {
+    background: rgba(139, 92, 246, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 1.25rem;
+    padding: 0.875rem;
+    text-align: center;
+    border: 1px solid rgba(179, 102, 255, 0.2);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    overflow: hidden;
+}
+
+.recent-day-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 215, 0, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.recent-day-card:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 6px 20px rgba(179, 102, 255, 0.3);
+}
+
+.recent-day-card:hover::before {
+    opacity: 1;
+}
+
+.recent-day-card.today {
+    background: linear-gradient(135deg,
+        rgba(255, 215, 0, 0.15) 0%,
+        rgba(255, 165, 0, 0.1) 100%);
+    border-color: rgba(255, 215, 0, 0.3);
+    animation: today-glow 2s ease-in-out infinite;
+}
+
+.recent-day-card.claimed {
+    background: linear-gradient(135deg,
+        rgba(76, 175, 80, 0.1) 0%,
+        rgba(76, 175, 80, 0.05) 100%);
+    border-color: rgba(76, 175, 80, 0.3);
+}
+
+.recent-day-number {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 0.5rem;
+}
+
+.recent-day-label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 0.5rem;
+}
+
+.recent-day-rewards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.recent-day-reward {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.recent-day-reward.winix {
+    color: #b366ff;
+}
+
+.recent-day-reward.tickets {
+    color: #FFD700;
+}
+
+.reward-icon-small {
+    width: 1rem;
+    height: 1rem;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* SVG іконки для винагород */
+.winix-icon-small {
+    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='12' cy='12' r='9' stroke='%23b366ff' stroke-width='1.5'/%3E%3Cpath d='M12 7V17M9 10H15M9 14H15' stroke='%23b366ff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-size: contain;
+}
+
+.ticket-icon-small {
+    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z' stroke='%23FFD700' stroke-width='1.5'/%3E%3Cpath d='M9 6V16' stroke='%23FFD700' stroke-width='1.5' stroke-dasharray='2 2'/%3E%3C/svg%3E");
+    background-size: contain;
+}
+
+/* ======== КАЛЕНДАР НАГОРОД ======== */
+.rewards-calendar-container {
+    background: rgba(139, 92, 246, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(179, 102, 255, 0.2);
+    margin-bottom: 1.5rem;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.calendar-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.calendar-legend {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.legend-dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+}
+
+.legend-dot.claimed {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+.legend-dot.available {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+}
+
+.legend-dot.future {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Сітка календаря */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    background: rgba(139, 92, 246, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    border: 1px solid rgba(179, 102, 255, 0.1);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -33,66 +342,83 @@
     position: relative;
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     cursor: pointer;
+    overflow: hidden;
 }
 
-.day-cell:hover {
+.calendar-day:hover {
     transform: translateY(-2px) scale(1.05);
     box-shadow: 0 4px 16px rgba(179, 102, 255, 0.3);
 }
 
-/* ======== ВМІСТ ДНЯ ======== */
-.day-number {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 0.125rem;
-}
-
-.day-reward {
-    font-size: 0.75rem;
-    color: #b366ff;
-    font-weight: 500;
-}
-
-/* ======== СТАТУСИ ДНІВ ======== */
-.day-cell.claimed {
+.calendar-day.claimed {
     background: linear-gradient(135deg,
         rgba(76, 175, 80, 0.1) 0%,
         rgba(76, 175, 80, 0.05) 100%);
     border-color: rgba(76, 175, 80, 0.3);
 }
 
-.day-cell.claimed .day-number {
-    color: rgba(76, 175, 80, 0.9);
-}
-
-.day-cell.today {
-    border-color: #b366ff;
-    box-shadow: 0 0 20px rgba(179, 102, 255, 0.3);
+.calendar-day.today {
+    border-color: #FFD700;
+    background: linear-gradient(135deg,
+        rgba(255, 215, 0, 0.1) 0%,
+        rgba(255, 165, 0, 0.05) 100%);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
     animation: today-pulse 2s ease-in-out infinite;
 }
 
-@keyframes today-pulse {
-    0%, 100% {
-        box-shadow: 0 0 20px rgba(179, 102, 255, 0.3);
-    }
-    50% {
-        box-shadow: 0 0 30px rgba(179, 102, 255, 0.5);
-    }
-}
-
-.day-cell.future {
+.calendar-day.future {
     opacity: 0.5;
     cursor: not-allowed;
 }
 
-.day-cell.future:hover {
+.calendar-day.future:hover {
     transform: none;
     box-shadow: none;
 }
 
-/* ======== ПОЗНАЧКА TICKETS ======== */
-.ticket-indicator {
+/* Спеціальні дні */
+.calendar-day.special {
+    background: linear-gradient(135deg,
+        rgba(179, 102, 255, 0.15) 0%,
+        rgba(139, 92, 246, 0.1) 100%);
+    border-color: rgba(179, 102, 255, 0.4);
+}
+
+.calendar-day.special::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(179, 102, 255, 0.2), transparent 70%);
+    animation: special-glow 3s ease-in-out infinite;
+}
+
+@keyframes special-glow {
+    0%, 100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.calendar-day-number {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 0.125rem;
+}
+
+.calendar-day-reward {
+    font-size: 0.75rem;
+    color: #b366ff;
+    font-weight: 500;
+}
+
+/* Індикатор квитків */
+.calendar-ticket-badge {
     position: absolute;
     top: -0.25rem;
     right: -0.25rem;
@@ -105,7 +431,16 @@
     justify-content: center;
     box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
     animation: ticket-pulse 2s ease-in-out infinite;
-    font-size: 0.75rem;
+}
+
+.calendar-ticket-badge::before {
+    content: '';
+    width: 1rem;
+    height: 1rem;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 @keyframes ticket-pulse {
@@ -120,14 +455,14 @@
 }
 
 /* ======== СТАТИСТИКА ======== */
-.daily-stats {
+.daily-bonus-stats {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
 
-.stat-card {
+.stats-card {
     background: rgba(139, 92, 246, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -135,43 +470,108 @@
     padding: 1.25rem;
     border: 1px solid rgba(179, 102, 255, 0.2);
     text-align: center;
+    box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    overflow: hidden;
 }
 
-.stat-value {
+.stats-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(179, 102, 255, 0.05), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 32px rgba(179, 102, 255, 0.3);
+}
+
+.stats-card:hover::before {
+    opacity: 1;
+}
+
+.stats-icon {
+    width: 3rem;
+    height: 3rem;
+    margin: 0 auto 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    position: relative;
+}
+
+.stats-icon::before {
+    content: '';
+    width: 2rem;
+    height: 2rem;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* SVG іконки для статистики */
+.stats-icon.streak-icon {
+    background: linear-gradient(135deg, #ff7e5f, #feb47b);
+    box-shadow: 0 4px 16px rgba(255, 126, 95, 0.4);
+}
+
+.stats-icon.streak-icon::before {
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M19 12C19 15.866 15.866 19 12 19C8.13401 19 5 15.866 5 12C5 10.5 5.5 8 7 6C7 8 8 9 9 9C9 7 10 3 12 2C12 5 13 8 14 8C15 8 15 7 15 6C16.5 8 19 10.5 19 12Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.stats-icon.longest-icon {
+    background: linear-gradient(135deg, #b366ff, #8b5cf6);
+    box-shadow: 0 4px 16px rgba(179, 102, 255, 0.4);
+}
+
+.stats-icon.longest-icon::before {
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.stats-icon.winix-icon {
+    background: linear-gradient(135deg, #b366ff, #8b5cf6);
+    box-shadow: 0 4px 16px rgba(179, 102, 255, 0.4);
+}
+
+.stats-icon.winix-icon::before {
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 3L3 9L12 21L21 9L18 3H6Z' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M3 9H21' stroke='white' stroke-width='2'/%3E%3Cpath d='M12 3L8 9L12 21L16 9L12 3Z' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.stats-icon.tickets-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
+}
+
+.stats-icon.tickets-icon::before {
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z' stroke='white' stroke-width='2'/%3E%3Cpath d='M9 6V16' stroke='white' stroke-width='2' stroke-dasharray='2 2'/%3E%3C/svg%3E");
+}
+
+.stats-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.stats-value {
     font-size: 2rem;
     font-weight: 700;
-    color: #b366ff;
+    color: #ffffff;
     margin-bottom: 0.25rem;
 }
 
-.stat-label {
+.stats-label {
     font-size: 0.875rem;
     color: rgba(255, 255, 255, 0.7);
-}
-
-/* ======== ІНФОРМАЦІЯ ПРО ВИНАГОРОДУ ======== */
-.reward-info {
-    background: rgba(139, 92, 246, 0.1);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 1.5rem;
-    padding: 1.5rem;
-    border: 1px solid rgba(179, 102, 255, 0.2);
-    text-align: center;
-    margin-bottom: 1.5rem;
-}
-
-.reward-amount {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #b366ff;
-    margin-bottom: 0.5rem;
-}
-
-.reward-description {
-    font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.7);
-    line-height: 1.4;
 }
 
 /* ======== КНОПКА ОТРИМАННЯ ======== */
@@ -193,6 +593,23 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.claim-daily-button::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.3), transparent 70%);
+    transform: rotate(0deg);
+    animation: rotate-glow 8s linear infinite;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
 }
 
 .claim-daily-button:hover:not(:disabled) {
@@ -200,6 +617,10 @@
     box-shadow:
         0 6px 20px rgba(179, 102, 255, 0.4),
         inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.claim-daily-button:hover:not(:disabled)::before {
+    opacity: 1;
 }
 
 .claim-daily-button:active:not(:disabled) {
@@ -229,6 +650,10 @@
     }
 }
 
+.claim-daily-button .button-text {
+    font-size: 1rem;
+}
+
 .claim-daily-button .timer {
     font-size: 0.875rem;
     opacity: 0.9;
@@ -241,6 +666,57 @@
     border-radius: 1rem;
     font-size: 0.875rem;
     margin-left: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* ======== ІНФОРМАЦІЯ ПРО СИСТЕМУ ======== */
+.daily-info {
+    background: rgba(139, 92, 246, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(179, 102, 255, 0.2);
+    box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
+}
+
+.daily-info h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 1rem;
+}
+
+.daily-info ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.daily-info li {
+    padding: 0.75rem 0;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.875rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    position: relative;
+}
+
+.daily-info li::before {
+    content: '';
+    width: 1.25rem;
+    height: 1.25rem;
+    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 12L10 17L20 7' stroke='%23b366ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
 }
 
 /* ======== АНІМАЦІЯ ОТРИМАННЯ БОНУСУ ======== */
@@ -277,6 +753,10 @@
     font-weight: 700;
     margin-bottom: 0.5rem;
     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
 .daily-bonus-claimed .reward-tickets {
@@ -284,56 +764,112 @@
     font-weight: 600;
     color: #FFD700;
     text-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
-/* ======== АДАПТИВНІСТЬ ======== */
+/* Анімації */
+@keyframes fade-in {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes progress-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+@keyframes today-pulse {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+    }
+}
+
+@keyframes rotate-glow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Адаптивність */
 @media (max-width: 450px) {
-    .daily-calendar {
+    .month-progress-stats {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .recent-days-grid {
+        gap: 0.5rem;
+    }
+
+    .recent-day-card {
+        padding: 0.625rem;
+    }
+
+    .recent-day-number {
+        font-size: 1rem;
+    }
+
+    .calendar-grid {
         gap: 0.375rem;
     }
 
-    .day-cell {
-        font-size: 0.875rem;
-    }
-
-    .day-number {
-        font-size: 0.8125rem;
-    }
-
-    .day-reward {
-        font-size: 0.6875rem;
-    }
-
-    .reward-amount {
-        font-size: 1.75rem;
-    }
-
-    .stat-value {
-        font-size: 1.5rem;
-    }
-
-    .daily-stats {
+    .daily-bonus-stats {
         gap: 0.75rem;
     }
-}
 
-@media (max-width: 350px) {
-    .daily-calendar {
-        gap: 0.25rem;
-    }
-
-    .ticket-indicator {
-        width: 1.25rem;
-        height: 1.25rem;
-        font-size: 0.625rem;
-    }
-
-    .stat-card {
-        padding: 1rem;
+    .stats-value {
+        font-size: 1.5rem;
     }
 
     .claim-daily-button {
         padding: 0.875rem;
         font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 350px) {
+    .recent-days-grid {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0.375rem;
+    }
+
+    .recent-day-card {
+        padding: 0.5rem;
+    }
+
+    .recent-day-number {
+        font-size: 0.875rem;
+    }
+
+    .recent-day-reward {
+        font-size: 0.75rem;
+    }
+
+    .calendar-day-number {
+        font-size: 0.75rem;
+    }
+
+    .calendar-day-reward {
+        font-size: 0.625rem;
+    }
+
+    .stats-card {
+        padding: 1rem;
+    }
+
+    .stats-icon {
+        width: 2.5rem;
+        height: 2.5rem;
     }
 }
