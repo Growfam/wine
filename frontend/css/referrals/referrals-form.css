@@ -1,17 +1,21 @@
-/* Стилі для форми реєстрації реферала */
+/* Стилі для форми реєстрації реферала - iOS 18 Premium */
 .referral-registration-container {
     width: 100%;
     margin-bottom: 1.25rem;
 }
 
 .referral-form {
-    background: var(--bg-item);
-    border-radius: var(--border-radius-md);
-    padding: var(--space-md);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    margin-bottom: var(--space-md);
-    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    margin-bottom: 1rem;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     position: relative;
     overflow: hidden;
 }
@@ -23,7 +27,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 70% 50%, rgba(0, 201, 167, 0.1), transparent 70%);
+    background: radial-gradient(circle at 70% 50%, rgba(0, 201, 167, 0.05), transparent 70%);
     opacity: 0;
     transition: opacity 0.5s ease;
     pointer-events: none;
@@ -34,50 +38,64 @@
 }
 
 .referral-form:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    transform: translateY(-3px) scale(1.01);
+    box-shadow:
+        0 12px 40px rgba(0, 201, 167, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .form-group {
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 0.5rem;
-    color: var(--text-color);
-    font-weight: 500;
+    margin-bottom: 0.625rem;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 0.9375rem;
 }
 
 .form-group input {
     width: 100%;
-    padding: 0.75rem 1rem;
-    border-radius: 0.75rem;
-    border: 1px solid rgba(78, 181, 247, 0.3);
-    background: rgba(15, 23, 42, 0.7);
-    color: var(--text-color);
+    padding: 0.875rem 1.125rem;
+    border-radius: 0.875rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
     font-size: 1rem;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.form-group input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
 }
 
 .form-group input:focus {
     outline: none;
-    border-color: rgba(78, 181, 247, 0.6);
-    box-shadow: 0 0 0 2px rgba(78, 181, 247, 0.2);
+    border-color: rgba(179, 102, 255, 0.6);
+    box-shadow:
+        0 0 0 3px rgba(179, 102, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .register-button {
-    background: linear-gradient(90deg, rgba(0, 201, 167, 0.2), rgba(0, 201, 167, 0.3));
-    border: 1px solid rgba(0, 201, 167, 0.4);
+    background: linear-gradient(135deg, #00C9A7, #4CAF50);
+    border: none;
     color: white;
-    padding: 0.75rem 1.5rem;
+    padding: 0.875rem 2rem;
     border-radius: 1.5rem;
     cursor: pointer;
-    font-weight: 500;
-    transition: all 0.3s ease;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     width: 100%;
     position: relative;
     overflow: hidden;
+    box-shadow:
+        0 4px 16px rgba(0, 201, 167, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .register-button::before {
@@ -87,7 +105,7 @@
     left: -50%;
     width: 200%;
     height: 200%;
-    background: radial-gradient(rgba(0, 201, 167, 0.3), transparent 70%);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.3), transparent 70%);
     transform: rotate(0deg);
     animation: rotate-glow 10s linear infinite;
     opacity: 0;
@@ -100,16 +118,17 @@
 }
 
 .register-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-    background: linear-gradient(90deg, rgba(0, 201, 167, 0.3), rgba(0, 201, 167, 0.4));
+    transform: translateY(-2px) scale(1.02);
+    box-shadow:
+        0 8px 24px rgba(0, 201, 167, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .register-button:active {
-    transform: translateY(0);
+    transform: translateY(0) scale(0.98);
 }
 
-/* Стилі для історії бонусів */
+/* Стилі для історії бонусів - Преміальний дизайн */
 .bonus-history-container {
     width: 100%;
     margin-bottom: 1.25rem;
@@ -122,28 +141,32 @@
 }
 
 .bonus-history-item {
-    background: var(--bg-item);
-    border-radius: var(--border-radius-md);
-    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.25rem;
+    padding: 1.25rem;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    transition: all 0.3s ease;
+    gap: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     position: relative;
     overflow: hidden;
-    animation: history-item-appear 0.5s ease-out;
+    animation: history-item-appear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes history-item-appear {
     0% {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(20px) scale(0.95);
     }
     100% {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
     }
 }
 
@@ -154,86 +177,120 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 70% 50%, rgba(0, 201, 167, 0.1), transparent 70%);
+    background: radial-gradient(circle at 30% 50%, rgba(0, 201, 167, 0.1), transparent 70%);
     opacity: 0;
     transition: opacity 0.5s ease;
     pointer-events: none;
 }
 
 .bonus-history-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    transform: translateY(-3px) scale(1.01);
+    box-shadow:
+        0 8px 24px rgba(0, 201, 167, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .bonus-history-item:hover::before {
     opacity: 1;
 }
 
+.history-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00C9A7, #4CAF50);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow:
+        0 4px 16px rgba(0, 201, 167, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.history-icon::before {
+    content: '+';
+    color: white;
+    font-weight: 700;
+    font-size: 1.5rem;
+}
+
+.history-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
 .history-date {
-    flex: 0 0 auto;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-right: 1rem;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
 }
 
 .history-info {
-    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
 }
 
 .history-type {
     font-size: 1rem;
-    font-weight: 500;
-    color: var(--text-color);
-    margin-bottom: 0.25rem;
+    font-weight: 600;
+    color: #ffffff;
 }
 
 .history-user-id {
     font-size: 0.875rem;
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .history-amount {
-    font-size: 1.125rem;
-    font-weight: bold;
+    font-size: 1.25rem;
+    font-weight: 700;
     color: #4CAF50;
+    align-self: flex-end;
 }
 
 /* Додаткові стилі для бонусних сум */
 .bonus-amount {
-    font-weight: bold;
-    color: var(--accent-color);
+    font-weight: 700;
+    color: #b366ff;
 }
 
 /* Медіа-запити для адаптивності */
 @media (max-width: 450px) {
     .register-button {
-        padding: 0.625rem 1.25rem;
-        font-size: 0.9375rem;
+        padding: 0.75rem 1.5rem;
+        font-size: 0.875rem;
     }
 
     .bonus-history-item {
         flex-direction: column;
         align-items: flex-start;
-        gap: 0.5rem;
+        gap: 0.75rem;
+        padding: 1rem;
     }
 
-    .history-date {
-        margin-right: 0;
+    .history-icon {
+        width: 2.5rem;
+        height: 2.5rem;
     }
 
     .history-amount {
         align-self: flex-end;
+        margin-top: 0.5rem;
     }
 }
 
 @media (max-width: 350px) {
     .form-group input {
-        padding: 0.625rem 0.875rem;
+        padding: 0.75rem 1rem;
         font-size: 0.9375rem;
     }
 
     .register-button {
-        padding: 0.5625rem 1.125rem;
-        font-size: 0.875rem;
+        padding: 0.625rem 1.25rem;
+        font-size: 0.8125rem;
     }
 }

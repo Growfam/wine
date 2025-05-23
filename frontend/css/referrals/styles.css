@@ -1,4 +1,4 @@
-/* Основні змінні для фіолетової теми WINIX */
+/* Основні змінні для фіолетової теми WINIX - iOS 18 Premium Style */
 :root {
     /* Фіолетова палітра кольорів */
     --primary-gradient: linear-gradient(135deg, #1a1b2e, #16213e, #0f1420);
@@ -6,7 +6,7 @@
     --bg-card: rgba(25, 26, 40, 0.85);
     --bg-item: rgba(30, 31, 48, 0.7);
     --bg-active: rgba(179, 102, 255, 0.3);
-    --text-color: #fff;
+    --text-color: #ffffff;
     --text-secondary: rgba(255, 255, 255, 0.7);
     --shadow-color: rgba(0, 0, 0, 0.5);
     --glow-color: rgba(179, 102, 255, 0.5);
@@ -26,28 +26,43 @@
     --accent-glow: rgba(179, 102, 255, 0.4);
 
     /* Основні розміри */
-    --container-max-width: 37.5rem; /* 600px */
-    --header-height: 3.5rem; /* 56px */
-    --nav-height: 4.5rem; /* 72px */
-    --bottom-padding: 6rem; /* 96px */
-    --card-border-radius: 1.5rem; /* 24px */
-    --item-border-radius: 0.75rem; /* 12px */
+    --container-max-width: 37.5rem;
+    --header-height: 3.5rem;
+    --nav-height: 5rem;
+    --bottom-padding: 6.5rem;
+    --card-border-radius: 1.5rem;
+    --item-border-radius: 0.75rem;
 }
 
 /* Загальні контейнери */
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    color: var(--text-color);
+    background: var(--primary-bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
 .container {
     width: 100%;
-    height: 100%;
+    height: 100vh;
     max-width: var(--container-max-width);
-    box-sizing: border-box;
-    padding: 0.625rem; /* 10px */
+    margin: 0 auto;
+    padding: 0.625rem;
     position: relative;
     z-index: 1;
     background: var(--primary-bg);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.9375rem; /* 15px */
+    gap: 0.9375rem;
     overflow-y: auto;
     padding-bottom: var(--bottom-padding) !important;
     -webkit-overflow-scrolling: touch;
@@ -55,7 +70,7 @@
     scrollbar-color: var(--secondary-color) transparent;
 }
 
-/* SVG фоновий патерн */
+/* Преміальний фоновий градієнт */
 .container::before {
     content: '';
     position: fixed;
@@ -84,10 +99,10 @@
         45deg,
         transparent,
         transparent 50px,
-        rgba(179, 102, 255, 0.03) 50px,
-        rgba(179, 102, 255, 0.03) 100px
+        rgba(179, 102, 255, 0.02) 50px,
+        rgba(179, 102, 255, 0.02) 100px
     );
-    animation: backgroundMove 20s linear infinite;
+    animation: backgroundMove 30s linear infinite;
     pointer-events: none;
 }
 
@@ -96,9 +111,9 @@
     100% { transform: translate(50px, 50px); }
 }
 
-/* Стилізація скролбару для Chrome/Safari */
+/* Стилізація скролбару - iOS стиль */
 .container::-webkit-scrollbar {
-    width: 0.375rem; /* 6px */
+    width: 0.25rem;
 }
 
 .container::-webkit-scrollbar-track {
@@ -106,49 +121,54 @@
 }
 
 .container::-webkit-scrollbar-thumb {
-    background-color: var(--secondary-color);
-    border-radius: 1.25rem; /* 20px */
+    background-color: rgba(179, 102, 255, 0.3);
+    border-radius: 1.25rem;
 }
 
-/* Шапка сторінки з фіолетовою темою */
+/* Преміальна шапка сторінки */
 .header {
-    background: linear-gradient(135deg, rgba(179, 102, 255, 0.1), rgba(139, 92, 246, 0.05));
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--border-color);
-    border-radius: 1.5625rem; /* 25px */
-    padding: 0.5rem 1rem; /* 8px 16px */
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1.75rem;
+    padding: 0.75rem 1.25rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 0.25rem 1rem rgba(179, 102, 255, 0.2);
+    box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
     width: 100%;
     height: var(--header-height);
-    margin-bottom: 0.9375rem; /* 15px */
+    margin-bottom: 1rem;
     position: sticky;
-    top: 0.3125rem; /* 5px */
+    top: 0.5rem;
     z-index: 10;
 }
 
-/* Стилі для аватара користувача та ID */
+/* Стилі для аватара користувача */
 .header .profile-avatar {
-    width: 2.5rem; /* 40px */
+    width: 2.5rem;
     height: 2.5rem;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.25rem; /* 20px */
-    font-weight: bold;
+    font-size: 1.125rem;
+    font-weight: 600;
     color: white;
-    box-shadow: 0 0 1rem var(--accent-glow);
+    box-shadow:
+        0 4px 12px rgba(179, 102, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
     cursor: pointer;
-    transition: transform 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .header .profile-avatar:hover {
     transform: scale(1.1);
-    box-shadow: 0 0 1.5rem var(--accent-glow);
+    box-shadow: 0 6px 20px rgba(179, 102, 255, 0.4);
 }
 
 .header .profile-avatar img {
@@ -161,7 +181,7 @@
 .header .user-profile {
     display: flex;
     align-items: center;
-    gap: 0.5rem; /* 8px */
+    gap: 0.75rem;
     cursor: pointer;
 }
 
@@ -169,169 +189,253 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    font-size: 0.75rem; /* 12px */
+    font-size: 0.75rem;
 }
 
 .header .user-id-label {
     color: var(--text-secondary);
+    font-weight: 400;
 }
 
 .header .user-id-value {
-    font-weight: bold;
+    font-weight: 600;
+    color: var(--text-color);
 }
 
 .header .winix-title {
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    font-size: 1.5rem; /* 24px */
-    font-weight: bold;
-    letter-spacing: 0.125rem; /* 2px */
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.05rem;
     color: var(--text-color);
-    text-shadow: 0 0 1.5rem var(--accent-glow);
-    animation: glow 8s infinite ease-in-out;
+    background: linear-gradient(45deg, var(--gradient-1), var(--gradient-2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 2px 8px rgba(179, 102, 255, 0.3));
+    animation: subtle-glow 4s ease-in-out infinite;
 }
 
-@keyframes glow {
-    0% { text-shadow: 0 0 0.5rem var(--accent-glow); }
-    50% { text-shadow: 0 0 1.5rem var(--accent-glow), 0 0 2.5rem rgba(179, 102, 255, 0.3); }
-    100% { text-shadow: 0 0 0.5rem var(--accent-glow); }
+@keyframes subtle-glow {
+    0%, 100% { filter: drop-shadow(0 2px 8px rgba(179, 102, 255, 0.3)); }
+    50% { filter: drop-shadow(0 2px 12px rgba(179, 102, 255, 0.5)); }
 }
 
 .header .balance-container {
     display: flex;
-    gap: 0.625rem; /* 10px */
+    gap: 1rem;
     align-items: center;
-    margin-right: 0.3125rem; /* 5px */
 }
 
-.header .jeton-balance {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-left: -2.1875rem; /* -35px */
-}
-
+.header .jeton-balance,
 .header .winix-balance {
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-.header .jeton-balance .balance-value,
-.header .winix-balance .balance-value {
-    font-size: 0.875rem; /* 14px */
-    font-weight: bold;
-    color: var(--accent-color);
+.header .balance-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-color);
 }
 
-.header .jeton-balance .balance-label,
-.header .winix-balance .balance-label {
-    font-size: 0.75rem; /* 12px */
-    font-weight: normal;
+.header .balance-label {
+    font-size: 0.625rem;
+    font-weight: 400;
     color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05rem;
 }
 
-.header .jeton-icon {
-    width: 1.875rem; /* 30px */
-    height: 1.875rem;
-    background-size: cover;
-    border-radius: 50%;
-    box-shadow: 0 0 0.5rem var(--accent-glow);
-    animation: pulse 1.5s infinite ease-in-out;
-}
-
-/* Стилі для вкладок у категоріях завдань */
+/* Преміальні вкладки */
 .tabs {
     display: flex;
     justify-content: center;
     width: 100%;
-    margin: 0 0 0.9375rem 0; /* 0 0 15px 0 */
-    background: rgba(179, 102, 255, 0.1);
-    border-radius: 1.25rem; /* 20px */
-    padding: 0.3125rem; /* 5px */
-    border: 1px solid var(--border-color);
-    box-shadow: 0 0.25rem 0.75rem rgba(179, 102, 255, 0.15);
+    margin: 0 0 1rem 0;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 1.25rem;
+    padding: 0.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    position: relative;
+    z-index: 1;
 }
 
 .tab {
     flex: 1;
     text-align: center;
-    padding: 0.625rem; /* 10px */
-    font-size: 1rem; /* 16px */
-    font-weight: bold;
+    padding: 0.75rem 0.625rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
     color: var(--text-secondary);
     cursor: pointer;
-    border-radius: 0.9375rem; /* 15px */
-    transition: all 0.3s ease;
+    border-radius: 1rem;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    overflow: hidden;
 }
 
 .tab.active {
     background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
     color: white;
-    box-shadow: 0 0.25rem 0.75rem var(--accent-glow);
+    box-shadow:
+        0 4px 12px rgba(179, 102, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-/* Стилі для карток категорій */
+/* Преміальні картки */
 .category-card {
-    background: linear-gradient(135deg, rgba(179, 102, 255, 0.05), rgba(139, 92, 246, 0.03));
+    background: rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(10px);
-    border-radius: 1.5rem; /* 24px */
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 1.75rem;
     width: 100%;
-    padding: 0.9375rem 1.25rem; /* 15px 20px */
-    margin: 0.3125rem 0; /* 5px 0 */
-    box-shadow: 0 0.5rem 1.5rem rgba(179, 102, 255, 0.15);
-    border: 1px solid var(--border-color);
+    padding: 1.25rem 1.5rem;
+    margin: 0.5rem 0;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     flex-direction: column;
     align-items: center;
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .category-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 0.75rem 2rem rgba(179, 102, 255, 0.25);
-}
-
-.category-card:first-of-type {
-    margin-bottom: 1.5625rem; /* 25px */
-    padding-bottom: 1.25rem; /* 20px */
+    transform: translateY(-2px);
+    box-shadow:
+        0 12px 40px rgba(179, 102, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .category-title {
-    font-size: 1.625rem; /* 26px */
-    font-weight: bold;
-    margin-bottom: 1.25rem; /* 20px */
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
     text-align: center;
-    color: #fff;
-    text-shadow: 0 0 1rem var(--accent-glow);
-    letter-spacing: 0.0625rem; /* 1px */
+    color: var(--text-color);
+    background: linear-gradient(45deg, var(--text-color), var(--gradient-1));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.02em;
 }
 
-/* Стилі для секцій контенту */
-.content-section {
-    width: 100%;
-    display: none;
-}
-
-.content-section.active {
-    display: block;
-}
-
-/* Стилі для спливаючих підказок */
-.toast-message {
+/* Преміальні стилі для навігаційної панелі - iOS 18 */
+.nav-bar {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 2rem;
+    padding: 0.875rem 1rem;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    width: 90%;
+    max-width: 33.75rem;
+    height: var(--nav-height);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
     position: fixed;
-    top: 1.25rem; /* 20px */
+    bottom: 1.5rem;
     left: 50%;
     transform: translateX(-50%);
-    background: linear-gradient(135deg, rgba(179, 102, 255, 0.95), rgba(139, 92, 246, 0.95));
-    color: #ffffff;
-    padding: 0.75rem 1.5rem; /* 12px 24px */
-    border-radius: 12px;
-    z-index: 1000;
-    box-shadow: 0 0.5rem 1.5rem rgba(179, 102, 255, 0.4);
-    border: 1px solid var(--border-color);
-    opacity: 0;
+    z-index: 10;
+}
+
+.nav-item {
+    text-align: center;
+    color: var(--text-color);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    width: 20%;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.nav-item .icon-wrapper {
+    width: 2.75rem;
+    height: 2.75rem;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav-item.active .icon-wrapper {
+    background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
+    box-shadow:
+        0 4px 16px rgba(179, 102, 255, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.nav-item svg {
+    width: 1.5rem;
+    height: 1.5rem;
+    stroke: var(--text-secondary);
+    stroke-width: 2;
+    fill: none;
     transition: all 0.3s ease;
-    font-size: 0.9375rem; /* 15px */
+}
+
+.nav-item.active svg {
+    stroke: white;
+}
+
+.nav-item:hover .icon-wrapper {
+    transform: scale(1.1);
+}
+
+.nav-item span {
+    color: var(--text-secondary);
+    font-size: 0.625rem;
+    transition: all 0.3s ease;
+}
+
+.nav-item.active span {
+    color: var(--text-color);
+}
+
+/* Toast повідомлення */
+.toast-message {
+    position: fixed;
+    top: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: var(--text-color);
+    padding: 1rem 1.5rem;
+    border-radius: 1rem;
+    z-index: 1000;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    font-size: 0.875rem;
+    font-weight: 500;
     display: flex;
     align-items: center;
     max-width: 350px;
@@ -341,143 +445,72 @@
 .toast-message::after {
     content: '×';
     color: white;
-    margin-left: 10px;
+    margin-left: 1rem;
     cursor: pointer;
-    font-size: 20px;
+    font-size: 1.25rem;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.toast-message::after:hover {
+    opacity: 1;
 }
 
 .toast-message.show {
     opacity: 1;
-    transform: translate(-50%, 0.625rem); /* -50%, 10px */
+    transform: translate(-50%, 0.625rem);
 }
 
 .toast-message.success {
-    background: linear-gradient(135deg, #4CAF50, #2E7D32);
-    color: white;
+    background: linear-gradient(135deg,
+        rgba(76, 175, 80, 0.15) 0%,
+        rgba(46, 125, 50, 0.15) 100%);
+    border-color: rgba(76, 175, 80, 0.3);
 }
 
-/* Стилі для навігаційної панелі */
-.nav-bar {
-    background: linear-gradient(135deg, rgba(179, 102, 255, 0.1), rgba(139, 92, 246, 0.05));
-    backdrop-filter: blur(15px);
-    border: 1px solid var(--border-color);
-    border-radius: 1.5625rem; /* 25px */
-    padding: 0.5rem; /* 8px */
-    display: flex;
-    justify-content: space-around;
-    width: 90%;
-    max-width: 33.75rem; /* 540px */
-    height: var(--nav-height);
-    box-shadow: 0 0.5rem 2rem rgba(179, 102, 255, 0.3);
-    position: fixed;
-    bottom: 1.875rem; /* 30px, підняли вгору на 20px з початкових 10px */
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10;
+/* Контент секції */
+.content-section {
+    width: 100%;
+    display: none;
 }
 
-.nav-item {
-    text-align: center;
-    color: var(--text-color);
-    font-size: 0.875rem; /* 14px */
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 20%;
-    position: relative;
-}
-
-.nav-item .icon-wrapper {
-    width: 3.75rem; /* 60px */
-    height: 3.75rem;
-    background: rgba(179, 102, 255, 0.1);
-    border: 1px solid var(--border-color);
-    border-radius: 0.75rem; /* 12px */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 0.3125rem; /* 5px */
-    box-shadow: 0 0.25rem 0.75rem rgba(179, 102, 255, 0.2);
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.nav-item.active .icon-wrapper {
-    background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
-    box-shadow: 0 0 1.5rem var(--accent-glow);
-    border: none;
-}
-
-.nav-item img {
-    width: 2.1875rem; /* 35px */
-    height: 2.1875rem;
+.content-section.active {
     display: block;
-    filter: brightness(0.8) contrast(1.2);
-}
-
-.nav-item.active img {
-    filter: brightness(1.2) contrast(1);
-}
-
-.nav-item:hover .icon-wrapper {
-    transform: scale(1.1) translateY(-3px);
-    box-shadow: 0 0.5rem 1.5rem var(--accent-glow);
 }
 
 /* Медіа-запити для адаптивності */
 @media (max-width: 450px) {
     :root {
-        /* Зменшуємо розміри для маленьких екранів */
-        --header-height: 3rem; /* 48px */
-        --nav-height: 4rem; /* 64px */
-    }
-
-    .header .token-icon {
-        width: 2.8125rem; /* 45px */
-        height: 2.8125rem;
+        --header-height: 3rem;
+        --nav-height: 4.5rem;
     }
 
     .header .winix-title {
-        font-size: 1.25rem; /* 20px */
+        font-size: 1.25rem;
     }
 
     .category-title {
-        font-size: 1.5rem; /* 24px */
+        font-size: 1.5rem;
     }
 
     .nav-item .icon-wrapper {
-        width: 3.125rem; /* 50px */
-        height: 3.125rem;
+        width: 2.5rem;
+        height: 2.5rem;
     }
 
-    .nav-item img {
-        width: 1.875rem; /* 30px */
-        height: 1.875rem;
+    .nav-item svg {
+        width: 1.375rem;
+        height: 1.375rem;
     }
 }
 
 @media (max-width: 350px) {
-    .header .jeton-balance {
-        margin-left: -1.25rem; /* -20px */
-    }
-
     .header .balance-label {
-        font-size: 0.6875rem; /* 11px */
+        font-size: 0.5625rem;
     }
 
-    .daily-bonus-bar {
-        height: 6.25rem; /* 100px */
-    }
-
-    .task-action {
-        flex-direction: column;
-        gap: 0.625rem; /* 10px */
-    }
-
-    .action-button {
-        width: 100%;
-        min-width: 100%;
+    .nav-item span {
+        font-size: 0.5625rem;
     }
 }
 
@@ -488,13 +521,13 @@
 
     .container {
         box-shadow: 0 1rem 3rem rgba(179, 102, 255, 0.2);
-        margin: 1.25rem auto; /* 20px auto */
-        height: calc(100vh - 2.5rem); /* calc(100vh - 40px) */
-        border-radius: 1.25rem; /* 20px */
+        margin: 1.25rem auto;
+        height: calc(100vh - 2.5rem);
+        border-radius: 1.25rem;
     }
 }
 
-/* Додайте ці стилі для запобігання горизонтального скролу */
+/* Запобігання горизонтальному скролу */
 html, body {
     overflow-x: hidden;
     width: 100%;
@@ -532,9 +565,10 @@ html, body {
 }
 
 .toast-message.success {
-    background: linear-gradient(135deg, #4CAF50, #2E7D32);
-    color: white;
-    border: 1px solid rgba(76, 175, 80, 0.2);
+    background: linear-gradient(135deg,
+        rgba(76, 175, 80, 0.15) 0%,
+        rgba(46, 125, 50, 0.15) 100%);
+    border-color: rgba(76, 175, 80, 0.3);
 }
 
 .toast-message.success::after {
