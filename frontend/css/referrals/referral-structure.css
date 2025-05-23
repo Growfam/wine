@@ -1,5 +1,4 @@
-
-/* WINIX Реферальна система - структура рефералів */
+/* WINIX Реферальна система - структура рефералів iOS 18 Premium */
 
 /* Структура рефералів - загальна інформація */
 .referral-structure-container {
@@ -17,29 +16,37 @@
 
 .structure-item {
     flex: 1;
-    background: var(--bg-item);
-    border-radius: var(--border-radius-md);
-    padding: 0.875rem;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.25rem;
+    padding: 1rem;
     text-align: center;
-    border: 1px solid var(--border-color);
-    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .structure-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow:
+        0 8px 24px rgba(179, 102, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .structure-label {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.7);
     margin-bottom: 0.5rem;
+    font-weight: 500;
 }
 
 .structure-value {
-    font-size: 1.25rem;
-    font-weight: bold;
-    color: var(--text-color);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ffffff;
 }
 
 /* Вкладки для перемикання */
@@ -47,28 +54,35 @@
     display: flex;
     width: 100%;
     margin-bottom: 1rem;
-    background: rgba(15, 23, 42, 0.4);
-    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 1rem;
     padding: 0.25rem;
-    border: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .referral-tab {
     flex: 1;
     text-align: center;
-    padding: 0.625rem;
+    padding: 0.75rem;
     font-size: 0.9375rem;
-    font-weight: bold;
-    color: var(--text-secondary);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
-    border-radius: 0.625rem;
-    transition: all 0.3s ease;
+    border-radius: 0.75rem;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .referral-tab.active {
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, #b366ff, #8b5cf6);
     color: white;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+    box-shadow:
+        0 4px 12px rgba(179, 102, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 /* Контент вкладок */
@@ -78,11 +92,22 @@
 
 .tab-pane {
     display: none;
+    animation: tab-content-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .tab-pane.active {
     display: block;
-    animation: fade-in 0.3s ease-out;
+}
+
+@keyframes tab-content-appear {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 /* Списки рефералів */
@@ -94,17 +119,22 @@
 }
 
 .referral-item {
-    background: var(--bg-item);
-    border-radius: var(--border-radius-md);
-    padding: 0.875rem;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.25rem;
+    padding: 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border: 1px solid var(--border-color);
-    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     cursor: pointer;
     position: relative;
     overflow: hidden;
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .referral-item::before {
@@ -114,15 +144,17 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 70% 50%, rgba(78, 181, 247, 0.1), transparent 70%);
+    background: radial-gradient(circle at 70% 50%, rgba(179, 102, 255, 0.1), transparent 70%);
     opacity: 0;
     transition: opacity 0.5s ease;
     pointer-events: none;
 }
 
 .referral-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    transform: translateY(-3px) scale(1.01);
+    box-shadow:
+        0 8px 24px rgba(179, 102, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .referral-item:hover::before {
@@ -130,21 +162,22 @@
 }
 
 .referral-item.level-1 {
-    border-left: 3px solid var(--level1-color);
+    border-left: 3px solid #b366ff;
 }
 
 .referral-item.level-2 {
-    border-left: 3px solid var(--level2-color);
+    border-left: 3px solid #8b5cf6;
 }
 
 .referral-id {
-    font-weight: bold;
-    color: var(--text-color);
+    font-weight: 700;
+    color: #ffffff;
+    font-size: 0.9375rem;
 }
 
 .referral-date {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.6);
 }
 
 .referral-info {
@@ -159,15 +192,17 @@
 }
 
 .referral-earnings {
-    font-weight: bold;
-    color: var(--accent-color);
+    font-weight: 700;
+    color: #b366ff;
+    font-size: 0.9375rem;
 }
 
 .referral-status {
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
     border-radius: 1rem;
     margin-top: 0.25rem;
+    font-weight: 600;
 }
 
 .referral-status.active {
@@ -186,16 +221,16 @@
 @keyframes item-appear {
     0% {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(20px) scale(0.95);
     }
     100% {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
     }
 }
 
 .referral-item {
-    animation: item-appear 0.3s ease-out;
+    animation: item-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Медіа-запити для адаптивності */
@@ -208,10 +243,11 @@
     .referral-item {
         flex-direction: column;
         align-items: flex-start;
+        gap: 0.75rem;
     }
 
     .referral-info {
-        padding: 0.5rem 0;
+        padding: 0;
         width: 100%;
     }
 
@@ -227,6 +263,6 @@
 @media (max-width: 350px) {
     .referral-tab {
         font-size: 0.875rem;
-        padding: 0.5rem;
+        padding: 0.625rem;
     }
 }

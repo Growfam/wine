@@ -1,138 +1,151 @@
-/* WINIX Реферальна система - анімації */
+/* WINIX Реферальна система - анімації iOS 18 Premium */
 
 /* ======== ЗАГАЛЬНІ АНІМАЦІЇ ======== */
 
-/* Плавна поява елементів */
+/* Плавна поява елементів з ефектом блюру */
 .referral-section {
-    animation: fade-in 0.5s ease forwards;
+    animation: premium-fade-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-@keyframes fade-in {
+@keyframes premium-fade-in {
     0% {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(30px) scale(0.95);
+        filter: blur(8px);
+    }
+    50% {
+        filter: blur(3px);
     }
     100% {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
+        filter: blur(0);
     }
 }
 
 /* Анімація для статистичних карток */
 .stats-card {
-    animation: slide-up 0.5s cubic-bezier(0.165, 0.84, 0.44, 1) both;
+    animation: slide-up-spring 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     animation-delay: calc(var(--item-index, 0) * 0.1s);
     opacity: 0;
 }
 
-.stats-card:nth-child(1) {
-    --item-index: 1;
-}
+.stats-card:nth-child(1) { --item-index: 1; }
+.stats-card:nth-child(2) { --item-index: 2; }
+.stats-card:nth-child(3) { --item-index: 3; }
 
-.stats-card:nth-child(2) {
-    --item-index: 2;
-}
-
-.stats-card:nth-child(3) {
-    --item-index: 3;
-}
-
-@keyframes slide-up {
-    from {
-        transform: translateY(30px);
+@keyframes slide-up-spring {
+    0% {
+        transform: translateY(40px) scale(0.9) rotateX(10deg);
         opacity: 0;
+        filter: blur(5px);
     }
-    to {
-        transform: translateY(0);
+    60% {
+        transform: translateY(-5px) scale(1.02) rotateX(-2deg);
         opacity: 1;
+        filter: blur(0);
+    }
+    100% {
+        transform: translateY(0) scale(1) rotateX(0);
+        opacity: 1;
+        filter: blur(0);
     }
 }
 
-/* Пульсація іконок */
+/* Преміальна пульсація іконок */
 .stats-icon {
-    animation: icon-pulse 3s infinite ease-in-out;
+    animation: icon-float 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes icon-pulse {
-    0% {
-        transform: scale(1);
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+@keyframes icon-float {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+        filter: brightness(1) drop-shadow(0 4px 16px rgba(179, 102, 255, 0.4));
     }
-    50% {
-        transform: scale(1.05);
-        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
+    25% {
+        transform: translateY(-3px) scale(1.05);
+        filter: brightness(1.1) drop-shadow(0 6px 20px rgba(179, 102, 255, 0.5));
     }
-    100% {
-        transform: scale(1);
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    75% {
+        transform: translateY(2px) scale(0.98);
+        filter: brightness(0.95) drop-shadow(0 3px 12px rgba(179, 102, 255, 0.3));
     }
 }
 
+/* Специфічні анімації для різних іконок */
 .level-1-icon {
-    animation: level1-pulse 3s infinite ease-in-out;
+    animation: level1-premium-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes level1-pulse {
-    0% {
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+@keyframes level1-premium-pulse {
+    0%, 100% {
+        box-shadow:
+            0 4px 16px rgba(179, 102, 255, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
     50% {
-        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
-    }
-    100% {
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+        box-shadow:
+            0 8px 32px rgba(179, 102, 255, 0.6),
+            inset 0 2px 0 rgba(255, 255, 255, 0.3);
     }
 }
 
 .level-2-icon {
-    animation: level2-pulse 3s infinite ease-in-out;
+    animation: level2-premium-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation-delay: 0.5s;
 }
 
-@keyframes level2-pulse {
-    0% {
-        box-shadow: 0 0 5px rgba(178, 81, 247, 0.5);
+@keyframes level2-premium-pulse {
+    0%, 100% {
+        box-shadow:
+            0 4px 16px rgba(139, 92, 246, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
     50% {
-        box-shadow: 0 0 15px rgba(178, 81, 247, 0.8);
-    }
-    100% {
-        box-shadow: 0 0 5px rgba(178, 81, 247, 0.5);
+        box-shadow:
+            0 8px 32px rgba(139, 92, 246, 0.6),
+            inset 0 2px 0 rgba(255, 255, 255, 0.3);
     }
 }
 
 .total-earnings-icon {
-    animation: gold-pulse 3s infinite ease-in-out;
+    animation: gold-shimmer 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes gold-pulse {
-    0% {
-        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+@keyframes gold-shimmer {
+    0%, 100% {
+        box-shadow:
+            0 4px 16px rgba(255, 215, 0, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        filter: brightness(1);
     }
     50% {
-        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
-    }
-    100% {
-        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        box-shadow:
+            0 8px 32px rgba(255, 215, 0, 0.6),
+            inset 0 2px 0 rgba(255, 255, 255, 0.4);
+        filter: brightness(1.2);
     }
 }
 
-/* Анімація для заголовків */
+/* Преміальна анімація для заголовків */
 .referral-subtitle {
-    animation: subtitle-glow 4s infinite alternate;
+    animation: subtitle-shimmer 6s ease-in-out infinite;
 }
 
-@keyframes subtitle-glow {
-    0% {
-        text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+@keyframes subtitle-shimmer {
+    0%, 100% {
+        background-position: 0% 50%;
+        filter: brightness(1);
     }
-    100% {
-        text-shadow: 0 0 10px rgba(0, 201, 167, 0.7);
+    50% {
+        background-position: 100% 50%;
+        filter: brightness(1.1);
     }
 }
 
 /* ======== АНІМАЦІЇ ДЛЯ РЕФЕРАЛЬНОГО ПОСИЛАННЯ ======== */
 
-/* Сяюча анімація для копки копіювання */
+/* Преміальний ефект для кнопки копіювання */
 .copy-button {
     position: relative;
     overflow: hidden;
@@ -145,9 +158,13 @@
     left: -50%;
     width: 200%;
     height: 200%;
-    background: radial-gradient(rgba(78, 181, 247, 0.3), transparent 70%);
-    transform: rotate(0deg);
-    animation: rotate-glow 8s linear infinite;
+    background: conic-gradient(
+        from 0deg at 50% 50%,
+        transparent 0deg,
+        rgba(255, 255, 255, 0.4) 60deg,
+        transparent 120deg
+    );
+    animation: premium-rotate 4s linear infinite;
     opacity: 0;
     transition: opacity 0.5s ease;
     pointer-events: none;
@@ -157,290 +174,262 @@
     opacity: 1;
 }
 
-@keyframes rotate-glow {
+@keyframes premium-rotate {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
 
-/* Ефект натискання для кнопки копіювання */
+/* Ефект успішного кліку */
 .copy-button.clicked {
-    animation: button-click 0.3s ease-out;
+    animation: success-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes button-click {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(0.95);
-    }
-    100% {
-        transform: scale(1);
-    }
+@keyframes success-bounce {
+    0% { transform: scale(1); }
+    30% { transform: scale(0.9); }
+    60% { transform: scale(1.1); }
+    100% { transform: scale(1); }
 }
 
-/* Анімація для контейнера реферального посилання */
+/* Анімація контейнера посилання */
 .referral-link-box {
-    animation: link-box-appear 0.5s ease-out;
+    animation: link-box-premium-appear 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes link-box-appear {
+@keyframes link-box-premium-appear {
     0% {
-        transform: translateY(-10px);
+        transform: translateY(-30px) scale(0.9) rotateX(-5deg);
         opacity: 0;
+        filter: blur(10px);
     }
     100% {
-        transform: translateY(0);
+        transform: translateY(0) scale(1) rotateX(0);
         opacity: 1;
-    }
-}
-
-/* Анімація світіння для зображень іконок */
-.copy-icon {
-    animation: icon-glow 4s infinite alternate;
-}
-
-@keyframes icon-glow {
-    0% {
-        filter: drop-shadow(0 0 2px rgba(78, 181, 247, 0.5));
-    }
-    100% {
-        filter: drop-shadow(0 0 5px rgba(78, 181, 247, 0.8));
+        filter: blur(0);
     }
 }
 
 /* ======== АНІМАЦІЇ ДЛЯ ВИНАГОРОД ======== */
 
-/* Поява елементів з винагородами */
+/* Каскадна поява елементів винагород */
 .reward-item {
-    animation: reward-slide-in 0.5s ease-out;
-    animation-fill-mode: both;
+    animation: reward-cascade 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.reward-item:nth-child(1) {
-    animation-delay: 0.1s;
-}
+.reward-item:nth-child(1) { animation-delay: 0.1s; }
+.reward-item:nth-child(2) { animation-delay: 0.2s; }
+.reward-item:nth-child(3) { animation-delay: 0.3s; }
 
-.reward-item:nth-child(2) {
-    animation-delay: 0.2s;
-}
-
-.reward-item:nth-child(3) {
-    animation-delay: 0.3s;
-}
-
-@keyframes reward-slide-in {
+@keyframes reward-cascade {
     0% {
-        transform: translateX(-20px);
+        transform: translateX(-40px) scale(0.8) rotateY(-10deg);
         opacity: 0;
+        filter: blur(5px);
+    }
+    60% {
+        transform: translateX(10px) scale(1.05) rotateY(2deg);
+        filter: blur(0);
     }
     100% {
-        transform: translateX(0);
+        transform: translateX(0) scale(1) rotateY(0);
         opacity: 1;
+        filter: blur(0);
     }
 }
 
-/* Світіння для іконок винагород */
+/* Преміальні пульсації для іконок винагород */
 .direct-bonus-icon {
-    animation: bonus-icon-pulse 3s infinite ease-in-out;
+    animation: bonus-float 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes bonus-icon-pulse {
-    0% {
-        box-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+@keyframes bonus-float {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+        box-shadow: 0 4px 16px rgba(0, 201, 167, 0.4);
     }
     50% {
-        box-shadow: 0 0 15px rgba(0, 201, 167, 0.8);
-    }
-    100% {
-        box-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+        transform: translateY(-5px) rotate(5deg);
+        box-shadow: 0 8px 24px rgba(0, 201, 167, 0.6);
     }
 }
 
 .percentage-icon {
-    animation: percentage-icon-pulse 3s infinite ease-in-out;
+    animation: percentage-spin 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes percentage-icon-pulse {
-    0% {
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+@keyframes percentage-spin {
+    0%, 100% {
+        transform: rotate(0deg) scale(1);
+        box-shadow: 0 4px 16px rgba(179, 102, 255, 0.4);
     }
     50% {
-        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
-    }
-    100% {
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+        transform: rotate(180deg) scale(1.1);
+        box-shadow: 0 8px 24px rgba(179, 102, 255, 0.6);
     }
 }
 
 .badge-icon {
-    animation: badge-icon-pulse 3s infinite ease-in-out;
+    animation: badge-sparkle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes badge-icon-pulse {
-    0% {
-        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+@keyframes badge-sparkle {
+    0%, 100% {
+        transform: scale(1) rotate(-5deg);
+        filter: brightness(1);
     }
     50% {
-        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
-    }
-    100% {
-        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        transform: scale(1.1) rotate(5deg);
+        filter: brightness(1.3) drop-shadow(0 0 20px rgba(255, 215, 0, 0.8));
     }
 }
 
 /* ======== АНІМАЦІЇ ДЛЯ ЛІДЕРСЬКОЇ ДОШКИ ======== */
 
-/* Анімація появи елементів лідерської дошки */
+/* Преміальна поява елементів лідерської дошки */
 .leaderboard-item {
-    animation: leaderboard-item-appear 0.5s ease-out;
-    animation-fill-mode: both;
+    animation: leaderboard-slide-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.leaderboard-item:nth-child(1) {
-    animation-delay: 0.1s;
-}
+.leaderboard-item:nth-child(1) { animation-delay: 0.1s; }
+.leaderboard-item:nth-child(2) { animation-delay: 0.15s; }
+.leaderboard-item:nth-child(3) { animation-delay: 0.2s; }
+.leaderboard-item:nth-child(4) { animation-delay: 0.25s; }
 
-.leaderboard-item:nth-child(2) {
-    animation-delay: 0.2s;
-}
-
-.leaderboard-item:nth-child(3) {
-    animation-delay: 0.3s;
-}
-
-.leaderboard-item:nth-child(4) {
-    animation-delay: 0.4s;
-}
-
-@keyframes leaderboard-item-appear {
+@keyframes leaderboard-slide-in {
     0% {
-        transform: translateY(10px);
+        transform: translateY(30px) translateX(-20px) scale(0.9);
         opacity: 0;
+        filter: blur(5px);
     }
     100% {
-        transform: translateY(0);
+        transform: translateY(0) translateX(0) scale(1);
         opacity: 1;
+        filter: blur(0);
     }
 }
 
-/* Підсвічування для поточного користувача */
+/* Преміальне підсвічування для поточного користувача */
 .leaderboard-item.current-user {
-    animation: current-user-highlight 3s infinite alternate;
+    animation: current-user-glow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes current-user-highlight {
-    0% {
-        background: rgba(0, 201, 167, 0.15);
-        box-shadow: 0 0 10px rgba(0, 201, 167, 0.2);
+@keyframes current-user-glow {
+    0%, 100% {
+        background: rgba(179, 102, 255, 0.1);
+        box-shadow:
+            0 0 20px rgba(179, 102, 255, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
-    100% {
-        background: rgba(0, 201, 167, 0.25);
-        box-shadow: 0 0 20px rgba(0, 201, 167, 0.4);
+    50% {
+        background: rgba(179, 102, 255, 0.15);
+        box-shadow:
+            0 0 40px rgba(179, 102, 255, 0.4),
+            inset 0 2px 0 rgba(255, 255, 255, 0.2);
     }
 }
 
-/* Світіння для топ-3 позицій */
+/* Анімація для топ-3 позицій */
 .position.top-3 {
-    animation: top-position-glow 2s infinite alternate;
+    animation: trophy-shine 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes top-position-glow {
-    0% {
-        box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+@keyframes trophy-shine {
+    0%, 100% {
+        transform: scale(1) rotate(0deg);
+        box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
     }
-    100% {
-        box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 215, 0, 0.3);
+    25% {
+        transform: scale(1.1) rotate(-5deg);
+        box-shadow: 0 6px 24px rgba(255, 215, 0, 0.6);
     }
-}
-
-/* Ефект натискання для кнопки "Показати більше" */
-.view-more-button:active {
-    animation: button-press 0.2s ease-out;
-}
-
-@keyframes button-press {
-    0% {
-        transform: scale(1);
-    }
-    100% {
-        transform: scale(0.95);
+    75% {
+        transform: scale(1.05) rotate(3deg);
+        box-shadow: 0 5px 20px rgba(255, 215, 0, 0.5);
     }
 }
 
 /* ======== АНІМАЦІЇ ДЛЯ ІНСТРУКЦІЙ ======== */
 
-/* Анімація появи кроків інструкції */
+/* Преміальна поява кроків інструкції */
 .instruction-step {
-    animation: instruction-step-appear 0.5s ease-out;
-    animation-fill-mode: both;
+    animation: instruction-reveal 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.instruction-step:nth-child(1) {
-    animation-delay: 0.1s;
-}
+.instruction-step:nth-child(1) { animation-delay: 0.2s; }
+.instruction-step:nth-child(2) { animation-delay: 0.3s; }
+.instruction-step:nth-child(3) { animation-delay: 0.4s; }
 
-.instruction-step:nth-child(2) {
-    animation-delay: 0.2s;
-}
-
-.instruction-step:nth-child(3) {
-    animation-delay: 0.3s;
-}
-
-@keyframes instruction-step-appear {
+@keyframes instruction-reveal {
     0% {
-        transform: translateY(20px);
+        transform: translateY(40px) scale(0.8) rotateX(-10deg);
         opacity: 0;
+        filter: blur(8px);
     }
     100% {
-        transform: translateY(0);
+        transform: translateY(0) scale(1) rotateX(0);
         opacity: 1;
+        filter: blur(0);
     }
 }
 
-/* Світіння для номерів кроків */
+/* Анімація для номерів кроків */
 .step-number {
-    animation: step-number-pulse 3s infinite ease-in-out;
+    animation: step-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes step-number-pulse {
-    0% {
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+@keyframes step-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow:
+            0 4px 16px rgba(179, 102, 255, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
     50% {
-        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
-    }
-    100% {
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+        transform: scale(1.1);
+        box-shadow:
+            0 8px 32px rgba(179, 102, 255, 0.6),
+            inset 0 2px 0 rgba(255, 255, 255, 0.3);
     }
 }
 
 /* ======== АНІМАЦІЇ ДЛЯ ПОВІДОМЛЕНЬ ======== */
 
-/* Анімація появи і зникнення повідомлення про копіювання */
+/* Преміальна анімація для toast повідомлень */
 .toast-message.show {
-    animation: toast-appear 0.3s ease-out, toast-disappear 0.3s ease-in 2.7s forwards;
+    animation: toast-premium-appear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes toast-appear {
+@keyframes toast-premium-appear {
     0% {
         opacity: 0;
-        transform: translate(-50%, -20px);
+        transform: translate(-50%, -40px) scale(0.8);
+        filter: blur(10px);
+    }
+    60% {
+        transform: translate(-50%, 15px) scale(1.05);
+        filter: blur(0);
     }
     100% {
         opacity: 1;
-        transform: translate(-50%, 10px);
+        transform: translate(-50%, 10px) scale(1);
+        filter: blur(0);
     }
 }
 
-@keyframes toast-disappear {
+/* Анімація зникнення */
+.toast-message.hide {
+    animation: toast-premium-disappear 0.4s cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
+}
+
+@keyframes toast-premium-disappear {
     0% {
         opacity: 1;
-        transform: translate(-50%, 10px);
+        transform: translate(-50%, 10px) scale(1);
+        filter: blur(0);
     }
     100% {
         opacity: 0;
-        transform: translate(-50%, -20px);
+        transform: translate(-50%, -40px) scale(0.8);
+        filter: blur(10px);
     }
 }
