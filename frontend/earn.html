@@ -309,26 +309,86 @@
 
                 <!-- ВКЛАДКА 2: DAILY BONUS -->
                 <div class="main-tab-pane" id="daily-tab">
-                    <!-- Контент щоденного бонусу буде додано в Етапі 2 -->
-                    <p style="color: #888; text-align: center; padding: 40px;">Щоденний бонус - скоро</p>
+                    <!-- Статистика щоденного бонусу -->
+                    <div class="daily-bonus-stats">
+                        <div class="stats-card">
+                            <div class="stats-icon">🔥</div>
+                            <div class="stats-info">
+                                <div class="stats-value" id="current-streak">0</div>
+                                <div class="stats-label">Поточна серія</div>
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-icon">⭐</div>
+                            <div class="stats-info">
+                                <div class="stats-value" id="longest-streak">0</div>
+                                <div class="stats-label">Найдовша серія</div>
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-icon">💎</div>
+                            <div class="stats-info">
+                                <div class="stats-value" id="total-winix-claimed">0</div>
+                                <div class="stats-label">Зібрано WINIX</div>
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-icon">🎟️</div>
+                            <div class="stats-info">
+                                <div class="stats-value" id="total-tickets-claimed">0</div>
+                                <div class="stats-label">Зібрано TICKETS</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Календар на 30 днів -->
+                    <div class="daily-calendar">
+                        <!-- Дні будуть динамічно створені через JS -->
+                    </div>
+
+                    <!-- Кнопка отримання щоденного бонусу -->
+                    <button class="claim-daily-button available">
+                        <span class="button-text">Отримати 20 WINIX</span>
+                        <span class="timer"></span>
+                    </button>
+
+                    <!-- Інформація про систему -->
+                    <div class="daily-info">
+                        <h3>Як працює щоденний бонус?</h3>
+                        <ul>
+                            <li>Заходьте щодня та отримуйте винагороди</li>
+                            <li>Winix збільшуються з кожним днем (20-2000)</li>
+                            <li>Tickets видаються рандомно 3 рази на тиждень</li>
+                            <li>Не пропускайте дні, щоб зберегти серію!</li>
+                        </ul>
+                    </div>
                 </div>
 
                 <!-- ВКЛАДКА 3: SOCIAL -->
                 <div class="main-tab-pane" id="social-tab">
-                    <!-- Контент соціальних завдань буде додано пізніше -->
-                    <p style="color: #888; text-align: center; padding: 40px;">Соціальні завдання - скоро</p>
+                    <!-- Завдання будуть додані динамічно через TasksManager -->
+                    <div class="tasks-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Завантаження завдань...</p>
+                    </div>
                 </div>
 
                 <!-- ВКЛАДКА 4: LIMITED -->
                 <div class="main-tab-pane" id="limited-tab">
-                    <!-- Контент лімітованих завдань буде додано пізніше -->
-                    <p style="color: #888; text-align: center; padding: 40px;">Лімітовані завдання - скоро</p>
+                    <!-- Завдання будуть додані динамічно через TasksManager -->
+                    <div class="tasks-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Завантаження завдань...</p>
+                    </div>
                 </div>
 
                 <!-- ВКЛАДКА 5: PARTNER -->
                 <div class="main-tab-pane" id="partner-tab">
-                    <!-- Контент партнерських завдань буде додано пізніше -->
-                    <p style="color: #888; text-align: center; padding: 40px;">Партнерські завдання - скоро</p>
+                    <!-- Завдання будуть додані динамічно через TasksManager -->
+                    <div class="tasks-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Завантаження завдань...</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -388,8 +448,25 @@
     <!-- Toast повідомлення -->
     <div class="toast-message" id="toast-message"></div>
 
-    <!-- Скрипти -->
+    <!-- Popup для верифікації Telegram -->
+    <div class="verification-popup" id="telegram-verification" style="display: none;">
+        <div class="popup-content">
+            <h3>Верифікація Telegram</h3>
+            <p>Для отримання винагороди необхідно:</p>
+            <ol>
+                <li>Запустіть нашого бота @WinixVerifyBot</li>
+                <li>Підпишіться на канал</li>
+                <li>Натисніть "Перевірити" нижче</li>
+            </ol>
+            <div class="popup-buttons">
+                <button class="popup-button cancel" onclick="closeVerificationPopup()">Скасувати</button>
+                <button class="popup-button verify" onclick="verifyTelegramTask()">Перевірити</button>
+            </div>
+        </div>
+    </div>
 
+    <!-- Скрипти -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <!-- Модулі системи завдань -->
     <script src="js/tasks/constants.js"></script>
@@ -448,6 +525,16 @@
 
             console.log('✅ [MAIN] Сторінка завантажена, система завдань готова до роботи');
         });
+
+        // Функції для popup верифікації
+        function closeVerificationPopup() {
+            document.getElementById('telegram-verification').style.display = 'none';
+        }
+
+        function verifyTelegramTask() {
+            // Логіка верифікації буде оброблена в TaskVerification модулі
+            closeVerificationPopup();
+        }
     </script>
 </body>
 </html>
