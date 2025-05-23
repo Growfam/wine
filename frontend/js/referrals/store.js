@@ -1,43 +1,80 @@
-// store.js - Виправлена версія з правильною обробкою помилок
+// store.js - Версія з детальним логуванням та правильною обробкою помилок
 /**
  * Redux-подібний стор для реферальної системи з правильною обробкою помилок
  */
 window.ReferralStore = (function() {
   'use strict';
 
-  // Store utilities (без змін)
+  console.log('📦 [STORE] ========== ЗАВАНТАЖЕННЯ МОДУЛЯ ReferralStore ==========');
+  console.log('🕐 [STORE] Час завантаження:', new Date().toISOString());
+
+  // Store utilities
   function createStore(reducer) {
+    console.log('🏗️ [STORE] === createStore START ===');
+    console.log('📊 [STORE] Створення store з reducer:', typeof reducer);
+
     let state = reducer(undefined, { type: '@@INIT' });
+    console.log('📊 [STORE] Початковий стан:', JSON.stringify(state, null, 2));
+
     const listeners = [];
 
-    return {
+    const store = {
       getState: function() {
+        console.log('📤 [STORE] getState викликано');
         return state;
       },
       dispatch: function(action) {
-        console.log('🔄 [STORE] Dispatching action:', action.type, action);
+        console.log('🔄 [STORE] === dispatch START ===');
+        console.log('📊 [STORE] Action:', {
+          type: action.type,
+          payload: action.payload
+        });
+
+        const previousState = state;
         state = reducer(state, action);
-        listeners.forEach(function(listener) {
+
+        console.log('📊 [STORE] Стан оновлено:', {
+          previous: previousState,
+          current: state,
+          changed: previousState !== state
+        });
+
+        console.log('🔔 [STORE] Сповіщення listeners:', listeners.length);
+        listeners.forEach(function(listener, index) {
+          console.log(`  🔔 [STORE] Виклик listener ${index}`);
           listener();
         });
+
+        console.log('✅ [STORE] === dispatch COMPLETE ===');
         return action;
       },
       subscribe: function(listener) {
+        console.log('📢 [STORE] Додано новий listener');
         listeners.push(listener);
+
         return function() {
           const index = listeners.indexOf(listener);
           if (index !== -1) {
             listeners.splice(index, 1);
+            console.log('📢 [STORE] Listener видалено, залишилось:', listeners.length);
           }
         };
       }
     };
+
+    console.log('✅ [STORE] Store створено успішно');
+    return store;
   }
 
   function combineReducers(reducers) {
+    console.log('🔗 [STORE] === combineReducers START ===');
+    console.log('📊 [STORE] Редюсери для об\'єднання:', Object.keys(reducers));
+
     const reducerKeys = Object.keys(reducers);
 
     return function(state, action) {
+      console.log('🔄 [STORE] Combined reducer викликано для action:', action.type);
+
       state = state || {};
       const nextState = {};
 
@@ -46,6 +83,11 @@ window.ReferralStore = (function() {
         const reducer = reducers[key];
         const previousStateForKey = state[key];
         const nextStateForKey = reducer(previousStateForKey, action);
+
+        console.log(`  🔄 [STORE] Reducer "${key}":`, {
+          changed: previousStateForKey !== nextStateForKey
+        });
+
         nextState[key] = nextStateForKey;
       }
 
@@ -54,25 +96,41 @@ window.ReferralStore = (function() {
   }
 
   function thunkMiddleware(store) {
+    console.log('🎯 [STORE] thunkMiddleware ініціалізовано');
+
     return function(next) {
       return function(action) {
+        console.log('🎯 [STORE] Middleware обробляє action:', {
+          type: typeof action === 'function' ? 'FUNCTION (thunk)' : action.type,
+          isThunk: typeof action === 'function'
+        });
+
         if (typeof action === 'function') {
+          console.log('🎯 [STORE] Виконання thunk action...');
           return action(store.dispatch, store.getState);
         }
+
         return next(action);
       };
     };
   }
 
   function applyMiddleware(middleware) {
+    console.log('🔧 [STORE] === applyMiddleware START ===');
+
     return function(createStore) {
       return function(reducer) {
+        console.log('🔧 [STORE] Створення store з middleware');
+
         const store = createStore(reducer);
         const dispatch = middleware(store)(store.dispatch);
 
-        return Object.assign({}, store, {
+        const enhancedStore = Object.assign({}, store, {
           dispatch: dispatch
         });
+
+        console.log('✅ [STORE] Enhanced store створено');
+        return enhancedStore;
       };
     };
   }
@@ -80,6 +138,7 @@ window.ReferralStore = (function() {
   // Reducers
 
   // ReferralLink Reducer
+  console.log('📝 [STORE] Ініціалізація ReferralLink reducer...');
   const initialReferralLinkState = {
     link: null,
     isLoading: false,
@@ -92,18 +151,22 @@ window.ReferralStore = (function() {
     FETCH_REFERRAL_LINK_FAILURE: 'FETCH_REFERRAL_LINK_FAILURE',
     CLEAR_REFERRAL_LINK_ERROR: 'CLEAR_REFERRAL_LINK_ERROR'
   };
+  console.log('✅ [STORE] ReferralLinkActionTypes створено');
 
   function referralLinkReducer(state, action) {
     state = state || initialReferralLinkState;
+    console.log('🔄 [STORE-REDUCER] referralLinkReducer:', action.type);
 
     switch (action.type) {
       case ReferralLinkActionTypes.FETCH_REFERRAL_LINK_REQUEST:
+        console.log('  📥 [STORE-REDUCER] Запит реферального посилання...');
         return Object.assign({}, state, {
           isLoading: true,
           error: null
         });
 
       case ReferralLinkActionTypes.FETCH_REFERRAL_LINK_SUCCESS:
+        console.log('  ✅ [STORE-REDUCER] Реферальне посилання отримано:', action.payload.link);
         return Object.assign({}, state, {
           isLoading: false,
           link: action.payload.link,
@@ -111,12 +174,14 @@ window.ReferralStore = (function() {
         });
 
       case ReferralLinkActionTypes.FETCH_REFERRAL_LINK_FAILURE:
+        console.log('  ❌ [STORE-REDUCER] Помилка отримання посилання:', action.payload.error);
         return Object.assign({}, state, {
           isLoading: false,
           error: action.payload.error
         });
 
       case ReferralLinkActionTypes.CLEAR_REFERRAL_LINK_ERROR:
+        console.log('  🧹 [STORE-REDUCER] Очищення помилки');
         return Object.assign({}, state, {
           error: null
         });
@@ -127,6 +192,7 @@ window.ReferralStore = (function() {
   }
 
   // DirectBonus Reducer
+  console.log('📝 [STORE] Ініціалізація DirectBonus reducer...');
   const initialDirectBonusState = {
     totalBonus: 0,
     history: [],
@@ -143,19 +209,23 @@ window.ReferralStore = (function() {
     FETCH_DIRECT_BONUS_HISTORY_FAILURE: 'FETCH_DIRECT_BONUS_HISTORY_FAILURE',
     CLEAR_DIRECT_BONUS_ERROR: 'CLEAR_DIRECT_BONUS_ERROR'
   };
+  console.log('✅ [STORE] DirectBonusActionTypes створено');
 
   function directBonusReducer(state, action) {
     state = state || initialDirectBonusState;
+    console.log('🔄 [STORE-REDUCER] directBonusReducer:', action.type);
 
     switch (action.type) {
       case DirectBonusActionTypes.REGISTER_REFERRAL_REQUEST:
       case DirectBonusActionTypes.FETCH_DIRECT_BONUS_HISTORY_REQUEST:
+        console.log('  📥 [STORE-REDUCER] Запит даних бонусів...');
         return Object.assign({}, state, {
           isLoading: true,
           error: null
         });
 
       case DirectBonusActionTypes.REGISTER_REFERRAL_SUCCESS:
+        console.log('  ✅ [STORE-REDUCER] Реферал зареєстровано:', action.payload);
         return Object.assign({}, state, {
           isLoading: false,
           totalBonus: state.totalBonus + action.payload.bonusAmount,
@@ -164,6 +234,10 @@ window.ReferralStore = (function() {
         });
 
       case DirectBonusActionTypes.FETCH_DIRECT_BONUS_HISTORY_SUCCESS:
+        console.log('  ✅ [STORE-REDUCER] Історія бонусів отримана:', {
+          totalBonus: action.payload.totalBonus,
+          historyLength: (action.payload.history || action.payload.bonuses || []).length
+        });
         return Object.assign({}, state, {
           isLoading: false,
           totalBonus: action.payload.totalBonus || 0,
@@ -173,12 +247,14 @@ window.ReferralStore = (function() {
 
       case DirectBonusActionTypes.REGISTER_REFERRAL_FAILURE:
       case DirectBonusActionTypes.FETCH_DIRECT_BONUS_HISTORY_FAILURE:
+        console.log('  ❌ [STORE-REDUCER] Помилка:', action.payload.error);
         return Object.assign({}, state, {
           isLoading: false,
           error: action.payload.error
         });
 
       case DirectBonusActionTypes.CLEAR_DIRECT_BONUS_ERROR:
+        console.log('  🧹 [STORE-REDUCER] Очищення помилки');
         return Object.assign({}, state, {
           error: null
         });
@@ -189,6 +265,7 @@ window.ReferralStore = (function() {
   }
 
   // ReferralLevels Reducer
+  console.log('📝 [STORE] Ініціалізація ReferralLevels reducer...');
   const initialReferralLevelsState = {
     level1Count: 0,
     level2Count: 0,
@@ -209,18 +286,26 @@ window.ReferralStore = (function() {
     UPDATE_REFERRAL_COUNTS: 'UPDATE_REFERRAL_COUNTS',
     CLEAR_REFERRAL_LEVELS_ERROR: 'CLEAR_REFERRAL_LEVELS_ERROR'
   };
+  console.log('✅ [STORE] ReferralLevelsActionTypes створено');
 
   function referralLevelsReducer(state, action) {
     state = state || initialReferralLevelsState;
+    console.log('🔄 [STORE-REDUCER] referralLevelsReducer:', action.type);
 
     switch (action.type) {
       case ReferralLevelsActionTypes.FETCH_REFERRAL_LEVELS_REQUEST:
+        console.log('  📥 [STORE-REDUCER] Запит рівнів рефералів...');
         return Object.assign({}, state, {
           isLoading: true,
           error: null
         });
 
       case ReferralLevelsActionTypes.FETCH_REFERRAL_LEVELS_SUCCESS:
+        console.log('  ✅ [STORE-REDUCER] Рівні рефералів отримані:', {
+          level1: action.payload.level1Count,
+          level2: action.payload.level2Count,
+          total: action.payload.totalReferralsCount
+        });
         return Object.assign({}, state, {
           isLoading: false,
           level1Count: action.payload.level1Count || 0,
@@ -235,12 +320,14 @@ window.ReferralStore = (function() {
         });
 
       case ReferralLevelsActionTypes.FETCH_REFERRAL_LEVELS_FAILURE:
+        console.log('  ❌ [STORE-REDUCER] Помилка:', action.payload.error);
         return Object.assign({}, state, {
           isLoading: false,
           error: action.payload.error
         });
 
       case ReferralLevelsActionTypes.UPDATE_REFERRAL_COUNTS:
+        console.log('  🔄 [STORE-REDUCER] Оновлення лічильників:', action.payload);
         return Object.assign({}, state, {
           level1Count: action.payload.level1Count !== undefined
             ? action.payload.level1Count
@@ -258,6 +345,7 @@ window.ReferralStore = (function() {
         });
 
       case ReferralLevelsActionTypes.CLEAR_REFERRAL_LEVELS_ERROR:
+        console.log('  🧹 [STORE-REDUCER] Очищення помилки');
         return Object.assign({}, state, {
           error: null
         });
@@ -268,6 +356,7 @@ window.ReferralStore = (function() {
   }
 
   // Badge Reducer
+  console.log('📝 [STORE] Ініціалізація Badge reducer...');
   const initialBadgeState = {
     earnedBadges: [],
     availableBadges: [],
@@ -301,21 +390,28 @@ window.ReferralStore = (function() {
     UPDATE_BADGES_PROGRESS: 'UPDATE_BADGES_PROGRESS',
     CLEAR_BADGE_ERROR: 'CLEAR_BADGE_ERROR'
   };
+  console.log('✅ [STORE] BadgeActionTypes створено');
 
   function badgeReducer(state, action) {
     state = state || initialBadgeState;
+    console.log('🔄 [STORE-REDUCER] badgeReducer:', action.type);
 
     switch (action.type) {
       case BadgeActionTypes.FETCH_BADGES_REQUEST:
       case BadgeActionTypes.FETCH_TASKS_REQUEST:
       case BadgeActionTypes.CLAIM_BADGE_REQUEST:
       case BadgeActionTypes.CLAIM_TASK_REQUEST:
+        console.log('  📥 [STORE-REDUCER] Запит даних бейджів/завдань...');
         return Object.assign({}, state, {
           isLoading: true,
           error: null
         });
 
       case BadgeActionTypes.FETCH_BADGES_SUCCESS:
+        console.log('  ✅ [STORE-REDUCER] Бейджі отримані:', {
+          earned: (action.payload.earnedBadges || []).length,
+          available: (action.payload.availableBadges || []).length
+        });
         return Object.assign({}, state, {
           isLoading: false,
           earnedBadges: action.payload.earnedBadges || [],
@@ -330,6 +426,9 @@ window.ReferralStore = (function() {
         });
 
       case BadgeActionTypes.FETCH_TASKS_SUCCESS:
+        console.log('  ✅ [STORE-REDUCER] Завдання отримані:', {
+          completed: (action.payload.completedTasks || []).length
+        });
         return Object.assign({}, state, {
           isLoading: false,
           completedTasks: action.payload.completedTasks || [],
@@ -339,6 +438,7 @@ window.ReferralStore = (function() {
         });
 
       case BadgeActionTypes.CLAIM_BADGE_SUCCESS:
+        console.log('  ✅ [STORE-REDUCER] Бейдж отримано:', action.payload.badgeType || action.payload.badge_type);
         return Object.assign({}, state, {
           isLoading: false,
           claimedBadges: state.claimedBadges.concat([action.payload.badgeType || action.payload.badge_type]),
@@ -349,12 +449,14 @@ window.ReferralStore = (function() {
         });
 
       case BadgeActionTypes.CLAIM_TASK_SUCCESS:
+        console.log('  ✅ [STORE-REDUCER] Завдання виконано');
         return Object.assign({}, state, {
           isLoading: false,
           error: null
         });
 
       case BadgeActionTypes.UPDATE_BADGES_PROGRESS:
+        console.log('  🔄 [STORE-REDUCER] Оновлення прогресу бейджів');
         return Object.assign({}, state, {
           badgesProgress: action.payload.badgesProgress || state.badgesProgress
         });
@@ -363,12 +465,14 @@ window.ReferralStore = (function() {
       case BadgeActionTypes.FETCH_TASKS_FAILURE:
       case BadgeActionTypes.CLAIM_BADGE_FAILURE:
       case BadgeActionTypes.CLAIM_TASK_FAILURE:
+        console.log('  ❌ [STORE-REDUCER] Помилка:', action.payload.error);
         return Object.assign({}, state, {
           isLoading: false,
           error: action.payload.error
         });
 
       case BadgeActionTypes.CLEAR_BADGE_ERROR:
+        console.log('  🧹 [STORE-REDUCER] Очищення помилки');
         return Object.assign({}, state, {
           error: null
         });
@@ -379,15 +483,19 @@ window.ReferralStore = (function() {
   }
 
   // Action Creators
+  console.log('🏭 [STORE] Створення Action Creators...');
 
   // ReferralLink Actions
   function fetchReferralLinkRequest() {
+    console.log('🎬 [STORE-ACTION] fetchReferralLinkRequest');
     return {
       type: ReferralLinkActionTypes.FETCH_REFERRAL_LINK_REQUEST
     };
   }
 
   function fetchReferralLinkSuccess(link) {
+    console.log('🎬 [STORE-ACTION] fetchReferralLinkSuccess:', link);
+
     // Переконаємося, що link це рядок
     const validLink = typeof link === 'string'
         ? link
@@ -402,6 +510,7 @@ window.ReferralStore = (function() {
   }
 
   function fetchReferralLinkFailure(error) {
+    console.log('🎬 [STORE-ACTION] fetchReferralLinkFailure:', error);
     return {
       type: ReferralLinkActionTypes.FETCH_REFERRAL_LINK_FAILURE,
       payload: { error: error.message || 'Failed to fetch referral link' }
@@ -409,6 +518,7 @@ window.ReferralStore = (function() {
   }
 
   function clearReferralLinkError() {
+    console.log('🎬 [STORE-ACTION] clearReferralLinkError');
     return {
       type: ReferralLinkActionTypes.CLEAR_REFERRAL_LINK_ERROR
     };
@@ -416,6 +526,8 @@ window.ReferralStore = (function() {
 
   // Безпечна функція для перевірки підрядка
   function safeIncludes(str, search) {
+    console.log('🔍 [STORE] safeIncludes:', { str: typeof str, search: search });
+
     // Перевіряємо, чи str це рядок
     if (typeof str !== 'string') {
       console.warn('⚠️ [STORE] safeIncludes: перший аргумент не є рядком:', str);
@@ -428,28 +540,45 @@ window.ReferralStore = (function() {
       return false;
     }
 
-    return str.indexOf(search) >= 0;
+    const result = str.indexOf(search) >= 0;
+    console.log('🔍 [STORE] safeIncludes результат:', result);
+    return result;
   }
 
   // Якщо глобальна функція не існує, створюємо її
   if (typeof window.safeIncludes !== 'function') {
     window.safeIncludes = safeIncludes;
+    console.log('✅ [STORE] window.safeIncludes створено');
   }
 
   function fetchReferralLink(userId) {
+    console.log('🎬 [STORE-ACTION] === fetchReferralLink START ===');
+    console.log('📊 [STORE-ACTION] userId:', userId);
+
     return function(dispatch) {
       dispatch(fetchReferralLinkRequest());
 
       // Переконуємося що userId це число
       const numericUserId = parseInt(userId);
+      console.log('📊 [STORE-ACTION] Конвертація userId:', {
+        original: userId,
+        numeric: numericUserId,
+        isNaN: isNaN(numericUserId)
+      });
+
       if (isNaN(numericUserId)) {
         const error = new Error('Некоректний ID користувача');
+        console.error('❌ [STORE-ACTION] Помилка:', error);
         dispatch(fetchReferralLinkFailure(error));
         return Promise.reject(error);
       }
 
+      console.log('🔄 [STORE-ACTION] Виклик ReferralAPI.fetchReferralLink...');
+
       return window.ReferralAPI.fetchReferralLink(numericUserId)
         .then(function(link) {
+          console.log('✅ [STORE-ACTION] Посилання отримано:', link);
+
           // Безпечна перевірка формату посилання
           let formattedLink;
 
@@ -460,14 +589,15 @@ window.ReferralStore = (function() {
           } else {
             // Якщо link не рядок, просто створюємо посилання
             formattedLink = 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
-            console.warn("⚠️ [STORE] Отримано некоректний формат посилання:", link);
+            console.warn("⚠️ [STORE-ACTION] Отримано некоректний формат посилання:", link);
           }
 
+          console.log('✅ [STORE-ACTION] Форматоване посилання:', formattedLink);
           dispatch(fetchReferralLinkSuccess(formattedLink));
           return formattedLink;
         })
         .catch(function(error) {
-          console.error("❌ [STORE] Помилка отримання реферального посилання:", error);
+          console.error("❌ [STORE-ACTION] Помилка отримання реферального посилання:", error);
           dispatch(fetchReferralLinkFailure(error));
           throw error;
         });
@@ -476,12 +606,14 @@ window.ReferralStore = (function() {
 
   // Direct Bonus Actions
   function registerReferralRequest() {
+    console.log('🎬 [STORE-ACTION] registerReferralRequest');
     return {
       type: DirectBonusActionTypes.REGISTER_REFERRAL_REQUEST
     };
   }
 
   function registerReferralSuccess(data) {
+    console.log('🎬 [STORE-ACTION] registerReferralSuccess:', data);
     return {
       type: DirectBonusActionTypes.REGISTER_REFERRAL_SUCCESS,
       payload: data
@@ -489,6 +621,7 @@ window.ReferralStore = (function() {
   }
 
   function registerReferralFailure(error) {
+    console.log('🎬 [STORE-ACTION] registerReferralFailure:', error);
     return {
       type: DirectBonusActionTypes.REGISTER_REFERRAL_FAILURE,
       payload: { error: error.message || 'Failed to register referral' }
@@ -496,12 +629,17 @@ window.ReferralStore = (function() {
   }
 
   function fetchDirectBonusHistoryRequest() {
+    console.log('🎬 [STORE-ACTION] fetchDirectBonusHistoryRequest');
     return {
       type: DirectBonusActionTypes.FETCH_DIRECT_BONUS_HISTORY_REQUEST
     };
   }
 
   function fetchDirectBonusHistorySuccess(data) {
+    console.log('🎬 [STORE-ACTION] fetchDirectBonusHistorySuccess:', {
+      totalBonus: data.totalBonus,
+      historyLength: (data.history || data.bonuses || []).length
+    });
     return {
       type: DirectBonusActionTypes.FETCH_DIRECT_BONUS_HISTORY_SUCCESS,
       payload: data
@@ -509,6 +647,7 @@ window.ReferralStore = (function() {
   }
 
   function fetchDirectBonusHistoryFailure(error) {
+    console.log('🎬 [STORE-ACTION] fetchDirectBonusHistoryFailure:', error);
     return {
       type: DirectBonusActionTypes.FETCH_DIRECT_BONUS_HISTORY_FAILURE,
       payload: { error: error.message || 'Failed to fetch bonus history' }
@@ -516,12 +655,19 @@ window.ReferralStore = (function() {
   }
 
   function clearDirectBonusError() {
+    console.log('🎬 [STORE-ACTION] clearDirectBonusError');
     return {
       type: DirectBonusActionTypes.CLEAR_DIRECT_BONUS_ERROR
     };
   }
 
   function registerReferralAndAwardBonus(referrerId, userId) {
+    console.log('🎬 [STORE-ACTION] === registerReferralAndAwardBonus START ===');
+    console.log('📊 [STORE-ACTION] Параметри:', {
+      referrerId: referrerId,
+      userId: userId
+    });
+
     return function(dispatch) {
       dispatch(registerReferralRequest());
 
@@ -529,14 +675,24 @@ window.ReferralStore = (function() {
       const numericReferrerId = parseInt(referrerId);
       const numericUserId = parseInt(userId);
 
+      console.log('📊 [STORE-ACTION] Конвертація ID:', {
+        referrerId: { original: referrerId, numeric: numericReferrerId },
+        userId: { original: userId, numeric: numericUserId }
+      });
+
       if (isNaN(numericReferrerId) || isNaN(numericUserId)) {
         const error = new Error('Некоректні ID користувачів');
+        console.error('❌ [STORE-ACTION] Помилка:', error);
         dispatch(registerReferralFailure(error));
         return Promise.reject(error);
       }
 
+      console.log('🔄 [STORE-ACTION] Виклик ReferralAPI.registerReferral...');
+
       return window.ReferralAPI.registerReferral(numericReferrerId, numericUserId)
         .then(function(registrationData) {
+          console.log('✅ [STORE-ACTION] Реферал зареєстровано:', registrationData);
+
           const bonusAmount = window.ReferralConstants && window.ReferralConstants.DIRECT_BONUS_AMOUNT
             ? window.ReferralConstants.DIRECT_BONUS_AMOUNT
             : 50;
@@ -549,10 +705,12 @@ window.ReferralStore = (function() {
             type: 'direct_bonus'
           };
 
+          console.log('💰 [STORE-ACTION] Дані бонусу:', bonusData);
           dispatch(registerReferralSuccess(bonusData));
           return bonusData;
         })
         .catch(function(error) {
+          console.error('❌ [STORE-ACTION] Помилка реєстрації реферала:', error);
           dispatch(registerReferralFailure(error));
           throw error;
         });
@@ -560,6 +718,9 @@ window.ReferralStore = (function() {
   }
 
   function fetchDirectBonusHistory(userId) {
+    console.log('🎬 [STORE-ACTION] === fetchDirectBonusHistory START ===');
+    console.log('📊 [STORE-ACTION] userId:', userId);
+
     return function(dispatch) {
       dispatch(fetchDirectBonusHistoryRequest());
 
@@ -567,15 +728,20 @@ window.ReferralStore = (function() {
       const numericUserId = parseInt(userId);
       if (isNaN(numericUserId)) {
         const error = new Error('Некоректний ID користувача');
+        console.error('❌ [STORE-ACTION] Помилка:', error);
         dispatch(fetchDirectBonusHistoryFailure(error));
         return Promise.reject(error);
       }
 
+      console.log('🔄 [STORE-ACTION] Виклик ReferralAPI.fetchReferralHistory...');
+
       return window.ReferralAPI.fetchReferralHistory(numericUserId, { type: 'bonus' })
         .then(function(historyData) {
+          console.log('✅ [STORE-ACTION] Історія отримана:', historyData);
+
           // Перевіряємо, чи historyData взагалі є об'єктом
           if (!historyData || typeof historyData !== 'object') {
-            console.error('❌ [STORE] Отримано некоректні дані історії:', historyData);
+            console.error('❌ [STORE-ACTION] Некоректний формат даних історії:', historyData);
             throw new Error('Некоректний формат даних історії');
           }
 
@@ -585,11 +751,12 @@ window.ReferralStore = (function() {
             history: (historyData && (historyData.history || historyData.bonuses)) || []
           };
 
+          console.log('📊 [STORE-ACTION] Нормалізовані дані:', normalizedData);
           dispatch(fetchDirectBonusHistorySuccess(normalizedData));
           return normalizedData;
         })
         .catch(function(error) {
-          console.error('❌ [STORE] Помилка отримання історії бонусів:', error);
+          console.error('❌ [STORE-ACTION] Помилка отримання історії бонусів:', error);
           dispatch(fetchDirectBonusHistoryFailure(error));
           throw error;
         });
@@ -608,14 +775,17 @@ window.ReferralStore = (function() {
     FETCH_REWARDS_HISTORY_FAILURE: 'FETCH_REWARDS_HISTORY_FAILURE',
     CLEAR_LEVEL_REWARDS_ERROR: 'CLEAR_LEVEL_REWARDS_ERROR'
   };
+  console.log('✅ [STORE] LevelRewardsActionTypes створено');
 
   function fetchLevelRewardsRequest() {
+    console.log('🎬 [STORE-ACTION] fetchLevelRewardsRequest');
     return {
       type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_REQUEST
     };
   }
 
   function fetchLevelRewardsSuccess(data) {
+    console.log('🎬 [STORE-ACTION] fetchLevelRewardsSuccess:', data);
     return {
       type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_SUCCESS,
       payload: data
@@ -623,6 +793,7 @@ window.ReferralStore = (function() {
   }
 
   function fetchLevelRewardsFailure(error) {
+    console.log('🎬 [STORE-ACTION] fetchLevelRewardsFailure:', error);
     return {
       type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_FAILURE,
       payload: { error: error.message || 'Помилка отримання даних про винагороди' }
@@ -630,6 +801,12 @@ window.ReferralStore = (function() {
   }
 
   function fetchLevelRewards(userId, options) {
+    console.log('🎬 [STORE-ACTION] === fetchLevelRewards START ===');
+    console.log('📊 [STORE-ACTION] Параметри:', {
+      userId: userId,
+      options: options
+    });
+
     options = options || {};
     return function(dispatch) {
       dispatch(fetchLevelRewardsRequest());
@@ -638,16 +815,21 @@ window.ReferralStore = (function() {
       const numericUserId = parseInt(userId);
       if (isNaN(numericUserId)) {
         const error = new Error('Некоректний ID користувача');
+        console.error('❌ [STORE-ACTION] Помилка:', error);
         dispatch(fetchLevelRewardsFailure(error));
         return Promise.reject(error);
       }
 
+      console.log('🔄 [STORE-ACTION] Виклик ReferralAPI.fetchReferralEarnings...');
+
       return window.ReferralAPI.fetchReferralEarnings(numericUserId, options)
         .then(function(data) {
+          console.log('✅ [STORE-ACTION] Дані про винагороди отримані:', data);
           dispatch(fetchLevelRewardsSuccess(data));
           return data;
         })
         .catch(function(error) {
+          console.error('❌ [STORE-ACTION] Помилка отримання винагород:', error);
           dispatch(fetchLevelRewardsFailure(error));
           throw error;
         });
@@ -656,14 +838,17 @@ window.ReferralStore = (function() {
 
   // Badge Actions
   function fetchUserBadges(userId) {
+    console.log('🏆 [STORE-ACTION] === fetchUserBadges START ===');
+    console.log('📊 [STORE-ACTION] userId:', userId);
+
     return function(dispatch) {
-      console.log('🏆 [STORE] Запит бейджів для користувача:', userId);
       dispatch({ type: BadgeActionTypes.FETCH_BADGES_REQUEST });
 
       // Переконуємося що userId це число
       const numericUserId = parseInt(userId);
       if (isNaN(numericUserId)) {
         const error = new Error('Некоректний ID користувача');
+        console.error('❌ [STORE-ACTION] Помилка:', error);
         dispatch({
           type: BadgeActionTypes.FETCH_BADGES_FAILURE,
           payload: { error: error.message }
@@ -671,8 +856,12 @@ window.ReferralStore = (function() {
         return Promise.reject(error);
       }
 
+      console.log('🔄 [STORE-ACTION] Виклик ReferralAPI.fetchUserBadges...');
+
       return window.ReferralAPI.fetchUserBadges(numericUserId)
         .then(function(badgesData) {
+          console.log('✅ [STORE-ACTION] Бейджі отримані:', badgesData);
+
           // Нормалізуємо дані
           const normalizedData = {
             success: badgesData.success !== false,
@@ -686,6 +875,8 @@ window.ReferralStore = (function() {
             totalPotentialReward: 37500
           };
 
+          console.log('📊 [STORE-ACTION] Нормалізовані дані бейджів:', normalizedData);
+
           dispatch({
             type: BadgeActionTypes.FETCH_BADGES_SUCCESS,
             payload: normalizedData
@@ -694,7 +885,7 @@ window.ReferralStore = (function() {
           return normalizedData;
         })
         .catch(function(error) {
-          console.error('❌ [STORE] Помилка отримання бейджів:', error);
+          console.error('❌ [STORE-ACTION] Помилка отримання бейджів:', error);
           dispatch({
             type: BadgeActionTypes.FETCH_BADGES_FAILURE,
             payload: { error: error.message || 'Помилка завантаження бейджів' }
@@ -705,6 +896,9 @@ window.ReferralStore = (function() {
   }
 
   function fetchUserTasks(userId) {
+    console.log('📋 [STORE-ACTION] === fetchUserTasks START ===');
+    console.log('📊 [STORE-ACTION] userId:', userId);
+
     return function(dispatch) {
       dispatch({ type: BadgeActionTypes.FETCH_TASKS_REQUEST });
 
@@ -712,6 +906,7 @@ window.ReferralStore = (function() {
       const numericUserId = parseInt(userId);
       if (isNaN(numericUserId)) {
         const error = new Error('Некоректний ID користувача');
+        console.error('❌ [STORE-ACTION] Помилка:', error);
         dispatch({
           type: BadgeActionTypes.FETCH_TASKS_FAILURE,
           payload: { error: error.message }
@@ -719,8 +914,12 @@ window.ReferralStore = (function() {
         return Promise.reject(error);
       }
 
+      console.log('🔄 [STORE-ACTION] Виклик ReferralAPI.fetchUserTasks...');
+
       return window.ReferralAPI.fetchUserTasks(numericUserId)
         .then(function(tasksData) {
+          console.log('✅ [STORE-ACTION] Завдання отримані:', tasksData);
+
           // Нормалізуємо дані
           const normalizedData = {
             success: tasksData.success !== false,
@@ -728,6 +927,8 @@ window.ReferralStore = (function() {
             tasksProgress: {},
             totalReward: 0
           };
+
+          console.log('📊 [STORE-ACTION] Нормалізовані дані завдань:', normalizedData);
 
           dispatch({
             type: BadgeActionTypes.FETCH_TASKS_SUCCESS,
@@ -737,7 +938,7 @@ window.ReferralStore = (function() {
           return normalizedData;
         })
         .catch(function(error) {
-          console.error('❌ [STORE] Помилка отримання завдань:', error);
+          console.error('❌ [STORE-ACTION] Помилка отримання завдань:', error);
           dispatch({
             type: BadgeActionTypes.FETCH_TASKS_FAILURE,
             payload: { error: error.message || 'Помилка завантаження завдань' }
@@ -748,6 +949,12 @@ window.ReferralStore = (function() {
   }
 
   function claimBadgeReward(userId, badgeType) {
+    console.log('💎 [STORE-ACTION] === claimBadgeReward START ===');
+    console.log('📊 [STORE-ACTION] Параметри:', {
+      userId: userId,
+      badgeType: badgeType
+    });
+
     return function(dispatch) {
       dispatch({ type: BadgeActionTypes.CLAIM_BADGE_REQUEST });
 
@@ -755,6 +962,7 @@ window.ReferralStore = (function() {
       const numericUserId = parseInt(userId);
       if (isNaN(numericUserId)) {
         const error = new Error('Некоректний ID користувача');
+        console.error('❌ [STORE-ACTION] Помилка:', error);
         dispatch({
           type: BadgeActionTypes.CLAIM_BADGE_FAILURE,
           payload: { error: error.message }
@@ -762,8 +970,12 @@ window.ReferralStore = (function() {
         return Promise.reject(error);
       }
 
+      console.log('🔄 [STORE-ACTION] Виклик ReferralAPI.claimBadgeReward...');
+
       return window.ReferralAPI.claimBadgeReward(numericUserId, badgeType)
         .then(function(claimResult) {
+          console.log('✅ [STORE-ACTION] Результат claim:', claimResult);
+
           if (claimResult.success !== false) {
             dispatch({
               type: BadgeActionTypes.CLAIM_BADGE_SUCCESS,
@@ -775,6 +987,7 @@ window.ReferralStore = (function() {
             });
 
             // Перезавантажуємо дані про бейджі після успішного claim
+            console.log('🔄 [STORE-ACTION] Перезавантаження даних про бейджі...');
             setTimeout(function() {
               dispatch(fetchUserBadges(numericUserId));
             }, 500);
@@ -785,6 +998,7 @@ window.ReferralStore = (function() {
           }
         })
         .catch(function(error) {
+          console.error('❌ [STORE-ACTION] Помилка claim badge:', error);
           dispatch({
             type: BadgeActionTypes.CLAIM_BADGE_FAILURE,
             payload: { error: error.message || 'Невідома помилка при отриманні винагороди за бейдж' }
@@ -795,6 +1009,12 @@ window.ReferralStore = (function() {
   }
 
   function claimTaskReward(userId, taskType) {
+    console.log('🎁 [STORE-ACTION] === claimTaskReward START ===');
+    console.log('📊 [STORE-ACTION] Параметри:', {
+      userId: userId,
+      taskType: taskType
+    });
+
     return function(dispatch) {
       dispatch({ type: BadgeActionTypes.CLAIM_TASK_REQUEST });
 
@@ -802,6 +1022,7 @@ window.ReferralStore = (function() {
       const numericUserId = parseInt(userId);
       if (isNaN(numericUserId)) {
         const error = new Error('Некоректний ID користувача');
+        console.error('❌ [STORE-ACTION] Помилка:', error);
         dispatch({
           type: BadgeActionTypes.CLAIM_TASK_FAILURE,
           payload: { error: error.message }
@@ -809,8 +1030,12 @@ window.ReferralStore = (function() {
         return Promise.reject(error);
       }
 
+      console.log('🔄 [STORE-ACTION] Виклик ReferralAPI.claimTaskReward...');
+
       return window.ReferralAPI.claimTaskReward(numericUserId, taskType)
         .then(function(claimResult) {
+          console.log('✅ [STORE-ACTION] Результат claim task:', claimResult);
+
           if (claimResult.success !== false) {
             dispatch({
               type: BadgeActionTypes.CLAIM_TASK_SUCCESS,
@@ -821,6 +1046,7 @@ window.ReferralStore = (function() {
             });
 
             // Перезавантажуємо дані про завдання після успішного claim
+            console.log('🔄 [STORE-ACTION] Перезавантаження даних про завдання...');
             setTimeout(function() {
               dispatch(fetchUserTasks(numericUserId));
             }, 500);
@@ -831,6 +1057,7 @@ window.ReferralStore = (function() {
           }
         })
         .catch(function(error) {
+          console.error('❌ [STORE-ACTION] Помилка claim task:', error);
           dispatch({
             type: BadgeActionTypes.CLAIM_TASK_FAILURE,
             payload: { error: error.message || 'Невідома помилка при отриманні винагороди за завдання' }
@@ -842,13 +1069,22 @@ window.ReferralStore = (function() {
 
   // Store Configuration
   function configureReferralStore(reducers) {
+    console.log('🏗️ [STORE] === configureReferralStore START ===');
+    console.log('📊 [STORE] Редюсери:', Object.keys(reducers));
+
     const rootReducer = combineReducers(reducers);
     const storeWithMiddleware = applyMiddleware(thunkMiddleware)(createStore);
-    return storeWithMiddleware(rootReducer);
+    const store = storeWithMiddleware(rootReducer);
+
+    console.log('✅ [STORE] Store сконфігуровано успішно');
+    console.log('📊 [STORE] Початковий стан:', store.getState());
+
+    return store;
   }
 
-  // Публічний API
-  return {
+  // Фінальна статистика
+  console.log('📊 [STORE] === ФІНАЛЬНА СТАТИСТИКА ===');
+  const publicAPI = {
     // Utilities
     createStore: createStore,
     combineReducers: combineReducers,
@@ -896,4 +1132,22 @@ window.ReferralStore = (function() {
     claimBadgeReward: claimBadgeReward,
     claimTaskReward: claimTaskReward
   };
+
+  console.log('📊 [STORE] Експортовано:', {
+    utilities: 5,
+    reducers: 4,
+    actionTypes: 5,
+    actionCreators: Object.keys(publicAPI).length - 14
+  });
+
+  console.log('✅ [STORE] ========== МОДУЛЬ ReferralStore ЗАВАНТАЖЕНО УСПІШНО ==========');
+
+  return publicAPI;
 })();
+
+// Перевірка доступності
+console.log('🔍 [STORE] Перевірка доступності window.ReferralStore:', {
+  exists: typeof window.ReferralStore !== 'undefined',
+  type: typeof window.ReferralStore,
+  properties: window.ReferralStore ? Object.keys(window.ReferralStore).length : 0
+});
