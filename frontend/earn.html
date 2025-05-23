@@ -2,418 +2,507 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <meta name="description" content="WINIX - Виконуйте завдання та заробляйте токени">
-    <meta name="theme-color" content="#1A1A2E">
-    <title>WINIX - Заробляй</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WINIX - Система завдань</title>
+    <!-- Базові стилі з реферальної системи -->
+    <link rel="stylesheet" href="css/referrals/styles.css">
+    <link rel="stylesheet" href="css/referrals/animations.css">
+    <link rel="stylesheet" href="css/referrals/winix-icons.css">
 
-    <!-- Критичні стилі для швидкого відображення -->
-    <style>
-        /* Базові стилі для найшвидшого рендерингу контенту */
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #0F0F1A;
-            color: #FFFFFF;
-        }
-        .container {
-            max-width: 100%;
-            margin: 0 auto;
-            padding: 0;
-            position: relative;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            background-color: #1A1A2E;
-        }
-        .loading-indicator {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            z-index: 1000;
-        }
-        .loading-indicator .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #E94560;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
-
-    <!-- Підключення основних стилів -->
-    <link rel="stylesheet" href="css/styles.css">
+    <!-- Стилі для системи завдань -->
     <link rel="stylesheet" href="css/earn/styles.css">
-
-    <!-- Попереднє завантаження критичних ресурсів -->
-    <link rel="preload" href="css/earn/components-tasks.css" as="style">
-    <link rel="preload" href="js/core.js" as="script">
-    <link rel="preload" href="js/tasks/core/task-manager.js" as="script">
-
-    <!-- Відкладене завантаження некритичних стилів -->
-    <link rel="stylesheet" href="css/earn/components-tasks.css" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="css/earn/leaderboard.css" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="css/earn/premium-animations.css" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="css/earn/winix-icons.css" media="print" onload="this.media='all'">
-
-    <!-- Запасні варіанти для браузерів без підтримки onload для стилів -->
-    <noscript>
-        <link rel="stylesheet" href="css/earn/components-tasks.css">
-        <link rel="stylesheet" href="css/earn/leaderboard.css">
-        <link rel="stylesheet" href="css/earn/premium-animations.css">
-        <link rel="stylesheet" href="css/earn/winix-icons.css">
-    </noscript>
-
-    <!-- Підключення Telegram WebApp API негайно -->
-    <script src="js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="css/earn/flex-earn.css">
+    <link rel="stylesheet" href="css/earn/daily-bonus.css">
+    <link rel="stylesheet" href="css/earn/tasks.css">
+    <link rel="stylesheet" href="css/earn/tasks-cards.css">
+    <link rel="stylesheet" href="css/earn/verification.css">
+    <link rel="stylesheet" href="css/earn/responsive.css">
 </head>
 <body>
-<!-- Індикатор завантаження -->
-<div id="initial-loading" class="loading-indicator">
-    <div class="spinner"></div>
-    <p>Завантаження...</p>
-</div>
+    <!-- SVG фільтри для іконок -->
+    <svg class="winix-filters">
+      <defs>
+        <!-- Золоте світіння для Flex -->
+        <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+          <feFlood flood-color="#FFD700" flood-opacity="0.5" result="color" />
+          <feComposite in="color" in2="blur" operator="in" result="glow" />
+          <feMerge>
+            <feMergeNode in="glow" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+    </svg>
 
-<svg class="winix-filters">
-  <defs>
-    <!-- Синє світіння -->
-    <filter id="blue-glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-      <feFlood flood-color="#4EB5F7" flood-opacity="0.5" result="color" />
-      <feComposite in="color" in2="blur" operator="in" result="glow" />
-      <feMerge>
-        <feMergeNode in="glow" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-
-    <!-- Бірюзове світіння -->
-    <filter id="teal-glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-      <feFlood flood-color="#00C9A7" flood-opacity="0.5" result="color" />
-      <feComposite in="color" in2="blur" operator="in" result="glow" />
-      <feMerge>
-        <feMergeNode in="glow" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-
-    <!-- Червоне світіння -->
-    <filter id="red-glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-      <feFlood flood-color="#F44336" flood-opacity="0.5" result="color" />
-      <feComposite in="color" in2="blur" operator="in" result="glow" />
-      <feMerge>
-        <feMergeNode in="glow" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-
-    <!-- Золоте світіння -->
-    <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-      <feFlood flood-color="#FFD700" flood-opacity="0.5" result="color" />
-      <feComposite in="color" in2="blur" operator="in" result="glow" />
-      <feMerge>
-        <feMergeNode in="glow" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-  </defs>
-</svg>
     <div class="container">
         <!-- Шапка сторінки -->
-        <div class="header">
-            <div class="user-profile" id="profile-link">
-                <div class="profile-avatar" id="profile-avatar">W</div>
+        <header class="header" style="color: white;">
+            <div class="user-profile">
+                <div class="profile-avatar">W</div>
                 <div class="user-id-container">
-                    <span class="user-id-label" data-lang-key="user_id">ID:</span>
-                    <span class="user-id-value" id="user-id"></span>
+                    <div class="user-id-label">Ваш ID</div>
+                    <div class="user-id-value" id="header-user-id">Loading...</div>
                 </div>
             </div>
             <div class="winix-title">WINIX</div>
             <div class="balance-container">
                 <div class="jeton-balance">
-                    <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label" data-lang-key="coins">Жетони</div>
+                    <div class="balance-value" id="user-tickets">0</div>
+                    <div class="balance-label">Tickets</div>
                 </div>
                 <div class="winix-balance">
-                    <div id="user-tokens" class="balance-value">0</div>
-                    <div class="balance-label">$WINIX</div>
+                    <div class="balance-value" id="user-winix">0</div>
+                    <div class="balance-label">Winix</div>
                 </div>
             </div>
-        </div>
+        </header>
 
-        <!-- Перемикач категорій завдань -->
-        <div class="tabs">
-            <div class="tab active" data-tab="social" data-lang-key="earn.social_networks">Соціальні</div>
-            <div class="tab" data-tab="limited" data-lang-key="earn.limited_tasks">Лімітовані</div>
-            <div class="tab" data-tab="partners" data-lang-key="earn.partners_tasks">Партнерські</div>
-        </div>
+        <!-- Основний контент -->
+        <section class="category-card tasks-section">
+            <h2 class="category-title">Система завдань</h2>
 
-        <!-- Контейнери для різних типів завдань -->
-        <!-- Соціальні завдання -->
-        <div class="content-section active" id="social-content">
-            <!-- Щоденний бонус -->
-            <div class="category-card" id="daily-bonus-container">
-                <div class="category-title" data-lang-key="earn.daily_bonus">Щоденний бонус</div>
-                <div class="daily-bonus">
-                    <div class="daily-bonus-bar">
-                        <div class="daily-progress" id="daily-progress-container">
-                            <!-- Дні генеруються динамічно через JS -->
+            <!-- Головні вкладки системи завдань -->
+            <div class="main-tabs">
+                <div class="tab-button active flex-tab" data-tab="flex">
+                    <span class="flex-icon"></span>
+                    Flex Earn
+                </div>
+                <div class="tab-button" data-tab="daily">Daily Bonus</div>
+                <div class="tab-button" data-tab="social">Social</div>
+                <div class="tab-button" data-tab="limited">Limited</div>
+                <div class="tab-button" data-tab="partner">Partner</div>
+            </div>
+
+            <!-- Контент вкладок -->
+            <div class="tab-content">
+                <!-- ВКЛАДКА 1: FLEX EARN -->
+                <div class="main-tab-pane active" id="flex-tab">
+                    <!-- Статус кошелька -->
+                    <div class="wallet-status-container">
+                        <div class="wallet-status-card">
+                            <div class="wallet-icon">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <div class="wallet-info">
+                                <p class="wallet-status" id="wallet-connection-status">Кошелек не підключено</p>
+                                <p class="wallet-hint">Підключіть TON кошелек для доступу до Flex завдань</p>
+                            </div>
+                            <button class="connect-wallet-redirect" onclick="window.location.href='wallet.html'">
+                                Підключити кошелек
+                            </button>
                         </div>
                     </div>
-                    <button class="claim-button" id="claim-daily" data-lang-key="earn.get">Отримати бонус</button>
-                </div>
-            </div>
 
-            <!-- Соціальні завдання -->
-            <div class="category-card">
-                <div class="category-title" data-lang-key="earn.social_networks">Соціальні мережі</div>
-                <div class="task-container" id="social-tasks-container" aria-live="polite">
-                    <!-- Соціальні завдання генеруються динамічно через JS -->
-                    <div class="task-loader">Завантаження завдань...</div>
-                </div>
-            </div>
+                    <!-- Flex завдання (показуються тільки якщо кошелек підключено) -->
+                    <div class="flex-tasks-container" id="flex-tasks" style="display: none;">
+                        <!-- Bronze рівень -->
+                        <div class="flex-task-card bronze" data-level="bronze">
+                            <div class="task-header">
+                                <div class="task-icon bronze-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+                                        <path d="M12 7V12L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                        <circle cx="12" cy="12" r="2" fill="currentColor"/>
+                                    </svg>
+                                </div>
+                                <div class="task-info">
+                                    <h3 class="task-title">Flex Holder Bronze</h3>
+                                    <p class="task-requirement">Тримайте 100,000 FLEX токенів</p>
+                                </div>
+                            </div>
+                            <div class="task-rewards">
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">50 winix щодня</span>
+                                </div>
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">2 tickets щодня</span>
+                                </div>
+                            </div>
+                            <div class="task-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill bronze-progress" style="width: 0%"></div>
+                                </div>
+                                <p class="progress-text">0 / 100,000 FLEX</p>
+                            </div>
+                            <button class="claim-button bronze-claim" disabled>
+                                <span class="button-text">Недостатньо FLEX</span>
+                            </button>
+                        </div>
 
-            <!-- Реферальні завдання -->
-            <div class="category-card">
-                <div class="category-title" data-lang-key="earn.referral_tasks">Реферальні завдання</div>
-                <div class="task-container" id="referral-tasks-container" aria-live="polite">
-                    <!-- Реферальні завдання генеруються динамічно через JS -->
-                    <div class="task-loader">Завантаження завдань...</div>
-                </div>
-            </div>
+                        <!-- Silver рівень -->
+                        <div class="flex-task-card silver" data-level="silver">
+                            <div class="task-header">
+                                <div class="task-icon silver-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+                                        <path d="M12 2L14.5 8.5L21 9L16 14L17.5 21L12 17.5L6.5 21L8 14L3 9L9.5 8.5L12 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <div class="task-info">
+                                    <h3 class="task-title">Flex Holder Silver</h3>
+                                    <p class="task-requirement">Тримайте 500,000 FLEX токенів</p>
+                                </div>
+                            </div>
+                            <div class="task-rewards">
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">150 winix щодня</span>
+                                </div>
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">5 tickets щодня</span>
+                                </div>
+                            </div>
+                            <div class="task-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill silver-progress" style="width: 0%"></div>
+                                </div>
+                                <p class="progress-text">0 / 500,000 FLEX</p>
+                            </div>
+                            <button class="claim-button silver-claim" disabled>
+                                <span class="button-text">Недостатньо FLEX</span>
+                            </button>
+                        </div>
 
-            <!-- Лідерська дошка -->
-            <div class="category-card">
-                <div class="category-title" data-lang-key="earn.leaderboard">Лідерська дошка</div>
-                <div class="leaderboard-title" data-lang-key="earn.leaderboard.title">Топ-10 користувачів з найбільшою кількістю запрошених друзів</div>
-                <div class="leaderboard" id="leaderboard-container" aria-live="polite">
-                    <!-- Лідерська дошка генерується динамічно через JS -->
-                    <div class="leaderboard-loader">Завантаження лідерської дошки...</div>
-                </div>
-            </div>
-        </div>
+                        <!-- Gold рівень -->
+                        <div class="flex-task-card gold" data-level="gold">
+                            <div class="task-header">
+                                <div class="task-icon gold-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 2L4 8V14C4 18.42 7.16 22.21 12 23C16.84 22.21 20 18.42 20 14V8L12 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                        <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <div class="task-info">
+                                    <h3 class="task-title">Flex Holder Gold</h3>
+                                    <p class="task-requirement">Тримайте 1,000,000 FLEX токенів</p>
+                                </div>
+                            </div>
+                            <div class="task-rewards">
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">300 winix щодня</span>
+                                </div>
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">8 tickets щодня</span>
+                                </div>
+                            </div>
+                            <div class="task-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill gold-progress" style="width: 0%"></div>
+                                </div>
+                                <p class="progress-text">0 / 1,000,000 FLEX</p>
+                            </div>
+                            <button class="claim-button gold-claim" disabled>
+                                <span class="button-text">Недостатньо FLEX</span>
+                            </button>
+                        </div>
 
-        <!-- Лімітовані завдання -->
-        <div class="content-section" id="limited-content">
-            <div class="category-card">
-                <div class="category-title" data-lang-key="earn.limited_tasks">Обмежені за часом завдання</div>
-                <div class="task-container" id="limited-tasks-container" aria-live="polite">
-                    <!-- Лімітовані завдання генеруються динамічно через JS -->
-                    <div class="task-loader">Завантаження завдань...</div>
-                </div>
-            </div>
-        </div>
+                        <!-- Platinum рівень -->
+                        <div class="flex-task-card platinum" data-level="platinum">
+                            <div class="task-header">
+                                <div class="task-icon platinum-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M5 16L3 9L9 11L12 6L15 11L21 9L19 16H5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                        <path d="M5 16L6 20H18L19 16" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <div class="task-info">
+                                    <h3 class="task-title">Flex Holder Platinum</h3>
+                                    <p class="task-requirement">Тримайте 5,000,000 FLEX токенів</p>
+                                </div>
+                            </div>
+                            <div class="task-rewards">
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">1,000 winix щодня</span>
+                                </div>
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">10 tickets щодня</span>
+                                </div>
+                            </div>
+                            <div class="task-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill platinum-progress" style="width: 0%"></div>
+                                </div>
+                                <p class="progress-text">0 / 5,000,000 FLEX</p>
+                            </div>
+                            <button class="claim-button platinum-claim" disabled>
+                                <span class="button-text">Недостатньо FLEX</span>
+                            </button>
+                        </div>
 
-        <!-- Партнерські завдання -->
-        <div class="content-section" id="partners-content">
-            <div class="category-card">
-                <div class="category-title" data-lang-key="earn.partners_tasks">Партнерські завдання</div>
-                <div class="task-container" id="partners-tasks-container" aria-live="polite">
-                    <!-- Партнерські завдання генеруються динамічно через JS -->
-                    <div class="task-loader">Завантаження завдань...</div>
+                        <!-- Diamond рівень -->
+                        <div class="flex-task-card diamond" data-level="diamond">
+                            <div class="task-header">
+                                <div class="task-icon diamond-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 3L3 9L12 21L21 9L18 3H6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                        <path d="M3 9H21" stroke="currentColor" stroke-width="1.5"/>
+                                        <path d="M12 3L8 9L12 21L16 9L12 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <div class="task-info">
+                                    <h3 class="task-title">Flex Holder Diamond</h3>
+                                    <p class="task-requirement">Тримайте 10,000,000 FLEX токенів</p>
+                                </div>
+                            </div>
+                            <div class="task-rewards">
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">2,500 winix щодня</span>
+                                </div>
+                                <div class="reward-item">
+                                    <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                    </svg>
+                                    <span class="reward-text">15 tickets щодня</span>
+                                </div>
+                            </div>
+                            <div class="task-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill diamond-progress" style="width: 0%"></div>
+                                </div>
+                                <p class="progress-text">0 / 10,000,000 FLEX</p>
+                            </div>
+                            <button class="claim-button diamond-claim" disabled>
+                                <span class="button-text">Недостатньо FLEX</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ВКЛАДКА 2: DAILY BONUS -->
+                <div class="main-tab-pane" id="daily-tab">
+                    <!-- Контент щоденного бонусу буде додано в Етапі 2 -->
+                    <p style="color: #888; text-align: center; padding: 40px;">Щоденний бонус - скоро</p>
+                </div>
+
+                <!-- ВКЛАДКА 3: SOCIAL -->
+                <div class="main-tab-pane" id="social-tab">
+                    <!-- Контент соціальних завдань буде додано пізніше -->
+                    <p style="color: #888; text-align: center; padding: 40px;">Соціальні завдання - скоро</p>
+                </div>
+
+                <!-- ВКЛАДКА 4: LIMITED -->
+                <div class="main-tab-pane" id="limited-tab">
+                    <!-- Контент лімітованих завдань буде додано пізніше -->
+                    <p style="color: #888; text-align: center; padding: 40px;">Лімітовані завдання - скоро</p>
+                </div>
+
+                <!-- ВКЛАДКА 5: PARTNER -->
+                <div class="main-tab-pane" id="partner-tab">
+                    <!-- Контент партнерських завдань буде додано пізніше -->
+                    <p style="color: #888; text-align: center; padding: 40px;">Партнерські завдання - скоро</p>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Нижня навігаційна панель -->
-        <div class="nav-bar">
+        <nav class="nav-bar">
             <div class="nav-item" data-section="home">
                 <div class="icon-wrapper">
-                    <img src="assets/home-icon.png" alt="Home" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M9 22V12H15V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                 </div>
-                <span data-lang-key="home">Home</span>
+                <span>Home</span>
             </div>
             <div class="nav-item active" data-section="earn">
                 <div class="icon-wrapper">
-                    <img src="assets/earn-icon.png" alt="Earn" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                 </div>
-                <span data-lang-key="earn">Earn</span>
+                <span>Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
-                    <img src="assets/referrals-icon.png" alt="Referrals" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M23 21V19C22.9993 18.1137 22.7044 17.2528 22.1614 16.5523C21.6184 15.8519 20.8581 15.3516 20 15.13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25392 19.0078 6.11683 19.0078 7.005C19.0078 7.89318 18.7122 8.75608 18.1676 9.45769C17.623 10.1593 16.8604 10.6597 16 10.88" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                 </div>
-                <span data-lang-key="referrals">Referrals</span>
+                <span>Referral</span>
             </div>
             <div class="nav-item" data-section="wallet">
                 <div class="icon-wrapper">
-                    <img src="assets/wallet-icon.png" alt="Wallet" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M12 10L12 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M16 14L8 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                 </div>
-                <span data-lang-key="wallet">Wallet</span>
+                <span>Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
-                    <img src="assets/general-icon.png" alt="General" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M12 1V9M12 15V23M4.22 4.22L8.46 8.46M15.54 15.54L19.78 19.78M1 12H9M15 12H23M4.22 19.78L8.46 15.54M15.54 8.46L19.78 4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                 </div>
-                <span data-lang-key="general">General</span>
+                <span>General</span>
             </div>
-        </div>
+        </nav>
     </div>
 
-    <!-- Повідомлення для копіювання -->
-    <div class="toast-message" id="toast-message" aria-live="assertive" role="alert">Реферальне посилання скопійовано в буфер обміну!</div>
+    <!-- Toast повідомлення -->
+    <div class="toast-message" id="toast-message"></div>
 
-    <!-- Підключення основних скриптів з атрибутами defer -->
-    <script src="js/tasks/utils/api-connectivity.js" defer></script>
-    <script src="js/api.js" defer></script>
-    <script src="js/auth.js" defer></script>
-    <script src="js/language.js" defer></script>
+    <!-- Скрипти -->
 
-    <!-- Основний скрипт (без defer для швидкого запуску) -->
-    <script src="js/core.js"></script>
 
-    <!-- Підключення утиліт (з defer для паралельного завантаження) -->
-    <script src="js/tasks/utils/formatters.js" defer></script>
-    <script src="js/tasks/utils/storage.js" defer></script>
-    <script src="js/tasks/utils/time-utils.js" defer></script>
-    <script src="js/tasks/utils/validators.js" defer></script>
+    <!-- Модулі системи завдань -->
+    <script src="js/tasks/constants.js"></script>
+    <script src="js/tasks/api.js"></script>
+    <script src="js/tasks/store.js"></script>
+    <script src="js/tasks/services.js"></script>
+    <script src="js/tasks/utils.js"></script>
+    <script src="js/tasks/flexEarn.js"></script>
+    <script src="js/tasks/dailyBonus.js"></script>
+    <script src="js/tasks/taskVerification.js"></script>
+    <script src="js/tasks/integration.js"></script>
 
-    <!-- Підключення UI компонентів (з defer для паралельного завантаження) -->
-    <script src="js/tasks/ui/animations.js" defer></script>
-    <script src="js/tasks/ui/countdown.js" defer></script>
-    <script src="js/tasks/ui/notifications.js" defer></script>
-    <script src="js/tasks/ui/progress-bar.js" defer></script>
-
-    <!-- Підключення основної логіки завдань (з defer для паралельного завантаження) -->
-    <script src="js/tasks/core/task-manager.js" defer></script>
-    <script src="js/tasks/core/progress.js" defer></script>
-    <script src="js/tasks/core/rewards.js" defer></script>
-    <script src="js/tasks/core/verification.js" defer></script>
-    <script src="js/tasks/core/integration.js" defer></script>
-
-    <!-- Підключення компонентів завдань (з defer для паралельного завантаження) -->
-    <script src="js/tasks/components/daily-bonus.js" defer></script>
-    <script src="js/tasks/components/social-task.js" defer></script>
-    <script src="js/tasks/components/limited-task.js" defer></script>
-    <script src="js/tasks/components/partner-task.js" defer></script>
-    <script src="js/tasks/components/leaderboard.js" defer></script>
-
+    <!-- Базова ініціалізація -->
     <script>
-        // Ініціалізація та покращена обробка завантаження
+        // Ініціалізація Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+        }
+
+        // Обробники для вкладок
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM Content Loaded');
+            const tabs = document.querySelectorAll('.tab-button');
+            const panes = document.querySelectorAll('.main-tab-pane');
 
-            // Прихований індикатор завантаження через 3 секунди
-            // якщо сторінка завантажилась швидше
-            setTimeout(function() {
-                const loadingIndicator = document.getElementById('initial-loading');
-                if (loadingIndicator) {
-                    loadingIndicator.style.opacity = '0';
-                    setTimeout(() => {
-                        loadingIndicator.style.display = 'none';
-                    }, 300);
-                }
-            }, 3000);
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
 
-            // Ініціалізуємо Telegram WebApp, якщо він доступний
-            if (window.Telegram && window.Telegram.WebApp) {
-                window.Telegram.WebApp.ready();
-                window.Telegram.WebApp.expand();
+                    // Видаляємо активний клас з усіх вкладок
+                    tabs.forEach(t => t.classList.remove('active'));
+                    panes.forEach(p => p.classList.remove('active'));
+
+                    // Додаємо активний клас до обраної вкладки
+                    this.classList.add('active');
+                    const activePane = document.getElementById(tabId + '-tab');
+                    if (activePane) {
+                        activePane.classList.add('active');
+                    }
+                });
+            });
+
+            // Обробники для навігації
+            const navItems = document.querySelectorAll('.nav-bar .nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const section = this.getAttribute('data-section');
+
+                    let targetUrl = '';
+                    switch(section) {
+                        case 'home':
+                            targetUrl = 'original-index.html';
+                            break;
+                        case 'earn':
+                            // Поточна сторінка
+                            return;
+                        case 'referrals':
+                            targetUrl = 'referrals.html';
+                            break;
+                        case 'wallet':
+                            targetUrl = 'wallet.html';
+                            break;
+                        case 'general':
+                            targetUrl = 'general.html';
+                            break;
+                    }
+
+                    if (targetUrl) {
+                        window.location.href = targetUrl;
+                    }
+                });
+            });
+
+            // Ініціалізація FlexEarnManager
+            console.log('🚀 [MAIN] Ініціалізація FlexEarnManager...');
+
+            // Отримуємо ID користувача
+            let userId = null;
+            if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+                userId = parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
+                console.log('✅ [MAIN] ID користувача з Telegram:', userId);
+            } else {
+                userId = localStorage.getItem('telegram_user_id') || 'demo_user';
+                console.log('⚠️ [MAIN] ID користувача з localStorage:', userId);
             }
 
-            // Перевіряємо необхідні компоненти і завантажуємо їх поступово
-            const initializationQueue = [
-                function checkAndInitCore() {
-                    if (window.Core) {
-                        window.Core.init();
-                        return true;
-                    }
-                    return false;
-                },
-                function checkAndInitTaskManager() {
-                    if (window.TaskManager) {
-                        window.TaskManager.init();
-                        return true;
-                    }
-                    return false;
-                }
-            ];
+            // Ініціалізуємо FlexEarnManager
+            if (window.FlexEarnManager) {
+                window.FlexEarnManager.init(userId);
+                console.log('✅ [MAIN] FlexEarnManager ініціалізовано');
 
-            // Запуск ініціалізаторів з перевіркою готовності
-            function runInitializers() {
-                // Копіюємо масив ініціалізаторів для видалення виконаних
-                const remainingInitializers = initializationQueue.filter(initializer => !initializer());
+                // Перевіряємо новий день
+                window.FlexEarnManager.checkNewDay();
 
-                // Якщо залишились невиконані ініціалізатори, спробуємо ще раз через 100мс
-                if (remainingInitializers.length > 0) {
-                    initializationQueue.length = 0; // Очищаємо оригінальний масив
-                    initializationQueue.push(...remainingInitializers); // Додаємо невиконані ініціалізатори
-                    setTimeout(runInitializers, 100);
-                } else {
-                    // Всі компоненти ініціалізовано
-                    console.log('All components initialized successfully');
+                // Для демонстрації можна увімкнути демо-режим
+                // window.FlexEarnManager.setDemoMode(true, 1500000);
 
-                    // Приховуємо індикатор завантаження
-                    const loadingIndicator = document.getElementById('initial-loading');
-                    if (loadingIndicator) {
-                        loadingIndicator.style.opacity = '0';
-                        setTimeout(() => {
-                            loadingIndicator.style.display = 'none';
-                        }, 300);
-                    }
-                }
+                // Додаємо глобальний доступ для налагодження
+                window.debugFlex = {
+                    manager: window.FlexEarnManager,
+                    getState: () => window.FlexEarnManager.getState(),
+                    setDemo: (balance) => window.FlexEarnManager.setDemoMode(true, balance),
+                    claim: (level) => window.FlexEarnManager.claimReward(level),
+                    reset: () => window.FlexEarnManager.resetDailyRewards()
+                };
+
+                console.log('💡 [MAIN] Для налагодження використовуйте window.debugFlex');
+                console.log('💡 [MAIN] Приклад: window.debugFlex.setDemo(2000000)');
+            } else {
+                console.error('❌ [MAIN] FlexEarnManager не знайдено!');
             }
-
-            // Запускаємо ініціалізатори
-            setTimeout(runInitializers, 100);
         });
-
-        // Додаємо обробник для швидкого відображення сторінки
-        window.addEventListener('load', function() {
-            console.log('All resources loaded');
-
-            // Приховуємо індикатор завантаження
-            const loadingIndicator = document.getElementById('initial-loading');
-            if (loadingIndicator) {
-                loadingIndicator.style.opacity = '0';
-                setTimeout(() => {
-                    loadingIndicator.style.display = 'none';
-                }, 300);
-            }
-
-            // Оновлення контентних зон, якщо необхідно
-            if (window.TaskManager && window.TaskManager.refreshAllTasks) {
-                window.TaskManager.refreshAllTasks();
-            }
-        });
-
-        // Обробка помилок завантаження скриптів
-        window.addEventListener('error', function(e) {
-            if (e.target && e.target.tagName === 'SCRIPT') {
-                console.error('Failed to load script:', e.target.src);
-
-                // Спробуємо перезавантажити скрипт
-                const failedScript = e.target;
-                const scriptSrc = failedScript.src;
-
-                if (scriptSrc && !scriptSrc.includes('already-retried')) {
-                    console.log('Attempting to reload script:', scriptSrc);
-
-                    // Створюємо новий елемент script
-                    const newScript = document.createElement('script');
-                    newScript.src = scriptSrc + '?already-retried=true';
-                    newScript.defer = failedScript.defer;
-                    newScript.async = failedScript.async;
-
-                    // Замінюємо старий елемент
-                    failedScript.parentNode.replaceChild(newScript, failedScript);
-                }
-            }
-        }, true);
     </script>
 </body>
 </html>
