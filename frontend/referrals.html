@@ -463,7 +463,7 @@
 
         <!-- Нижня навігаційна панель -->
         <nav class="nav-bar">
-            <div class="nav-item">
+             <div class="nav-item" data-section="home">
                 <div class="icon-wrapper">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -472,7 +472,7 @@
                 </div>
                 <span>Home</span>
             </div>
-            <div class="nav-item">
+            <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -480,7 +480,7 @@
                 </div>
                 <span>Earn</span>
             </div>
-            <div class="nav-item active">
+            <div class="nav-item active" data-section="referrals">
                 <div class="icon-wrapper">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -491,7 +491,7 @@
                 </div>
                 <span>Referral</span>
             </div>
-            <div class="nav-item">
+            <div class="nav-item" data-section="wallet">
                 <div class="icon-wrapper">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -501,7 +501,7 @@
                 </div>
                 <span>Wallet</span>
             </div>
-            <div class="nav-item">
+            <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1017,48 +1017,46 @@
             }
 
             // 5. Обробники для нижньої навігації
-            const navItems = document.querySelectorAll('.nav-bar .nav-item');
-            console.log("🔍 [BASE-HANDLERS] Елементи навігації:", navItems.length);
+const navItems = document.querySelectorAll('.nav-bar .nav-item');
+console.log("🔍 [BASE-HANDLERS] Елементи навігації:", navItems.length);
 
-            navItems.forEach(function(item, index) {
-                item.addEventListener('click', function() {
-                    // Отримуємо назву секції з тексту елемента
-                    const sectionName = this.querySelector('span').textContent.toLowerCase();
-                    console.log(`🔗 [BASE-HANDLERS] Клік на навігацію ${index}:`, sectionName);
+navItems.forEach(function(item) {
+    item.addEventListener('click', function(e) {
+        e.preventDefault();
+        const section = this.getAttribute('data-section');
+        console.log("📍 [BASE-HANDLERS] Перехід до секції:", section);
 
-                    // Визначаємо URL для перенаправлення
-                    let targetUrl = '';
-                    switch(sectionName) {
-                        case 'home':
-                            targetUrl = 'original-index.html';
-                            break;
-                        case 'earn':
-                            targetUrl = 'earn.html';
-                            break;
-                        case 'referral':
-                            targetUrl = 'referrals.html'; // поточна сторінка
-                            break;
-                        case 'wallet':
-                            targetUrl = 'wallet.html';
-                            break;
-                        case 'general':
-                            targetUrl = 'general.html';
-                            break;
-                        default:
-                            console.log('❓ [BASE-HANDLERS] Невідома секція:', sectionName);
-                            return;
-                    }
+        // Визначаємо URL для кожної секції
+        let targetUrl = '';
+        switch(section) {
+            case 'home':
+                targetUrl = 'original-index.html';
+                break;
+            case 'earn':
+                targetUrl = 'earn.html';
+                break;
+            case 'referrals':
+                // Поточна сторінка - нічого не робимо
+                console.log("📍 [BASE-HANDLERS] Вже на сторінці рефералів");
+                return;
+            case 'wallet':
+                targetUrl = 'wallet.html';
+                break;
+            case 'general':
+                targetUrl = 'general.html';
+                break;
+            default:
+                console.error("❌ [BASE-HANDLERS] Невідома секція:", section);
+                return;
+        }
 
-                    // Перенаправляємо на відповідну сторінку
-                    if (targetUrl && targetUrl !== 'referrals.html') {
-                        console.log('🚀 [BASE-HANDLERS] Перехід на сторінку:', targetUrl);
-                        window.location.href = targetUrl;
-                    } else {
-                        console.log('📍 [BASE-HANDLERS] Вже на цій сторінці');
-                    }
-                });
-            });
-            console.log("✅ [BASE-HANDLERS] Обробники для нижньої навігації встановлено");
+        if (targetUrl) {
+            console.log("🚀 [BASE-HANDLERS] Перенаправлення на:", targetUrl);
+            window.location.href = targetUrl;
+        }
+    });
+});
+console.log("✅ [BASE-HANDLERS] Обробники для нижньої навігації встановлено");
 
             console.log("🎉 [BASE-HANDLERS] ===== БАЗОВІ ОБРОБНИКИ ПОДІЙ УСПІШНО ІНІЦІАЛІЗОВАНО =====");
         });
