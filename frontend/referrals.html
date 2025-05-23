@@ -69,11 +69,11 @@
             <div class="winix-title">WINIX</div>
             <div class="balance-container">
                 <div class="jeton-balance">
-                    <div class="balance-value" id="user-coins">750</div>
+                    <div class="balance-value" id="user-coins">-</div>
                     <div class="balance-label">Ticket</div>
                 </div>
                 <div class="winix-balance">
-                    <div class="balance-value" id="user-tokens">1250</div>
+                    <div class="balance-value" id="user-tokens">-</div>
                     <div class="balance-label">Winix</div>
                 </div>
             </div>
@@ -121,14 +121,14 @@
                                 <div class="reward-icon direct-bonus-icon"></div>
                                 <div class="reward-details">
                                     <div class="reward-title">Бонус за реферала</div>
-                                    <div class="reward-description"><span class="bonus-amount">50</span> winix за кожного нового реферала</div>
+                                    <div class="reward-description"><span class="bonus-amount" data-value="direct-bonus">-</span> winix за кожного нового реферала</div>
                                 </div>
                             </div>
                             <div class="reward-item">
                                 <div class="reward-icon percentage-icon"></div>
                                 <div class="reward-details">
                                     <div class="reward-title">Відсотки від прибутку</div>
-                                    <div class="reward-description">10% від рефералів 1-го рівня, 5% від 2-го рівня</div>
+                                    <div class="reward-description"><span class="level1-percentage" data-value="level1-percentage">-</span>% від рефералів 1-го рівня, <span class="level2-percentage" data-value="level2-percentage">-</span>% від 2-го рівня</div>
                                 </div>
                             </div>
                             <div class="reward-item">
@@ -144,8 +144,10 @@
                     <!-- Історія бонусів -->
                     <div class="bonus-history-container">
                         <h3 class="referral-subtitle">Історія бонусів</h3>
-                        <div class="bonus-history-items">
-                            <p style="color: #888; text-align: center;">Завантаження історії бонусів...</p>
+                        <div class="bonus-history-items" id="bonus-history-items">
+                            <div class="loading-placeholder">
+                                <p style="color: #888; text-align: center;">Завантаження історії бонусів...</p>
+                            </div>
                         </div>
                     </div>
 
@@ -171,7 +173,7 @@
                                 <div class="step-number">3</div>
                                 <div class="step-details">
                                     <div class="step-title">Отримуйте винагороди</div>
-                                    <div class="step-description">Заробляйте <span class="bonus-amount">50</span> winix за кожного реферала, відсотки від їхнього прибутку та винагороди за бейджі</div>
+                                    <div class="step-description">Заробляйте <span class="bonus-amount-instruction" data-value="direct-bonus">-</span> winix за кожного реферала, відсотки від їхнього прибутку та винагороди за бейджі</div>
                                 </div>
                             </div>
                         </div>
@@ -215,32 +217,32 @@
                     <div class="badges-stats-container">
                         <div class="badges-stats-item">
                             <div class="badges-stats-icon brave-badge-icon"></div>
-                            <div class="badges-stats-value" id="earned-badges-count">0</div>
+                            <div class="badges-stats-value" id="earned-badges-count">-</div>
                             <div class="badges-stats-label">Зароблені бейджі</div>
                         </div>
                         <div class="badges-stats-item">
                             <div class="badges-stats-icon legend-badge-icon"></div>
-                            <div class="badges-stats-value" id="total-badges-count">4</div>
+                            <div class="badges-stats-value" id="total-badges-count">-</div>
                             <div class="badges-stats-label">Всього бейджів</div>
                         </div>
                         <div class="badges-stats-item">
                             <div class="badges-stats-icon innovator-badge-icon"></div>
-                            <div class="badges-stats-value" id="remaining-badges-count">4</div>
+                            <div class="badges-stats-value" id="remaining-badges-count">-</div>
                             <div class="badges-stats-label">Залишилось зібрати</div>
                         </div>
                     </div>
 
                     <!-- Наступний бейдж -->
-                    <div class="next-badge-container">
+                    <div class="next-badge-container" id="next-badge-container" style="display: none;">
                         <div class="next-badge-info">
-                            <div class="next-badge-title">Наступний бейдж: Сміливець</div>
+                            <div class="next-badge-title" id="next-badge-title">Наступний бейдж: -</div>
                             <div class="next-badge-progress">
                                 <div class="progress-bar">
-                                    <div class="progress-fill" style="width: 0%"></div>
+                                    <div class="progress-fill" id="next-badge-progress" style="width: 0%"></div>
                                 </div>
-                                <div class="progress-text">0% (0/25)</div>
+                                <div class="progress-text" id="next-badge-progress-text">-</div>
                             </div>
-                            <div class="next-badge-remaining">Залишилось: 25 рефералів</div>
+                            <div class="next-badge-remaining" id="next-badge-remaining">-</div>
                         </div>
                     </div>
 
@@ -248,72 +250,9 @@
                     <div class="badges-list-container">
                         <h3 class="referral-subtitle">Бейджі за запрошення</h3>
                         <div class="badges-list" id="badges-list">
-                            <!-- Бейдж "Сміливець" (замість Бронзовий) -->
-                            <div class="badge-item not-eligible">
-                                <div class="badge-icon brave-icon"></div>
-                                <div class="badge-info">
-                                    <div class="badge-title">Сміливець</div>
-                                    <div class="badge-description">Залучіть <span class="bronze-threshold">25</span> рефералів</div>
-                                    <div class="badge-reward">Винагорода: <span class="bronze-reward">2500</span> winix</div>
-                                    <div class="badge-progress-container">
-                                        <div class="badge-progress-bar">
-                                            <div class="badge-progress-fill bronze-progress" style="width: 0%"></div>
-                                        </div>
-                                        <div class="badge-progress-text">0% (0/25)</div>
-                                    </div>
-                                    <button class="claim-badge-button" data-badge="BRONZE" disabled>Недоступно</button>
-                                </div>
-                            </div>
-
-                            <!-- Бейдж "Новатор" (замість Срібний) -->
-                            <div class="badge-item not-eligible">
-                                <div class="badge-icon innovator-icon"></div>
-                                <div class="badge-info">
-                                    <div class="badge-title">Новатор</div>
-                                    <div class="badge-description">Залучіть <span class="silver-threshold">50</span> рефералів</div>
-                                    <div class="badge-reward">Винагорода: <span class="silver-reward">5000</span> winix</div>
-                                    <div class="badge-progress-container">
-                                        <div class="badge-progress-bar">
-                                            <div class="badge-progress-fill silver-progress" style="width: 0%"></div>
-                                        </div>
-                                        <div class="badge-progress-text">0% (0/50)</div>
-                                    </div>
-                                    <button class="claim-badge-button" data-badge="SILVER" disabled>Недоступно</button>
-                                </div>
-                            </div>
-
-                            <!-- Бейдж "Легенда" (замість Золотий) -->
-                            <div class="badge-item not-eligible">
-                                <div class="badge-icon legend-icon"></div>
-                                <div class="badge-info">
-                                    <div class="badge-title">Легенда</div>
-                                    <div class="badge-description">Залучіть <span class="gold-threshold">100</span> рефералів</div>
-                                    <div class="badge-reward">Винагорода: <span class="gold-reward">10000</span> winix</div>
-                                    <div class="badge-progress-container">
-                                        <div class="badge-progress-bar">
-                                            <div class="badge-progress-fill gold-progress" style="width: 0%"></div>
-                                        </div>
-                                        <div class="badge-progress-text">0% (0/100)</div>
-                                    </div>
-                                    <button class="claim-badge-button" data-badge="GOLD" disabled>Недоступно</button>
-                                </div>
-                            </div>
-
-                            <!-- Бейдж "Візіонер" (замість Платиновий) -->
-                            <div class="badge-item not-eligible">
-                                <div class="badge-icon visionary-icon"></div>
-                                <div class="badge-info">
-                                    <div class="badge-title">Візіонер</div>
-                                    <div class="badge-description">Залучіть <span class="platinum-threshold">500</span> рефералів</div>
-                                    <div class="badge-reward">Винагорода: <span class="platinum-reward">20000</span> winix</div>
-                                    <div class="badge-progress-container">
-                                        <div class="badge-progress-bar">
-                                            <div class="badge-progress-fill platinum-progress" style="width: 0%"></div>
-                                        </div>
-                                        <div class="badge-progress-text">0% (0/500)</div>
-                                    </div>
-                                    <button class="claim-badge-button" data-badge="PLATINUM" disabled>Недоступно</button>
-                                </div>
+                            <!-- Бейджі будуть додані динамічно -->
+                            <div class="loading-placeholder">
+                                <p style="color: #888; text-align: center;">Завантаження бейджів...</p>
                             </div>
                         </div>
                     </div>
@@ -325,17 +264,17 @@
                     <div class="activity-stats-container">
                         <div class="activity-stats-card">
                             <div class="activity-stats-icon active-referrals-icon"></div>
-                            <div class="activity-stats-value" id="active-referrals-count">0</div>
+                            <div class="activity-stats-value" id="active-referrals-count">-</div>
                             <div class="activity-stats-label">Активні реферали</div>
                         </div>
                         <div class="activity-stats-card">
                             <div class="activity-stats-icon inactive-referrals-icon"></div>
-                            <div class="activity-stats-value" id="inactive-referrals-count">0</div>
+                            <div class="activity-stats-value" id="inactive-referrals-count">-</div>
                             <div class="activity-stats-label">Неактивні реферали</div>
                         </div>
                         <div class="activity-stats-card">
                             <div class="activity-stats-icon conversion-rate-icon"></div>
-                            <div class="activity-stats-value" id="conversion-rate">0%</div>
+                            <div class="activity-stats-value" id="conversion-rate">-</div>
                             <div class="activity-stats-label">Відсоток активності</div>
                         </div>
                     </div>
@@ -346,11 +285,11 @@
                         <div class="activity-criteria-items">
                             <div class="activity-criteria-item">
                                 <div class="activity-criteria-label">Мінімальна кількість розіграшів</div>
-                                <div class="activity-criteria-value">3</div>
+                                <div class="activity-criteria-value" data-criteria="min-draws">-</div>
                             </div>
                             <div class="activity-criteria-item">
                                 <div class="activity-criteria-label">Мінімальна кількість запрошених</div>
-                                <div class="activity-criteria-value">1</div>
+                                <div class="activity-criteria-value" data-criteria="min-invited">-</div>
                             </div>
                             <div class="activity-criteria-item">
                                 <div class="activity-criteria-label">Достатньо виконання хоча б одного критерію</div>
@@ -367,7 +306,9 @@
                             <div class="activity-table-col activity-col-status">Статус</div>
                         </div>
                         <div class="activity-table-body" id="activity-table-body">
-                            <p style="color: #888; text-align: center; padding: 20px;">Завантаження даних про активність...</p>
+                            <div class="loading-placeholder">
+                                <p style="color: #888; text-align: center; padding: 20px;">Завантаження даних про активність...</p>
+                            </div>
                         </div>
                     </div>
 
@@ -375,8 +316,9 @@
                     <div class="activity-recommendations">
                         <div class="recommendations-title">Рекомендації</div>
                         <div class="recommendations-list" id="activity-recommendations">
-                            <p style="color: white; margin-bottom: 10px;">Заохочуйте рефералів брати участь у розіграшах (мінімум 3 для активності).</p>
-                            <p style="color: white;">Мотивуйте рефералів запрошувати інших користувачів (достатньо 1 запрошення для активності).</p>
+                            <div class="loading-placeholder">
+                                <p style="color: #888; text-align: center;">Завантаження рекомендацій...</p>
+                            </div>
                         </div>
                     </div>
 
@@ -386,15 +328,15 @@
                         <div class="structure-info">
                             <div class="structure-item">
                                 <div class="structure-label">Загальна кількість</div>
-                                <div class="structure-value total-referrals-count">0</div>
+                                <div class="structure-value total-referrals-count">-</div>
                             </div>
                             <div class="structure-item">
                                 <div class="structure-label">Активні реферали</div>
-                                <div class="structure-value active-referrals-count">0</div>
+                                <div class="structure-value active-referrals-count">-</div>
                             </div>
                             <div class="structure-item">
                                 <div class="structure-label">% конверсії</div>
-                                <div class="structure-value conversion-rate">0%</div>
+                                <div class="structure-value conversion-rate">-</div>
                             </div>
                         </div>
 
@@ -410,21 +352,27 @@
                             <!-- Вкладка рефералів 1-го рівня -->
                             <div class="tab-pane active" id="level1-tab">
                                 <div class="referral-list" id="level1-list">
-                                    <p style="color: #888; text-align: center;">Завантаження рефералів 1-го рівня...</p>
+                                    <div class="loading-placeholder">
+                                        <p style="color: #888; text-align: center;">Завантаження рефералів 1-го рівня...</p>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Вкладка рефералів 2-го рівня -->
                             <div class="tab-pane" id="level2-tab">
                                 <div class="referral-list" id="level2-list">
-                                    <p style="color: #888; text-align: center;">Завантаження рефералів 2-го рівня...</p>
+                                    <div class="loading-placeholder">
+                                        <p style="color: #888; text-align: center;">Завантаження рефералів 2-го рівня...</p>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Вкладка ієрархії рефералів -->
                             <div class="tab-pane" id="hierarchy-tab">
                                 <div class="referral-hierarchy" id="referral-hierarchy">
-                                    <p style="color: #888; text-align: center;">Завантаження ієрархії рефералів...</p>
+                                    <div class="loading-placeholder">
+                                        <p style="color: #888; text-align: center;">Завантаження ієрархії рефералів...</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -520,6 +468,14 @@
     </div>
 
     <style>
+        .loading-placeholder {
+            width: 100%;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .toast-message.warning {
             background-color: #ff9800;
             color: white;
@@ -538,530 +494,248 @@
 
     <!-- Основні скрипти -->
     <script src="js/telegram-web-app.js"></script>
-
-    <script>
-        // Ініціалізація та перевірка Telegram WebApp
-        (function() {
-            console.log("🔄 [TELEGRAM-INIT] ===== ПОЧАТОК ІНІЦІАЛІЗАЦІЇ TELEGRAM WEBAPP =====");
-            console.log("🕐 [TELEGRAM-INIT] Час:", new Date().toISOString());
-            console.log("📊 [TELEGRAM-INIT] Перевірка глобальних об'єктів:", {
-                hasTelegram: typeof window.Telegram !== 'undefined',
-                hasWebApp: window.Telegram && typeof window.Telegram.WebApp !== 'undefined'
-            });
-
-            if (!window.Telegram || !window.Telegram.WebApp) {
-                console.error("❌ [TELEGRAM-INIT] Telegram WebApp API не завантажено!");
-                console.error("❌ [TELEGRAM-INIT] window.Telegram:", window.Telegram);
-                return;
-            }
-
-            try {
-                console.log("🔄 [TELEGRAM-INIT] Виклик Telegram.WebApp.ready()...");
-                window.Telegram.WebApp.ready();
-
-                console.log("🔄 [TELEGRAM-INIT] Виклик Telegram.WebApp.expand()...");
-                window.Telegram.WebApp.expand();
-
-                console.log("✅ [TELEGRAM-INIT] Telegram WebApp успішно ініціалізовано");
-                console.log("📊 [TELEGRAM-INIT] WebApp дані:", {
-                    version: window.Telegram.WebApp.version,
-                    platform: window.Telegram.WebApp.platform,
-                    colorScheme: window.Telegram.WebApp.colorScheme,
-                    themeParams: window.Telegram.WebApp.themeParams,
-                    initDataUnsafe: window.Telegram.WebApp.initDataUnsafe
-                });
-
-                if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                    const user = window.Telegram.WebApp.initDataUnsafe.user;
-                    console.log("👤 [TELEGRAM-INIT] Дані користувача:", {
-                        id: user.id,
-                        first_name: user.first_name,
-                        last_name: user.last_name,
-                        username: user.username,
-                        language_code: user.language_code
-                    });
-
-                    const userId = parseInt(user.id);
-                    localStorage.setItem('telegram_user_id', userId.toString());
-                    console.log("✅ [TELEGRAM-INIT] ID збережено в localStorage:", userId);
-
-                    // Одразу встановлюємо ID в DOM
-                    setTimeout(function() {
-                        console.log("🔄 [TELEGRAM-INIT] Оновлення ID в DOM...");
-                        const userIdElements = document.querySelectorAll('.user-id-value');
-                        userIdElements.forEach(function(element, index) {
-                            console.log(`  🔄 [TELEGRAM-INIT] Оновлення елемента ${index}:`, element);
-                            element.textContent = userId;
-                        });
-                    }, 100);
-                } else {
-                    console.warn("⚠️ [TELEGRAM-INIT] Дані користувача відсутні в Telegram WebApp");
-                    console.log("📊 [TELEGRAM-INIT] initDataUnsafe:", window.Telegram.WebApp.initDataUnsafe);
-                }
-            } catch (e) {
-                console.error("❌ [TELEGRAM-INIT] КРИТИЧНА ПОМИЛКА ініціалізації Telegram WebApp:", e);
-                console.error("❌ [TELEGRAM-INIT] Stack trace:", e.stack);
-            }
-
-            console.log("✅ [TELEGRAM-INIT] ===== КІНЕЦЬ ІНІЦІАЛІЗАЦІЇ TELEGRAM WEBAPP =====");
-        })();
-    </script>
-
     <script src="js/auth.js"></script>
     <script src="js/core.js"></script>
     <script src="js/referrals/api.js"></script>
-    <!-- Реферальні модулі - виправлені JS файли -->
+
+    <!-- Реферальні модулі -->
     <script src="js/referrals/constants.js"></script>
     <script src="js/referrals/utils.js"></script>
     <script src="js/referrals/services.js"></script>
     <script src="js/referrals/store.js"></script>
     <script src="js/referrals/Integration.js"></script>
 
+    <!-- Динамічний контроллер даних -->
+    <script src="js/referrals/dynamic-data-controller.js"></script>
+
     <!-- Ініціалізація реферальної системи -->
     <script>
         console.log("🌟 [MAIN] ===== ПОЧАТОК ГОЛОВНОГО СКРИПТУ =====");
         console.log("🕐 [MAIN] Час:", new Date().toISOString());
 
-        function safeInitReferralModules() {
-            console.log("🔄 [MAIN] ===== safeInitReferralModules START =====");
+        // Глобальний контролер динамічних даних
+        window.ReferralDynamicData = null;
+
+        async function initializeAllSystems() {
+            console.log("🚀 [MAIN] Ініціалізація всіх систем...");
 
             try {
-                console.log("📊 [MAIN] Перевірка завантажених модулів...");
+                // 1. Ініціалізація Telegram WebApp
+                initializeTelegramWebApp();
 
-                // Перевіряємо чи всі модулі завантажені
-                const moduleChecks = {
-                    ReferralConstants: typeof window.ReferralConstants !== 'undefined',
-                    ReferralUtils: typeof window.ReferralUtils !== 'undefined',
-                    ReferralServices: typeof window.ReferralServices !== 'undefined',
-                    ReferralAPI: typeof window.ReferralAPI !== 'undefined',
-                    ReferralStore: typeof window.ReferralStore !== 'undefined',
-                    initReferralSystem: typeof window.initReferralSystem === 'function'
-                };
-
-                console.log("📊 [MAIN] Статус модулів:", moduleChecks);
-
-                const missingModules = [];
-                Object.keys(moduleChecks).forEach(function(moduleName) {
-                    if (!moduleChecks[moduleName]) {
-                        missingModules.push(moduleName);
-                    }
-                });
-
-                if (missingModules.length > 0) {
-                    console.error("❌ [MAIN] КРИТИЧНА ПОМИЛКА: Відсутні модулі:", missingModules);
-                    showErrorToast('Помилка завантаження модулів: ' + missingModules.join(', '));
-                    return;
+                // 2. Отримання ID користувача
+                const userId = getUserId();
+                if (!userId) {
+                    throw new Error("Не вдалося отримати ID користувача");
                 }
 
-                console.log("✅ [MAIN] Усі модулі завантажено успішно!");
+                // 3. Ініціалізація динамічного контролера даних
+                console.log("🔄 [MAIN] Ініціалізація динамічного контролера...");
+                window.ReferralDynamicData = new DynamicDataController(userId);
 
-                // Детальна перевірка кожного модуля
-                console.log("📊 [MAIN] Детальна інформація про модулі:");
-                console.log("  - ReferralConstants:", {
-                    type: typeof window.ReferralConstants,
-                    properties: Object.keys(window.ReferralConstants || {}).length
-                });
-                console.log("  - ReferralUtils:", {
-                    type: typeof window.ReferralUtils,
-                    methods: Object.keys(window.ReferralUtils || {}).length
-                });
-                console.log("  - ReferralServices:", {
-                    type: typeof window.ReferralServices,
-                    methods: Object.keys(window.ReferralServices || {}).length
-                });
-                console.log("  - ReferralAPI:", {
-                    type: typeof window.ReferralAPI,
-                    methods: Object.keys(window.ReferralAPI || {}).length
-                });
-                console.log("  - ReferralStore:", {
-                    type: typeof window.ReferralStore,
-                    properties: Object.keys(window.ReferralStore || {}).length
-                });
+                // 4. Завантаження конфігурації та початкових даних
+                console.log("🔄 [MAIN] Завантаження конфігурації...");
+                await window.ReferralDynamicData.initialize();
 
-                // Перевіряємо наявність API
-                console.log("🏥 [MAIN] Перевірка доступності API...");
-                if (window.ReferralAPI && window.ReferralAPI.checkAPIHealth) {
-                    window.ReferralAPI.checkAPIHealth()
-                        .then(function(isHealthy) {
-                            console.log("🏥 [MAIN] Результат перевірки API:", isHealthy);
-                            if (!isHealthy) {
-                                console.warn("⚠️ [MAIN] API недоступний або має проблеми");
-                                showErrorToast('API сервер недоступний. Перевірте підключення.');
-                            }
-                            startReferralSystem();
-                        })
-                        .catch(function(error) {
-                            console.error("❌ [MAIN] Помилка перевірки API:", error);
-                            showErrorToast('Не вдалося підключитися до сервера.');
-                            // Все одно намагаємося запустити систему
-                            startReferralSystem();
-                        });
-                } else {
-                    console.log("⚠️ [MAIN] checkAPIHealth недоступний, пропускаємо перевірку");
-                    startReferralSystem();
-                }
+                // 5. Ініціалізація реферальної системи
+                console.log("🔄 [MAIN] Ініціалізація реферальної системи...");
+                await safeInitReferralModules();
+
+                console.log("✅ [MAIN] Всі системи успішно ініціалізовані!");
 
             } catch (error) {
-                console.error("❌ [MAIN] КРИТИЧНА ПОМИЛКА в safeInitReferralModules:", error);
-                console.error("❌ [MAIN] Stack trace:", error.stack);
-                showErrorToast('Критична помилка ініціалізації');
+                console.error("❌ [MAIN] Помилка ініціалізації:", error);
+                showErrorToast("Помилка ініціалізації: " + error.message);
             }
         }
 
-        function startReferralSystem() {
-            console.log("🚀 [MAIN] ===== startReferralSystem START =====");
-            console.log("🕐 [MAIN] Час:", new Date().toISOString());
+        function initializeTelegramWebApp() {
+            console.log("🔄 [TELEGRAM-INIT] Ініціалізація Telegram WebApp...");
 
-            // Перевіряємо наявність ID користувача
-            const userId = getUserId();
-            console.log("👤 [MAIN] ID користувача для запуску:", userId);
-
-            if (!userId) {
-                console.error("❌ [MAIN] ID користувача відсутній! Неможливо запустити систему");
-                showErrorToast('Не вдалося отримати ID користувача. Спробуйте перезавантажити сторінку.');
+            if (!window.Telegram || !window.Telegram.WebApp) {
+                console.error("❌ [TELEGRAM-INIT] Telegram WebApp API не завантажено!");
                 return;
             }
 
-            // Запускаємо ініціалізацію реферальної системи
-            console.log("🔄 [MAIN] Виклик window.initReferralSystem()...");
+            try {
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
 
-            window.initReferralSystem()
-                .then(function(integration) {
-                    console.log("🎉 [MAIN] ===== РЕФЕРАЛЬНА СИСТЕМА УСПІШНО ІНІЦІАЛІЗОВАНА =====");
-                    console.log("📊 [MAIN] Отриманий об'єкт integration:", {
-                        type: typeof integration,
-                        hasInit: typeof integration.init === 'function',
-                        userId: integration.userId,
-                        isInitialized: integration.isInitialized
-                    });
+                if (window.Telegram.WebApp.initDataUnsafe?.user) {
+                    const user = window.Telegram.WebApp.initDataUnsafe.user;
+                    const userId = parseInt(user.id);
+                    localStorage.setItem('telegram_user_id', userId.toString());
 
-                    // Додаємо глобальні функції для налагодження
-                    window.debugReferrals = {
-                        integration: integration,
-                        constants: window.ReferralConstants,
-                        utils: window.ReferralUtils,
-                        services: window.ReferralServices,
-                        api: window.ReferralAPI,
-                        store: window.ReferralStore,
-                        getState: function() {
-                            if (integration && integration.store) {
-                                return integration.store.getState();
-                            }
-                            return null;
-                        },
-                        reload: function() {
-                            console.log("🔄 [DEBUG] Перезавантаження даних...");
-                            if (integration && integration.loadInitialData) {
-                                return integration.loadInitialData();
-                            }
-                        }
-                    };
+                    // Оновлюємо ID в DOM
+                    setTimeout(() => {
+                        document.querySelectorAll('.user-id-value').forEach(element => {
+                            element.textContent = userId;
+                        });
+                    }, 100);
+                }
+            } catch (e) {
+                console.error("❌ [TELEGRAM-INIT] Помилка ініціалізації:", e);
+            }
+        }
 
-                    console.log("🔍 [MAIN] Налагоджувальні функції додано в window.debugReferrals");
-                    console.log("💡 [MAIN] Підказка: використовуйте window.debugReferrals для налагодження");
-                })
-                .catch(function(error) {
-                    console.error("❌ [MAIN] ===== ПОМИЛКА ІНІЦІАЛІЗАЦІЇ РЕФЕРАЛЬНОЇ СИСТЕМИ =====");
-                    console.error("❌ [MAIN] Тип помилки:", error.name);
-                    console.error("❌ [MAIN] Повідомлення:", error.message);
-                    console.error("❌ [MAIN] Stack trace:", error.stack);
-                    showErrorToast('Помилка ініціалізації системи: ' + error.message);
-                });
+        function safeInitReferralModules() {
+            console.log("🔄 [MAIN] Перевірка та ініціалізація реферальних модулів...");
+
+            const moduleChecks = {
+                ReferralConstants: typeof window.ReferralConstants !== 'undefined',
+                ReferralUtils: typeof window.ReferralUtils !== 'undefined',
+                ReferralServices: typeof window.ReferralServices !== 'undefined',
+                ReferralAPI: typeof window.ReferralAPI !== 'undefined',
+                ReferralStore: typeof window.ReferralStore !== 'undefined',
+                initReferralSystem: typeof window.initReferralSystem === 'function'
+            };
+
+            console.log("📊 [MAIN] Статус модулів:", moduleChecks);
+
+            const missingModules = Object.keys(moduleChecks).filter(module => !moduleChecks[module]);
+            if (missingModules.length > 0) {
+                throw new Error("Відсутні модулі: " + missingModules.join(', '));
+            }
+
+            return window.initReferralSystem();
         }
 
         function getUserId() {
-            console.log("🔍 [MAIN] === getUserId START ===");
+            console.log("🔍 [MAIN] Отримання ID користувача...");
 
-            // Спочатку пробуємо з Telegram
+            // Telegram WebApp
             if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
-                const tgId = parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
-                console.log("✅ [MAIN] ID з Telegram WebApp:", tgId);
-                return tgId;
+                return parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
             }
 
-            // Потім з localStorage
-            const telegramId = localStorage.getItem('telegram_user_id');
-            const userId = localStorage.getItem('user_id');
-
-            console.log("📊 [MAIN] ID з localStorage:", {
-                telegram_user_id: telegramId,
-                user_id: userId
-            });
-
-            const storedId = telegramId || userId;
+            // localStorage
+            const storedId = localStorage.getItem('telegram_user_id') || localStorage.getItem('user_id');
             if (storedId) {
                 const numericId = parseInt(storedId);
-                if (!isNaN(numericId)) {
-                    console.log("✅ [MAIN] ID з localStorage:", numericId);
-                    return numericId;
-                }
+                if (!isNaN(numericId)) return numericId;
             }
 
-            // Демо режим - показуємо попередження
-            console.error('❌ [MAIN] ID користувача не знайдено в жодному джерелі!');
-            showErrorToast('Не вдалося отримати дані користувача');
             return null;
         }
 
         function showErrorToast(message) {
-            console.log("🔴 [MAIN] Показ помилки:", message);
             const toast = document.getElementById('copy-toast');
             if (toast) {
                 toast.textContent = message;
                 toast.classList.add('show', 'error');
-                setTimeout(function() {
-                    toast.classList.remove('show', 'error');
-                }, 5000);
+                setTimeout(() => toast.classList.remove('show', 'error'), 5000);
             }
         }
 
-        // Запускаємо ініціалізацію після завантаження DOM
-        console.log("📊 [MAIN] document.readyState:", document.readyState);
-
-        if (document.readyState === 'loading') {
-            console.log("⏳ [MAIN] Очікуємо завантаження DOM...");
-            document.addEventListener('DOMContentLoaded', function() {
-                console.log("✅ [MAIN] DOM завантажено, запускаємо ініціалізацію");
-                safeInitReferralModules();
-            });
-        } else {
-            console.log("✅ [MAIN] DOM вже завантажено, запускаємо ініціалізацію");
-            safeInitReferralModules();
-        }
-    </script>
-
-    <!-- Вбудований скрипт для ініціалізації базової функціональності -->
-    <script>
+        // Ініціалізація базових обробників подій
         document.addEventListener('DOMContentLoaded', function() {
-            console.log("🎯 [BASE-HANDLERS] ===== ІНІЦІАЛІЗАЦІЯ БАЗОВИХ ОБРОБНИКІВ ПОДІЙ =====");
-            console.log("🕐 [BASE-HANDLERS] Час:", new Date().toISOString());
+            console.log("🎯 [BASE-HANDLERS] Ініціалізація обробників...");
 
-            // 1. Обробник для кнопки копіювання посилання
+            // Обробник копіювання посилання
             const copyButton = document.querySelector('.copy-button');
-            console.log("🔍 [BASE-HANDLERS] Пошук кнопки копіювання:", {
-                found: !!copyButton,
-                element: copyButton
-            });
-
             if (copyButton) {
-                copyButton.addEventListener('click', function() {
-                    console.log('📋 [BASE-HANDLERS] === КЛІК НА КНОПКУ КОПІЮВАННЯ ===');
-
-                    const linkDisplay = document.querySelector('.link-display');
-                    const linkText = linkDisplay ? linkDisplay.textContent : null;
-
-                    console.log('📊 [BASE-HANDLERS] Дані для копіювання:', {
-                        hasLinkDisplay: !!linkDisplay,
-                        linkText: linkText,
-                        isLoading: linkText === 'Завантаження...'
-                    });
-
-                    if (linkText && linkText !== 'Завантаження...') {
-                        console.log('🔄 [BASE-HANDLERS] Спроба копіювання...');
-
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                            console.log('📋 [BASE-HANDLERS] Використання Clipboard API...');
-
-                            navigator.clipboard.writeText(linkText)
-                                .then(function() {
-                                    console.log('✅ [BASE-HANDLERS] Успішно скопійовано через Clipboard API');
-                                    showSuccessToast('Посилання скопійовано!');
-                                    copyButton.classList.add('clicked');
-                                    setTimeout(function() {
-                                        copyButton.classList.remove('clicked');
-                                    }, 300);
-                                })
-                                .catch(function(err) {
-                                    console.error('❌ [BASE-HANDLERS] Помилка Clipboard API:', err);
-                                    showErrorToast('Помилка копіювання');
-                                });
-                        } else {
-                            // Fallback для старих браузерів
-                            console.log('📋 [BASE-HANDLERS] Fallback метод копіювання...');
-                            try {
-                                const textArea = document.createElement('textarea');
-                                textArea.value = linkText;
-                                document.body.appendChild(textArea);
-                                textArea.select();
-                                const success = document.execCommand('copy');
-                                document.body.removeChild(textArea);
-
-                                console.log('📋 [BASE-HANDLERS] Результат execCommand:', success);
-
-                                if (success) {
-                                    showSuccessToast('Посилання скопійовано!');
-                                } else {
-                                    showErrorToast('Помилка копіювання');
-                                }
-                            } catch (err) {
-                                console.error('❌ [BASE-HANDLERS] Помилка fallback методу:', err);
-                                showErrorToast('Помилка копіювання');
-                            }
-                        }
-                    } else {
-                        console.warn('⚠️ [BASE-HANDLERS] Посилання ще не готове');
-                        showErrorToast('Посилання ще завантажується');
-                    }
-                });
-                console.log("✅ [BASE-HANDLERS] Обробник для кнопки копіювання встановлено");
+                copyButton.addEventListener('click', handleCopyLink);
             }
 
-            function showSuccessToast(message) {
-                console.log('✅ [BASE-HANDLERS] Показ успішного повідомлення:', message);
-                const toast = document.getElementById('copy-toast');
-                if (toast) {
-                    toast.textContent = message;
-                    toast.classList.add('show', 'success');
-                    setTimeout(function() {
-                        toast.classList.remove('show', 'success');
-                    }, 3000);
-                }
-            }
+            // Обробники вкладок
+            initializeTabs();
 
-            function showErrorToast(message) {
-                console.log('❌ [BASE-HANDLERS] Показ повідомлення про помилку:', message);
-                const toast = document.getElementById('copy-toast');
-                if (toast) {
-                    toast.textContent = message;
-                    toast.classList.add('show', 'error');
-                    setTimeout(function() {
-                        toast.classList.remove('show', 'error');
-                    }, 3000);
-                }
-            }
-
-            // 2. Обробники для внутрішніх вкладок рефералів
-            const tabs = document.querySelectorAll('.referral-tab');
-            console.log("🔍 [BASE-HANDLERS] Знайдено внутрішніх вкладок:", tabs.length);
-
-            tabs.forEach(function(tab, index) {
-                tab.addEventListener('click', function() {
-                    console.log(`📑 [BASE-HANDLERS] Клік на внутрішню вкладку ${index}:`, tab.dataset.tab);
-
-                    // Видаляємо клас active з усіх вкладок
-                    tabs.forEach(function(t) {
-                        t.classList.remove('active');
-                    });
-
-                    // Додаємо клас active до обраної вкладки
-                    tab.classList.add('active');
-
-                    // Отримуємо ідентифікатор вкладки
-                    const tabId = tab.dataset.tab;
-
-                    // Приховуємо всі панелі
-                    const panes = document.querySelectorAll('.tab-pane');
-                    panes.forEach(function(pane) {
-                        pane.classList.remove('active');
-                    });
-
-                    // Показуємо відповідну панель
-                    const activePane = document.getElementById(tabId + '-tab');
-                    if (activePane) {
-                        activePane.classList.add('active');
-                        console.log("✅ [BASE-HANDLERS] Активовано внутрішню панель:", tabId);
-                    }
-                });
-            });
-            console.log("✅ [BASE-HANDLERS] Обробники для внутрішніх вкладок встановлено");
-
-            // 3. Обробники для головних вкладок
-            const mainTabs = document.querySelectorAll('.main-tabs .tab-button');
-            console.log("🔍 [BASE-HANDLERS] Знайдено головних вкладок:", mainTabs.length);
-
-            mainTabs.forEach(function(tab, index) {
-                tab.addEventListener('click', function() {
-                    console.log(`📑 [BASE-HANDLERS] Клік на головну вкладку ${index}:`, tab.dataset.tab);
-
-                    // Видаляємо клас active з усіх вкладок
-                    mainTabs.forEach(function(t) {
-                        t.classList.remove('active');
-                    });
-
-                    // Додаємо клас active до обраної вкладки
-                    tab.classList.add('active');
-
-                    // Отримуємо ідентифікатор вкладки
-                    const tabId = tab.dataset.tab;
-
-                    // Приховуємо всі панелі
-                    const panes = document.querySelectorAll('.main-tab-pane');
-                    panes.forEach(function(pane) {
-                        pane.classList.remove('active');
-                    });
-
-                    // Показуємо відповідну панель
-                    const activePane = document.getElementById(tabId + '-tab');
-                    if (activePane) {
-                        activePane.classList.add('active');
-                        console.log("✅ [BASE-HANDLERS] Активовано головну панель:", tabId);
-                    }
-                });
-            });
-            console.log("✅ [BASE-HANDLERS] Обробники для головних вкладок встановлено");
-
-            // 4. Обробник для кнопки закриття деталей реферала
+            // Обробник закриття деталей
             const closeButton = document.querySelector('.referral-details-close');
-            console.log("🔍 [BASE-HANDLERS] Кнопка закриття деталей:", !!closeButton);
-
             if (closeButton) {
-                closeButton.addEventListener('click', function() {
-                    console.log("❌ [BASE-HANDLERS] Закриття деталей реферала");
-                    const detailsContainer = document.getElementById('referral-details');
-                    if (detailsContainer) {
-                        detailsContainer.classList.remove('show');
-                        console.log("✅ [BASE-HANDLERS] Деталі реферала приховано");
-                    }
+                closeButton.addEventListener('click', () => {
+                    document.getElementById('referral-details').classList.remove('show');
                 });
-                console.log("✅ [BASE-HANDLERS] Обробник для кнопки закриття деталей встановлено");
             }
 
-            // 5. Обробники для нижньої навігації
-            const navItems = document.querySelectorAll('.nav-bar .nav-item');
-            console.log("🔍 [BASE-HANDLERS] Елементи навігації:", navItems.length);
+            // Обробники навігації
+            initializeNavigation();
 
-            navItems.forEach(function(item, index) {
+            // Запуск ініціалізації систем
+            initializeAllSystems();
+        });
+
+        function handleCopyLink() {
+            const linkDisplay = document.querySelector('.link-display');
+            const linkText = linkDisplay?.textContent;
+
+            if (linkText && linkText !== 'Завантаження...') {
+                navigator.clipboard.writeText(linkText)
+                    .then(() => {
+                        showSuccessToast('Посилання скопійовано!');
+                        this.classList.add('clicked');
+                        setTimeout(() => this.classList.remove('clicked'), 300);
+                    })
+                    .catch(err => {
+                        console.error('Помилка копіювання:', err);
+                        showErrorToast('Помилка копіювання');
+                    });
+            } else {
+                showErrorToast('Посилання ще завантажується');
+            }
+        }
+
+        function initializeTabs() {
+            // Головні вкладки
+            document.querySelectorAll('.main-tabs .tab-button').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    switchTab(this, '.main-tabs .tab-button', '.main-tab-pane', 'data-tab');
+                });
+            });
+
+            // Внутрішні вкладки
+            document.querySelectorAll('.referral-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    switchTab(this, '.referral-tab', '.tab-pane', 'data-tab');
+                });
+            });
+        }
+
+        function switchTab(clickedTab, tabSelector, paneSelector, dataAttr) {
+            // Видаляємо active з усіх вкладок
+            document.querySelectorAll(tabSelector).forEach(t => t.classList.remove('active'));
+
+            // Додаємо active до обраної
+            clickedTab.classList.add('active');
+
+            // Перемикаємо панелі
+            const tabId = clickedTab.getAttribute(dataAttr);
+            document.querySelectorAll(paneSelector).forEach(pane => {
+                pane.classList.remove('active');
+            });
+
+            const activePane = document.getElementById(tabId + '-tab');
+            if (activePane) activePane.classList.add('active');
+        }
+
+        function initializeNavigation() {
+            document.querySelectorAll('.nav-bar .nav-item').forEach(item => {
                 item.addEventListener('click', function() {
-                    // Отримуємо назву секції з тексту елемента
                     const sectionName = this.querySelector('span').textContent.toLowerCase();
-                    console.log(`🔗 [BASE-HANDLERS] Клік на навігацію ${index}:`, sectionName);
+                    const routes = {
+                        'home': 'original-index.html',
+                        'earn': 'earn.html',
+                        'referral': 'referrals.html',
+                        'wallet': 'wallet.html',
+                        'general': 'general.html'
+                    };
 
-                    // Визначаємо URL для перенаправлення
-                    let targetUrl = '';
-                    switch(sectionName) {
-                        case 'home':
-                            targetUrl = 'original-index.html';
-                            break;
-                        case 'earn':
-                            targetUrl = 'earn.html';
-                            break;
-                        case 'referral':
-                            targetUrl = 'referrals.html'; // поточна сторінка
-                            break;
-                        case 'wallet':
-                            targetUrl = 'wallet.html';
-                            break;
-                        case 'general':
-                            targetUrl = 'general.html';
-                            break;
-                        default:
-                            console.log('❓ [BASE-HANDLERS] Невідома секція:', sectionName);
-                            return;
-                    }
-
-                    // Перенаправляємо на відповідну сторінку
+                    const targetUrl = routes[sectionName];
                     if (targetUrl && targetUrl !== 'referrals.html') {
-                        console.log('🚀 [BASE-HANDLERS] Перехід на сторінку:', targetUrl);
                         window.location.href = targetUrl;
-                    } else {
-                        console.log('📍 [BASE-HANDLERS] Вже на цій сторінці');
                     }
                 });
             });
-            console.log("✅ [BASE-HANDLERS] Обробники для нижньої навігації встановлено");
+        }
 
-            console.log("🎉 [BASE-HANDLERS] ===== БАЗОВІ ОБРОБНИКИ ПОДІЙ УСПІШНО ІНІЦІАЛІЗОВАНО =====");
-        });
+        function showSuccessToast(message) {
+            const toast = document.getElementById('copy-toast');
+            if (toast) {
+                toast.textContent = message;
+                toast.classList.add('show', 'success');
+                setTimeout(() => toast.classList.remove('show', 'success'), 3000);
+            }
+        }
     </script>
 </body>
 </html>
