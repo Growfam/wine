@@ -458,3 +458,125 @@
         padding: 0.25rem 0.625rem;
     }
 }
+/* ======== ІНДИКАТОР ЗАВАНТАЖЕННЯ ======== */
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    border-top-color: #b366ff;
+    border-right-color: #b366ff;
+    animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ======== TOAST ПОВІДОМЛЕННЯ ======== */
+.toast-message {
+    position: fixed;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: rgba(139, 92, 246, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 1.5rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    z-index: 2000;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width: 250px;
+    text-align: center;
+}
+
+.toast-message.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.toast-message.success {
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.95), rgba(69, 160, 73, 0.95));
+}
+
+.toast-message.error {
+    background: linear-gradient(135deg, rgba(244, 67, 54, 0.95), rgba(211, 47, 47, 0.95));
+}
+
+.toast-message.warning {
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.95), rgba(245, 124, 0, 0.95));
+}
+
+.toast-message.info {
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.95), rgba(30, 136, 229, 0.95));
+}
+
+/* ======== МЕДІА-ЗАПИТИ ======== */
+@media (max-width: 450px) {
+    .section-title {
+        font-size: 1.125rem;
+    }
+
+    .task-item {
+        padding: 0.875rem;
+    }
+
+    .task-title {
+        font-size: 0.9375rem;
+    }
+
+    .task-description {
+        font-size: 0.8125rem;
+    }
+
+    .action-button {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.8125rem;
+    }
+
+    .toast-message {
+        top: 1rem;
+        padding: 0.875rem 1.5rem;
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 350px) {
+    .task-header {
+        gap: 0.75rem;
+    }
+
+    .task-icon {
+        width: 2rem;
+        height: 2rem;
+        font-size: 1rem;
+    }
+
+    .reward-badge {
+        font-size: 0.8125rem;
+        padding: 0.25rem 0.625rem;
+    }
+
+    .toast-message {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.8125rem;
+        min-width: 200px;
+    }
+}
