@@ -1177,3 +1177,4 @@ window.ReferralAPI = (function() {
     checkIfReferral: checkIfReferral
   };
 })();
+console.log('✅ ReferralAPI завантажено успішно:', window.ReferralAPI);
