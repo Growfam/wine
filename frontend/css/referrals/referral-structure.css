@@ -1,0 +1,232 @@
+
+/* WINIX Реферальна система - структура рефералів */
+
+/* Структура рефералів - загальна інформація */
+.referral-structure-container {
+    width: 100%;
+    margin-bottom: 1.25rem;
+}
+
+.structure-info {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.structure-item {
+    flex: 1;
+    background: var(--bg-item);
+    border-radius: var(--border-radius-md);
+    padding: 0.875rem;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.structure-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.structure-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.structure-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+/* Вкладки для перемикання */
+.referral-tabs {
+    display: flex;
+    width: 100%;
+    margin-bottom: 1rem;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 0.75rem;
+    padding: 0.25rem;
+    border: none;
+}
+
+.referral-tab {
+    flex: 1;
+    text-align: center;
+    padding: 0.625rem;
+    font-size: 0.9375rem;
+    font-weight: bold;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 0.625rem;
+    transition: all 0.3s ease;
+}
+
+.referral-tab.active {
+    background: var(--primary-gradient);
+    color: white;
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+}
+
+/* Контент вкладок */
+.referral-tab-content {
+    width: 100%;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+    animation: fade-in 0.3s ease-out;
+}
+
+/* Списки рефералів */
+.referral-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.referral-item {
+    background: var(--bg-item);
+    border-radius: var(--border-radius-md);
+    padding: 0.875rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.referral-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 70% 50%, rgba(78, 181, 247, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.referral-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.referral-item:hover::before {
+    opacity: 1;
+}
+
+.referral-item.level-1 {
+    border-left: 3px solid var(--level1-color);
+}
+
+.referral-item.level-2 {
+    border-left: 3px solid var(--level2-color);
+}
+
+.referral-id {
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.referral-date {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.referral-info {
+    flex: 1;
+    padding: 0 1rem;
+}
+
+.referral-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.referral-earnings {
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.referral-status {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    margin-top: 0.25rem;
+}
+
+.referral-status.active {
+    background-color: rgba(0, 201, 167, 0.2);
+    color: #00C9A7;
+    border: 1px solid rgba(0, 201, 167, 0.3);
+}
+
+.referral-status.inactive {
+    background-color: rgba(244, 67, 54, 0.2);
+    color: #F44336;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+/* Анімація для появи нових елементів */
+@keyframes item-appear {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.referral-item {
+    animation: item-appear 0.3s ease-out;
+}
+
+/* Медіа-запити для адаптивності */
+@media (max-width: 450px) {
+    .structure-info {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .referral-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .referral-info {
+        padding: 0.5rem 0;
+        width: 100%;
+    }
+
+    .referral-stats {
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 0.5rem;
+    }
+}
+
+@media (max-width: 350px) {
+    .referral-tab {
+        font-size: 0.875rem;
+        padding: 0.5rem;
+    }
+}

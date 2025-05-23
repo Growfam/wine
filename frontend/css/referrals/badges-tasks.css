@@ -1,0 +1,924 @@
+/**
+ * CSS стилі для відображення бейджів і завдань у реферальній системі
+ * Файл: css/referrals/badges-tasks.css
+ */
+
+/* Загальні стилі для секції бейджів та завдань */
+.badges-stats-container,
+.tasks-stats-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.badges-stats-item,
+.tasks-stats-item {
+    flex: 1;
+    background: var(--bg-item);
+    border-radius: var(--border-radius-md);
+    padding: 0.875rem;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.badges-stats-item::before,
+.tasks-stats-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(78, 181, 247, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.badges-stats-item:hover,
+.tasks-stats-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.badges-stats-item:hover::before,
+.tasks-stats-item:hover::before {
+    opacity: 1;
+}
+
+.badges-stats-label,
+.tasks-stats-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.badges-stats-value,
+.tasks-stats-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.badges-stats-icon,
+.tasks-stats-icon {
+    width: 3rem;
+    height: 3rem;
+    margin: 0 auto 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: white;
+}
+
+/* Іконки бейджів */
+.bronze-badge-icon {
+    background: linear-gradient(135deg, #CD7F32, #8B4513);
+    box-shadow: 0 0 15px rgba(205, 127, 50, 0.5);
+    animation: bronze-glow 3s infinite ease-in-out;
+}
+
+.bronze-badge-icon::before {
+    content: 'B';
+}
+
+.silver-badge-icon {
+    background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+    box-shadow: 0 0 15px rgba(192, 192, 192, 0.5);
+    animation: silver-glow 3s infinite ease-in-out;
+}
+
+.silver-badge-icon::before {
+    content: 'S';
+}
+
+.gold-badge-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    animation: gold-glow 3s infinite ease-in-out;
+}
+
+.gold-badge-icon::before {
+    content: 'G';
+}
+
+.platinum-badge-icon {
+    background: linear-gradient(135deg, #E5E4E2, #C9C0BB);
+    box-shadow: 0 0 15px rgba(229, 228, 226, 0.5);
+    animation: platinum-glow 3s infinite ease-in-out;
+}
+
+.platinum-badge-icon::before {
+    content: 'P';
+}
+
+/* Іконки завдань */
+.completed-task-icon {
+    background: linear-gradient(135deg, #00C9A7, #4CAF50);
+    box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+    animation: completed-task-glow 3s infinite ease-in-out;
+}
+
+.completed-task-icon::before {
+    content: '✓';
+}
+
+.total-tasks-icon {
+    background: linear-gradient(135deg, #4eb5f7, #2196F3);
+    box-shadow: 0 0 15px rgba(78, 181, 247, 0.5);
+    animation: total-tasks-glow 3s infinite ease-in-out;
+}
+
+.total-tasks-icon::before {
+    content: '#';
+}
+
+.task-reward-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    animation: task-reward-glow 3s infinite ease-in-out;
+}
+
+.task-reward-icon::before {
+    content: '₿';
+}
+
+/* Інформація про наступний бейдж */
+.next-badge-container {
+    background: var(--bg-item);
+    border-radius: var(--border-radius-md);
+    padding: var(--space-md);
+    border: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.next-badge-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 215, 0, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.next-badge-container:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.next-badge-container:hover::before {
+    opacity: 1;
+}
+
+.next-badge-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.next-badge-title {
+    font-size: 1.125rem;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.next-badge-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 0.5rem;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.3), rgba(255, 215, 0, 0.7));
+    border-radius: 0.25rem;
+    transition: width 0.5s ease;
+}
+
+.progress-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+.next-badge-remaining {
+    font-size: 0.9375rem;
+    color: var(--text-color);
+}
+
+/* Список бейджів */
+.badges-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.badge-item {
+    background: var(--bg-item);
+    border-radius: var(--border-radius-md);
+    padding: var(--space-md);
+    display: flex;
+    gap: 1rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.badge-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.badge-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.badge-item:hover::before {
+    opacity: 1;
+}
+
+/* Стилі для різних типів бейджів */
+.badge-item.eligible::before {
+    background: radial-gradient(circle at 30% 50%, rgba(255, 215, 0, 0.1), transparent 70%);
+}
+
+.badge-item.not-eligible::before {
+    background: radial-gradient(circle at 30% 50%, rgba(150, 150, 150, 0.1), transparent 70%);
+}
+
+.badge-item.claimed::before {
+    background: radial-gradient(circle at 30% 50%, rgba(0, 201, 167, 0.1), transparent 70%);
+}
+
+/* Іконки бейджів */
+.badge-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.bronze-icon {
+    background: linear-gradient(135deg, #CD7F32, #8B4513);
+    animation: bronze-glow 3s infinite ease-in-out;
+}
+
+.bronze-icon::before {
+    content: 'B';
+}
+
+.silver-icon {
+    background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+    animation: silver-glow 3s infinite ease-in-out;
+}
+
+.silver-icon::before {
+    content: 'S';
+}
+
+.gold-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    animation: gold-glow 3s infinite ease-in-out;
+}
+
+.gold-icon::before {
+    content: 'G';
+}
+
+.platinum-icon {
+    background: linear-gradient(135deg, #E5E4E2, #C9C0BB);
+    animation: platinum-glow 3s infinite ease-in-out;
+}
+
+.platinum-icon::before {
+    content: 'P';
+}
+
+/* Інформація про бейдж */
+.badge-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.badge-title {
+    font-size: 1.125rem;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.badge-description {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+}
+
+.badge-reward {
+    font-size: 0.9375rem;
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+.badge-progress-container {
+    margin-top: 0.5rem;
+}
+
+.badge-progress-bar {
+    width: 100%;
+    height: 0.5rem;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+
+.badge-progress-fill {
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
+.eligible .badge-progress-fill {
+    background: linear-gradient(90deg, rgba(0, 201, 167, 0.5), rgba(0, 201, 167, 0.8));
+}
+
+.not-eligible .badge-progress-fill {
+    background: linear-gradient(90deg, rgba(78, 181, 247, 0.3), rgba(78, 181, 247, 0.6));
+}
+
+.claimed .badge-progress-fill {
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.5), rgba(255, 215, 0, 0.8));
+}
+
+.badge-progress-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    text-align: right;
+}
+
+/* Кнопка отримання винагороди за бейдж */
+.claim-badge-button {
+    padding: 0.5rem 1rem;
+    border-radius: 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: linear-gradient(90deg, rgba(0, 201, 167, 0.3), rgba(0, 201, 167, 0.5));
+    border: 1px solid rgba(0, 201, 167, 0.4);
+    color: white;
+    margin-top: 0.5rem;
+    align-self: flex-start;
+}
+
+.claim-badge-button:hover:not(:disabled) {
+    background: linear-gradient(90deg, rgba(0, 201, 167, 0.5), rgba(0, 201, 167, 0.7));
+    transform: translateY(-2px);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+}
+
+.claim-badge-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.claim-badge-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Статус бейджа */
+.badge-status {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+.badge-status.available {
+    background: rgba(0, 201, 167, 0.2);
+    color: #00C9A7;
+    border: 1px solid rgba(0, 201, 167, 0.3);
+}
+
+.badge-status.unavailable {
+    background: rgba(244, 67, 54, 0.2);
+    color: #F44336;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+/* Список завдань */
+.tasks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.task-item {
+    background: var(--bg-item);
+    border-radius: var(--border-radius-md);
+    padding: var(--space-md);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.task-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 30% 50%, rgba(78, 181, 247, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.task-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.task-item:hover::before {
+    opacity: 1;
+}
+
+.task-item.completed::before {
+    background: radial-gradient(circle at 30% 50%, rgba(0, 201, 167, 0.1), transparent 70%);
+}
+
+.task-info {
+    position: relative;
+    z-index: 1;
+}
+
+.task-title {
+    font-size: 1.125rem;
+    font-weight: bold;
+    color: var(--text-color);
+    margin-bottom: 0.5rem;
+}
+
+.task-description {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.task-reward {
+    font-size: 0.9375rem;
+    color: var(--accent-color);
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+}
+
+.task-progress-container {
+    margin-bottom: 0.75rem;
+}
+
+.task-progress-bar {
+    width: 100%;
+    height: 0.5rem;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+
+.task-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(78, 181, 247, 0.3), rgba(78, 181, 247, 0.6));
+    transition: width 0.5s ease;
+}
+
+.completed .task-progress-fill {
+    background: linear-gradient(90deg, rgba(0, 201, 167, 0.5), rgba(0, 201, 167, 0.8));
+}
+
+.task-progress-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    text-align: right;
+}
+
+/* Кнопка отримання винагороди за завдання */
+.claim-task-button {
+    padding: 0.5rem 1rem;
+    border-radius: 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: linear-gradient(90deg, rgba(78, 181, 247, 0.3), rgba(78, 181, 247, 0.5));
+    border: 1px solid rgba(78, 181, 247, 0.4);
+    color: white;
+    margin-top: 0.25rem;
+}
+
+.claim-task-button:hover:not(:disabled) {
+    background: linear-gradient(90deg, rgba(78, 181, 247, 0.5), rgba(78, 181, 247, 0.7));
+    transform: translateY(-2px);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+}
+
+.claim-task-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.claim-task-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Статус завдання */
+.task-status {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+.task-status.completed {
+    background: rgba(0, 201, 167, 0.2);
+    color: #00C9A7;
+    border: 1px solid rgba(0, 201, 167, 0.3);
+}
+
+.task-status.in-progress {
+    background: rgba(78, 181, 247, 0.2);
+    color: #4EB5F7;
+    border: 1px solid rgba(78, 181, 247, 0.3);
+}
+
+/* Пуста інформація */
+.empty-list {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Анімації */
+@keyframes badge-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+}
+
+@keyframes bronze-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(205, 127, 50, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(205, 127, 50, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(205, 127, 50, 0.5);
+    }
+}
+
+@keyframes silver-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(192, 192, 192, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(192, 192, 192, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(192, 192, 192, 0.5);
+    }
+}
+
+@keyframes gold-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+}
+
+@keyframes platinum-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(229, 228, 226, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(229, 228, 226, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(229, 228, 226, 0.5);
+    }
+}
+
+@keyframes completed-task-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(0, 201, 167, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+    }
+}
+
+@keyframes total-tasks-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+}
+
+@keyframes task-reward-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+}
+
+/* Анімація для виділення нового бейджа */
+.badge-item.new {
+    animation: new-badge-highlight 2s ease;
+}
+
+@keyframes new-badge-highlight {
+    0% {
+        box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+    }
+    25% {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+    }
+    50% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
+    }
+    75% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+    }
+    100% {
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+}
+
+/* Анімація для виділення завершеного завдання */
+.task-item.completed.new {
+    animation: task-completed 2s ease;
+}
+
+@keyframes task-completed {
+    0% {
+        box-shadow: 0 0 0 rgba(0, 201, 167, 0);
+    }
+    25% {
+        box-shadow: 0 0 20px rgba(0, 201, 167, 0.8);
+    }
+    50% {
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+    }
+    75% {
+        box-shadow: 0 0 15px rgba(0, 201, 167, 0.6);
+    }
+    100% {
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+}
+
+/* Адаптивні стилі */
+@media (max-width: 450px) {
+    .badges-stats-container,
+    .tasks-stats-container {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .badge-item {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .badge-icon {
+        margin-bottom: 0.75rem;
+    }
+
+    .claim-badge-button,
+    .claim-task-button {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 350px) {
+    .task-title,
+    .badge-title {
+        font-size: 1rem;
+    }
+
+    .task-description,
+    .badge-description {
+        font-size: 0.875rem;
+    }
+}
+
+/* Оновлені CSS стилі для нових бейджів */
+
+/* Іконки бейджів */
+.brave-badge-icon {
+    background: linear-gradient(135deg, #ff7e5f, #feb47b);
+    box-shadow: 0 0 15px rgba(255, 126, 95, 0.5);
+    animation: brave-glow 3s infinite ease-in-out;
+}
+
+.brave-badge-icon::before {
+    content: 'С';  /* С від "Сміливець" */
+}
+
+.innovator-badge-icon {
+    background: linear-gradient(135deg, #4eb5f7, #2b6ecf);
+    box-shadow: 0 0 15px rgba(78, 181, 247, 0.5);
+    animation: innovator-glow 3s infinite ease-in-out;
+}
+
+.innovator-badge-icon::before {
+    content: 'Н';  /* Н від "Новатор" */
+}
+
+.legend-badge-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    animation: legend-glow 3s infinite ease-in-out;
+}
+
+.legend-badge-icon::before {
+    content: 'Л';  /* Л від "Легенда" */
+}
+
+.visionary-badge-icon {
+    background: linear-gradient(135deg, #8E24AA, #3F51B5);
+    box-shadow: 0 0 15px rgba(142, 36, 170, 0.5);
+    animation: visionary-glow 3s infinite ease-in-out;
+}
+
+.visionary-badge-icon::before {
+    content: 'В';  /* В від "Візіонер" */
+}
+
+/* Іконки для окремих бейджів */
+.brave-icon {
+    background: linear-gradient(135deg, #ff7e5f, #feb47b);
+    animation: brave-glow 3s infinite ease-in-out;
+}
+
+.brave-icon::before {
+    content: 'С';
+}
+
+.innovator-icon {
+    background: linear-gradient(135deg, #4eb5f7, #2b6ecf);
+    animation: innovator-glow 3s infinite ease-in-out;
+}
+
+.innovator-icon::before {
+    content: 'Н';
+}
+
+.legend-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    animation: legend-glow 3s infinite ease-in-out;
+}
+
+.legend-icon::before {
+    content: 'Л';
+}
+
+.visionary-icon {
+    background: linear-gradient(135deg, #8E24AA, #3F51B5);
+    animation: visionary-glow 3s infinite ease-in-out;
+}
+
+.visionary-icon::before {
+    content: 'В';
+}
+
+/* Анімації світіння */
+@keyframes brave-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 126, 95, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 126, 95, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 126, 95, 0.5);
+    }
+}
+
+@keyframes innovator-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+}
+
+@keyframes legend-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+}
+
+@keyframes visionary-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(142, 36, 170, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(142, 36, 170, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(142, 36, 170, 0.5);
+    }
+}
