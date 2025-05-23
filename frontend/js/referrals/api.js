@@ -22,35 +22,12 @@ window.ReferralAPI = (function() {
   const DEBUG = true; // Прапорець для режиму відлагодження
   console.log('🐛 [API] DEBUG режим:', DEBUG ? 'УВІМКНЕНО' : 'ВИМКНЕНО');
 
-  // Ініціалізація WinixAPI, якщо вона не існує
+  // Перевірка наявності WinixAPI
   console.log('🔍 [API] Перевірка наявності WinixAPI...');
-  if (typeof window.WinixAPI === 'undefined') {
-    console.log('📢 [API] WinixAPI відсутній! Створення заглушки...');
-    window.WinixAPI = {
-      apiRequest: async function(endpoint, method, data, options) {
-        console.log('🔄 [API-STUB] Виклик apiRequest заглушки:', {
-          endpoint: endpoint,
-          method: method,
-          data: data,
-          options: options
-        });
-        return { status: 'success', data: {} };
-      },
-      getUserId: function() {
-        const userId = localStorage.getItem('telegram_user_id') ||
-                       localStorage.getItem('user_id') ||
-                       null;
-        console.log('🔍 [API-STUB] getUserId заглушки повертає:', userId);
-        return userId;
-      },
-      refreshToken: async function() {
-        console.log('🔄 [API-STUB] Виклик refreshToken заглушки');
-        return true;
-      }
-    };
-    console.log('✅ [API] WinixAPI заглушка створена');
-  } else {
+  if (typeof window.WinixAPI !== 'undefined') {
     console.log('✅ [API] WinixAPI знайдено:', Object.keys(window.WinixAPI));
+  } else {
+    console.log('⚠️ [API] WinixAPI відсутній, буде використовуватися прямий API');
   }
 
   // Утилітарна функція для отримання токена авторизації
@@ -663,35 +640,9 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача повинен бути числом'));
     }
 
-    // Спочатку спробуємо через WinixAPI
-    if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
-      console.log('🔄 [API] Спроба отримати статистику через WinixAPI...');
-
-      return window.WinixAPI.apiRequest(`referrals/stats/${numericUserId}`, 'GET')
-        .then(response => {
-          console.log('📥 [API] WinixAPI відповідь отримана');
-          console.log('📊 [API] WinixAPI response:', JSON.stringify(response, null, 2));
-
-          if (response.status === 'success' && response.data) {
-            response.data.source = 'winix_api';
-            console.log('✅ [API] Статистика успішно отримана через WinixAPI');
-            return validateAndFormatResponse(response.data, 'stats_winix_api');
-          }
-
-          // Якщо WinixAPI не повернув дані, викликаємо безпосередній запит
-          console.log('⚠️ [API] WinixAPI не повернув дані, використовуємо прямий запит...');
-          return sendStatsRequest();
-        })
-        .catch(error => {
-          console.error('❌ [API] Помилка отримання статистики через WinixAPI:', error);
-          // При помилці пробрасуємо її далі
-          throw error;
-        });
-    } else {
-      // Якщо WinixAPI недоступний, викликаємо звичайний запит
-      console.log('⚠️ [API] WinixAPI недоступний, використовуємо прямий запит...');
-      return sendStatsRequest();
-    }
+    // ВИПРАВЛЕННЯ: Одразу переходимо до прямого запиту
+    console.log('🔄 [API] Використовуємо прямий запит (обхід WinixAPI)...');
+    return sendStatsRequest();
 
     // Функція для виконання стандартного запиту
     function sendStatsRequest() {
