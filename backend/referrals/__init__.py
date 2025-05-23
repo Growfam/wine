@@ -1,4 +1,4 @@
-from referrals.routes import init_app, referrals_bp
+from referrals.routes import referrals_bp
 
 # Для зручного імпорту
-__all__ = ['init_app', 'referrals_bp']
+__all__ = ['referrals_bp']

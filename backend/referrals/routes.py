@@ -68,7 +68,7 @@ def validate_referral_data(data, required_fields):
 
 
 # Маршрути для реферальних посилань
-@referrals_bp.route('/api/referrals/link/<user_id>', methods=['GET'])
+@referrals_bp.route('/link/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_link(user_id):
     """Отримання реферального посилання для користувача"""
@@ -82,7 +82,7 @@ def get_referral_link(user_id):
     return jsonify(result)
 
 
-@referrals_bp.route('/api/referrals/register', methods=['POST'])
+@referrals_bp.route('/register', methods=['POST'])
 @handle_api_exceptions
 def register_referral():
     """Реєстрація нового реферала"""
@@ -135,7 +135,7 @@ def register_referral():
 
 
 # Маршрути для статистики рефералів
-@referrals_bp.route('/api/referrals/stats/<user_id>', methods=['GET'])
+@referrals_bp.route('/stats/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_stats(user_id):
     """Отримання статистики рефералів користувача"""
@@ -171,7 +171,7 @@ def get_referral_stats(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/details/<referral_id>', methods=['GET'])
+@referrals_bp.route('/details/<referral_id>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_details(referral_id):
     """Отримання детальної інформації про конкретного реферала"""
@@ -228,7 +228,7 @@ def get_referral_details(referral_id):
 
 
 # Маршрути для прямих бонусів
-@referrals_bp.route('/api/referrals/bonus/direct', methods=['POST'])
+@referrals_bp.route('/bonus/direct', methods=['POST'])
 @handle_api_exceptions
 def award_direct_bonus():
     """Нарахування прямого бонусу за реферала"""
@@ -274,7 +274,7 @@ def award_direct_bonus():
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/bonus/history/<user_id>', methods=['GET'])
+@referrals_bp.route('/bonus/history/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_bonus_history(user_id):
     """Отримання історії прямих бонусів користувача"""
@@ -299,7 +299,7 @@ def get_bonus_history(user_id):
 
 
 # Маршрути для заробітків рефералів
-@referrals_bp.route('/api/referrals/earnings/<user_id>', methods=['GET', 'POST'])
+@referrals_bp.route('/earnings/<user_id>', methods=['GET', 'POST'])
 @handle_api_exceptions
 def get_referral_earnings(user_id):
     """Отримання даних про заробітки рефералів користувача"""
@@ -326,7 +326,7 @@ def get_referral_earnings(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/earnings/detailed/<referral_id>', methods=['GET'])
+@referrals_bp.route('/earnings/detailed/<referral_id>', methods=['GET'])
 @handle_api_exceptions
 def get_detailed_earnings(referral_id):
     """Отримання детальних даних про заробітки конкретного реферала"""
@@ -353,7 +353,7 @@ def get_detailed_earnings(referral_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/earnings/summary/<user_id>', methods=['GET'])
+@referrals_bp.route('/earnings/summary/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_earnings_summary(user_id):
     """Отримання зведеної інформації про заробітки"""
@@ -366,7 +366,7 @@ def get_earnings_summary(user_id):
 
 
 # Маршрути для відсоткових винагород
-@referrals_bp.route('/api/referrals/reward/percentage', methods=['POST'])
+@referrals_bp.route('/reward/percentage', methods=['POST'])
 @handle_api_exceptions
 def calculate_percentage_reward():
     """Розрахунок і нарахування відсоткової винагороди"""
@@ -428,7 +428,7 @@ def calculate_percentage_reward():
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/reward/history/<user_id>', methods=['GET'])
+@referrals_bp.route('/reward/history/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_percentage_rewards(user_id):
     """Отримання історії відсоткових винагород"""
@@ -450,7 +450,7 @@ def get_percentage_rewards(user_id):
 
 
 # Маршрути для активності рефералів
-@referrals_bp.route('/api/referrals/activity/<user_id>', methods=['GET', 'POST'])
+@referrals_bp.route('/activity/<user_id>', methods=['GET', 'POST'])
 @handle_api_exceptions
 def get_referral_activity(user_id):
     """Отримання даних про активність рефералів користувача"""
@@ -478,7 +478,7 @@ def get_referral_activity(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/activity/detailed/<referral_id>', methods=['GET'])
+@referrals_bp.route('/activity/detailed/<referral_id>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_detailed_activity(referral_id):
     """Отримання детальних даних про активність конкретного реферала"""
@@ -505,7 +505,7 @@ def get_referral_detailed_activity(referral_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/activity/summary/<user_id>', methods=['GET'])
+@referrals_bp.route('/activity/summary/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_activity_summary(user_id):
     """Отримання зведеної інформації про активність"""
@@ -517,7 +517,7 @@ def get_activity_summary(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/activity/update', methods=['POST'])
+@referrals_bp.route('/activity/update', methods=['POST'])
 @handle_api_exceptions
 def update_activity():
     """Оновлення активності реферала"""
@@ -545,7 +545,7 @@ def update_activity():
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/activity/activate', methods=['POST'])
+@referrals_bp.route('/activity/activate', methods=['POST'])
 @handle_api_exceptions
 def manually_activate_referral():
     """Ручна активація реферала"""
@@ -574,7 +574,7 @@ def manually_activate_referral():
 
 
 # Додані маршрути для розіграшів
-@referrals_bp.route('/api/referrals/draws/<referral_id>', methods=['GET'])
+@referrals_bp.route('/draws/<referral_id>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_draws(referral_id):
     """Отримує дані про участь реферала у розіграшах"""
@@ -601,7 +601,7 @@ def get_referral_draws(referral_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/draws/details/<referral_id>/<draw_id>', methods=['GET'])
+@referrals_bp.route('/draws/details/<referral_id>/<draw_id>', methods=['GET'])
 @handle_api_exceptions
 def get_draw_details(referral_id, draw_id):
     """Отримує детальні дані про участь реферала у конкретному розіграші"""
@@ -639,7 +639,7 @@ def get_draw_details(referral_id, draw_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/draws/stats/<owner_id>', methods=['GET'])
+@referrals_bp.route('/draws/stats/<owner_id>', methods=['GET'])
 @handle_api_exceptions
 def get_draws_participation_stats(owner_id):
     """Отримує статистику участі рефералів у розіграшах за період"""
@@ -659,7 +659,7 @@ def get_draws_participation_stats(owner_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/draws/count/<owner_id>', methods=['GET'])
+@referrals_bp.route('/draws/count/<owner_id>', methods=['GET'])
 @handle_api_exceptions
 def get_total_draws_count(owner_id):
     """Отримує загальну кількість розіграшів, у яких брали участь реферали"""
@@ -671,7 +671,7 @@ def get_total_draws_count(owner_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/draws/active/<owner_id>', methods=['GET'])
+@referrals_bp.route('/draws/active/<owner_id>', methods=['GET'])
 @handle_api_exceptions
 def get_most_active_in_draws(owner_id):
     """Отримує список найактивніших рефералів за участю в розіграшах"""
@@ -692,7 +692,7 @@ def get_most_active_in_draws(owner_id):
 
 
 # Додані маршрути для історії реферальної активності
-@referrals_bp.route('/api/referrals/history/<user_id>', methods=['GET'])
+@referrals_bp.route('/history/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_history(user_id):
     """Отримує повну історію реферальної активності користувача"""
@@ -727,7 +727,7 @@ def get_referral_history(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/history/event/<user_id>/<event_type>', methods=['GET'])
+@referrals_bp.route('/history/event/<user_id>/<event_type>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_event_history(user_id, event_type):
     """Отримує історію конкретного типу реферальної активності"""
@@ -762,7 +762,7 @@ def get_referral_event_history(user_id, event_type):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/history/summary/<user_id>', methods=['GET'])
+@referrals_bp.route('/history/summary/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_activity_summary(user_id):
     """Отримує агреговану статистику реферальної активності за період"""
@@ -782,7 +782,7 @@ def get_referral_activity_summary(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/history/trend/<user_id>/<period>', methods=['GET'])
+@referrals_bp.route('/history/trend/<user_id>/<period>', methods=['GET'])
 @handle_api_exceptions
 def get_referral_activity_trend(user_id, period):
     """Отримує статистику реферальної активності по періодах"""
@@ -818,7 +818,7 @@ def get_referral_activity_trend(user_id, period):
 
 
 # Маршрути для аналітики та рейтингу рефералів
-@referrals_bp.route('/api/analytics/ranking/<user_id>', methods=['GET'])
+@referrals_bp.route('/analytics/ranking/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_referrals_ranking(user_id):
     """Отримання рейтингу рефералів"""
@@ -844,7 +844,7 @@ def get_referrals_ranking(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/analytics/top/<user_id>/<int:limit>', methods=['GET'])
+@referrals_bp.route('/analytics/top/<user_id>/<int:limit>', methods=['GET'])
 @handle_api_exceptions
 def get_top_referrals(user_id, limit):
     """Отримання топ-N рефералів"""
@@ -879,7 +879,7 @@ def get_top_referrals(user_id, limit):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/analytics/earnings/total/<user_id>', methods=['GET'])
+@referrals_bp.route('/analytics/earnings/total/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_total_earnings(user_id):
     """Отримання загального заробітку"""
@@ -891,7 +891,7 @@ def get_total_earnings(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/analytics/earnings/predict/<user_id>', methods=['GET'])
+@referrals_bp.route('/analytics/earnings/predict/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def predict_earnings(user_id):
     """Отримання прогнозу майбутніх заробітків"""
@@ -903,7 +903,7 @@ def predict_earnings(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/analytics/earnings/roi/<user_id>', methods=['GET'])
+@referrals_bp.route('/analytics/earnings/roi/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_earnings_roi(user_id):
     """Отримання рентабельності реферальної програми"""
@@ -915,7 +915,7 @@ def get_earnings_roi(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/analytics/earnings/distribution/<user_id>', methods=['GET'])
+@referrals_bp.route('/analytics/earnings/distribution/<user_id>', methods=['GET'])
 @handle_api_exceptions
 def get_earnings_distribution(user_id):
     """Отримання розподілу заробітку за категоріями"""
@@ -927,7 +927,7 @@ def get_earnings_distribution(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/initialize/<user_id>', methods=['POST'])
+@referrals_bp.route('/initialize/<user_id>', methods=['POST'])
 @handle_api_exceptions
 def initialize_user_data(user_id):
     """Ініціалізує всі необхідні дані для користувача"""
@@ -940,7 +940,7 @@ def initialize_user_data(user_id):
     return jsonify(result), status_code
 
 
-@referrals_bp.route('/api/referrals/fix-all', methods=['POST'])
+@referrals_bp.route('/fix-all', methods=['POST'])
 @handle_api_exceptions
 def fix_all_users():
     """Виправляє дані для всіх користувачів (тільки для адміністраторів)"""
@@ -965,8 +965,8 @@ def init_app(app):
 
     logger.info("📢 Початок реєстрації маршрутів розіграшів")
 
-    # Реєстрація Blueprint
-    app.register_blueprint(referrals_bp)
+    # Реєстрація Blueprint з префіксом
+    app.register_blueprint(referrals_bp, url_prefix='/api/referrals')
 
     logger.info("✅ Маршрути для розіграшів успішно зареєстровано")
     return True
