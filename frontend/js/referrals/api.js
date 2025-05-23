@@ -1,4 +1,4 @@
-// api.js - Виправлена версія з покращеною обробкою API відповідей
+// api.js - Виправлена версія без fallback даних
 /**
  * API функції для реферальної системи
  */
@@ -62,59 +62,45 @@ window.ReferralAPI = (function() {
   // Перевірка і форматування відповіді від API
   function validateAndFormatResponse(response, endpoint) {
     if (!response) {
-      console.warn(`⚠️ [API] Порожня відповідь від ${endpoint}`);
-      return { success: true, source: 'empty_response' };
+      console.error(`❌ [API] Порожня відповідь від ${endpoint}`);
+      throw new Error('Порожня відповідь від сервера');
     }
 
     // Базові перевірки
     if (typeof response !== 'object') {
-      console.warn(`⚠️ [API] Неочікуваний формат відповіді від ${endpoint}:`, response);
+      console.error(`❌ [API] Неочікуваний формат відповіді від ${endpoint}:`, response);
       try {
         // Спробуємо розпарсити рядок як JSON
-        return JSON.parse(response);
+        const parsed = JSON.parse(response);
+        return validateAndFormatResponse(parsed, endpoint);
       } catch (e) {
-        return { success: true, source: 'invalid_format', text: response };
+        throw new Error('Некоректний формат відповіді від сервера');
       }
+    }
+
+    // Перевіряємо наявність помилки в відповіді
+    if (response.error || response.status === 'error') {
+      throw new Error(response.message || response.error || 'Помилка сервера');
     }
 
     // Додаткова обробка для конкретних ендпоінтів
     if (endpoint.includes('/referrals/stats/')) {
       // Спеціальна обробка для статистики рефералів
       if (!response.referrals) {
-        console.warn('⚠️ [API] Відсутнє поле referrals в відповіді stats API');
-        response.referrals = { level1: [], level2: [] };
+        console.error('❌ [API] Відсутнє поле referrals в відповіді stats API');
+        throw new Error('Некоректна структура даних статистики');
       }
       if (!response.statistics) {
-        console.warn('⚠️ [API] Відсутнє поле statistics в відповіді stats API');
-        response.statistics = {
-          totalReferrals: 0,
-          activeReferrals: 0,
-          conversionRate: 0
-        };
+        console.error('❌ [API] Відсутнє поле statistics в відповіді stats API');
+        throw new Error('Некоректна структура даних статистики');
       }
-      // Переконуємось, що поле success присутнє
-      if (response.success === undefined) {
-        response.success = true;
-      }
-      // Додаємо інформацію про джерело для відлагодження
-      response.source = response.source || 'api_formatted';
     }
 
     if (endpoint.includes('/referrals/activity/')) {
       // Спеціальна обробка для активності рефералів
-      if (!response.level1Activity) {
-        console.warn('⚠️ [API] Відсутнє поле level1Activity в відповіді activity API');
-        response.level1Activity = [];
-      }
-      if (!response.level2Activity) {
-        console.warn('⚠️ [API] Відсутнє поле level2Activity в відповіді activity API');
-        response.level2Activity = [];
-      }
-      // Переконуємось, що userId присутній і має правильний формат
-      if (response.userId === undefined) {
-        const userId = getUserId();
-        console.warn(`⚠️ [API] Відсутнє поле userId в відповіді activity API, використовуємо ${userId}`);
-        response.userId = userId;
+      if (!response.level1Activity && !response.level2Activity) {
+        console.error('❌ [API] Відсутні поля активності в відповіді activity API');
+        throw new Error('Некоректна структура даних активності');
       }
     }
 
@@ -195,16 +181,8 @@ window.ReferralAPI = (function() {
 
           // Спробуємо парсити JSON відповідь
           return response.json().catch(function(err) {
-            console.warn('⚠️ [API] Неможливо парсити відповідь як JSON, повертаємо текст');
-            return response.text().then(text => {
-              try {
-                // Якщо це валідний JSON, але помилка парсингу
-                return JSON.parse(text);
-              } catch(e) {
-                // Якщо це не JSON взагалі
-                return { success: true, text: text, source: 'text_response' };
-              }
-            });
+            console.error('❌ [API] Неможливо парсити відповідь як JSON');
+            throw new Error('Некоректна JSON відповідь від сервера');
           });
         })
         .then(function(data) {
@@ -428,9 +406,9 @@ window.ReferralAPI = (function() {
             });
         })
         .catch(error => {
-          console.warn('⚠️ [API] Помилка отримання реферального посилання через WinixAPI:', error);
-          // При помилці створюємо посилання вручну
-          return formatReferralUrl(numericUserId);
+          console.error('❌ [API] Помилка отримання реферального посилання через WinixAPI:', error);
+          // При помилці викидаємо її далі
+          throw error;
         });
     }
 
@@ -442,11 +420,6 @@ window.ReferralAPI = (function() {
         }
 
         // Якщо відповідь не містить посилання, створюємо його вручну
-        return formatReferralUrl(numericUserId);
-      })
-      .catch(error => {
-        console.warn('⚠️ [API] Помилка отримання реферального посилання:', error);
-        // При помилці створюємо посилання вручну
         return formatReferralUrl(numericUserId);
       });
   }
@@ -491,9 +464,9 @@ window.ReferralAPI = (function() {
           return sendStatsRequest();
         })
         .catch(error => {
-          console.warn('⚠️ [API] Помилка отримання статистики через WinixAPI:', error);
-          // Якщо помилка, повертаємося до стандартного методу
-          return sendStatsRequest();
+          console.error('❌ [API] Помилка отримання статистики через WinixAPI:', error);
+          // При помилці пробрасуємо її далі
+          throw error;
         });
     } else {
       // Якщо WinixAPI недоступний, викликаємо звичайний запит
@@ -513,21 +486,8 @@ window.ReferralAPI = (function() {
             console.error('❌ [API] Помилка завантаження статистики рефералів:', error);
             console.error('❌ [API] Stack trace:', error.stack);
 
-            // Повертаємо структуру за замовчуванням при помилці з детальнішою інформацією
-            return {
-                success: true,
-                source: 'api_error_fallback',
-                error: error.message,
-                statistics: {
-                    totalReferrals: 0,
-                    activeReferrals: 0,
-                    conversionRate: 0
-                },
-                referrals: {
-                    level1: [],
-                    level2: []
-                }
-            };
+            // Пробрасуємо помилку далі
+            throw error;
         });
     }
   }
@@ -548,17 +508,7 @@ window.ReferralAPI = (function() {
       method: 'POST',
       body: JSON.stringify(options)
     })
-    .then(response => validateAndFormatResponse(response, `/api/referrals/earnings/${numericUserId}`))
-    .catch(function(error) {
-      console.error('❌ [API] Помилка отримання заробітків:', error);
-      // Повертаємо базову структуру при помилці
-      return {
-        success: true,
-        source: 'error_fallback',
-        level1Earnings: [],
-        level2Earnings: []
-      };
-    });
+    .then(response => validateAndFormatResponse(response, `/api/referrals/earnings/${numericUserId}`));
   }
 
   // Отримання детальних заробітків від рефералів
@@ -603,18 +553,7 @@ window.ReferralAPI = (function() {
     }
 
     return apiRequest(API_CONFIG.baseUrl + '/api/referrals/earnings/summary/' + numericUserId)
-      .then(response => validateAndFormatResponse(response, `/api/referrals/earnings/summary/${numericUserId}`))
-      .catch(function(error) {
-        console.error('❌ [API] Помилка отримання зведених даних про заробітки:', error);
-        // Повертаємо базову структуру при помилці
-        return {
-          success: true,
-          source: 'error_fallback',
-          totalEarnings: 0,
-          level1Earnings: 0,
-          level2Earnings: 0
-        };
-      });
+      .then(response => validateAndFormatResponse(response, `/api/referrals/earnings/summary/${numericUserId}`));
   }
 
   // Отримання активності рефералів
@@ -878,17 +817,7 @@ window.ReferralAPI = (function() {
     }
 
     return apiRequest(url)
-      .then(response => validateAndFormatResponse(response, url))
-      .catch(function(error) {
-        console.error('❌ [API] Помилка отримання історії рефералів:', error);
-        // Повертаємо базову структуру при помилці
-        return {
-          success: true,
-          source: 'error_fallback',
-          history: [],
-          bonuses: []
-        };
-      });
+      .then(response => validateAndFormatResponse(response, url));
   }
 
   // Отримання розіграшів реферала
@@ -1134,18 +1063,7 @@ window.ReferralAPI = (function() {
     }
 
     return apiRequest(API_CONFIG.baseUrl + '/api/referrals/details/' + numericReferralId)
-      .then(response => validateAndFormatResponse(response, `/api/referrals/details/${numericReferralId}`))
-      .catch(function(error) {
-        console.error('❌ [API] Помилка отримання деталей реферала:', error);
-        // Повертаємо базову структуру при помилці
-        return {
-          success: true,
-          source: 'error_fallback',
-          id: referralId,
-          active: false,
-          registrationDate: new Date().toISOString()
-        };
-      });
+      .then(response => validateAndFormatResponse(response, `/api/referrals/details/${numericReferralId}`));
   }
 
   // Функція для оновлення токена авторизації

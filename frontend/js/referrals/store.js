@@ -1,6 +1,6 @@
-// store.js - Виправлена версія без fallback на mock дані
+// store.js - Виправлена версія з правильною обробкою помилок
 /**
- * Redux-подібний стор для реферальної системи з кращою обробкою помилок
+ * Redux-подібний стор для реферальної системи з правильною обробкою помилок
  */
 window.ReferralStore = (function() {
   'use strict';
@@ -443,8 +443,9 @@ window.ReferralStore = (function() {
       // Переконуємося що userId це число
       const numericUserId = parseInt(userId);
       if (isNaN(numericUserId)) {
-        dispatch(fetchReferralLinkFailure(new Error('Некоректний ID користувача')));
-        return Promise.reject(new Error('Некоректний ID користувача'));
+        const error = new Error('Некоректний ID користувача');
+        dispatch(fetchReferralLinkFailure(error));
+        return Promise.reject(error);
       }
 
       return window.ReferralAPI.fetchReferralLink(numericUserId)
@@ -467,15 +468,8 @@ window.ReferralStore = (function() {
         })
         .catch(function(error) {
           console.error("❌ [STORE] Помилка отримання реферального посилання:", error);
-
-          // При будь-якій помилці формуємо стандартне посилання
-          const fallbackLink = 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
-
-          // Відправляємо успішний результат зі стандартним посиланням
-          dispatch(fetchReferralLinkSuccess(fallbackLink));
-
-          // Повертаємо стандартне посилання, а не відхиляємо проміс
-          return fallbackLink;
+          dispatch(fetchReferralLinkFailure(error));
+          throw error;
         });
     };
   }
@@ -581,8 +575,8 @@ window.ReferralStore = (function() {
         .then(function(historyData) {
           // Перевіряємо, чи historyData взагалі є об'єктом
           if (!historyData || typeof historyData !== 'object') {
-            console.warn('⚠️ [STORE] Отримано некоректні дані історії:', historyData);
-            historyData = {}; // Безпечне значення за замовчуванням
+            console.error('❌ [STORE] Отримано некоректні дані історії:', historyData);
+            throw new Error('Некоректний формат даних історії');
           }
 
           // Нормалізуємо дані
@@ -596,19 +590,8 @@ window.ReferralStore = (function() {
         })
         .catch(function(error) {
           console.error('❌ [STORE] Помилка отримання історії бонусів:', error);
-
-          // Створюємо порожній об'єкт з базовою структурою
-          const fallbackData = {
-            totalBonus: 0,
-            history: []
-          };
-
-          // Відправляємо успішний результат з порожнім результатом,
-          // щоб не перервати ланцюжок ініціалізації
-          dispatch(fetchDirectBonusHistorySuccess(fallbackData));
-
-          // Повертаємо дані за замовчуванням замість викидання помилки
-          return fallbackData;
+          dispatch(fetchDirectBonusHistoryFailure(error));
+          throw error;
         });
     };
   }
@@ -712,26 +695,11 @@ window.ReferralStore = (function() {
         })
         .catch(function(error) {
           console.error('❌ [STORE] Помилка отримання бейджів:', error);
-
-          // Створюємо базову структуру даних, щоб не перервати ланцюжок ініціалізації
-          const fallbackData = {
-            success: true,
-            earnedBadges: [],
-            availableBadges: [],
-            badgesProgress: [],
-            totalBadgesCount: 4,
-            totalAvailableBadgesCount: 0,
-            earnedBadgesReward: 0,
-            availableBadgesReward: 0,
-            totalPotentialReward: 37500
-          };
-
           dispatch({
-            type: BadgeActionTypes.FETCH_BADGES_SUCCESS,
-            payload: fallbackData
+            type: BadgeActionTypes.FETCH_BADGES_FAILURE,
+            payload: { error: error.message || 'Помилка завантаження бейджів' }
           });
-
-          return fallbackData;
+          throw error;
         });
     };
   }
@@ -770,21 +738,11 @@ window.ReferralStore = (function() {
         })
         .catch(function(error) {
           console.error('❌ [STORE] Помилка отримання завдань:', error);
-
-          // Створюємо базову структуру даних при помилці
-          const fallbackData = {
-            success: true,
-            completedTasks: [],
-            tasksProgress: {},
-            totalReward: 0
-          };
-
           dispatch({
-            type: BadgeActionTypes.FETCH_TASKS_SUCCESS,
-            payload: fallbackData
+            type: BadgeActionTypes.FETCH_TASKS_FAILURE,
+            payload: { error: error.message || 'Помилка завантаження завдань' }
           });
-
-          return fallbackData;
+          throw error;
         });
     };
   }
