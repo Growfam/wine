@@ -927,6 +927,34 @@ def get_earnings_distribution(user_id):
     return jsonify(result), status_code
 
 
+@referrals_bp.route('/api/referrals/initialize/<user_id>', methods=['POST'])
+@handle_api_exceptions
+def initialize_user_data(user_id):
+    """Ініціалізує всі необхідні дані для користувача"""
+    from utils.data_initializer import DataInitializer
+
+    logger.info(f"Запит на ініціалізацію даних для користувача {user_id}")
+    result = DataInitializer.initialize_user_data(user_id)
+
+    status_code = 200 if result.get('success', False) else 400
+    return jsonify(result), status_code
+
+
+@referrals_bp.route('/api/referrals/fix-all', methods=['POST'])
+@handle_api_exceptions
+def fix_all_users():
+    """Виправляє дані для всіх користувачів (тільки для адміністраторів)"""
+    from utils.data_initializer import DataInitializer
+
+    # Тут можна додати перевірку прав адміністратора
+
+    logger.info("Запит на виправлення даних для всіх користувачів")
+    result = DataInitializer.fix_all_users()
+
+    status_code = 200 if result.get('success', False) else 400
+    return jsonify(result), status_code
+
+
 # Ініціалізація Blueprint для маршрутів реферальної системи
 def init_app(app):
     """Реєстрація blueprint в додатку Flask"""

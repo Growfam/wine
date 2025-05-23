@@ -13,6 +13,7 @@ window.ReferralIntegration = (function() {
     this.userId = null;
     this.store = null;
     this.isInitialized = false;
+    this.dynamicController = null; // ДОДАНО: посилання на динамічний контролер
     console.log('✅ [INTEGRATION] Екземпляр створено:', this);
   }
 
@@ -46,6 +47,15 @@ window.ReferralIntegration = (function() {
 
         console.log('✅ [INTEGRATION] ID користувача успішно отримано:', self.userId);
 
+        // ДОДАНО: Отримуємо посилання на динамічний контролер
+        console.log('🎮 [INTEGRATION] Перевірка динамічного контролера...');
+        self.dynamicController = window.ReferralDynamicData;
+        if (!self.dynamicController) {
+          console.warn('⚠️ [INTEGRATION] DynamicDataController не знайдено');
+        } else {
+          console.log('✅ [INTEGRATION] DynamicDataController знайдено:', self.dynamicController);
+        }
+
         // Ініціалізуємо сховище
         console.log('🔧 [INTEGRATION] Крок 2: Ініціалізація сховища...');
         self.initStore();
@@ -67,12 +77,19 @@ window.ReferralIntegration = (function() {
             // Встановлюємо обробники подій
             self.setupEventListeners();
 
+            // ДОДАНО: Синхронізація з динамічним контролером
+            if (self.dynamicController) {
+              console.log('🔄 [INTEGRATION] Синхронізація з динамічним контролером...');
+              self.syncWithDynamicController();
+            }
+
             self.isInitialized = true;
             console.log('🎉 [INTEGRATION] ===== ІНІЦІАЛІЗАЦІЯ ЗАВЕРШЕНА =====');
             console.log('📊 [INTEGRATION] Фінальний стан:', {
               userId: self.userId,
               storeInitialized: !!self.store,
-              isInitialized: self.isInitialized
+              isInitialized: self.isInitialized,
+              hasDynamicController: !!self.dynamicController
             });
             resolve(self);
           })
@@ -91,6 +108,42 @@ window.ReferralIntegration = (function() {
         reject(error);
       }
     });
+  };
+
+  /**
+   * ДОДАНО: Синхронізація з динамічним контролером
+   */
+  ReferralIntegration.prototype.syncWithDynamicController = function() {
+    console.log('🔄 [INTEGRATION] === syncWithDynamicController START ===');
+
+    if (!this.dynamicController) {
+      console.warn('⚠️ [INTEGRATION] Динамічний контролер відсутній');
+      return;
+    }
+
+    const self = this;
+
+    // Підписуємося на оновлення сховища для синхронізації
+    this.store.subscribe(function() {
+      console.log('📡 [INTEGRATION] Store оновлено, синхронізуємо з динамічним контролером');
+
+      // Оновлюємо статистику в динамічному контролері
+      if (self.dynamicController.updateReferralStatistics) {
+        self.dynamicController.updateReferralStatistics();
+      }
+
+      // Оновлюємо бейджі
+      if (self.dynamicController.updateBadges) {
+        self.dynamicController.updateBadges();
+      }
+
+      // Оновлюємо історію бонусів
+      if (self.dynamicController.updateBonusHistory) {
+        self.dynamicController.updateBonusHistory();
+      }
+    });
+
+    console.log('✅ [INTEGRATION] === syncWithDynamicController COMPLETE ===');
   };
 
   /**
@@ -370,25 +423,80 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.initRewardsDisplay = function() {
     console.log('💰 [INTEGRATION] === initRewardsDisplay START ===');
 
-    // Встановлюємо базові значення винагород
-    const bonusAmountElements = document.querySelectorAll('.bonus-amount');
-    const bonusAmount = window.ReferralConstants.DIRECT_BONUS_AMOUNT || 50;
+    // ДОДАНО: Якщо є динамічний контролер, використовуємо його конфігурацію
+    if (this.dynamicController && this.dynamicController.config) {
+      console.log('📊 [INTEGRATION] Використовуємо конфігурацію з динамічного контролера');
+      const config = this.dynamicController.config;
 
-    console.log('📊 [INTEGRATION] Налаштування бонусів:', {
-      elementsFound: bonusAmountElements.length,
-      bonusAmount: bonusAmount
-    });
+      // Оновлюємо винагороди
+      this.updateElementsByAttribute('[data-value="direct-bonus"]', config.rewards.directBonus);
+      this.updateElementsByAttribute('[data-value="level1-percentage"]', config.rewards.level1Percentage);
+      this.updateElementsByAttribute('[data-value="level2-percentage"]', config.rewards.level2Percentage);
 
-    bonusAmountElements.forEach(function(element, index) {
-      console.log(`💰 [INTEGRATION] Встановлення бонусу в елемент ${index}`);
-      element.textContent = bonusAmount;
-    });
+      // Оновлюємо пороги та винагороди бейджів
+      if (config.badges) {
+        this.updateBadgeThresholdsFromConfig(config.badges);
+      }
+    } else {
+      // Використовуємо стандартний підхід
+      console.log('📊 [INTEGRATION] Використовуємо стандартні константи');
 
-    // Встановлюємо пороги для бейджів
-    console.log('🏆 [INTEGRATION] Оновлення порогів бейджів...');
-    this.updateBadgeThresholds();
+      // Встановлюємо базові значення винагород
+      const bonusAmountElements = document.querySelectorAll('.bonus-amount');
+      const bonusAmount = window.ReferralConstants.DIRECT_BONUS_AMOUNT || 50;
+
+      console.log('📊 [INTEGRATION] Налаштування бонусів:', {
+        elementsFound: bonusAmountElements.length,
+        bonusAmount: bonusAmount
+      });
+
+      bonusAmountElements.forEach(function(element, index) {
+        console.log(`💰 [INTEGRATION] Встановлення бонусу в елемент ${index}`);
+        element.textContent = bonusAmount;
+      });
+
+      // Встановлюємо пороги для бейджів
+      console.log('🏆 [INTEGRATION] Оновлення порогів бейджів...');
+      this.updateBadgeThresholds();
+    }
 
     console.log('✅ [INTEGRATION] === initRewardsDisplay COMPLETE ===');
+  };
+
+  /**
+   * ДОДАНО: Оновлення елементів за атрибутом
+   */
+  ReferralIntegration.prototype.updateElementsByAttribute = function(selector, value) {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach(function(el) {
+      el.textContent = value;
+    });
+  };
+
+  /**
+   * ДОДАНО: Оновлення порогів бейджів з конфігурації
+   */
+  ReferralIntegration.prototype.updateBadgeThresholdsFromConfig = function(badgesConfig) {
+    console.log('🏆 [INTEGRATION] === updateBadgeThresholdsFromConfig START ===');
+
+    Object.keys(badgesConfig).forEach(function(badgeType) {
+      const badge = badgesConfig[badgeType];
+      const prefix = badgeType.toLowerCase();
+
+      // Оновлюємо поріг
+      const thresholdEl = document.querySelector('.' + prefix + '-threshold');
+      if (thresholdEl) {
+        thresholdEl.textContent = badge.threshold;
+      }
+
+      // Оновлюємо винагороду
+      const rewardEl = document.querySelector('.' + prefix + '-reward');
+      if (rewardEl) {
+        rewardEl.textContent = badge.reward;
+      }
+    });
+
+    console.log('✅ [INTEGRATION] === updateBadgeThresholdsFromConfig COMPLETE ===');
   };
 
   /**
@@ -587,6 +695,13 @@ window.ReferralIntegration = (function() {
     console.log('📊 [INTEGRATION] === updateReferralStatsDisplay START ===');
     console.log('📊 [INTEGRATION] Вхідні дані:', JSON.stringify(statsData, null, 2));
 
+    // ДОДАНО: Якщо є динамічний контролер, делегуємо йому оновлення
+    if (this.dynamicController && this.dynamicController.updateReferralStatistics) {
+      console.log('🎮 [INTEGRATION] Делегуємо оновлення динамічному контролеру');
+      this.dynamicController.updateReferralStatistics();
+      return;
+    }
+
     if (!statsData) {
       console.error('❌ [INTEGRATION] statsData відсутні або null');
       this.showErrorMessage('Дані статистики недоступні');
@@ -654,6 +769,13 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.updateBadgeProgress = function(referralsCount) {
     console.log('🏆 [INTEGRATION] === updateBadgeProgress START ===');
     console.log('📊 [INTEGRATION] Кількість рефералів:', referralsCount);
+
+    // ДОДАНО: Якщо є динамічний контролер, делегуємо йому оновлення
+    if (this.dynamicController && this.dynamicController.updateBadges) {
+      console.log('🎮 [INTEGRATION] Делегуємо оновлення бейджів динамічному контролеру');
+      this.dynamicController.updateBadges();
+      return;
+    }
 
     if (!window.ReferralServices || !window.ReferralServices.checkBadgesProgress) {
       console.error('❌ [INTEGRATION] ReferralServices.checkBadgesProgress недоступний');
@@ -974,6 +1096,18 @@ window.ReferralIntegration = (function() {
       })
       .then(function() {
         console.log('✅ [INTEGRATION] Дані успішно перезавантажені');
+
+        // ДОДАНО: Оновлюємо через динамічний контролер якщо він є
+        if (self.dynamicController) {
+          console.log('🔄 [INTEGRATION] Оновлення через динамічний контролер...');
+          if (self.dynamicController.updateBadges) {
+            self.dynamicController.updateBadges();
+          }
+          if (self.dynamicController.updateBalances) {
+            self.dynamicController.updateBalances();
+          }
+        }
+
         console.log('✅ [INTEGRATION] === handleClaimBadge SUCCESS ===');
       })
       .catch(function(error) {
@@ -1078,6 +1212,13 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.updateBonusHistory = function(history) {
     console.log('💰 [INTEGRATION] === updateBonusHistory START ===');
     console.log('📊 [INTEGRATION] Історія:', history);
+
+    // ДОДАНО: Якщо є динамічний контролер, делегуємо йому оновлення
+    if (this.dynamicController && this.dynamicController.updateBonusHistory) {
+      console.log('🎮 [INTEGRATION] Делегуємо оновлення історії динамічному контролеру');
+      this.dynamicController.updateBonusHistory();
+      return;
+    }
 
     const container = document.querySelector('.bonus-history-items');
     if (!container) {
