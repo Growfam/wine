@@ -1,5 +1,4 @@
 from supabase_client import supabase
-from flask import current_app
 from datetime import datetime, timedelta
 import logging
 import traceback
@@ -17,12 +16,6 @@ class ReferralController:
     def generate_referral_link(user_id):
         """
         Генерує реферальне посилання для користувача
-
-        Args:
-            user_id (int): ID користувача
-
-        Returns:
-            dict: Словник з реферальним посиланням
         """
         try:
             # Валідація user_id
@@ -35,9 +28,9 @@ class ReferralController:
                 }
 
             # Конвертуємо ID в рядок для уніформності
-            user_id_str = str(user_id)
+            user_id_str = str(user_id)  # ← ЦЯ СТРОКА ПОВИННА БУТИ ТУТ
 
-            # Новий формат посилання: https://t.me/WINIX_Official_bot?start={user_id}
+            # Новий формат посилання
             referral_link = f"https://t.me/WINIX_Official_bot?start={user_id_str}"
             logger.info(f"generate_referral_link: Згенеровано посилання для користувача {user_id_str}: {referral_link}")
 
@@ -46,7 +39,7 @@ class ReferralController:
                 'success': True,
                 'user_id': user_id_str,
                 'referral_link': referral_link,
-                'link': referral_link  # Додаємо поле 'link' для сумісності зі старим кодом
+                'link': referral_link
             }
         except Exception as e:
             error_details = traceback.format_exc()
