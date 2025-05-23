@@ -18,7 +18,8 @@ window.TasksIntegration = (function() {
             flexEarn: null,
             dailyBonus: null,
             tasks: null,
-            verification: null
+            verification: null,
+            tasksManager: null
         };
 
         this.state = {
@@ -124,8 +125,10 @@ window.TasksIntegration = (function() {
 
         const requiredModules = {
             'FlexEarnManager': window.FlexEarnManager,
-            'TasksConstants': window.TasksConstants
-            // Додаткові модулі будуть додані пізніше
+            'TasksConstants': window.TasksConstants,
+            'TasksManager': window.TasksManager,
+            'TaskVerification': window.TaskVerification,
+            'DailyBonusManager': window.DailyBonusManager
         };
 
         const missingModules = [];
@@ -160,12 +163,28 @@ window.TasksIntegration = (function() {
             console.log('  ✅ [TasksIntegration] FlexEarnManager ініціалізовано');
         }
 
-        // Daily Bonus Manager (буде додано в Етапі 2)
+        // Daily Bonus Manager
         if (window.DailyBonusManager) {
             console.log('  🔧 [TasksIntegration] Ініціалізація DailyBonusManager...');
             this.managers.dailyBonus = window.DailyBonusManager;
             this.managers.dailyBonus.init(this.state.userId);
             console.log('  ✅ [TasksIntegration] DailyBonusManager ініціалізовано');
+        }
+
+        // Tasks Manager
+        if (window.TasksManager) {
+            console.log('  🔧 [TasksIntegration] Ініціалізація TasksManager...');
+            this.managers.tasksManager = window.TasksManager;
+            this.managers.tasksManager.init(this.state.userId);
+            console.log('  ✅ [TasksIntegration] TasksManager ініціалізовано');
+        }
+
+        // Task Verification
+        if (window.TaskVerification) {
+            console.log('  🔧 [TasksIntegration] Ініціалізація TaskVerification...');
+            this.managers.verification = window.TaskVerification;
+            // TaskVerification ініціалізується в TasksManager
+            console.log('  ✅ [TasksIntegration] TaskVerification готовий');
         }
 
         console.log('✅ [TasksIntegration] Всі менеджери ініціалізовано');
@@ -264,14 +283,29 @@ window.TasksIntegration = (function() {
             case 'daily':
                 if (this.managers.dailyBonus) {
                     console.log('  🔄 [TasksIntegration] Оновлення Daily Bonus...');
-                    // this.managers.dailyBonus.checkDailyStatus();
+                    this.managers.dailyBonus.updateDailyBonusUI();
                 }
                 break;
 
             case 'social':
+                if (this.managers.tasksManager) {
+                    console.log('  🔄 [TasksIntegration] Оновлення Social завдань...');
+                    this.managers.tasksManager.updateTasksUI();
+                }
+                break;
+
             case 'limited':
+                if (this.managers.tasksManager) {
+                    console.log('  🔄 [TasksIntegration] Оновлення Limited завдань...');
+                    this.managers.tasksManager.updateTasksUI();
+                }
+                break;
+
             case 'partner':
-                console.log(`  ℹ️ [TasksIntegration] Вкладка ${tabName} ще не реалізована`);
+                if (this.managers.tasksManager) {
+                    console.log('  🔄 [TasksIntegration] Оновлення Partner завдань...');
+                    this.managers.tasksManager.updateTasksUI();
+                }
                 break;
 
             default:

@@ -397,9 +397,11 @@
     <script src="js/tasks/store.js"></script>
     <script src="js/tasks/services.js"></script>
     <script src="js/tasks/utils.js"></script>
+    <script src="js/tasks/bonusCalculator.js"></script>
     <script src="js/tasks/flexEarn.js"></script>
     <script src="js/tasks/dailyBonus.js"></script>
     <script src="js/tasks/taskVerification.js"></script>
+    <script src="js/tasks/tasksManager.js"></script>
     <script src="js/tasks/integration.js"></script>
 
     <!-- Базова ініціалізація -->
@@ -410,28 +412,8 @@
             window.Telegram.WebApp.expand();
         }
 
-        // Обробники для вкладок
+        // Обробники для навігації
         document.addEventListener('DOMContentLoaded', function() {
-            const tabs = document.querySelectorAll('.tab-button');
-            const panes = document.querySelectorAll('.main-tab-pane');
-
-            tabs.forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const tabId = this.getAttribute('data-tab');
-
-                    // Видаляємо активний клас з усіх вкладок
-                    tabs.forEach(t => t.classList.remove('active'));
-                    panes.forEach(p => p.classList.remove('active'));
-
-                    // Додаємо активний клас до обраної вкладки
-                    this.classList.add('active');
-                    const activePane = document.getElementById(tabId + '-tab');
-                    if (activePane) {
-                        activePane.classList.add('active');
-                    }
-                });
-            });
-
             // Обробники для навігації
             const navItems = document.querySelectorAll('.nav-bar .nav-item');
             navItems.forEach(item => {
@@ -464,44 +446,7 @@
                 });
             });
 
-            // Ініціалізація FlexEarnManager
-            console.log('🚀 [MAIN] Ініціалізація FlexEarnManager...');
-
-            // Отримуємо ID користувача
-            let userId = null;
-            if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
-                userId = parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
-                console.log('✅ [MAIN] ID користувача з Telegram:', userId);
-            } else {
-                userId = localStorage.getItem('telegram_user_id') || 'demo_user';
-                console.log('⚠️ [MAIN] ID користувача з localStorage:', userId);
-            }
-
-            // Ініціалізуємо FlexEarnManager
-            if (window.FlexEarnManager) {
-                window.FlexEarnManager.init(userId);
-                console.log('✅ [MAIN] FlexEarnManager ініціалізовано');
-
-                // Перевіряємо новий день
-                window.FlexEarnManager.checkNewDay();
-
-                // Для демонстрації можна увімкнути демо-режим
-                // window.FlexEarnManager.setDemoMode(true, 1500000);
-
-                // Додаємо глобальний доступ для налагодження
-                window.debugFlex = {
-                    manager: window.FlexEarnManager,
-                    getState: () => window.FlexEarnManager.getState(),
-                    setDemo: (balance) => window.FlexEarnManager.setDemoMode(true, balance),
-                    claim: (level) => window.FlexEarnManager.claimReward(level),
-                    reset: () => window.FlexEarnManager.resetDailyRewards()
-                };
-
-                console.log('💡 [MAIN] Для налагодження використовуйте window.debugFlex');
-                console.log('💡 [MAIN] Приклад: window.debugFlex.setDemo(2000000)');
-            } else {
-                console.error('❌ [MAIN] FlexEarnManager не знайдено!');
-            }
+            console.log('✅ [MAIN] Сторінка завантажена, система завдань готова до роботи');
         });
     </script>
 </body>
