@@ -32,6 +32,26 @@
     justify-content: center;
     position: relative;
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    cursor: pointer;
+}
+
+.day-cell:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 16px rgba(179, 102, 255, 0.3);
+}
+
+/* ======== ВМІСТ ДНЯ ======== */
+.day-number {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 0.125rem;
+}
+
+.day-reward {
+    font-size: 0.75rem;
+    color: #b366ff;
+    font-weight: 500;
 }
 
 /* ======== СТАТУСИ ДНІВ ======== */
@@ -42,13 +62,33 @@
     border-color: rgba(76, 175, 80, 0.3);
 }
 
+.day-cell.claimed .day-number {
+    color: rgba(76, 175, 80, 0.9);
+}
+
 .day-cell.today {
     border-color: #b366ff;
     box-shadow: 0 0 20px rgba(179, 102, 255, 0.3);
+    animation: today-pulse 2s ease-in-out infinite;
+}
+
+@keyframes today-pulse {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(179, 102, 255, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(179, 102, 255, 0.5);
+    }
 }
 
 .day-cell.future {
     opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.day-cell.future:hover {
+    transform: none;
+    box-shadow: none;
 }
 
 /* ======== ПОЗНАЧКА TICKETS ======== */
@@ -65,6 +105,7 @@
     justify-content: center;
     box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
     animation: ticket-pulse 2s ease-in-out infinite;
+    font-size: 0.75rem;
 }
 
 @keyframes ticket-pulse {
@@ -76,6 +117,36 @@
         transform: scale(1.1);
         box-shadow: 0 4px 12px rgba(255, 215, 0, 0.6);
     }
+}
+
+/* ======== СТАТИСТИКА ======== */
+.daily-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background: rgba(139, 92, 246, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    border: 1px solid rgba(179, 102, 255, 0.2);
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #b366ff;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
 }
 
 /* ======== ІНФОРМАЦІЯ ПРО ВИНАГОРОДУ ======== */
@@ -97,6 +168,12 @@
     margin-bottom: 0.5rem;
 }
 
+.reward-description {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.4;
+}
+
 /* ======== КНОПКА ОТРИМАННЯ ======== */
 .claim-daily-button {
     width: 100%;
@@ -112,6 +189,10 @@
     box-shadow:
         0 4px 12px rgba(179, 102, 255, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
 .claim-daily-button:hover:not(:disabled) {
@@ -121,10 +202,88 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
+.claim-daily-button:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
 .claim-daily-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     background: linear-gradient(135deg, #666, #555);
+}
+
+.claim-daily-button.available {
+    animation: button-glow 2s ease-in-out infinite;
+}
+
+@keyframes button-glow {
+    0%, 100% {
+        box-shadow:
+            0 4px 12px rgba(179, 102, 255, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    50% {
+        box-shadow:
+            0 6px 20px rgba(179, 102, 255, 0.5),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+}
+
+.claim-daily-button .timer {
+    font-size: 0.875rem;
+    opacity: 0.9;
+    margin-left: 0.5rem;
+}
+
+.claim-daily-button .bonus-tickets {
+    background: rgba(255, 215, 0, 0.2);
+    padding: 0.125rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.875rem;
+    margin-left: 0.5rem;
+}
+
+/* ======== АНІМАЦІЯ ОТРИМАННЯ БОНУСУ ======== */
+.daily-bonus-claimed {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: linear-gradient(135deg,
+        rgba(179, 102, 255, 0.95) 0%,
+        rgba(139, 92, 246, 0.95) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: white;
+    padding: 2rem 3rem;
+    border-radius: 2rem;
+    box-shadow:
+        0 20px 40px rgba(179, 102, 255, 0.4),
+        0 10px 20px rgba(179, 102, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    text-align: center;
+}
+
+.daily-bonus-claimed.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.daily-bonus-claimed .reward-amount {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.daily-bonus-claimed .reward-tickets {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #FFD700;
+    text-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
 }
 
 /* ======== АДАПТИВНІСТЬ ======== */
@@ -137,8 +296,24 @@
         font-size: 0.875rem;
     }
 
+    .day-number {
+        font-size: 0.8125rem;
+    }
+
+    .day-reward {
+        font-size: 0.6875rem;
+    }
+
     .reward-amount {
         font-size: 1.75rem;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+    }
+
+    .daily-stats {
+        gap: 0.75rem;
     }
 }
 
@@ -150,5 +325,15 @@
     .ticket-indicator {
         width: 1.25rem;
         height: 1.25rem;
+        font-size: 0.625rem;
+    }
+
+    .stat-card {
+        padding: 1rem;
+    }
+
+    .claim-daily-button {
+        padding: 0.875rem;
+        font-size: 0.875rem;
     }
 }
