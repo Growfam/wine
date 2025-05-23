@@ -1,6 +1,6 @@
 /**
  * CSS стилі для відображення бейджів і завдань у реферальній системі
- * iOS 18 Premium Style
+ * iOS 18 Premium Style - Dark Purple Theme
  */
 
 /* Загальні стилі для секції бейджів та завдань */
@@ -16,17 +16,17 @@
 .badges-stats-item,
 .tasks-stats-item {
     flex: 1;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(139, 92, 246, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-radius: 1.25rem;
     padding: 1rem;
     text-align: center;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 102, 255, 0.2);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        0 4px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
     position: relative;
     overflow: hidden;
 }
@@ -39,7 +39,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 50% 50%, rgba(179, 102, 255, 0.1), transparent 70%);
+    background: radial-gradient(circle at 50% 50%, rgba(179, 102, 255, 0.15), transparent 70%);
     opacity: 0;
     transition: opacity 0.5s ease;
     pointer-events: none;
@@ -49,7 +49,7 @@
 .tasks-stats-item:hover {
     transform: translateY(-3px) scale(1.02);
     box-shadow:
-        0 8px 24px rgba(179, 102, 255, 0.15),
+        0 8px 24px rgba(179, 102, 255, 0.25),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
@@ -88,7 +88,7 @@
     position: relative;
 }
 
-/* Іконки бейджів з преміальними градієнтами */
+/* Іконки бейджів з преміальними градієнтами - ЗАМІСТЬ ЕМОДЗІ ВИКОРИСТОВУЄМО SVG */
 .bronze-badge-icon,
 .brave-badge-icon {
     background: linear-gradient(135deg, #ff7e5f, #feb47b);
@@ -100,8 +100,15 @@
 
 .bronze-badge-icon::before,
 .brave-badge-icon::before {
-    content: '⚡';
-    font-size: 1.5rem;
+    content: '';
+    position: absolute;
+    width: 70%;
+    height: 70%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13 2L3 14H12L11 22L21 10H12L13 2Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
 .silver-badge-icon,
@@ -115,8 +122,15 @@
 
 .silver-badge-icon::before,
 .innovator-badge-icon::before {
-    content: '💡';
-    font-size: 1.5rem;
+    content: '';
+    position: absolute;
+    width: 70%;
+    height: 70%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='12' cy='12' r='10' stroke='white' stroke-width='2'/%3E%3Cpath d='M12 7V12' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='4' r='1' fill='white'/%3E%3Ccircle cx='18.5' cy='7' r='1' fill='white'/%3E%3Ccircle cx='18.5' cy='17' r='1' fill='white'/%3E%3Ccircle cx='12' cy='20' r='1' fill='white'/%3E%3Ccircle cx='5.5' cy='17' r='1' fill='white'/%3E%3Ccircle cx='5.5' cy='7' r='1' fill='white'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
 .gold-badge-icon,
@@ -130,8 +144,15 @@
 
 .gold-badge-icon::before,
 .legend-badge-icon::before {
-    content: '👑';
-    font-size: 1.5rem;
+    content: '';
+    position: absolute;
+    width: 70%;
+    height: 70%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2L14 8H20L15 12L17 18L12 14L7 18L9 12L4 8H10L12 2Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='rgba(255,255,255,0.2)'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
 .platinum-badge-icon,
@@ -145,8 +166,15 @@
 
 .platinum-badge-icon::before,
 .visionary-badge-icon::before {
-    content: '🚀';
-    font-size: 1.5rem;
+    content: '';
+    position: absolute;
+    width: 70%;
+    height: 70%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49707C5.79935 3.85782 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98233 16.07 2.86' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M22 4L12 14.01L9 11.01' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
 /* Іконки завдань */
@@ -159,8 +187,14 @@
 }
 
 .completed-task-icon::before {
-    content: '✓';
-    font-size: 1.5rem;
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 12L10 17L20 7' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 .total-tasks-icon {
@@ -172,8 +206,14 @@
 }
 
 .total-tasks-icon::before {
-    content: '#';
-    font-size: 1.5rem;
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M9 11H3V21H9V11Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M21 3H15V21H21V3Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M15 7H9V21H15V7Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 .task-reward-icon {
@@ -185,22 +225,28 @@
 }
 
 .task-reward-icon::before {
-    content: '💰';
-    font-size: 1.5rem;
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2C10.8954 2 10 2.89543 10 4V5C7.23858 5 5 7.23858 5 10V11C3.34315 11 2 12.3431 2 14V19C2 20.6569 3.34315 22 5 22H19C20.6569 22 22 20.6569 22 19V14C22 12.3431 20.6569 11 19 11V10C19 7.23858 16.7614 5 14 5V4C14 2.89543 13.1046 2 12 2Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 /* Інформація про наступний бейдж */
 .next-badge-container {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(139, 92, 246, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-radius: 1.5rem;
     padding: 1.25rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 102, 255, 0.2);
     margin-bottom: 1.5rem;
     box-shadow:
-        0 8px 24px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        0 8px 24px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     position: relative;
     overflow: hidden;
@@ -251,7 +297,7 @@
 .progress-bar {
     width: 100%;
     height: 0.5rem;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.3);
     border-radius: 1rem;
     overflow: hidden;
     position: relative;
@@ -296,17 +342,17 @@
 }
 
 .badge-item {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(139, 92, 246, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-radius: 1.5rem;
     padding: 1.25rem;
     display: flex;
     gap: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 102, 255, 0.2);
     box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        0 4px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     position: relative;
     overflow: hidden;
@@ -328,7 +374,7 @@
 .badge-item:hover {
     transform: translateY(-3px) scale(1.01);
     box-shadow:
-        0 8px 24px rgba(179, 102, 255, 0.15),
+        0 8px 24px rgba(179, 102, 255, 0.25),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
@@ -376,7 +422,15 @@
 
 .bronze-icon::before,
 .brave-icon::before {
-    content: '⚡';
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M13 2L3 14H12L11 22L21 10H12L13 2Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
 .silver-icon,
@@ -387,7 +441,15 @@
 
 .silver-icon::before,
 .innovator-icon::before {
-    content: '💡';
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='12' cy='12' r='10' stroke='white' stroke-width='2'/%3E%3Cpath d='M12 7V12' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='12' cy='4' r='1' fill='white'/%3E%3Ccircle cx='18.5' cy='7' r='1' fill='white'/%3E%3Ccircle cx='18.5' cy='17' r='1' fill='white'/%3E%3Ccircle cx='12' cy='20' r='1' fill='white'/%3E%3Ccircle cx='5.5' cy='17' r='1' fill='white'/%3E%3Ccircle cx='5.5' cy='7' r='1' fill='white'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
 .gold-icon,
@@ -398,7 +460,15 @@
 
 .gold-icon::before,
 .legend-icon::before {
-    content: '👑';
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2L14 8H20L15 12L17 18L12 14L7 18L9 12L4 8H10L12 2Z' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='rgba(255,255,255,0.2)'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
 .platinum-icon,
@@ -409,7 +479,15 @@
 
 .platinum-icon::before,
 .visionary-icon::before {
-    content: '🚀';
+    content: '';
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49707C5.79935 3.85782 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98233 16.07 2.86' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M22 4L12 14.01L9 11.01' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
 /* Інформація про бейдж */
@@ -447,7 +525,7 @@
 .badge-progress-bar {
     width: 100%;
     height: 0.5rem;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.3);
     border-radius: 1rem;
     overflow: hidden;
 }
@@ -550,15 +628,15 @@
 }
 
 .task-item {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(139, 92, 246, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-radius: 1.5rem;
     padding: 1.25rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 102, 255, 0.2);
     box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        0 4px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     position: relative;
     overflow: hidden;
@@ -580,7 +658,7 @@
 .task-item:hover {
     transform: translateY(-3px) scale(1.01);
     box-shadow:
-        0 8px 24px rgba(78, 181, 247, 0.15),
+        0 8px 24px rgba(78, 181, 247, 0.25),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
@@ -629,7 +707,7 @@
 .task-progress-bar {
     width: 100%;
     height: 0.5rem;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.3);
     border-radius: 1rem;
     overflow: hidden;
 }
