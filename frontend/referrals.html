@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="css/referrals/percentage-rewards.css">
     <link rel="stylesheet" href="css/referrals/referral-activity.css">
     <link rel="stylesheet" href="css/referrals/badges-tasks.css">
+    <link rel="stylesheet" href="css/referrals/referral-tabs-fix.css">
     <link rel="preload" href="assets/badges-icons.svg" as="image" type="image/svg+xml">
 </head>
 <body>
@@ -384,7 +385,6 @@
                         <div class="referral-tabs">
                             <div class="referral-tab active" data-tab="level1">1-й рівень</div>
                             <div class="referral-tab" data-tab="level2">2-й рівень</div>
-                            <div class="referral-tab" data-tab="hierarchy">Ланцюжок</div>
                         </div>
 
                         <!-- Контент вкладок -->
@@ -400,13 +400,6 @@
                             <div class="tab-pane" id="level2-tab">
                                 <div class="referral-list" id="level2-list">
                                     <p style="color: #888; text-align: center;">Завантаження рефералів 2-го рівня...</p>
-                                </div>
-                            </div>
-
-                            <!-- Вкладка ієрархії рефералів -->
-                            <div class="tab-pane" id="hierarchy-tab">
-                                <div class="referral-hierarchy" id="referral-hierarchy">
-                                    <p style="color: #888; text-align: center;">Завантаження ієрархії рефералів...</p>
                                 </div>
                             </div>
                         </div>
@@ -930,13 +923,20 @@
                 }
             }
 
-            // 2. Обробники для внутрішніх вкладок рефералів
+            // 2. Обробники для внутрішніх вкладок рефералів (тільки 1-й і 2-й рівень)
             const tabs = document.querySelectorAll('.referral-tab');
             console.log("🔍 [BASE-HANDLERS] Знайдено внутрішніх вкладок:", tabs.length);
 
             tabs.forEach(function(tab, index) {
                 tab.addEventListener('click', function() {
-                    console.log(`📑 [BASE-HANDLERS] Клік на внутрішню вкладку ${index}:`, tab.dataset.tab);
+                    const tabId = tab.dataset.tab;
+                    console.log(`📑 [BASE-HANDLERS] Клік на внутрішню вкладку ${index}:`, tabId);
+
+                    // Перевіряємо чи це валідна вкладка (тільки level1 або level2)
+                    if (tabId !== 'level1' && tabId !== 'level2') {
+                        console.warn("⚠️ [BASE-HANDLERS] Невідома вкладка:", tabId);
+                        return;
+                    }
 
                     // Видаляємо клас active з усіх вкладок
                     tabs.forEach(function(t) {
@@ -945,9 +945,6 @@
 
                     // Додаємо клас active до обраної вкладки
                     tab.classList.add('active');
-
-                    // Отримуємо ідентифікатор вкладки
-                    const tabId = tab.dataset.tab;
 
                     // Приховуємо всі панелі
                     const panes = document.querySelectorAll('.tab-pane');

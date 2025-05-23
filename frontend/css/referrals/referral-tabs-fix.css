@@ -1,0 +1,103 @@
+/* Фікс для вкладок рефералів - видалення ланцюжка та розтягування двох вкладок */
+
+/* Перевизначаємо стилі для контейнера вкладок */
+.referral-tabs {
+    display: flex;
+    width: 100%;
+    margin-bottom: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    padding: 0.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Стилі для вкладок - кожна займає 50% ширини */
+.referral-tab {
+    flex: 1;  /* Рівномірний розподіл простору */
+    text-align: center;
+    padding: 0.75rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    border-radius: 0.75rem;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-width: 50%;  /* Обмеження максимальної ширини */
+}
+
+.referral-tab:hover {
+    color: #ffffff;
+    background: rgba(179, 102, 255, 0.1);
+}
+
+.referral-tab.active {
+    background: linear-gradient(135deg, #b366ff, #8b5cf6);
+    color: white;
+    box-shadow:
+        0 4px 12px rgba(179, 102, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Приховуємо третю вкладку якщо вона випадково з'явиться */
+.referral-tab:nth-child(3) {
+    display: none !important;
+}
+
+/* Фікс для панелей контенту */
+.referral-tab-content {
+    width: 100%;
+}
+
+.tab-pane {
+    display: none;
+    animation: tab-content-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+/* Приховуємо панель ланцюжка */
+#hierarchy-tab {
+    display: none !important;
+}
+
+@keyframes tab-content-appear {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Адаптивність для мобільних пристроїв */
+@media (max-width: 450px) {
+    .referral-tab {
+        font-size: 0.875rem;
+        padding: 0.75rem 0.5rem;
+    }
+}
+
+@media (max-width: 350px) {
+    .referral-tab {
+        font-size: 0.75rem;
+        padding: 0.625rem 0.375rem;
+    }
+}
+
+/* Додаткові стилі для кращого вигляду на різних екранах */
+@media (min-width: 768px) {
+    .referral-tabs {
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
