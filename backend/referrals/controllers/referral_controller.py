@@ -98,8 +98,12 @@ class ReferralController:
                 # Створюємо активність для нового реферала
                 ReferralController._create_referee_activity(referee_id_str)
 
-                # Створюємо зв'язок 2-го рівня якщо є
+                # ВАЖЛИВО: Створюємо зв'язок 2-го рівня
                 ReferralController._create_second_level_referral(referrer_id_str, referee_id_str)
+
+                # НОВИЙ КОД: Також створюємо зв'язки 2-го рівня для всіх рефералів нового реферала
+                # Це потрібно, якщо новий реферал вже має своїх рефералів
+                ReferralController._update_second_level_for_new_referrer(referee_id_str)
 
                 logger.info(
                     f"register_referral: Успішно створено реферальний зв'язок між {referrer_id_str} та {referee_id_str}")
@@ -132,6 +136,79 @@ class ReferralController:
                 'error': 'Failed to register referral',
                 'details': str(e)
             }
+
+    @staticmethod
+    def _update_second_level_for_new_referrer(new_referrer_id):
+        """
+        Створює зв'язки 2-го рівня, коли новий реферал вже має своїх рефералів
+
+        Сценарій:
+        1. B запросив C (C вже в системі)
+        2. Потім A запрошує B
+        3. Тепер C має стати рефералом 2-го рівня для A
+        """
+        try:
+            logger.info(f"=== _update_second_level_for_new_referrer: Перевірка рефералів для {new_referrer_id} ===")
+
+            # Знаходимо хто запросив нового реферера (хто є вищим рефером)
+            higher_referrer_query = supabase.table("referrals").select("referrer_id").eq(
+                "referee_id", new_referrer_id
+            ).eq("level", 1)
+            higher_referrer_result = higher_referrer_query.execute()
+
+            if not higher_referrer_result.data:
+                logger.info(f"Немає вищого реферера для {new_referrer_id}")
+                return
+
+            higher_referrer_id = higher_referrer_result.data[0]['referrer_id']
+            logger.info(f"Знайдено вищого реферера: {higher_referrer_id}")
+
+            # Знаходимо всіх рефералів нового реферера
+            sub_referrals_query = supabase.table("referrals").select("referee_id").eq(
+                "referrer_id", new_referrer_id
+            ).eq("level", 1)
+            sub_referrals_result = sub_referrals_query.execute()
+
+            if not sub_referrals_result.data:
+                logger.info(f"У {new_referrer_id} немає рефералів")
+                return
+
+            logger.info(f"Знайдено {len(sub_referrals_result.data)} рефералів у {new_referrer_id}")
+
+            # Створюємо зв'язки 2-го рівня для кожного суб-реферала
+            created_count = 0
+            for sub_ref in sub_referrals_result.data:
+                sub_referee_id = sub_ref['referee_id']
+
+                # Перевіряємо чи не створить це циклічний зв'язок
+                if sub_referee_id == higher_referrer_id:
+                    logger.warning(f"Пропускаємо циклічний зв'язок: {higher_referrer_id} -> {sub_referee_id}")
+                    continue
+
+                # Перевіряємо чи вже існує такий зв'язок
+                existing_query = supabase.table("referrals").select("id").eq(
+                    "referrer_id", higher_referrer_id
+                ).eq("referee_id", sub_referee_id).eq("level", 2)
+                existing_result = existing_query.execute()
+
+                if not existing_result.data:
+                    # Створюємо новий зв'язок 2-го рівня
+                    second_level_data = {
+                        "referrer_id": higher_referrer_id,
+                        "referee_id": sub_referee_id,
+                        "level": 2,
+                        "created_at": datetime.utcnow().isoformat()
+                    }
+                    supabase.table("referrals").insert(second_level_data).execute()
+                    created_count += 1
+                    logger.info(f"✅ Створено зв'язок 2-го рівня: {higher_referrer_id} -> {sub_referee_id}")
+                else:
+                    logger.info(f"Зв'язок 2-го рівня вже існує: {higher_referrer_id} -> {sub_referee_id}")
+
+            logger.info(f"=== Створено {created_count} нових зв'язків 2-го рівня ===")
+
+        except Exception as e:
+            logger.error(f"Помилка в _update_second_level_for_new_referrer: {str(e)}")
 
     @staticmethod
     def get_referral_structure(user_id):
