@@ -1,0 +1,513 @@
+# Структура бази даних Supabase
+
+## 📊 Загальна статистика
+- **Всього таблиць**: 17
+- **Всього колонок**: 201
+- **Primary Keys**: 17 (всі таблиці мають PK)
+- **Foreign Keys**: 19 зв'язків
+- **RLS політик**: 77 політик
+
+## 🔗 Карта зв'язків між таблицями
+
+### Центральна таблиця: `winix`
+- `direct_bonuses` → `winix` (referrer_id, referee_id)
+- `draw_participants` → `winix` (user_id)
+- `percentage_rewards` → `winix` (user_id, referral_id)
+- `raffle_participants` → `winix` (telegram_id)
+- `referral_activities` → `winix` (user_id)
+- `referrals` → `winix` (referrer_id, referee_id)
+- `transactions` → `winix` (telegram_id)
+- `user_badges` → `winix` (user_id)
+- `user_tasks` → `winix` (user_id)
+- `winix` → `winix` (referrer_id - самопосилання)
+
+### Інші зв'язки
+- `draw_participants` → `draws`
+- `raffle_participants` → `raffles`
+- `raffle_winners` → `raffles`
+- `transactions` → `raffles`
+- `user_progress` → `tasks`
+
+---
+
+## 📋 Детальна структура таблиць
+
+### 1. `daily_bonuses` (8 колонок)
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT uuid_generate_v4()
+telegram_id: varchar(50) NOT NULL
+bonus_type: varchar(20) NOT NULL DEFAULT 'daily'
+amount: numeric NOT NULL
+day_in_cycle: integer NOT NULL DEFAULT 1
+claimed_date: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+created_at: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+token_amount: integer NOT NULL
+```
+
+### 2. `direct_bonuses` (5 колонок)
+```
+id: integer [PRIMARY KEY] NOT NULL DEFAULT nextval('direct_bonuses_id_seq')
+referrer_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+referee_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+amount: integer DEFAULT 50
+created_at: timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+```
+
+### 3. `draw_participants` (6 колонок)
+```
+id: integer [PRIMARY KEY] NOT NULL DEFAULT nextval('draw_participants_id_seq')
+draw_id: integer [FK → draws.id] NOT NULL (дублюється 2 рази)
+user_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+is_winner: boolean
+prize_amount: integer
+```
+
+### 4. `draws` (3 колонки)
+```
+id: integer [PRIMARY KEY] NOT NULL DEFAULT nextval('draws_id_seq')
+name: varchar(100) NOT NULL
+date: timestamp without time zone NOT NULL
+```
+
+### 5. `percentage_rewards` (8 колонок)
+```
+id: integer [PRIMARY KEY] NOT NULL DEFAULT nextval('percentage_rewards_id_seq')
+user_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+referral_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+level: integer NOT NULL
+rate: double precision NOT NULL
+base_amount: integer NOT NULL
+reward_amount: integer NOT NULL
+created_at: timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+```
+
+### 6. `raffle_participants` (9 колонок)
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT uuid_generate_v4()
+telegram_id: text [FK → winix.telegram_id] NOT NULL
+raffle_id: uuid [FK → raffles.id] NOT NULL
+entry_count: integer DEFAULT 1
+created_at: timestamp with time zone DEFAULT now()
+is_winner: boolean
+prize_amount: numeric
+prize_claimed: boolean
+status: text DEFAULT 'active'
+```
+
+### 7. `raffle_winners` (11 колонок)
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT gen_random_uuid()
+raffle_id: uuid [FK → raffles.id] NOT NULL
+telegram_id: text NOT NULL
+place: integer NOT NULL
+prize_amount: numeric NOT NULL
+prize_currency: text DEFAULT 'WINIX'
+win_time: timestamp with time zone DEFAULT now()
+notification_sent: boolean
+reward_claimed: boolean
+created_at: timestamp with time zone DEFAULT now()
+created_by: text
+```
+
+### 8. `raffles` (29 колонок) - найбільша таблиця
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT uuid_generate_v4()
+created_at: timestamp with time zone DEFAULT now()
+title: text NOT NULL DEFAULT 'Jackpot Giw'
+description: text DEFAULT '250$ і 550K $Winix'
+prize: text NOT NULL
+raffle_type: text NOT NULL
+start_time: timestamp with time zone DEFAULT now()
+end_time: timestamp with time zone NOT NULL DEFAULT '2025-04-23 12:00:00+00'
+status: text DEFAULT 'active'
+participants_count: integer
+entry_fee: integer DEFAULT 1
+prize_amount: numeric DEFAULT 550
+prize_currency: text DEFAULT 'WINIX'
+winners_count: integer DEFAULT 1
+is_daily: boolean
+image_url: text
+prize_distribution: jsonb DEFAULT '{}'
+created_by: text
+updated_at: timestamp with time zone DEFAULT now()
+jackpot_mode: boolean DEFAULT true
+participation_reward: numeric
+participation_reward_currency: text DEFAULT '$Winix'
+total_winix_pool: numeric
+completed_at: timestamp with time zone
+historical: boolean
+archived: boolean
+total_distributed: numeric
+rewards_processed: boolean
+rewards_processed_at: timestamp without time zone
+```
+
+### 9. `referral_activities` (7 колонок)
+```
+id: integer [PRIMARY KEY] NOT NULL DEFAULT nextval('referral_activities_id_seq')
+user_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+draws_participation: integer
+invited_referrals: integer
+is_active: boolean
+reason_for_activity: varchar(50)
+last_updated: timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+```
+
+### 10. `referrals` (5 колонок)
+```
+id: integer [PRIMARY KEY] NOT NULL DEFAULT nextval('referrals_id_seq')
+referrer_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+referee_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+level: integer DEFAULT 1
+created_at: timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+```
+
+### 11. `staking_sessions` (14 колонок)
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT uuid_generate_v4()
+user_id: text NOT NULL
+amount_staked: numeric NOT NULL
+staking_days: integer NOT NULL
+reward_percent: double precision NOT NULL
+started_at: timestamp with time zone DEFAULT now()
+ends_at: timestamp with time zone NOT NULL
+is_active: boolean DEFAULT true
+cancelled_early: boolean
+final_amount_paid: numeric
+created_at: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+updated_at: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+telegram_id: text
+completed_at: timestamp without time zone
+```
+
+### 12. `tasks` (23 колонки)
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT uuid_generate_v4()
+title: varchar(255) NOT NULL
+description: text NOT NULL
+task_type: varchar(50) NOT NULL
+reward_type: varchar(50) NOT NULL
+reward_amount: numeric NOT NULL
+target_value: integer NOT NULL DEFAULT 1
+action_type: varchar(50) NOT NULL
+action_url: text
+action_label: varchar(100)
+status: varchar(20) NOT NULL DEFAULT 'active'
+start_date: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+end_date: timestamp with time zone
+created_at: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+updated_at: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+platforms: jsonb DEFAULT '[]'
+tags: jsonb DEFAULT '[]'
+difficulty: smallint NOT NULL DEFAULT 1
+repeatable: boolean
+cooldown_hours: integer DEFAULT 24
+verification_type: varchar(20) DEFAULT 'manual'
+created_by: varchar(50)
+extra_data: jsonb
+```
+
+### 13. `transactions` (15 колонок)
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT uuid_generate_v4()
+created_at: timestamp with time zone DEFAULT now()
+telegram_id: text [FK → winix.telegram_id] NOT NULL
+type: text NOT NULL
+amount: numeric NOT NULL
+description: text
+status: text DEFAULT 'completed'
+staking_id: text
+from_address: text
+to_address: text
+raffle_id: uuid [FK → raffles.id]
+previous_balance: numeric
+transaction_group: uuid
+updated_at: timestamp without time zone DEFAULT now()
+previous_coins: numeric
+```
+
+### 14. `user_badges` (6 колонок)
+```
+id: integer [PRIMARY KEY] NOT NULL DEFAULT nextval('user_badges_id_seq')
+user_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+badge_type: varchar(20) [UNIQUE] NOT NULL
+earned_at: timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+claimed: boolean
+reward_amount: integer NOT NULL
+```
+
+### 15. `user_progress` (12 колонок)
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT uuid_generate_v4()
+telegram_id: varchar(50) [UNIQUE] NOT NULL
+task_id: uuid [FK → tasks.id] NOT NULL
+status: varchar(20) NOT NULL DEFAULT 'not_started'
+progress_value: integer NOT NULL
+max_progress: integer NOT NULL DEFAULT 100
+start_date: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+completion_date: timestamp with time zone
+last_updated: timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+verification_data: jsonb DEFAULT '{}'
+reward_claimed: boolean
+attempts: integer
+```
+
+### 16. `user_tasks` (9 колонок)
+```
+id: integer [PRIMARY KEY] NOT NULL DEFAULT nextval('user_tasks_id_seq')
+user_id: varchar(255) [FK → winix.telegram_id] NOT NULL
+task_type: varchar(30) [UNIQUE] NOT NULL
+progress: integer
+threshold: integer NOT NULL
+completed: boolean
+claimed: boolean
+reward_amount: integer NOT NULL
+last_updated: timestamp with time zone DEFAULT now()
+```
+
+### 17. `winix` (31 колонка) - центральна таблиця користувачів
+```
+id: uuid [PRIMARY KEY] NOT NULL DEFAULT uuid_generate_v4()
+created_at: timestamp with time zone DEFAULT now()
+telegram_id: text [UNIQUE] NOT NULL
+username: text
+balance: numeric
+coins: integer DEFAULT 3
+referrer_id: text [FK → winix.telegram_id]
+newbie_bonus_claimed: boolean
+participations_count: integer
+badge_winner: boolean
+badge_beginner: boolean
+badge_rich: boolean
+language: text DEFAULT 'uk'
+avatar_id: text
+avatar_url: text
+password_hash: text
+seed_phrase: text
+notifications_enabled: boolean DEFAULT true
+badge_winner_reward_claimed: boolean
+badge_beginner_reward_claimed: boolean
+badge_rich_reward_claimed: boolean
+daily_bonuses: jsonb DEFAULT '{"current_day": 1, "claimed_days": [], "last_claimed_date": null}'
+social_tasks: jsonb DEFAULT '{}'
+referral_tasks: jsonb DEFAULT '{}'
+page1_completed: boolean
+wins_count: integer
+staking_data: jsonb DEFAULT '{}'
+staking_history: jsonb DEFAULT '[]'
+seed_phrase_iv: text
+updated_at: timestamp without time zone
+referral_code: varchar(20)
+```
+
+---
+
+## 📊 Статистика типів даних
+
+- **integer**: 38 колонок
+- **text**: 34 колонки
+- **character varying**: 27 колонок
+- **boolean**: 27 колонок
+- **timestamp with time zone**: 24 колонки
+- **uuid**: 14 колонок
+- **numeric**: 14 колонок
+- **timestamp without time zone**: 10 колонок
+- **jsonb**: 10 колонок
+- **double precision**: 2 колонки
+- **smallint**: 1 колонка
+
+---
+
+## 🔑 Унікальні обмеження
+
+- `user_badges.badge_type` - UNIQUE
+- `user_progress.telegram_id` - UNIQUE
+- `user_tasks.task_type` - UNIQUE
+- `winix.telegram_id` - UNIQUE
+
+---
+
+## 💡 Важливі особливості
+
+1. **UUID vs Integer ID**: Новіші таблиці використовують UUID (daily_bonuses, raffles, transactions), старіші - integer з sequence
+2. **Timestamp типи**: Змішане використання `with time zone` та `without time zone`
+3. **JSONB колонки**: Активно використовуються для зберігання структурованих даних (winix, raffles, tasks)
+4. **Центральна роль winix**: Майже всі таблиці посилаються на `winix.telegram_id`
+5. **Дублікат FK**: В `draw_participants` є дублікат зовнішнього ключа `draw_id`
+
+---
+
+## 🔐 RLS (Row Level Security) політики
+
+### Загальна статистика RLS:
+- **Всього політик**: 77
+- **Таблиць з політиками**: 17 (всі таблиці)
+- **Типи операцій**:
+  - ALL: 26 політик
+  - SELECT: 14 політик
+  - INSERT: 14 політик
+  - UPDATE: 14 політик
+  - DELETE: 9 політик
+
+### Детальний опис політик по таблицях:
+
+#### 1. `daily_bonuses` (5 політик)
+- **Enable insert for service role** (INSERT): Дозволяє вставку для public
+- **daily_bonuses_delete_policy** (DELETE): Тільки для admin ролі
+- **daily_bonuses_select_policy** (SELECT): Відкритий доступ для всіх
+- **daily_bonuses_service_policy** (ALL): Тільки для service_role
+- **daily_bonuses_update_policy** (UPDATE): Тільки для admin ролі
+
+#### 2. `direct_bonuses` (2 політики)
+- **Allow all operations** (ALL): Повний доступ для всіх
+- **direct_bonuses_policy** (ALL): Повний доступ з перевіркою
+
+#### 3. `draw_participants` (2 політики)
+- **Allow all operations on draw_participants** (ALL): Повний доступ
+- **draw_participants_policy** (ALL): Повний доступ з перевіркою
+
+#### 4. `draws` (2 політики)
+- **Allow all operations on draws** (ALL): Повний доступ
+- **draws_policy** (ALL): Повний доступ з перевіркою
+
+#### 5. `percentage_rewards` (2 політики)
+- **Allow all operations** (ALL): Повний доступ
+- **percentage_rewards_policy** (ALL): Повний доступ з перевіркою
+
+#### 6. `raffle_participants` (8 політик) - найбільше політик
+- **Enable insert for authenticated users** (INSERT): Дозволяє вставку
+- **Enable read access for all users** (SELECT): Відкритий доступ
+- **Enable update for all users** (UPDATE): Дозволяє оновлення
+- **raffle_participants_delete_policy** (DELETE): Тільки winix_system або admin
+- **raffle_participants_insert_policy** (INSERT): Перевірка telegram_id або admin/winix_system
+- **raffle_participants_select_policy** (SELECT): Відкритий доступ
+- **raffle_participants_service_policy** (ALL): Тільки для service_role
+- **raffle_participants_update_policy** (UPDATE): Тільки winix_system або admin
+
+#### 7. `raffle_winners` (5 політик)
+- **raffle_winners_delete_policy** (DELETE): Тільки admin
+- **raffle_winners_insert_policy** (INSERT): Тільки winix_system або admin
+- **raffle_winners_select_policy** (SELECT): Відкритий доступ
+- **raffle_winners_service_policy** (ALL): Тільки service_role
+- **raffle_winners_update_policy** (UPDATE): Тільки winix_system або admin
+
+#### 8. `raffles` (8 політик)
+- **Enable insert for authenticated users** (INSERT): Дозволяє вставку
+- **Enable read access for all users** (SELECT): Відкритий доступ
+- **Enable update for all users** (UPDATE): Дозволяє оновлення
+- **raffles_delete_policy** (DELETE): Тільки admin
+- **raffles_insert_policy** (INSERT): Тільки winix_system або admin
+- **raffles_select_policy** (SELECT): Відкритий доступ
+- **raffles_service_policy** (ALL): Тільки service_role
+- **raffles_update_policy** (UPDATE): Тільки winix_system або admin
+
+#### 9. `referral_activities` (2 політики)
+- **Allow all operations on referral_activities** (ALL): Повний доступ
+- **referral_activities_policy** (ALL): Повний доступ з перевіркою
+
+#### 10. `referrals` (2 політики)
+- **Allow all operations** (ALL): Повний доступ
+- **referrals_policy** (ALL): Повний доступ з перевіркою
+
+#### 11. `staking_sessions` (8 політик)
+- **Enable read access for all users** (SELECT): Відкритий доступ
+- **Enable users to insert their own staking sessions** (INSERT): Дозволяє вставку
+- **Enable users to update their own staking sessions** (UPDATE): Дозволяє оновлення
+- **staking_sessions_delete_policy** (DELETE): Тільки admin
+- **staking_sessions_insert_policy** (INSERT): Перевірка user_id/telegram_id або admin/winix_system
+- **staking_sessions_select_policy** (SELECT): Тільки власні дані або admin
+- **staking_sessions_service_policy** (ALL): Тільки service_role
+- **staking_sessions_update_policy** (UPDATE): Тільки власні дані або admin/winix_system
+
+#### 12. `tasks` (5 політик)
+- **Allow insert for service role** (INSERT): Тільки service_role
+- **tasks_delete_policy** (DELETE): Тільки admin
+- **tasks_select_policy** (SELECT): Відкритий доступ
+- **tasks_service_policy** (ALL): Тільки service_role
+- **tasks_update_policy** (UPDATE): Тільки admin
+
+#### 13. `transactions` (8 політик)
+- **Enable insert for authenticated users** (INSERT): Дозволяє вставку
+- **Enable read access for all users** (SELECT): Відкритий доступ
+- **Enable update for all users** (UPDATE): Дозволяє оновлення
+- **transactions_delete_policy** (DELETE): Тільки admin
+- **transactions_insert_policy** (INSERT): Тільки winix_system або admin
+- **transactions_select_policy** (SELECT): Тільки власні дані або admin
+- **transactions_service_policy** (ALL): Тільки service_role
+- **transactions_update_policy** (UPDATE): Тільки admin
+
+#### 14. `user_badges` (2 політики)
+- **Allow all operations** (ALL): Повний доступ
+- **user_badges_policy** (ALL): Повний доступ з перевіркою
+
+#### 15. `user_progress` (5 політик)
+- **user_progress_delete_policy** (DELETE): Тільки admin
+- **user_progress_insert_policy** (INSERT): Тільки власні дані або admin
+- **user_progress_select_policy** (SELECT): Тільки власні дані або admin
+- **user_progress_service_policy** (ALL): Тільки service_role
+- **user_progress_update_policy** (UPDATE): Тільки власні дані або admin
+
+#### 16. `user_tasks` (2 політики)
+- **Allow all operations on user_tasks** (ALL): Повний доступ
+- **user_tasks_policy** (ALL): Повний доступ з перевіркою
+
+#### 17. `winix` (9 політик) - найбільше політик
+- **Enable insert access for authenticated users** (INSERT): Дозволяє вставку
+- **Enable read access for all users** (SELECT): Відкритий доступ
+- **Enable update for all users** (UPDATE): Дозволяє оновлення
+- **user_policy** (ALL): Тільки власні дані (telegram_id = auth.uid())
+- **winix_delete_policy** (DELETE): Тільки admin
+- **winix_insert_policy** (INSERT): Тільки winix_system або admin
+- **winix_select_policy** (SELECT): Тільки власні дані або admin
+- **winix_service_policy** (ALL): Тільки service_role
+- **winix_update_policy** (UPDATE): Тільки власні дані або admin
+
+### Типи доступу в політиках:
+
+1. **Повний публічний доступ**: direct_bonuses, draw_participants, draws, percentage_rewards, referral_activities, referrals, user_badges, user_tasks
+2. **Обмежений доступ (власні дані)**: staking_sessions, transactions, user_progress, winix
+3. **Адміністративний контроль**: daily_bonuses, tasks (більшість операцій потребують admin ролі)
+4. **Змішаний доступ**: raffle_participants, raffle_winners, raffles (читання відкрите, запис обмежений)
+
+### Ключові ролі в системі:
+- **public**: базовий доступ для всіх
+- **admin**: повний доступ до всіх операцій
+- **service_role**: системний доступ для внутрішніх операцій
+- **winix_system**: спеціальна роль для системи Winix
+
+### Умови перевірки:
+- `auth.uid()`: ID поточного користувача
+- `auth.jwt()`: JWT токен з додатковими claims
+- `telegram_id = auth.uid()`: перевірка власника даних
+- Перевірка ролей через JWT claims
+
+---
+
+## 🔧 Системні залежності та налаштування
+
+### Залежності об'єктів:
+Всі 17 таблиць мають однакову структуру залежностей:
+- **Тип об'єкта**: `pg_class` - всі об'єкти є таблицями в системному каталозі PostgreSQL
+- **Тип залежності**: `n` (normal) - звичайна залежність, означає що об'єкт залежить від існування системного каталогу
+
+### Типи залежностей в PostgreSQL:
+- **n (normal)** - звичайна залежність, об'єкт не може існувати без залежного об'єкта
+- **a (auto)** - автоматична залежність для внутрішніх об'єктів
+- **i (internal)** - внутрішня залежність між компонентами одного об'єкта
+- **p (pin)** - закріплена залежність, об'єкт не може бути видалений
+- **e (extension)** - залежність від розширення
+
+### Системні каталоги PostgreSQL:
+- **pg_class** - каталог всіх таблиць, індексів, послідовностей та інших об'єктів
+- Всі наші таблиці зареєстровані в цьому каталозі і мають нормальну залежність від нього
+
+### Додаткові налаштування таблиць:
+Для отримання повної інформації про налаштування кожної таблиці використовуйте запити:
+- Тригери та функції
+- Індекси та їх використання
+- Права доступу (GRANTS)
+- Storage параметри
+- TOAST налаштування для великих об'єктів
+- Правила (RULES)
+- Публікації для logical replication
+- Розширення (EXTENSIONS)
