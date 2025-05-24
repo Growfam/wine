@@ -21,6 +21,13 @@ window.TasksAPI = (function() {
 
     console.log('⚙️ [TasksAPI] Конфігурація:', config);
 
+    // Перевірка чи використовувати Mock API
+const USE_MOCK_API = window.location.hostname === 'localhost' || !window.TasksConstants?.API_ENDPOINTS?.BASE_URL;
+
+if (USE_MOCK_API) {
+    console.warn('⚠️ [TasksAPI] Використовується Mock API для тестування');
+}
+
     // Стан модуля
     const state = {
         pendingRequests: new Map(),
@@ -63,6 +70,45 @@ window.TasksAPI = (function() {
      * Базовий метод для API викликів
      */
     async function apiCall(endpoint, options = {}) {
+    console.log('📡 [TasksAPI] === API ВИКЛИК ===');
+    console.log('🔗 [TasksAPI] Endpoint:', endpoint);
+
+    // Використовуємо Mock API якщо потрібно
+    if (USE_MOCK_API && window.MockAPI) {
+        console.log('🎭 [TasksAPI] Перенаправлення на Mock API');
+
+        // Мапінг endpoints на mock функції
+        const mockMap = {
+            '/auth/validate-telegram': 'validateTelegram',
+            '/user/profile/': 'getProfile',
+            '/user/balance/': 'getBalance',
+            '/daily/status/': 'getDailyStatus',
+            '/daily/claim/': 'claimDailyBonus',
+            '/tasks/list/': 'getTasks',
+            '/wallet/status/': 'getWalletStatus',
+            '/flex/balance/': 'getFlexBalance'
+        };
+
+        // Знаходимо відповідну mock функцію
+        let mockFunction = null;
+        for (const [pattern, funcName] of Object.entries(mockMap)) {
+            if (endpoint.includes(pattern)) {
+                mockFunction = window.MockAPI[funcName];
+                break;
+            }
+        }
+
+        if (mockFunction) {
+            try {
+                const result = await mockFunction();
+                console.log('✅ [TasksAPI] Mock відповідь:', result);
+                return result;
+            } catch (error) {
+                console.error('❌ [TasksAPI] Mock помилка:', error);
+                throw error;
+            }
+        }
+    }
         console.log('📡 [TasksAPI] === API ВИКЛИК ===');
         console.log('🔗 [TasksAPI] Endpoint:', endpoint);
         console.log('⚙️ [TasksAPI] Options:', options);
