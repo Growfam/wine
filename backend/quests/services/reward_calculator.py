@@ -4,11 +4,10 @@
 """
 
 import logging
-import math
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from ..models import Reward
+from ..models.transaction import TransactionAmount as Reward
 from ..models.daily_bonus import get_daily_bonus_constants
 
 logger = logging.getLogger(__name__)
