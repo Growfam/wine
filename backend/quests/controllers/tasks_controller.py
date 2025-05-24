@@ -1,23 +1,34 @@
 """
 Контролер для управління завданнями в системі WINIX
 API endpoints для створення, отримання та виконання завдань
+ОНОВЛЕНО: Інтеграція з Transaction Service для атомарних операцій з винагородами
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from flask import request, jsonify, g
 from datetime import datetime, timezone
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
 
+# Імпорт Transaction Service
+try:
+    from ..services.transaction_service import transaction_service
+except ImportError:
+    try:
+        from backend.quests.services.transaction_service import transaction_service
+    except ImportError:
+        logger.error("Transaction service недоступний")
+        transaction_service = None
+
 # Імпорт декораторів та утилітів
 try:
-    from quests.utils.decorators import (
+    from ..utils.decorators import (
         secure_endpoint, public_endpoint, validate_json,
         validate_telegram_id, get_current_user, get_json_data
     )
-    from quests.utils.validators import (
+    from ..utils.validators import (
         validate_telegram_id as validate_tg_id,
         sanitize_string, validate_url
     )
@@ -36,7 +47,7 @@ except ImportError:
 
 # Імпорт моделей та сервісів
 try:
-    from quests.models.task import task_model, TaskType, TaskStatus, TaskPlatform, TaskAction
+    from ..models.task import task_model, TaskType, TaskStatus, TaskPlatform, TaskAction
 except ImportError:
     try:
         from backend.quests.models.task import task_model, TaskType, TaskStatus, TaskPlatform, TaskAction
@@ -50,7 +61,7 @@ except ImportError:
 
 
 class TasksController:
-    """Контролер для управління завданнями"""
+    """Контролер для управління завданнями з підтримкою транзакцій"""
 
     @staticmethod
     @public_endpoint(max_requests=50, window_seconds=60)
@@ -151,7 +162,10 @@ class TasksController:
                             "tickets": potential_tickets
                         }
                     },
-                    "last_updated": datetime.now(timezone.utc).isoformat()
+                    "last_updated": datetime.now(timezone.utc).isoformat(),
+                    "service_info": {
+                        "transaction_service_available": transaction_service is not None
+                    }
                 }
             }), 200
 
@@ -207,12 +221,42 @@ class TasksController:
                         task['user_progress'] = user_status.get('progress', 0)
                         task['started_at'] = user_status.get('started_at')
                         task['completed_at'] = user_status.get('completed_at')
+
+                        # Додаємо інформацію про транзакції якщо завдання виконано
+                        if (user_status['status'] in [TaskStatus.COMPLETED.value, TaskStatus.CLAIMED.value]
+                            and transaction_service):
+                            try:
+                                # Шукаємо транзакції пов'язані з цим завданням
+                                history_result = transaction_service.get_user_transaction_history(
+                                    telegram_id=telegram_id,
+                                    limit=50
+                                )
+
+                                if history_result['success']:
+                                    task_transactions = [
+                                        t for t in history_result.get('transactions', [])
+                                        if (t.get('type') == 'task_reward' and
+                                            t.get('reference_id') == task_id)
+                                    ]
+
+                                    if task_transactions:
+                                        task['reward_transaction'] = task_transactions[0]
+                                        task['reward_processed_through'] = 'transaction_service'
+
+                            except Exception as e:
+                                logger.warning(f"Не вдалося отримати інформацію про транзакції: {e}")
                     else:
                         task['user_status'] = TaskStatus.AVAILABLE.value
                         task['user_progress'] = 0
 
                 except Exception as user_error:
                     logger.warning(f"Помилка отримання статусу користувача: {user_error}")
+
+            # Додаємо інформацію про сервіси
+            task['service_info'] = {
+                "transaction_service_available": transaction_service is not None,
+                "atomic_rewards": transaction_service is not None
+            }
 
             logger.info(f"Деталі завдання {task_id} надано")
 
@@ -265,12 +309,52 @@ class TasksController:
             result = task_model.start_task(telegram_id, task_id)
 
             if result['success']:
+                # Логуємо початок виконання через transaction service якщо доступний
+                if transaction_service:
+                    try:
+                        from ..models.transaction import TransactionAmount, TransactionType
+
+                        # Отримуємо дані завдання для метаданих
+                        task = task_model.get_task_by_id(task_id)
+
+                        # Створюємо запис про початок завдання (нульова винагорода)
+                        start_result = transaction_service.process_reward(
+                            telegram_id=telegram_id,
+                            reward_amount=TransactionAmount(winix=0, tickets=0, flex=0),
+                            transaction_type=TransactionType.ADMIN_ADJUSTMENT,
+                            description=f"Розпочато виконання завдання: {task.get('title', task_id)}",
+                            reference_id=task_id,
+                            reference_type="task_start",
+                            metadata={
+                                'operation': 'task_start',
+                                'task_id': task_id,
+                                'task_type': task.get('type', 'unknown'),
+                                'task_title': task.get('title', ''),
+                                'expected_reward': task.get('reward', {}),
+                                'started_at': datetime.now(timezone.utc).isoformat(),
+                                'user_action': True
+                            }
+                        )
+
+                        if start_result['success']:
+                            result['data']['start_transaction_id'] = start_result['transaction_id']
+                            logger.info(f"Початок завдання зареєстровано: {start_result['transaction_id']}")
+
+                    except Exception as e:
+                        logger.warning(f"Не вдалося зареєструвати початок завдання: {e}")
+
                 logger.info(f"Завдання {task_id} успішно розпочато користувачем {telegram_id}")
 
                 return jsonify({
                     "status": "success",
                     "message": result['message'],
-                    "data": result['data']
+                    "data": {
+                        **result['data'],
+                        "service_info": {
+                            "transaction_service_available": transaction_service is not None,
+                            "progress_logged": transaction_service is not None
+                        }
+                    }
                 }), 200
             else:
                 logger.warning(f"Не вдалося розпочати завдання {task_id} для {telegram_id}: {result['message']}")
@@ -306,7 +390,7 @@ class TasksController:
     @validate_json(required_fields=[])  # Верифікаційні дані опціональні
     def verify_task(telegram_id: str, task_id: str) -> tuple[Dict[str, Any], int]:
         """
-        Верифікація виконання завдання користувачем
+        Верифікація виконання завдання користувачем з автоматичним нарахуванням винагороди
 
         Args:
             telegram_id: ID користувача в Telegram
@@ -348,8 +432,93 @@ class TasksController:
             # Виконуємо верифікацію
             result = task_model.verify_task(telegram_id, task_id, sanitized_verification_data)
 
+            # Якщо верифікація пройшла успішно, нараховуємо винагороду
             if result['success']:
+                # Отримуємо дані завдання для винагороди
+                task = task_model.get_task_by_id(task_id)
+                if task and task.get('reward'):
+                    # Нараховуємо винагороду через transaction service
+                    if transaction_service:
+                        reward_result = transaction_service.process_task_reward(
+                            telegram_id=telegram_id,
+                            winix_amount=task['reward'].get('winix', 0),
+                            tickets_amount=task['reward'].get('tickets', 0),
+                            task_id=task_id,
+                            task_type=task.get('type', 'unknown')
+                        )
+
+                        if reward_result['success']:
+                            # Додаємо інформацію про винагороду до результату
+                            result['data']['reward'] = {
+                                'amount': reward_result['amount'],
+                                'operations': reward_result['operations'],
+                                'transaction_id': reward_result['transaction_id'],
+                                'processed_through': 'transaction_service',
+                                'processed_at': reward_result['processed_at']
+                            }
+                            logger.info(f"Винагорода за завдання {task_id} нарахована користувачу {telegram_id} через transaction service")
+                        else:
+                            logger.warning(f"Не вдалося нарахувати винагороду через transaction service: {reward_result['error']}")
+
+                            # Fallback до прямого нарахування
+                            try:
+                                from supabase_client import update_balance, update_coins
+
+                                operations = []
+                                if task['reward'].get('winix', 0) > 0:
+                                    if update_balance(telegram_id, task['reward']['winix']):
+                                        operations.append(f"WINIX +{task['reward']['winix']}")
+
+                                if task['reward'].get('tickets', 0) > 0:
+                                    if update_coins(telegram_id, task['reward']['tickets']):
+                                        operations.append(f"Tickets +{task['reward']['tickets']}")
+
+                                if operations:
+                                    result['data']['reward'] = {
+                                        'amount': task['reward'],
+                                        'operations': operations,
+                                        'processed_through': 'direct_db',
+                                        'fallback': True
+                                    }
+                                    logger.info(f"Винагорода за завдання {task_id} нарахована користувачу {telegram_id} (fallback)")
+
+                            except Exception as fallback_error:
+                                logger.error(f"Помилка fallback нарахування винагороди: {fallback_error}")
+                                result['data']['reward_error'] = "Не вдалося нарахувати винагороду"
+                    else:
+                        # Прямий метод якщо transaction service недоступний
+                        try:
+                            from supabase_client import update_balance, update_coins
+
+                            operations = []
+                            if task['reward'].get('winix', 0) > 0:
+                                if update_balance(telegram_id, task['reward']['winix']):
+                                    operations.append(f"WINIX +{task['reward']['winix']}")
+
+                            if task['reward'].get('tickets', 0) > 0:
+                                if update_coins(telegram_id, task['reward']['tickets']):
+                                    operations.append(f"Tickets +{task['reward']['tickets']}")
+
+                            if operations:
+                                result['data']['reward'] = {
+                                    'amount': task['reward'],
+                                    'operations': operations,
+                                    'processed_through': 'direct_db',
+                                    'transaction_service_unavailable': True
+                                }
+                                logger.info(f"Винагорода за завдання {task_id} нарахована користувачу {telegram_id} (прямий метод)")
+
+                        except Exception as direct_error:
+                            logger.error(f"Помилка прямого нарахування винагороди: {direct_error}")
+                            result['data']['reward_error'] = "Не вдалося нарахувати винагороду"
+
                 logger.info(f"Завдання {task_id} успішно верифіковано для користувача {telegram_id}")
+
+                # Додаємо інформацію про сервіси
+                result['data']['service_info'] = {
+                    "transaction_service_available": transaction_service is not None,
+                    "atomic_rewards": transaction_service is not None
+                }
 
                 return jsonify({
                     "status": "success",
@@ -437,12 +606,49 @@ class TasksController:
             result = task_model.create_task(sanitized_data)
 
             if result['success']:
+                # Логуємо створення через transaction service якщо доступний
+                if transaction_service:
+                    try:
+                        from ..models.transaction import TransactionAmount, TransactionType
+
+                        # Створюємо запис про створення завдання
+                        creation_result = transaction_service.process_reward(
+                            telegram_id='system',  # Системна операція
+                            reward_amount=TransactionAmount(winix=0, tickets=0, flex=0),
+                            transaction_type=TransactionType.ADMIN_ADJUSTMENT,
+                            description=f"Створено нове завдання: {sanitized_data.get('title', '')}",
+                            reference_id=result['data']['id'],
+                            reference_type="task_creation",
+                            metadata={
+                                'operation': 'task_creation',
+                                'task_id': result['data']['id'],
+                                'task_type': sanitized_data.get('type'),
+                                'task_title': sanitized_data.get('title'),
+                                'reward': sanitized_data.get('reward', {}),
+                                'created_at': datetime.now(timezone.utc).isoformat(),
+                                'admin_action': True
+                            }
+                        )
+
+                        if creation_result['success']:
+                            result['data']['creation_transaction_id'] = creation_result['transaction_id']
+                            logger.info(f"Створення завдання зареєстровано: {creation_result['transaction_id']}")
+
+                    except Exception as e:
+                        logger.warning(f"Не вдалося зареєструвати створення завдання: {e}")
+
                 logger.info(f"Завдання успішно створено: {result['data']['id']}")
 
                 return jsonify({
                     "status": "success",
                     "message": result['message'],
-                    "data": result['data']
+                    "data": {
+                        **result['data'],
+                        "service_info": {
+                            "transaction_service_available": transaction_service is not None,
+                            "creation_logged": transaction_service is not None
+                        }
+                    }
                 }), 201
             else:
                 logger.error(f"Не вдалося створити завдання: {result['message']}")
@@ -466,7 +672,7 @@ class TasksController:
     @validate_telegram_id
     def get_user_task_progress(telegram_id: str) -> tuple[Dict[str, Any], int]:
         """
-        Отримання прогресу виконання завдань користувачем
+        Отримання прогресу виконання завдань користувачем з транзакціями
 
         Args:
             telegram_id: ID користувача в Telegram
@@ -556,6 +762,40 @@ class TasksController:
             else:
                 progress_stats['completion_rate'] = 0
 
+            # Додаємо статистику з transaction service якщо доступний
+            transaction_stats = {}
+            if transaction_service:
+                try:
+                    history_result = transaction_service.get_user_transaction_history(
+                        telegram_id=telegram_id,
+                        limit=100
+                    )
+
+                    if history_result['success']:
+                        # Фільтруємо task_reward транзакції
+                        task_transactions = [
+                            t for t in history_result.get('transactions', [])
+                            if t.get('type') == 'task_reward' and t.get('status') == 'completed'
+                        ]
+
+                        transaction_stats = {
+                            'rewards_from_transactions': len(task_transactions),
+                            'total_winix_from_transactions': sum(
+                                t.get('amount', {}).get('winix', 0) for t in task_transactions
+                            ),
+                            'total_tickets_from_transactions': sum(
+                                t.get('amount', {}).get('tickets', 0) for t in task_transactions
+                            ),
+                            'verification_available': True,
+                            'matches_calculated': len(task_transactions) == progress_stats['completed_tasks'] + progress_stats['claimed_tasks']
+                        }
+
+                except Exception as e:
+                    logger.warning(f"Не вдалося отримати статистику з транзакцій: {e}")
+                    transaction_stats = {'verification_available': False, 'error': str(e)}
+            else:
+                transaction_stats = {'verification_available': False}
+
             logger.info(f"Прогрес завдань для {telegram_id}: виконано {progress_stats['completion_rate']}%")
 
             return jsonify({
@@ -563,7 +803,11 @@ class TasksController:
                 "data": {
                     "telegram_id": telegram_id,
                     "progress": progress_stats,
-                    "last_updated": datetime.now(timezone.utc).isoformat()
+                    "transaction_verification": transaction_stats,
+                    "last_updated": datetime.now(timezone.utc).isoformat(),
+                    "service_info": {
+                        "transaction_service_available": transaction_service is not None
+                    }
                 }
             }), 200
 
@@ -594,8 +838,36 @@ class TasksController:
                     "error_code": "SERVICE_UNAVAILABLE"
                 }), 503
 
-            # Отримуємо статистику
+            # Отримуємо статистику з task моделі
             statistics = task_model.get_tasks_statistics()
+
+            # Додаємо статистику з transaction service якщо доступний
+            if transaction_service:
+                try:
+                    transaction_stats_result = transaction_service.get_service_statistics()
+
+                    if transaction_stats_result['success']:
+                        transaction_stats = transaction_stats_result.get('statistics', {})
+
+                        # Фільтруємо статистику по task транзакціях
+                        type_breakdown = transaction_stats.get('type_breakdown', {})
+                        task_reward_count = type_breakdown.get('task_reward', 0)
+
+                        statistics['transaction_service_stats'] = {
+                            'task_reward_transactions': task_reward_count,
+                            'service_available': True
+                        }
+
+                except Exception as e:
+                    logger.warning(f"Не вдалося отримати статистику транзакцій: {e}")
+                    statistics['transaction_service_stats'] = {
+                        'service_available': False,
+                        'error': str(e)
+                    }
+            else:
+                statistics['transaction_service_stats'] = {
+                    'service_available': False
+                }
 
             # Додаємо метадані
             statistics['metadata'] = {
@@ -603,7 +875,8 @@ class TasksController:
                 "system_version": "1.0.0",
                 "supported_types": [t.value for t in TaskType] if TaskType else [],
                 "supported_platforms": [p.value for p in TaskPlatform] if TaskPlatform else [],
-                "supported_actions": [a.value for a in TaskAction] if TaskAction else []
+                "supported_actions": [a.value for a in TaskAction] if TaskAction else [],
+                "transaction_service_integration": transaction_service is not None
             }
 
             logger.info(f"Статистика завдань: {statistics.get('total_tasks', 0)} завдань, "
@@ -737,6 +1010,28 @@ class TasksController:
                 }
                 overall_healthy = False
 
+            # Перевірка Transaction Service
+            if transaction_service:
+                try:
+                    stats_result = transaction_service.get_service_statistics()
+                    health_status['transaction_service'] = {
+                        "status": "healthy" if stats_result['success'] else "degraded",
+                        "version": "1.0.0",
+                        "reward_integration": "active"
+                    }
+                except Exception as e:
+                    health_status['transaction_service'] = {
+                        "status": "unhealthy",
+                        "error": str(e)
+                    }
+                    # Не впливає на загальне здоров'я task сервісу
+            else:
+                health_status['transaction_service'] = {
+                    "status": "unavailable",
+                    "error": "Service not loaded",
+                    "impact": "manual_reward_mode"
+                }
+
             # Перевірка бази даних
             try:
                 from supabase_client import supabase
@@ -789,7 +1084,12 @@ class TasksController:
                 "status": status,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "services": health_status,
-                "version": "1.0.0"
+                "version": "1.0.0",
+                "features": {
+                    "automatic_rewards": transaction_service is not None,
+                    "transaction_logging": transaction_service is not None,
+                    "atomic_operations": transaction_service is not None
+                }
             }), http_code
 
         except Exception as e:
