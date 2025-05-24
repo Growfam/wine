@@ -1,0 +1,50 @@
+Auth endpoints:
+
+POST /api/auth/validate-telegram - Валідація Telegram Web App даних
+POST /api/auth/refresh-token - Оновлення JWT токену
+
+User endpoints:
+
+GET /api/user/profile/:userId - Отримати профіль користувача
+GET /api/user/balance/:userId - Отримати баланси
+POST /api/user/update-balance/:userId - Оновити баланси (внутрішній)
+GET /api/user/stats/:userId - Отримати статистику
+
+Wallet endpoints:
+
+GET /api/wallet/status/:userId - Перевірити статус підключення
+POST /api/wallet/connect/:userId - Підключити гаманець
+POST /api/wallet/disconnect/:userId - Відключити гаманець
+POST /api/wallet/verify/:userId - Верифікувати гаманець
+
+Flex endpoints:
+
+GET /api/flex/balance/:userId - Отримати баланс FLEX
+POST /api/flex/claim-reward/:userId/:level - Отримати винагороду
+GET /api/flex/history/:userId - Історія отримань
+POST /api/flex/check-levels/:userId - Перевірити доступні рівні
+
+Daily bonus endpoints:
+
+GET /api/daily/status/:userId - Статус щоденного бонусу
+POST /api/daily/claim/:userId - Отримати щоденний бонус
+GET /api/daily/history/:userId - Історія отримань
+POST /api/daily/calculate-reward/:userId - Розрахувати винагороду для дня
+
+Tasks endpoints:
+
+GET /api/tasks/list/:userId?type=all - Список завдань
+POST /api/tasks/start/:userId/:taskId - Почати виконання
+POST /api/tasks/verify/:userId/:taskId - Верифікувати виконання
+POST /api/tasks/complete/:userId/:taskId - Завершити завдання
+POST /api/tasks/claim/:userId/:taskId - Отримати винагороду
+
+Verification endpoints:
+
+POST /api/verify/telegram/:userId - Верифікація Telegram підписки
+GET /api/verify/check-bot/:userId - Перевірка запуску бота
+POST /api/verify/social/:userId/:platform - Верифікація соціальних мереж
+
+Analytics endpoint:
+
+POST /api/analytics/event - Відправка аналітичних подій

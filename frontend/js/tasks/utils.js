@@ -188,15 +188,23 @@ window.TasksUtils = (function() {
     }
 
     /**
-     * Локальне сховище з перевіркою
+     * Сховище з перевіркою (використовує sessionStorage для чутливих даних)
      */
     const storage = {
-        set: function(key, value) {
-            console.log('💾 [TasksUtils] Збереження в localStorage:', key);
+        set: function(key, value, isSecure = false) {
+            console.log('💾 [TasksUtils] Збереження:', key, isSecure ? '(secure)' : '');
             try {
                 const serialized = JSON.stringify(value);
-                localStorage.setItem(key, serialized);
-                console.log('✅ [TasksUtils] Збережено успішно, розмір:', serialized.length, 'байт');
+
+                // Використовуємо sessionStorage для чутливих даних
+                if (isSecure || key.includes('token') || key.includes('auth')) {
+                    sessionStorage.setItem(key, serialized);
+                    console.log('✅ [TasksUtils] Збережено в sessionStorage');
+                } else {
+                    localStorage.setItem(key, serialized);
+                    console.log('✅ [TasksUtils] Збережено в localStorage');
+                }
+
                 return true;
             } catch (error) {
                 console.error('❌ [TasksUtils] Помилка збереження:', error);
@@ -205,13 +213,21 @@ window.TasksUtils = (function() {
         },
 
         get: function(key, defaultValue = null) {
-            console.log('📂 [TasksUtils] Читання з localStorage:', key);
+            console.log('📂 [TasksUtils] Читання:', key);
             try {
-                const item = localStorage.getItem(key);
+                // Спочатку перевіряємо sessionStorage
+                let item = sessionStorage.getItem(key);
+
+                // Якщо не знайдено, перевіряємо localStorage
                 if (item === null) {
-                    console.log('📭 [TasksUtils] Ключ не знайдено, повернення значення за замовчуванням');
+                    item = localStorage.getItem(key);
+                }
+
+                if (item === null) {
+                    console.log('📭 [TasksUtils] Ключ не знайдено');
                     return defaultValue;
                 }
+
                 const parsed = JSON.parse(item);
                 console.log('✅ [TasksUtils] Прочитано успішно');
                 return parsed;
@@ -222,8 +238,9 @@ window.TasksUtils = (function() {
         },
 
         remove: function(key) {
-            console.log('🗑️ [TasksUtils] Видалення з localStorage:', key);
+            console.log('🗑️ [TasksUtils] Видалення:', key);
             try {
+                sessionStorage.removeItem(key);
                 localStorage.removeItem(key);
                 console.log('✅ [TasksUtils] Видалено успішно');
                 return true;
@@ -233,16 +250,55 @@ window.TasksUtils = (function() {
             }
         },
 
-        clear: function() {
-            console.log('🧹 [TasksUtils] Очищення всього localStorage');
+        clear: function(storageType = 'both') {
+            console.log('🧹 [TasksUtils] Очищення сховища:', storageType);
             try {
-                localStorage.clear();
+                if (storageType === 'session' || storageType === 'both') {
+                    sessionStorage.clear();
+                }
+                if (storageType === 'local' || storageType === 'both') {
+                    localStorage.clear();
+                }
                 console.log('✅ [TasksUtils] Очищено успішно');
                 return true;
             } catch (error) {
                 console.error('❌ [TasksUtils] Помилка очищення:', error);
                 return false;
             }
+        },
+
+        // Спеціальні методи для безпечного зберігання
+        setSecure: function(key, value) {
+            return this.set(key, value, true);
+        },
+
+        // Перевірка розміру сховища
+        getSize: function() {
+            let localSize = 0;
+            let sessionSize = 0;
+
+            for (let key in localStorage) {
+                if (localStorage.hasOwnProperty(key)) {
+                    localSize += localStorage[key].length + key.length;
+                }
+            }
+
+            for (let key in sessionStorage) {
+                if (sessionStorage.hasOwnProperty(key)) {
+                    sessionSize += sessionStorage[key].length + key.length;
+                }
+            }
+
+            return {
+                local: localSize,
+                session: sessionSize,
+                total: localSize + sessionSize,
+                formatted: {
+                    local: (localSize / 1024).toFixed(2) + ' KB',
+                    session: (sessionSize / 1024).toFixed(2) + ' KB',
+                    total: ((localSize + sessionSize) / 1024).toFixed(2) + ' KB'
+                }
+            };
         }
     };
 
