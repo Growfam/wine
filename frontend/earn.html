@@ -7,6 +7,34 @@
 
     <!-- Критичні залежності -->
     <script src="./js/telegram-web-app.js"></script>
+    <script>
+        // Заглушка для TON Connect якщо не завантажився
+        if (!window.TON_CONNECT_UI) {
+            console.warn('⚠️ TON Connect UI не завантажено, створюємо заглушку');
+            window.TON_CONNECT_UI = {
+                TonConnectUI: class {
+                    constructor(options) {
+                        console.log('Mock TonConnectUI created with:', options);
+                        this.connected = false;
+                        this.wallet = null;
+                    }
+                    async connectWallet() {
+                        console.log('Mock: connectWallet called');
+                        return Promise.resolve();
+                    }
+                    async disconnect() {
+                        console.log('Mock: disconnect called');
+                        this.connected = false;
+                        this.wallet = null;
+                        return Promise.resolve();
+                    }
+                    onStatusChange(callback) {
+                        console.log('Mock: onStatusChange registered');
+                    }
+                }
+            };
+        }
+    </script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 
     <!-- Бібліотеки для візуалізації (якщо потрібні) -->
@@ -26,6 +54,123 @@
     <link rel="stylesheet" href="css/earn/tasks-icons.css">
     <link rel="stylesheet" href="css/earn/verification.css">
     <link rel="stylesheet" href="css/earn/responsive.css">
+
+    <!-- Базові стилі для роботи без CSS файлів -->
+    <style>
+        /* Базові стилі для вкладок */
+        .main-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+        }
+
+        .tab-button {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 16px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button:hover {
+            color: #fff;
+        }
+
+        .tab-button.active {
+            color: #b366ff;
+        }
+
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #b366ff;
+        }
+
+        /* Панелі контенту */
+        .main-tab-pane {
+            display: none;
+            padding: 20px 0;
+        }
+
+        .main-tab-pane.active {
+            display: block;
+        }
+
+        /* Toast повідомлення */
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: #333;
+            color: white;
+            border-radius: 8px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+            z-index: 10000;
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .toast-message.success {
+            background: #27ae60;
+        }
+
+        .toast-message.error {
+            background: #e74c3c;
+        }
+
+        .toast-message.warning {
+            background: #f39c12;
+        }
+
+        .toast-message.info {
+            background: #3498db;
+        }
+
+        /* Базові стилі для контейнерів */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            min-height: 100vh;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0f0f1e;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Стилі для карток завдань */
+        .task-card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+    </style>
 </head>
 <body>
     <!-- SVG фільтри та спрайт для іконок -->
@@ -505,23 +650,70 @@
         </div>
     </div>
 
+    <!-- Завантаження скриптів у правильному порядку -->
     <script src="./js/api.js"></script>
     <script src="./js/auth.js"></script>
     <script src="./js/core.js"></script>
 
-    <!-- Модулі системи завдань -->
+    <!-- 1. Базові утиліти та константи (не мають залежностей) -->
     <script src="js/tasks/constants.js"></script>
-    <script src="js/tasks/mockApi.js"></script>
-    <script src="js/tasks/api.js"></script>
-    <script src="js/tasks/store.js"></script>
-    <script src="js/tasks/services.js"></script>
     <script src="js/tasks/utils.js"></script>
+
+    <!-- 2. Mock API (залежить від констант) -->
+    <script>
+        // Створюємо глобальний об'єкт для API, якщо його немає
+        if (!window.TasksAPI) {
+            window.TasksAPI = {};
+        }
+    </script>
+    <script src="js/tasks/mockApi.js"></script>
+
+    <!-- 3. Store (залежить від utils та констант) -->
+    <script src="js/tasks/store.js"></script>
+
+    <!-- 4. Telegram валідатор (залежить від констант, utils, store) -->
+    <script>
+        // Створюємо заглушку для Telegram WebApp якщо його немає
+        if (!window.Telegram || !window.Telegram.WebApp) {
+            console.warn('⚠️ Telegram WebApp не знайдено, створюємо заглушку для тестування');
+            window.Telegram = {
+                WebApp: {
+                    ready: () => console.log('Mock: WebApp.ready()'),
+                    expand: () => console.log('Mock: WebApp.expand()'),
+                    initData: '',
+                    initDataUnsafe: {
+                        user: {
+                            id: 123456789,
+                            username: 'testuser',
+                            first_name: 'Test',
+                            last_name: 'User'
+                        },
+                        auth_date: Math.floor(Date.now() / 1000)
+                    },
+                    version: '6.0',
+                    platform: 'mock',
+                    setHeaderColor: () => {},
+                    setBackgroundColor: () => {}
+                }
+            };
+        }
+    </script>
     <script src="js/tasks/telegramValidator.js"></script>
+
+    <!-- 5. API модуль (залежить від всіх попередніх) -->
+    <script src="js/tasks/api.js"></script>
+
+    <!-- 6. Сервіси (залежать від API, Store, Utils) -->
+    <script src="js/tasks/services.js"></script>
+
+    <!-- 7. Основні модулі функціональності -->
     <script src="js/tasks/flexEarn.js"></script>
     <script src="js/tasks/dailyBonus.js"></script>
     <script src="js/tasks/taskVerification.js"></script>
     <script src="js/tasks/tasksManager.js"></script>
     <script src="js/tasks/walletChecker.js"></script>
+
+    <!-- 8. Фінальна інтеграція -->
     <script src="js/tasks/integration.js"></script>
 
     <!-- Базова ініціалізація -->
@@ -534,6 +726,38 @@
 
         // Обробники для навігації
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('[MAIN] DOM завантажено');
+
+            // Додатковий обробник для вкладок (для тестування)
+            const tabButtons = document.querySelectorAll('.tab-button');
+            console.log('[MAIN] Знайдено вкладок:', tabButtons.length);
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const tabName = this.getAttribute('data-tab');
+                    console.log('[MAIN] Клік на вкладку:', tabName);
+
+                    // Оновлюємо активні класи вкладок
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+
+                    // Оновлюємо видимість панелей
+                    const panes = document.querySelectorAll('.main-tab-pane');
+                    panes.forEach(pane => {
+                        pane.classList.remove('active');
+                        pane.style.display = 'none';
+                    });
+
+                    const targetPane = document.getElementById(tabName + '-tab');
+                    if (targetPane) {
+                        targetPane.classList.add('active');
+                        targetPane.style.display = 'block';
+                        console.log('[MAIN] Показано панель:', tabName + '-tab');
+                    }
+                });
+            });
+
             // Обробники для навігації
             const navItems = document.querySelectorAll('.nav-bar .nav-item');
             navItems.forEach(item => {

@@ -286,7 +286,7 @@ window.TasksConstants = (function() {
     // Безпека
     const SECURITY = {
         TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '', // Буде встановлено з env
-        TELEGRAM_BOT_USERNAME: '@WinixVerifyBot',
+        TELEGRAM_BOT_USERNAME: '@WINIX_Official_bot',
         RATE_LIMIT: {
             WINDOW: 60 * 1000, // 1 хвилина
             MAX_REQUESTS: 20
