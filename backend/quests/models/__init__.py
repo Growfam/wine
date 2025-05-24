@@ -1,278 +1,471 @@
 """
-Модуль завдань та верифікації WINIX
-Ініціалізація системи завдань, верифікації та інтеграції з Telegram
+Маршрути системи завдань WINIX
+Централізована реєстрація всіх маршрутів з обробкою помилок
 """
 
 import logging
-import os
-from typing import Optional, Dict, Any
+from typing import Dict, Any, List
+from flask import Flask
 
-# Налаштування логування
 logger = logging.getLogger(__name__)
 
-# Версія модуля
-__version__ = "1.0.0"
+# Словник для відстеження статусу реєстрації маршрутів
+_routes_status: Dict[str, Dict[str, Any]] = {}
 
-# Інформація про модуль
-__module_info__ = {
-    "name": "WINIX Quests & Verification System",
-    "version": __version__,
-    "description": "Система завдань та верифікації для WINIX",
-    "components": [
-        "Telegram Service - інтеграція з ботом",
-        "Verification Service - логіка верифікації",
-        "Task Management - управління завданнями",
-        "Timer System - система таймерів",
-        "Reward Calculator - розрахунок винагород"
+# === ІМПОРТ МАРШРУТІВ З ОБРОБКОЮ ПОМИЛОК ===
+
+# Auth маршрути
+try:
+    from .auth_routes import register_auth_routes
+    _routes_status['auth'] = {
+        'loaded': True,
+        'register_function': register_auth_routes,
+        'prefix': '/api/auth',
+        'description': 'Авторизація та аутентифікація'
+    }
+    logger.info("✅ Auth маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ Auth маршрути недоступні: {e}")
+    _routes_status['auth'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_auth_routes = None
+
+# User маршрути
+try:
+    from .user_routes import register_user_routes
+    _routes_status['user'] = {
+        'loaded': True,
+        'register_function': register_user_routes,
+        'prefix': '/api/user',
+        'description': 'Управління користувачами'
+    }
+    logger.info("✅ User маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ User маршрути недоступні: {e}")
+    _routes_status['user'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_user_routes = None
+
+# Daily маршрути
+try:
+    from .daily_routes import register_daily_routes
+    _routes_status['daily'] = {
+        'loaded': True,
+        'register_function': register_daily_routes,
+        'prefix': '/api/daily',
+        'description': 'Щоденні бонуси'
+    }
+    logger.info("✅ Daily маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ Daily маршрути недоступні: {e}")
+    _routes_status['daily'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_daily_routes = None
+
+# FLEX маршрути
+try:
+    from .flex_routes import register_flex_routes
+    _routes_status['flex'] = {
+        'loaded': True,
+        'register_function': register_flex_routes,
+        'prefix': '/api/flex',
+        'description': 'FLEX токени та винагороди'
+    }
+    logger.info("✅ FLEX маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ FLEX маршрути недоступні: {e}")
+    _routes_status['flex'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_flex_routes = None
+
+# Tasks маршрути
+try:
+    from .tasks_routes import register_tasks_routes
+    _routes_status['tasks'] = {
+        'loaded': True,
+        'register_function': register_tasks_routes,
+        'prefix': '/api/tasks',
+        'description': 'Завдання та верифікація'
+    }
+    logger.info("✅ Tasks маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ Tasks маршрути недоступні: {e}")
+    _routes_status['tasks'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_tasks_routes = None
+
+# Transaction маршрути
+try:
+    from .transaction_routes import register_transaction_routes
+    _routes_status['transaction'] = {
+        'loaded': True,
+        'register_function': register_transaction_routes,
+        'prefix': '/api/transactions',
+        'description': 'Історія транзакцій'
+    }
+    logger.info("✅ Transaction маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ Transaction маршрути недоступні: {e}")
+    _routes_status['transaction'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_transaction_routes = None
+
+# Verification маршрути
+try:
+    from .verification_routes import register_verification_routes
+    _routes_status['verification'] = {
+        'loaded': True,
+        'register_function': register_verification_routes,
+        'prefix': '/api/verify',
+        'description': 'Верифікація завдань'
+    }
+    logger.info("✅ Verification маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ Verification маршрути недоступні: {e}")
+    _routes_status['verification'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_verification_routes = None
+
+# Wallet маршрути
+try:
+    from .wallet_routes import register_wallet_routes
+    _routes_status['wallet'] = {
+        'loaded': True,
+        'register_function': register_wallet_routes,
+        'prefix': '/api/wallet',
+        'description': 'TON гаманці'
+    }
+    logger.info("✅ Wallet маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ Wallet маршрути недоступні: {e}")
+    _routes_status['wallet'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_wallet_routes = None
+
+# Analytics маршрути
+try:
+    from .analytics_routes import register_analytics_routes
+    _routes_status['analytics'] = {
+        'loaded': True,
+        'register_function': register_analytics_routes,
+        'prefix': '/api/analytics',
+        'description': 'Аналітика та статистика'
+    }
+    logger.info("✅ Analytics маршрути імпортовано")
+except ImportError as e:
+    logger.warning(f"⚠️ Analytics маршрути недоступні: {e}")
+    _routes_status['analytics'] = {
+        'loaded': False,
+        'error': str(e),
+        'register_function': None
+    }
+    register_analytics_routes = None
+
+
+def register_quests_routes(app: Flask, routes_to_register: List[str] = None) -> Dict[str, Any]:
+    """
+    Реєстрація всіх маршрутів системи завдань
+
+    Args:
+        app: Flask додаток
+        routes_to_register: Список маршрутів для реєстрації (за замовчуванням - всі)
+
+    Returns:
+        Dict з результатами реєстрації
+    """
+    logger.info("=== РЕЄСТРАЦІЯ МАРШРУТІВ СИСТЕМИ ЗАВДАНЬ ===")
+
+    registration_results = {
+        'total_attempted': 0,
+        'successfully_registered': 0,
+        'failed_registrations': 0,
+        'registered_routes': [],
+        'failed_routes': [],
+        'summary': {}
+    }
+
+    # Визначаємо які маршрути реєструвати
+    # Визначаємо які маршрути реєструвати
+    if routes_to_register is None:
+        routes_to_register = list(_routes_status.keys())
+
+    # ЗАМІНІТЬ ЦЕ:
+    # Функції реєстрації у визначеному порядку пріоритету - ТІЛЬКИ ТІ ЩО ДОСТУПНІ
+    route_registry = []
+
+    # Порядок пріоритету
+    priority_routes = [
+        ('auth', register_auth_routes),
+        ('user', register_user_routes),
+        ('daily', register_daily_routes),
+        ('tasks', register_tasks_routes),
+        ('flex', register_flex_routes),
+        ('wallet', register_wallet_routes),
+        ('transaction', register_transaction_routes),
+        ('verification', register_verification_routes),
+        ('analytics', register_analytics_routes)
     ]
-}
 
-# Глобальні змінні для сервісів
-_telegram_service = None
-_verification_service = None
-_services_initialized = False
-
-def initialize_services() -> bool:
-    """
-    Ініціалізує всі сервіси модуля
-
-    Returns:
-        bool: True якщо всі сервіси успішно ініціалізовані
-    """
-    global _telegram_service, _verification_service, _services_initialized
-
-    if _services_initialized:
-        logger.info("✅ Сервіси вже ініціалізовані")
-        return True
-
-    logger.info("🚀 Ініціалізація сервісів модуля quests...")
-
-    try:
-        # Ініціалізація Telegram сервісу
-        try:
-            from .services.telegram_service import telegram_service
-            _telegram_service = telegram_service
-            logger.info("✅ Telegram сервіс ініціалізовано")
-        except ImportError as e:
-            logger.warning(f"⚠️ Не вдалося ініціалізувати Telegram сервіс: {str(e)}")
-            _telegram_service = None
-
-        # Ініціалізація сервісу верифікації
-        try:
-            from .services.verification_service import verification_service
-            _verification_service = verification_service
-            logger.info("✅ Сервіс верифікації ініціалізовано")
-        except ImportError as e:
-            logger.warning(f"⚠️ Не вдалося ініціалізувати сервіс верифікації: {str(e)}")
-            _verification_service = None
-
-        _services_initialized = True
-        logger.info("✅ Сервіси модуля quests успішно ініціалізовані")
-
-        return True
-
-    except Exception as e:
-        logger.error(f"❌ Помилка ініціалізації сервісів: {str(e)}")
-        return False
-
-def get_telegram_service():
-    """Повертає екземпляр Telegram сервісу"""
-    if not _services_initialized:
-        initialize_services()
-    return _telegram_service
-
-def get_verification_service():
-    """Повертає екземпляр сервісу верифікації"""
-    if not _services_initialized:
-        initialize_services()
-    return _verification_service
-
-def register_routes(app) -> bool:
-    """
-    Реєструє всі маршрути модуля в Flask додатку
-
-    Args:
-        app: Екземпляр Flask додатку
-
-    Returns:
-        bool: True якщо маршрути успішно зареєстровано
-    """
-    logger.info("🔧 Реєстрація маршрутів модуля quests...")
-
-    routes_registered = 0
-    total_routes = 0
-
-    # Реєстрація маршрутів верифікації
-    try:
-        from .routes.verification_routes import register_verification_routes
-        if register_verification_routes(app):
-            routes_registered += 1
-            logger.info("✅ Маршрути верифікації зареєстровано")
+    # Додаємо тільки ті функції що не None та callable
+    for route_name, register_func in priority_routes:
+        if register_func is not None and callable(register_func):
+            route_registry.append((route_name, register_func))
         else:
-            logger.error("❌ Не вдалося зареєструвати маршрути верифікації")
-        total_routes += 1
-    except ImportError as e:
-        logger.warning(f"⚠️ Маршрути верифікації недоступні: {str(e)}")
+            logger.debug(f"⏭️ Пропускаємо {route_name} - функція недоступна")
 
-    # Тут можуть бути додані інші маршрути модуля
-    # Наприклад: auth_routes, tasks_routes, etc.
+    # Реєструємо маршрути в порядку пріоритету
+    for route_name, register_func in route_registry:
+        if route_name not in routes_to_register:
+            continue
 
-    success_rate = (routes_registered / total_routes * 100) if total_routes > 0 else 0
-    logger.info(f"📊 Зареєстровано {routes_registered}/{total_routes} груп маршрутів ({success_rate:.1f}%)")
+        registration_results['total_attempted'] += 1
+        route_status = _routes_status.get(route_name, {})
 
-    return routes_registered > 0
+        if not route_status.get('loaded', False):
+            logger.warning(f"⏭️ Пропускаємо {route_name} маршрути (не завантажені)")
+            registration_results['failed_routes'].append({
+                'name': route_name,
+                'reason': 'not_loaded',
+                'error': route_status.get('error', 'Import failed')
+            })
+            registration_results['failed_registrations'] += 1
+            continue
 
-def setup_quests_module(app) -> Dict[str, Any]:
-    """
-    Повна ініціалізація модуля quests
+        if register_func is None:
+            logger.warning(f"⏭️ Пропускаємо {route_name} маршрути (функція реєстрації недоступна)")
+            registration_results['failed_routes'].append({
+                'name': route_name,
+                'reason': 'no_register_function',
+                'error': 'Register function is None'
+            })
+            registration_results['failed_registrations'] += 1
+            continue
 
-    Args:
-        app: Екземпляр Flask додатку
+        try:
+            logger.info(f"🔧 Реєстрація {route_name} маршрутів...")
 
-    Returns:
-        Dict з результатами ініціалізації
-    """
-    logger.info("🎯 === ІНІЦІАЛІЗАЦІЯ МОДУЛЯ QUESTS ===")
+            # Викликаємо функцію реєстрації
+            result = register_func(app)
 
-    result = {
-        "success": False,
-        "services_initialized": False,
-        "routes_registered": False,
-        "telegram_available": False,
-        "verification_available": False,
-        "errors": []
+            if result is True or result is None:  # Більшість функцій повертають True або None при успіху
+                registration_results['successfully_registered'] += 1
+                registration_results['registered_routes'].append({
+                    'name': route_name,
+                    'prefix': route_status.get('prefix', 'unknown'),
+                    'description': route_status.get('description', '')
+                })
+                logger.info(f"✅ {route_name.title()} маршрути зареєстровано")
+            else:
+                registration_results['failed_registrations'] += 1
+                registration_results['failed_routes'].append({
+                    'name': route_name,
+                    'reason': 'registration_failed',
+                    'error': f'Function returned: {result}'
+                })
+                logger.error(f"❌ Помилка реєстрації {route_name} маршрутів")
+
+        except Exception as e:
+            registration_results['failed_registrations'] += 1
+            registration_results['failed_routes'].append({
+                'name': route_name,
+                'reason': 'exception',
+                'error': str(e)
+            })
+            logger.error(f"❌ Виняток при реєстрації {route_name} маршрутів: {e}", exc_info=True)
+
+    # Підрахунок загальної кількості маршрутів
+    total_routes_count = 0
+    for rule in app.url_map.iter_rules():
+        if '/api/' in rule.rule:
+            total_routes_count += 1
+
+    # Формуємо підсумок
+    registration_results['summary'] = {
+        'success_rate': round(
+            (registration_results['successfully_registered'] / registration_results['total_attempted']) * 100, 1
+        ) if registration_results['total_attempted'] > 0 else 0,
+        'total_api_routes': total_routes_count,
+        'system_status': 'healthy' if registration_results['successfully_registered'] >= registration_results['failed_registrations'] else 'degraded'
     }
 
-    try:
-        # Ініціалізуємо сервіси
-        if initialize_services():
-            result["services_initialized"] = True
-            result["telegram_available"] = _telegram_service is not None
-            result["verification_available"] = _verification_service is not None
-        else:
-            result["errors"].append("Не вдалося ініціалізувати сервіси")
+    # Логуємо результат
+    _log_registration_summary(registration_results)
 
-        # Реєструємо маршрути
-        if register_routes(app):
-            result["routes_registered"] = True
-        else:
-            result["errors"].append("Не вдалося зареєструвати маршрути")
+    return registration_results
 
-        # Визначаємо загальний успіх
-        result["success"] = result["services_initialized"] and result["routes_registered"]
 
-        if result["success"]:
-            logger.info("✅ Модуль quests успішно ініціалізовано")
-            _log_module_status(result)
-        else:
-            logger.warning(f"⚠️ Модуль quests частково ініціалізовано з помилками: {result['errors']}")
+def _log_registration_summary(results: Dict[str, Any]):
+    """Виведення підсумку реєстрації маршрутів"""
+    summary = results['summary']
 
-        return result
+    if results['successfully_registered'] == results['total_attempted']:
+        logger.info(f"🎉 Всі {results['total_attempted']} груп маршрутів зареєстровано успішно!")
+    else:
+        logger.warning(
+            f"⚠️ Зареєстровано {results['successfully_registered']}/{results['total_attempted']} "
+            f"груп маршрутів ({summary['success_rate']}%)"
+        )
 
-    except Exception as e:
-        logger.error(f"❌ Критична помилка ініціалізації модуля quests: {str(e)}")
-        result["errors"].append(str(e))
-        return result
+    if results['registered_routes']:
+        logger.info("✅ Успішно зареєстровані маршрути:")
+        for route in results['registered_routes']:
+            logger.info(f"  • {route['name']}: {route['prefix']} - {route['description']}")
 
-def _log_module_status(result: Dict[str, Any]):
-    """Логує статус модуля"""
-    logger.info("📋 Статус модуля quests:")
-    logger.info(f"   🔧 Сервіси: {'✅' if result['services_initialized'] else '❌'}")
-    logger.info(f"   📡 Telegram: {'✅' if result['telegram_available'] else '❌'}")
-    logger.info(f"   🔍 Верифікація: {'✅' if result['verification_available'] else '❌'}")
-    logger.info(f"   🌐 Маршрути: {'✅' if result['routes_registered'] else '❌'}")
+    if results['failed_routes']:
+        logger.warning("❌ Проблемні маршрути:")
+        for route in results['failed_routes']:
+            logger.warning(f"  • {route['name']}: {route['reason']} - {route['error']}")
 
-def get_module_info() -> Dict[str, Any]:
-    """Повертає інформацію про модуль"""
+    logger.info(f"📊 Загальна кількість API маршрутів: {summary['total_api_routes']}")
+    logger.info(f"🏥 Статус системи: {summary['system_status']}")
+
+
+def get_routes_status() -> Dict[str, Any]:
+    """
+    Отримання статусу всіх маршрутів
+
+    Returns:
+        Dict з інформацією про статус кожної групи маршрутів
+    """
+    return _routes_status.copy()
+
+
+def get_loaded_routes() -> Dict[str, Any]:
+    """
+    Отримання списку завантажених маршрутів
+
+    Returns:
+        Dict з завантаженими маршрутами
+    """
     return {
-        **__module_info__,
-        "initialized": _services_initialized,
-        "telegram_service_available": _telegram_service is not None,
-        "verification_service_available": _verification_service is not None,
-        "environment": {
-            "telegram_bot_token": bool(os.getenv('TELEGRAM_BOT_TOKEN')),
-            "telegram_bot_username": os.getenv('TELEGRAM_BOT_USERNAME', 'Не встановлено')
-        }
+        name: status for name, status in _routes_status.items()
+        if status.get('loaded', False)
     }
 
-def get_health_status() -> Dict[str, Any]:
-    """Повертає статус здоров'я модуля"""
-    health = {
-        "status": "healthy",
-        "services": {},
-        "issues": []
+
+def get_failed_routes() -> Dict[str, Any]:
+    """
+    Отримання списку маршрутів що не завантажились
+
+    Returns:
+        Dict з маршрутами що не завантажились
+    """
+    return {
+        name: status for name, status in _routes_status.items()
+        if not status.get('loaded', False)
     }
 
-    # Перевіряємо Telegram сервіс
-    if _telegram_service:
-        try:
-            bot_info = _telegram_service.get_bot_info_sync()
-            health["services"]["telegram"] = {
-                "status": "healthy" if bot_info else "warning",
-                "bot_info": bot_info
-            }
-            if not bot_info:
-                health["issues"].append("Telegram бот недоступний")
-        except Exception as e:
-            health["services"]["telegram"] = {
-                "status": "error",
-                "error": str(e)
-            }
-            health["issues"].append(f"Помилка Telegram сервісу: {str(e)}")
-    else:
-        health["services"]["telegram"] = {"status": "unavailable"}
-        health["issues"].append("Telegram сервіс не ініціалізовано")
 
-    # Перевіряємо сервіс верифікації
-    if _verification_service:
-        try:
-            stats = _verification_service.get_verification_statistics()
-            health["services"]["verification"] = {
-                "status": "healthy",
-                "statistics": stats
-            }
-        except Exception as e:
-            health["services"]["verification"] = {
-                "status": "error",
-                "error": str(e)
-            }
-            health["issues"].append(f"Помилка сервісу верифікації: {str(e)}")
-    else:
-        health["services"]["verification"] = {"status": "unavailable"}
-        health["issues"].append("Сервіс верифікації не ініціалізовано")
+def register_specific_routes(app: Flask, route_names: List[str]) -> Dict[str, Any]:
+    """
+    Реєстрація конкретних груп маршрутів
 
-    # Визначаємо загальний статус
-    if health["issues"]:
-        health["status"] = "warning" if len(health["issues"]) <= 2 else "error"
+    Args:
+        app: Flask додаток
+        route_names: Список назв маршрутів для реєстрації
 
-    return health
+    Returns:
+        Dict з результатами реєстрації
+    """
+    logger.info(f"🎯 Реєстрація вибраних маршрутів: {', '.join(route_names)}")
+    return register_quests_routes(app, route_names)
 
-# Автоматична ініціалізація при імпорті (якщо потрібно)
-def auto_initialize():
-    """Автоматична ініціалізація при імпорті модуля"""
-    if os.getenv('QUESTS_AUTO_INIT', 'false').lower() == 'true':
-        logger.info("🔄 Автоматична ініціалізація модуля quests...")
-        initialize_services()
 
-# Експортуємо основні функції та класи
+def register_core_routes(app: Flask) -> Dict[str, Any]:
+    """
+    Реєстрація тільки основних маршрутів (auth, user, tasks)
+
+    Args:
+        app: Flask додаток
+
+    Returns:
+        Dict з результатами реєстрації
+    """
+    core_routes = ['auth', 'user', 'tasks', 'daily']
+    logger.info("🔧 Реєстрація основних маршрутів системи")
+    return register_quests_routes(app, core_routes)
+
+
+def register_extended_routes(app: Flask) -> Dict[str, Any]:
+    """
+    Реєстрація розширених маршрутів (flex, wallet, analytics)
+
+    Args:
+        app: Flask додаток
+
+    Returns:
+        Dict з результатами реєстрації
+    """
+    extended_routes = ['flex', 'wallet', 'transaction', 'verification', 'analytics']
+    logger.info("🚀 Реєстрація розширених маршрутів системи")
+    return register_quests_routes(app, extended_routes)
+
+
+def log_routes_summary():
+    """Виведення підсумку завантаження маршрутів"""
+    loaded_count = len(get_loaded_routes())
+    failed_count = len(get_failed_routes())
+    total_count = len(_routes_status)
+
+    logger.info(f"📊 Статус маршрутів: {loaded_count}/{total_count} завантажено")
+
+    if loaded_count > 0:
+        logger.info("✅ Завантажені маршрути:")
+        for name, status in get_loaded_routes().items():
+            logger.info(f"  • {name}: {status.get('prefix', 'N/A')} - {status.get('description', 'N/A')}")
+
+    if failed_count > 0:
+        logger.warning("❌ Маршрути з помилками:")
+        for name, status in get_failed_routes().items():
+            logger.warning(f"  • {name}: {status.get('error', 'Unknown error')}")
+
+
+# Логуємо підсумок при імпорті
+log_routes_summary()
+
+# Експорт основних функцій
 __all__ = [
-    # Основні функції
-    'setup_quests_module',
-    'initialize_services',
-    'register_routes',
+    'register_quests_routes',
+    'register_specific_routes',
+    'register_core_routes',
+    'register_extended_routes',
+    'get_routes_status',
+    'get_loaded_routes',
+    'get_failed_routes',
+    'log_routes_summary',
 
-    # Getter функції
-    'get_telegram_service',
-    'get_verification_service',
-    'get_module_info',
-    'get_health_status',
-
-    # Константи
-    '__version__',
-    '__module_info__'
+    # Функції реєстрації (якщо доступні)
+    'register_auth_routes',
+    'register_user_routes',
+    'register_daily_routes',
+    'register_tasks_routes',
+    'register_flex_routes',
+    'register_wallet_routes',
+    'register_transaction_routes',
+    'register_verification_routes',
+    'register_analytics_routes'
 ]
-
-# Викликаємо автоініціалізацію якщо потрібно
-auto_initialize()
-
-logger.info(f"📦 Модуль quests v{__version__} завантажено")

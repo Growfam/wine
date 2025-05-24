@@ -6,37 +6,99 @@
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, field
-
-from . import (
-    BaseModel, Reward, get_current_utc_time,
-    parse_datetime, format_datetime, validate_telegram_id
-)
 
 logger = logging.getLogger(__name__)
 
 
+# === БАЗОВІ КЛАСИ ТА ФУНКЦІЇ ===
+
+from dataclasses import dataclass, field
+
+
+class BaseModel:
+    """Базова модель з timestamp'ами"""
+
+    def __init__(self):
+        now = datetime.now(timezone.utc)
+        self.created_at = now
+        self.updated_at = now
+
+    def update_timestamp(self):
+        """Оновити timestamp"""
+        self.updated_at = datetime.now(timezone.utc)
+
 @dataclass
-class DailyBonusEntry(BaseModel):
+class Reward:
+    """Модель винагороди"""
+    winix: int = 0
+    tickets: int = 0
+
+    def is_empty(self) -> bool:
+        """Чи пуста винагорода"""
+        return self.winix == 0 and self.tickets == 0
+
+    def to_dict(self) -> Dict[str, int]:
+        """Конвертація в словник"""
+        return {
+            "winix": self.winix,
+            "tickets": self.tickets
+        }
+
+
+def get_current_utc_time() -> datetime:
+    """Отримати поточний UTC час"""
+    return datetime.now(timezone.utc)
+
+
+def parse_datetime(dt_str: str) -> datetime:
+    """Парсинг datetime з рядка"""
+    if isinstance(dt_str, datetime):
+        return dt_str
+    if isinstance(dt_str, str):
+        try:
+            return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        except:
+            return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc)
+
+
+def format_datetime(dt: Optional[datetime]) -> Optional[str]:
+    """Форматування datetime в рядок"""
+    if dt is None:
+        return None
+    return dt.isoformat()
+
+
+def validate_telegram_id(telegram_id: int) -> bool:
+    """Валідація Telegram ID"""
+    return isinstance(telegram_id, int) and telegram_id > 0
+
+
+@dataclass
+class DailyBonusEntry:
     """Запис про отримання щоденного бонусу"""
 
-    # Основні дані
+    # Основні дані (обов'язкові поля)
     telegram_id: int
     day_number: int  # День в серії (1, 2, 3, ...)
     claim_date: datetime
-
-    # Винагорода
     reward: Reward
 
-    # Метадані
+    # Метадані (з значеннями за замовчуванням)
     streak_at_claim: int = 0  # Серія на момент отримання
     bonus_multiplier: float = 1.0  # Множник бонусу
     is_special_day: bool = False  # Спеціальний день (7, 14, 21, 28)
 
+    # Timestamp поля
+    created_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def update_timestamp(self):
+        """Оновити timestamp"""
+        self.updated_at = datetime.now(timezone.utc)
+
     def __post_init__(self):
         """Ініціалізація після створення"""
-        super().__init__()
-
         # Валідація telegram_id
         if not validate_telegram_id(self.telegram_id):
             raise ValueError(f"Невірний telegram_id: {self.telegram_id}")
@@ -98,11 +160,13 @@ class DailyBonusEntry(BaseModel):
 
 
 @dataclass
-class DailyBonusStatus(BaseModel):
+class DailyBonusStatus:
     """Статус щоденних бонусів користувача"""
 
-    # Основні дані
+    # Основні дані (обов'язкове поле)
     telegram_id: int
+
+    # Всі інші поля з значеннями за замовчуванням
     current_streak: int = 0
     longest_streak: int = 0
     total_days_claimed: int = 0
@@ -121,20 +185,26 @@ class DailyBonusStatus(BaseModel):
     current_day_number: int = 1
     today_reward: Optional[Reward] = None
 
+    # Timestamp поля
+    created_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def update_timestamp(self):
+        """Оновити timestamp"""
+        self.updated_at = datetime.now(timezone.utc)
+
     def __post_init__(self):
         """Ініціалізація після створення"""
-        super().__init__()
-
         # Валідація telegram_id
         if not validate_telegram_id(self.telegram_id):
             raise ValueError(f"Невірний telegram_id: {self.telegram_id}")
 
         # Парсинг дат
         datetime_fields = ['last_claim_date', 'next_available_date', 'streak_start_date']
-        for field in datetime_fields:
-            value = getattr(self, field)
+        for field_name in datetime_fields:
+            value = getattr(self, field_name)
             if isinstance(value, str):
-                setattr(self, field, parse_datetime(value))
+                setattr(self, field_name, parse_datetime(value))
 
         # Валідація значень
         self.current_streak = max(0, self.current_streak)
