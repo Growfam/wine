@@ -44,8 +44,7 @@ BASE_DIR = os.path.dirname(BACKEND_DIR)
 if BACKEND_DIR not in sys.path:
     sys.path.append(BACKEND_DIR)
 
-# Імпорт ініціалізації бази даних
-from database import db, init_db
+
 
 # Перевірка валідності UUID
 def is_valid_uuid(uuid_string):
@@ -92,8 +91,7 @@ def create_app(config_name=None):
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///winix.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    # Ініціалізація SQLAlchemy з додатком
-    init_db(app)
+
 
     # Налаштовуємо CORS
     setup_cors(app)
@@ -166,11 +164,6 @@ def create_app(config_name=None):
             response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 година
 
         return response
-
-    # Створення таблиць БД при запуску
-    with app.app_context():
-        db.create_all()
-        logger.info("Таблиці бази даних створено")
 
     return app  # КРИТИЧНО ВАЖЛИВО - повертаємо створений app
 
