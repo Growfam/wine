@@ -5,13 +5,11 @@
 
 import os
 import time
-import json
 import logging
 import asyncio
 import aiohttp
-import requests
-from typing import Dict, Any, List, Optional, Union
-from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from enum import Enum
 

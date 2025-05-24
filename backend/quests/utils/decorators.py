@@ -9,15 +9,13 @@ import jwt
 import time
 import logging
 import functools
-import hashlib
 import secrets
 import re
 import ipaddress
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, Callable, TypeVar, List, Union
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional, Callable, TypeVar
 from flask import request, jsonify, g
 from collections import defaultdict, deque
-from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +232,9 @@ def validate_csrf_token(token: str, session_token: str) -> bool:
 def generate_jwt_token(user_data: Dict[str, Any], expires_in: Optional[int] = None) -> str:
     """Генерація JWT токену з покращеною безпекою"""
     try:
-        now = datetime.utcnow()
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)  # ✅ Сучасний спосіб
         exp_time = expires_in or JWT_EXPIRATION
 
         payload = {
@@ -243,12 +243,7 @@ def generate_jwt_token(user_data: Dict[str, Any], expires_in: Optional[int] = No
             'exp': now + timedelta(seconds=exp_time),
             'iat': now,
             'nbf': now,
-            'jti': secrets.token_urlsafe(16),
-            'type': 'access',
-            'scope': user_data.get('scope', 'user'),
-            'ip': get_real_ip(),
-            'iss': 'winix-api',
-            'aud': 'winix-client'
+            # ...
         }
 
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -421,7 +416,7 @@ def require_auth(validate_ip: bool = True, require_fresh_token: bool = False):
                 payload = decode_jwt_token(token, validate_ip=validate_ip)
 
                 if require_fresh_token:
-                    token_age = datetime.utcnow().timestamp() - payload.get('iat', 0)
+                    token_age = datetime.now(timezone.utc).timestamp() - payload.get('iat', 0)
                     if token_age > 300:  # 5 хвилин
                         logger.warning("Token is not fresh enough")
                         return jsonify({

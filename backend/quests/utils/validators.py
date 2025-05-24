@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, Union
 from urllib.parse import parse_qs, unquote
 
 logger = logging.getLogger(__name__)

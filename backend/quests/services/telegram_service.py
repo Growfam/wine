@@ -6,11 +6,9 @@
 import os
 import logging
 import asyncio
-import json
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from telegram import Bot
-from telegram.error import TelegramError, BadRequest, Unauthorized
+from telegram.error import BadRequest, Forbidden
 from dotenv import load_dotenv
 
 # Завантаження змінних середовища
@@ -65,7 +63,7 @@ class TelegramService:
                 logger.info(f"❌ Користувач {user_id} не має активного чата з ботом")
                 return False
 
-        except (BadRequest, Unauthorized) as e:
+        except (BadRequest, Forbidden) as e:
             logger.warning(f"❌ Користувач {user_id} не запустив бота: {str(e)}")
             return False
         except Exception as e:
@@ -140,7 +138,7 @@ class TelegramService:
                     'subscribed': False,
                     'error': f'Помилка перевірки: {error_msg}'
                 }
-        except Unauthorized as e:
+        except Forbidden as e:
             logger.error(f"❌ Бот не має доступу до каналу {channel_username}: {str(e)}")
             return {
                 'subscribed': False,

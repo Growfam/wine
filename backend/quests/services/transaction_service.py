@@ -5,10 +5,11 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List, Callable
-from contextlib import contextmanager
-import asyncio
+from typing import Dict, Any, Optional
+
 from concurrent.futures import ThreadPoolExecutor
+
+logger = logging.getLogger(__name__)
 
 # Імпорт моделей
 try:
@@ -17,14 +18,63 @@ try:
         TransactionType, TransactionStatus, CurrencyType
     )
 except ImportError:
+    logger.error("Не вдалося імпортувати модель транзакцій")
+    # ✅ Fallback класи
+    transaction_model = None
+
+
+    class Transaction:
+        pass
+
+
+    class TransactionAmount:
+        def __init__(self, winix=0, tickets=0, flex=0):
+            self.winix = winix
+            self.tickets = tickets
+            self.flex = flex
+
+        def to_dict(self):
+            return {"winix": self.winix, "tickets": self.tickets, "flex": self.flex}
+
+
+    class TransactionType:
+        DAILY_BONUS = "daily_bonus"
+        TASK_REWARD = "task_reward"
+        # додай інші потрібні типи
+
+
+    class TransactionStatus:
+        PENDING = "pending"
+        COMPLETED = "completed"
+        FAILED = "failed"
+
+
+    class CurrencyType:
+        WINIX = "winix"
+        TICKETS = "tickets"
+        FLEX = "flex"
+
+
     try:
-        from backend.quests.models.transaction import (
-            transaction_model, Transaction, TransactionAmount,
-            TransactionType, TransactionStatus, CurrencyType
-        )
+        from supabase_client import supabase, get_user, update_balance, update_coins
     except ImportError:
-        logger.error("Не вдалося імпортувати модель транзакцій")
-        transaction_model = None
+        # ✅ Fallback функції
+        def get_user(telegram_id):
+            logger.warning("get_user не доступна")
+            return None
+
+
+        def update_balance(telegram_id, amount):
+            logger.warning("update_balance не доступна")
+            return False
+
+
+        def update_coins(telegram_id, amount):
+            logger.warning("update_coins не доступна")
+            return False
+
+
+        supabase = None
 
 # Імпорт функцій роботи з БД
 try:
@@ -48,7 +98,7 @@ except ImportError:
 
         supabase = None
 
-logger = logging.getLogger(__name__)
+
 
 
 class TransactionError(Exception):
@@ -120,7 +170,7 @@ class TransactionService:
             transaction = Transaction(
                 telegram_id=str(telegram_id),
                 type=transaction_type,
-                status=TransactionStatus.PENDING,
+                status=TransactionStatus.PENDING,# type: ignore
                 amount=reward_amount,
                 description=description,
                 metadata=metadata or {},
@@ -270,7 +320,7 @@ class TransactionService:
             transaction = Transaction(
                 telegram_id=str(telegram_id),
                 type=transaction_type,
-                status=TransactionStatus.PENDING,
+                status=TransactionStatus.PENDING,# type: ignore
                 amount=negative_amount,
                 description=description,
                 metadata=metadata or {},
@@ -381,7 +431,7 @@ class TransactionService:
         return self.process_reward(
             telegram_id=telegram_id,
             reward_amount=amount,
-            transaction_type=TransactionType.DAILY_BONUS,
+            transaction_type=TransactionType.DAILY_BONUS,# type: ignore
             description=f"Щоденний бонус (день {day_number}, серія {streak})",
             reference_id=f"daily_{telegram_id}_{day_number}",
             reference_type="daily_bonus",
@@ -449,11 +499,12 @@ class TransactionService:
         return self.process_reward(
             telegram_id=telegram_id,
             reward_amount=amount,
-            transaction_type=TransactionType.TASK_REWARD,
+            transaction_type=TransactionType.TASK_REWARD,# type: ignore
             description=f"Винагорода за завдання ({task_type})",
             reference_id=task_id,
             reference_type="task",
             metadata=metadata
+
         )
 
     def process_wallet_connection_bonus(self, telegram_id: str, winix_amount: float = 100.0,
