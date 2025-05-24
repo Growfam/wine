@@ -19,14 +19,16 @@ window.TasksIntegration = (function() {
             dailyBonus: null,
             tasks: null,
             verification: null,
-            tasksManager: null
+            tasksManager: null,
+            walletChecker: null
         };
 
         this.state = {
             userId: null,
             isInitialized: false,
             currentTab: 'flex',
-            walletConnected: false
+            walletConnected: false,
+            isAuthenticating: false
         };
 
         this.config = {
@@ -41,24 +43,19 @@ window.TasksIntegration = (function() {
     /**
      * Ініціалізація системи
      */
-    TasksIntegration.prototype.init = function() {
+    TasksIntegration.prototype.init = async function() {
         console.log('🎯 [TasksIntegration] ===== ПОЧАТОК ІНІЦІАЛІЗАЦІЇ СИСТЕМИ =====');
         console.log('🕐 [TasksIntegration] Час початку:', new Date().toISOString());
 
         try {
-            // Отримуємо ID користувача
-            this.state.userId = this.getUserId();
-            console.log('👤 [TasksIntegration] User ID:', this.state.userId);
-
-            if (!this.state.userId) {
-                throw new Error('Не вдалося отримати ID користувача');
-            }
+            // Спочатку авторизуємо користувача
+            await this.authenticateUser();
 
             // Перевіряємо наявність необхідних модулів
             this.checkRequiredModules();
 
             // Ініціалізуємо менеджери
-            this.initializeManagers();
+            await this.initializeManagers();
 
             // Налаштовуємо обробники подій
             this.setupEventHandlers();
@@ -66,8 +63,8 @@ window.TasksIntegration = (function() {
             // Налаштовуємо автозбереження
             this.setupAutoSave();
 
-            // Перевіряємо стан кошелька при ініціалізації
-            this.checkWalletStatus();
+            // Запускаємо початкову синхронізацію
+            await this.initialSync();
 
             // Позначаємо як ініціалізовано
             this.state.isInitialized = true;
@@ -75,46 +72,55 @@ window.TasksIntegration = (function() {
             console.log('✅ [TasksIntegration] ===== СИСТЕМА УСПІШНО ІНІЦІАЛІЗОВАНА =====');
             console.log('📊 [TasksIntegration] Поточний стан:', this.state);
 
+            // Відстежуємо успішну ініціалізацію
+            window.TasksServices?.Analytics?.trackEvent('System', 'initialized', 'success');
+
             return this;
 
         } catch (error) {
             console.error('❌ [TasksIntegration] КРИТИЧНА ПОМИЛКА ІНІЦІАЛІЗАЦІЇ:', error);
             console.error('❌ [TasksIntegration] Stack trace:', error.stack);
+
+            // Відстежуємо помилку
+            window.TasksServices?.Analytics?.trackError(error, 'init');
+
             this.showError('Помилка ініціалізації системи: ' + error.message);
             throw error;
         }
     };
 
     /**
-     * Отримати ID користувача
+     * Авторизація користувача
      */
-    TasksIntegration.prototype.getUserId = function() {
-        console.log('🔍 [TasksIntegration] Отримання ID користувача...');
+    TasksIntegration.prototype.authenticateUser = async function() {
+        console.log('🔐 [TasksIntegration] === АВТОРИЗАЦІЯ КОРИСТУВАЧА ===');
 
-        // Спроба отримати з Telegram WebApp
-        if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
-            const tgId = parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
-            console.log('✅ [TasksIntegration] ID з Telegram:', tgId);
-            return tgId;
+        if (this.state.isAuthenticating) {
+            console.log('⏸️ [TasksIntegration] Авторизація вже виконується');
+            return;
         }
 
-        // Спроба отримати з localStorage
-        const storedId = localStorage.getItem('telegram_user_id') || localStorage.getItem('user_id');
-        if (storedId) {
-            const numericId = parseInt(storedId);
-            console.log('✅ [TasksIntegration] ID з localStorage:', numericId);
-            return numericId;
-        }
+        this.state.isAuthenticating = true;
 
-        // Демо режим
-        if (this.config.debugMode) {
-            const demoId = 123456789;
-            console.warn('⚠️ [TasksIntegration] Використовується демо ID:', demoId);
-            return demoId;
-        }
+        try {
+            // Ініціалізуємо користувача через AuthService
+            const user = await window.TasksServices.Auth.initUser();
 
-        console.error('❌ [TasksIntegration] Не вдалося отримати ID користувача');
-        return null;
+            this.state.userId = user.id;
+            console.log('✅ [TasksIntegration] Користувач авторизований:', user.id);
+
+            // Відстежуємо успішну авторизацію
+            window.TasksServices?.Analytics?.trackEvent('Auth', 'success', user.id);
+
+        } catch (error) {
+            console.error('❌ [TasksIntegration] Помилка авторизації:', error);
+
+            // Показуємо сторінку помилки або перенаправляємо
+            this.showAuthError(error.message);
+            throw new Error('Authentication failed');
+        } finally {
+            this.state.isAuthenticating = false;
+        }
     };
 
     /**
@@ -124,11 +130,17 @@ window.TasksIntegration = (function() {
         console.log('🔍 [TasksIntegration] Перевірка необхідних модулів...');
 
         const requiredModules = {
+            'TelegramValidator': window.TelegramValidator,
             'FlexEarnManager': window.FlexEarnManager,
             'TasksConstants': window.TasksConstants,
             'TasksManager': window.TasksManager,
             'TaskVerification': window.TaskVerification,
-            'DailyBonusManager': window.DailyBonusManager
+            'DailyBonusManager': window.DailyBonusManager,
+            'WalletChecker': window.WalletChecker,
+            'TasksAPI': window.TasksAPI,
+            'TasksStore': window.TasksStore,
+            'TasksServices': window.TasksServices,
+            'TasksUtils': window.TasksUtils
         };
 
         const missingModules = [];
@@ -152,14 +164,29 @@ window.TasksIntegration = (function() {
     /**
      * Ініціалізувати менеджери
      */
-    TasksIntegration.prototype.initializeManagers = function() {
+    TasksIntegration.prototype.initializeManagers = async function() {
         console.log('🔧 [TasksIntegration] Ініціалізація менеджерів...');
+
+        const userId = this.state.userId;
+
+        // WalletChecker - ініціалізуємо першим для Flex
+        if (window.WalletChecker) {
+            console.log('  🔧 [TasksIntegration] Ініціалізація WalletChecker...');
+            try {
+                this.managers.walletChecker = window.WalletChecker;
+                await this.managers.walletChecker.init();
+                console.log('  ✅ [TasksIntegration] WalletChecker ініціалізовано');
+            } catch (error) {
+                console.error('  ❌ [TasksIntegration] Помилка ініціалізації WalletChecker:', error);
+                // Не критично, продовжуємо без гаманця
+            }
+        }
 
         // FlexEarn Manager
         if (window.FlexEarnManager) {
             console.log('  🔧 [TasksIntegration] Ініціалізація FlexEarnManager...');
             this.managers.flexEarn = window.FlexEarnManager;
-            this.managers.flexEarn.init(this.state.userId);
+            this.managers.flexEarn.init(userId);
             console.log('  ✅ [TasksIntegration] FlexEarnManager ініціалізовано');
         }
 
@@ -167,7 +194,7 @@ window.TasksIntegration = (function() {
         if (window.DailyBonusManager) {
             console.log('  🔧 [TasksIntegration] Ініціалізація DailyBonusManager...');
             this.managers.dailyBonus = window.DailyBonusManager;
-            this.managers.dailyBonus.init(this.state.userId);
+            await this.managers.dailyBonus.init(userId);
             console.log('  ✅ [TasksIntegration] DailyBonusManager ініціалізовано');
         }
 
@@ -175,7 +202,7 @@ window.TasksIntegration = (function() {
         if (window.TasksManager) {
             console.log('  🔧 [TasksIntegration] Ініціалізація TasksManager...');
             this.managers.tasksManager = window.TasksManager;
-            this.managers.tasksManager.init(this.state.userId);
+            await this.managers.tasksManager.init(userId);
             console.log('  ✅ [TasksIntegration] TasksManager ініціалізовано');
         }
 
@@ -183,11 +210,27 @@ window.TasksIntegration = (function() {
         if (window.TaskVerification) {
             console.log('  🔧 [TasksIntegration] Ініціалізація TaskVerification...');
             this.managers.verification = window.TaskVerification;
-            // TaskVerification ініціалізується в TasksManager
+            this.managers.verification.init();
             console.log('  ✅ [TasksIntegration] TaskVerification готовий');
         }
 
         console.log('✅ [TasksIntegration] Всі менеджери ініціалізовано');
+    };
+
+    /**
+     * Початкова синхронізація
+     */
+    TasksIntegration.prototype.initialSync = async function() {
+        console.log('🔄 [TasksIntegration] === ПОЧАТКОВА СИНХРОНІЗАЦІЯ ===');
+
+        try {
+            // Запускаємо синхронізацію через SyncService
+            await window.TasksServices.Sync.syncData();
+            console.log('✅ [TasksIntegration] Початкова синхронізація завершена');
+        } catch (error) {
+            console.error('❌ [TasksIntegration] Помилка синхронізації:', error);
+            // Не критично, продовжуємо роботу
+        }
     };
 
     /**
@@ -205,6 +248,9 @@ window.TasksIntegration = (function() {
                 const tabName = tab.getAttribute('data-tab');
                 console.log(`  📑 [TasksIntegration] Клік на вкладку ${index}: ${tabName}`);
                 this.switchTab(tabName);
+
+                // Відстежуємо перемикання вкладок
+                window.TasksServices?.Analytics?.trackEvent('Navigation', 'tab_switch', tabName);
             });
         });
 
@@ -230,6 +276,12 @@ window.TasksIntegration = (function() {
             this.onOffline();
         });
 
+        // Обробник помилок
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('❌ [TasksIntegration] Необроблена помилка Promise:', event.reason);
+            window.TasksServices?.Analytics?.trackError(event.reason, 'unhandled_promise');
+        });
+
         console.log('✅ [TasksIntegration] Обробники подій налаштовано');
     };
 
@@ -240,6 +292,9 @@ window.TasksIntegration = (function() {
         console.log(`📑 [TasksIntegration] Перемикання на вкладку: ${tabName}`);
 
         this.state.currentTab = tabName;
+
+        // Оновлюємо Store
+        window.TasksStore.actions.setCurrentTab(tabName);
 
         // Оновлюємо UI вкладок
         const tabs = document.querySelectorAll('.main-tabs .tab-button');
@@ -274,9 +329,9 @@ window.TasksIntegration = (function() {
 
         switch(tabName) {
             case 'flex':
-                if (this.managers.flexEarn && this.state.walletConnected) {
-                    console.log('  🔄 [TasksIntegration] Оновлення Flex даних...');
-                    this.managers.flexEarn.checkFlexBalance();
+                if (this.managers.flexEarn) {
+                    console.log('  🔄 [TasksIntegration] Перевірка статусу гаманця...');
+                    this.managers.flexEarn.checkWalletConnection();
                 }
                 break;
 
@@ -288,22 +343,10 @@ window.TasksIntegration = (function() {
                 break;
 
             case 'social':
-                if (this.managers.tasksManager) {
-                    console.log('  🔄 [TasksIntegration] Оновлення Social завдань...');
-                    this.managers.tasksManager.updateTasksUI();
-                }
-                break;
-
             case 'limited':
-                if (this.managers.tasksManager) {
-                    console.log('  🔄 [TasksIntegration] Оновлення Limited завдань...');
-                    this.managers.tasksManager.updateTasksUI();
-                }
-                break;
-
             case 'partner':
                 if (this.managers.tasksManager) {
-                    console.log('  🔄 [TasksIntegration] Оновлення Partner завдань...');
+                    console.log(`  🔄 [TasksIntegration] Оновлення ${tabName} завдань...`);
                     this.managers.tasksManager.updateTasksUI();
                 }
                 break;
@@ -314,22 +357,10 @@ window.TasksIntegration = (function() {
     };
 
     /**
-     * Перевірка статусу кошелька
-     */
-    TasksIntegration.prototype.checkWalletStatus = function() {
-        console.log('🔍 [TasksIntegration] Перевірка статусу кошелька при ініціалізації...');
-
-        // Якщо на вкладці Flex - перевіряємо кошелек
-        if (this.state.currentTab === 'flex' && this.managers.flexEarn) {
-            this.managers.flexEarn.checkWalletConnection();
-        }
-    };
-
-    /**
      * Налаштувати автозбереження
      */
     TasksIntegration.prototype.setupAutoSave = function() {
-        console.log('💾 [TasksIntegration] Налаштування автозбереження...');
+        console.log('💾 [TasksIntegration] Налаштування автозбереження');
 
         if (this.autoSaveInterval) {
             clearInterval(this.autoSaveInterval);
@@ -355,7 +386,7 @@ window.TasksIntegration = (function() {
                 timestamp: Date.now()
             };
 
-            localStorage.setItem('tasksSystemState', JSON.stringify(stateToSave));
+            window.TasksUtils.storage.setSecure('tasksSystemState', stateToSave);
             console.log('✅ [TasksIntegration] Стан збережено:', stateToSave);
         } catch (error) {
             console.error('❌ [TasksIntegration] Помилка збереження стану:', error);
@@ -367,6 +398,12 @@ window.TasksIntegration = (function() {
      */
     TasksIntegration.prototype.onPageVisible = function() {
         console.log('👁️ [TasksIntegration] Обробка відновлення видимості...');
+
+        // Перевіряємо сесію
+        window.TasksServices?.Auth?.checkSession();
+
+        // Синхронізуємо дані
+        window.TasksServices?.Sync?.syncData();
 
         // Оновлюємо дані поточної вкладки
         this.onTabSwitch(this.state.currentTab);
@@ -390,6 +427,9 @@ window.TasksIntegration = (function() {
 
         this.showToast('З\'єднання відновлено', 'success');
 
+        // Синхронізуємо дані
+        window.TasksServices?.Sync?.syncData();
+
         // Оновлюємо дані
         this.onTabSwitch(this.state.currentTab);
     };
@@ -400,7 +440,7 @@ window.TasksIntegration = (function() {
     TasksIntegration.prototype.onOffline = function() {
         console.log('📵 [TasksIntegration] Обробка втрати з\'єднання...');
 
-        this.showToast('З\'єднання втрачено', 'error');
+        this.showToast('З\'єднання втрачено. Деякі функції можуть бути недоступні', 'warning');
     };
 
     /**
@@ -408,16 +448,7 @@ window.TasksIntegration = (function() {
      */
     TasksIntegration.prototype.showToast = function(message, type = 'info') {
         console.log(`💬 [TasksIntegration] Toast: ${type} - ${message}`);
-
-        const toast = document.getElementById('toast-message');
-        if (toast) {
-            toast.textContent = message;
-            toast.className = 'toast-message show ' + type;
-
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
-        }
+        window.TasksUtils?.showToast(message, type);
     };
 
     /**
@@ -429,19 +460,40 @@ window.TasksIntegration = (function() {
     };
 
     /**
+     * Показати помилку авторизації
+     */
+    TasksIntegration.prototype.showAuthError = function(message) {
+        console.error('❌ [TasksIntegration] Помилка авторизації:', message);
+
+        // Показуємо спеціальну сторінку помилки
+        const container = document.querySelector('.container');
+        if (container) {
+            container.innerHTML = `
+                <div class="auth-error">
+                    <h2>Помилка авторизації</h2>
+                    <p>${message}</p>
+                    <p>Будь ласка, відкрийте додаток через Telegram</p>
+                    <button onclick="window.location.reload()">Оновити сторінку</button>
+                </div>
+            `;
+        }
+    };
+
+    /**
      * Знищити інтеграцію
      */
     TasksIntegration.prototype.destroy = function() {
         console.log('🧹 [TasksIntegration] Знищення системи...');
 
-        // Очищуємо інтервали
+        // Очищаємо інтервали
         if (this.autoSaveInterval) {
             clearInterval(this.autoSaveInterval);
         }
 
         // Знищуємо менеджери
-        Object.values(this.managers).forEach(manager => {
+        Object.entries(this.managers).forEach(([name, manager]) => {
             if (manager && typeof manager.destroy === 'function') {
+                console.log(`  🧹 [TasksIntegration] Знищення ${name}...`);
                 manager.destroy();
             }
         });
@@ -462,13 +514,23 @@ window.TasksIntegration = (function() {
 })();
 
 // Автоматична ініціалізація при завантаженні DOM
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('📄 [TasksIntegration] DOM завантажено, запуск ініціалізації...');
 
     try {
-        window.tasksIntegration = window.TasksIntegration.init();
+        window.tasksIntegration = await window.TasksIntegration.init();
         console.log('🎉 [TasksIntegration] Система завдань успішно запущена!');
     } catch (error) {
         console.error('❌ [TasksIntegration] Не вдалося запустити систему:', error);
+
+        // Показуємо користувачу помилку
+        document.body.innerHTML = `
+            <div class="system-error">
+                <h1>Помилка запуску</h1>
+                <p>Не вдалося запустити систему завдань</p>
+                <p>${error.message}</p>
+                <button onclick="window.location.reload()">Перезавантажити</button>
+            </div>
+        `;
     }
 });

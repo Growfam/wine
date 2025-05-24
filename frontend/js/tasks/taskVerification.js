@@ -13,7 +13,8 @@ window.TaskVerification = (function() {
         activeVerifications: new Map(),
         verificationQueue: [],
         isProcessing: false,
-        telegramBotUsername: '@WinixVerifyBot'
+        telegramBotUsername: '@WinixVerifyBot',
+        taskTimestamps: new Map() // Зберігаємо час початку завдань
     };
 
     // Конфігурація
@@ -21,7 +22,8 @@ window.TaskVerification = (function() {
         maxRetries: 3,
         retryDelay: 2000,
         verificationTimeout: 30000,
-        queueProcessInterval: 1000
+        queueProcessInterval: 1000,
+        socialVerificationDelay: 15000 // 15 секунд для соціальних мереж
     };
 
     /**
@@ -31,6 +33,9 @@ window.TaskVerification = (function() {
         console.log('🚀 [TaskVerification] Ініціалізація системи верифікації');
         console.log('⚙️ [TaskVerification] Конфігурація:', config);
 
+        // Завантажуємо збережені timestamps
+        loadTaskTimestamps();
+
         // Запускаємо обробку черги
         startQueueProcessor();
 
@@ -38,6 +43,28 @@ window.TaskVerification = (function() {
         setupEventHandlers();
 
         console.log('✅ [TaskVerification] Модуль ініціалізовано');
+    }
+
+    /**
+     * Завантажити збережені timestamps
+     */
+    function loadTaskTimestamps() {
+        const saved = window.TasksUtils.storage.get(window.TasksConstants.STORAGE_KEYS.TASK_TIMESTAMPS, {});
+        Object.entries(saved).forEach(([taskId, timestamp]) => {
+            state.taskTimestamps.set(taskId, timestamp);
+        });
+        console.log('📂 [TaskVerification] Завантажено timestamps для', state.taskTimestamps.size, 'завдань');
+    }
+
+    /**
+     * Зберегти timestamps
+     */
+    function saveTaskTimestamps() {
+        const timestamps = {};
+        state.taskTimestamps.forEach((timestamp, taskId) => {
+            timestamps[taskId] = timestamp;
+        });
+        window.TasksUtils.storage.set(window.TasksConstants.STORAGE_KEYS.TASK_TIMESTAMPS, timestamps);
     }
 
     /**
@@ -86,20 +113,14 @@ window.TaskVerification = (function() {
                     break;
 
                 case 'youtube':
-                    result = await verifyYouTubeTask(verification);
-                    break;
-
                 case 'twitter':
-                    result = await verifyTwitterTask(verification);
-                    break;
-
                 case 'discord':
-                    result = await verifyDiscordTask(verification);
+                    result = await verifySocialTask(verification);
                     break;
 
                 default:
                     console.warn('⚠️ [TaskVerification] Невідома платформа:', platform);
-                    result = await instantVerification(verification);
+                    result = await verifySocialTask(verification);
             }
 
             console.log('✅ [TaskVerification] Результат верифікації:', result);
@@ -119,7 +140,7 @@ window.TaskVerification = (function() {
     async function verifyTelegramTask(verification) {
         console.log('📱 [TaskVerification] === TELEGRAM ВЕРИФІКАЦІЯ ===');
 
-        const { taskId, data } = verification;
+        const { taskId, data, userId } = verification;
         const { channelUsername, actionType } = data;
 
         console.log('📊 [TaskVerification] Параметри:', {
@@ -133,7 +154,7 @@ window.TaskVerification = (function() {
         try {
             // Крок 1: Перевіряємо чи користувач запустив бота
             console.log('🔄 [TaskVerification] Крок 1: Перевірка запуску бота');
-            const botStarted = await checkBotStarted(verification.userId);
+            const botStarted = await checkBotStarted(userId);
 
             if (!botStarted) {
                 console.log('❌ [TaskVerification] Користувач не запустив бота');
@@ -142,16 +163,7 @@ window.TaskVerification = (function() {
 
             // Крок 2: Відправляємо запит на верифікацію через API
             console.log('🔄 [TaskVerification] Крок 2: Запит верифікації');
-            const response = await window.TasksAPI.tasks.verify(
-                verification.userId,
-                taskId,
-                {
-                    platform: 'telegram',
-                    channelUsername,
-                    actionType,
-                    timestamp: Date.now()
-                }
-            );
+            const response = await window.TasksAPI.verify.telegram(userId, channelUsername);
 
             if (response.verified) {
                 console.log('✅ [TaskVerification] Telegram завдання верифіковано');
@@ -186,12 +198,7 @@ window.TaskVerification = (function() {
         console.log('🤖 [TaskVerification] Перевірка запуску бота для користувача:', userId);
 
         try {
-            const response = await window.TasksAPI.tasks.verify(
-                userId,
-                'check_bot',
-                { action: 'check_bot_started' }
-            );
-
+            const response = await window.TasksAPI.verify.checkBot(userId);
             return response.botStarted || false;
         } catch (error) {
             console.error('❌ [TaskVerification] Помилка перевірки бота:', error);
@@ -200,55 +207,74 @@ window.TaskVerification = (function() {
     }
 
     /**
-     * Верифікація YouTube завдання
+     * Верифікація соціальних завдань (YouTube, Twitter, Discord)
      */
-    async function verifyYouTubeTask(verification) {
-        console.log('📺 [TaskVerification] === YOUTUBE ВЕРИФІКАЦІЯ ===');
+    async function verifySocialTask(verification) {
+        console.log('🌐 [TaskVerification] === СОЦІАЛЬНА ВЕРИФІКАЦІЯ ===');
+        console.log('📊 [TaskVerification] Платформа:', verification.platform);
 
-        // YouTube не має автоматичної верифікації
-        // Миттєве нарахування після натискання
-        return instantVerification(verification);
-    }
-
-    /**
-     * Верифікація Twitter завдання
-     */
-    async function verifyTwitterTask(verification) {
-        console.log('🐦 [TaskVerification] === TWITTER ВЕРИФІКАЦІЯ ===');
-
-        // Twitter не має автоматичної верифікації
-        // Миттєве нарахування після натискання
-        return instantVerification(verification);
-    }
-
-    /**
-     * Верифікація Discord завдання
-     */
-    async function verifyDiscordTask(verification) {
-        console.log('💬 [TaskVerification] === DISCORD ВЕРИФІКАЦІЯ ===');
-
-        // Discord не має автоматичної верифікації
-        // Миттєве нарахування після натискання
-        return instantVerification(verification);
-    }
-
-    /**
-     * Миттєва верифікація (для платформ без перевірки)
-     */
-    async function instantVerification(verification) {
-        console.log('⚡ [TaskVerification] === МИТТЄВА ВЕРИФІКАЦІЯ ===');
-
-        const { taskId, userId } = verification;
+        const { taskId, userId, platform } = verification;
 
         try {
             // Оновлюємо UI
-            updateTaskUI(taskId, 'claiming');
+            updateTaskUI(taskId, 'verifying');
 
-            // Відправляємо запит на отримання винагороди
-            const response = await window.TasksAPI.tasks.claim(userId, taskId);
+            // Отримуємо або встановлюємо timestamp початку
+            let startTimestamp = state.taskTimestamps.get(taskId);
+
+            if (!startTimestamp) {
+                console.log('⏰ [TaskVerification] Початок відліку часу для завдання');
+                startTimestamp = Date.now();
+                state.taskTimestamps.set(taskId, startTimestamp);
+                saveTaskTimestamps();
+
+                // Відправляємо запит на початок завдання
+                await window.TasksAPI.tasks.start(userId, taskId);
+
+                // Показуємо повідомлення
+                window.TasksUtils.showToast(
+                    window.TasksConstants.MESSAGES.INFO.WAIT_VERIFICATION,
+                    'info',
+                    5000
+                );
+
+                // Відкриваємо посилання
+                if (verification.data.url) {
+                    console.log('🔗 [TaskVerification] Відкриваємо URL:', verification.data.url);
+                    window.open(verification.data.url, '_blank');
+                }
+
+                // Показуємо таймер
+                showVerificationTimer(taskId, config.socialVerificationDelay);
+            }
+
+            // Перевіряємо чи минув необхідний час
+            const elapsedTime = Date.now() - startTimestamp;
+            const remainingTime = config.socialVerificationDelay - elapsedTime;
+
+            console.log('⏱️ [TaskVerification] Час з початку:', Math.floor(elapsedTime / 1000), 'сек');
+
+            if (remainingTime > 0) {
+                console.log('⏳ [TaskVerification] Потрібно зачекати ще:', Math.ceil(remainingTime / 1000), 'сек');
+
+                // Показуємо таймер
+                showVerificationTimer(taskId, remainingTime);
+
+                throw new Error(`Зачекайте ще ${Math.ceil(remainingTime / 1000)} секунд`);
+            }
+
+            // Час пройшов, виконуємо верифікацію
+            console.log('✅ [TaskVerification] Час очікування завершено, перевіряємо...');
+
+            // Відправляємо запит на завершення
+            const response = await window.TasksAPI.tasks.complete(userId, taskId);
 
             if (response.success) {
-                console.log('✅ [TaskVerification] Завдання виконано миттєво');
+                console.log('✅ [TaskVerification] Завдання виконано');
+
+                // Видаляємо timestamp
+                state.taskTimestamps.delete(taskId);
+                saveTaskTimestamps();
 
                 // Оновлюємо статус
                 await completeTask(taskId, verification);
@@ -259,7 +285,6 @@ window.TaskVerification = (function() {
                 return {
                     success: true,
                     verified: true,
-                    instant: true,
                     reward: response.reward
                 };
             } else {
@@ -267,10 +292,41 @@ window.TaskVerification = (function() {
             }
 
         } catch (error) {
-            console.error('❌ [TaskVerification] Помилка миттєвої верифікації:', error);
+            console.error('❌ [TaskVerification] Помилка соціальної верифікації:', error);
             updateTaskUI(taskId, 'failed', error.message);
             throw error;
         }
+    }
+
+    /**
+     * Показати таймер верифікації
+     */
+    function showVerificationTimer(taskId, duration) {
+        console.log('⏲️ [TaskVerification] Показуємо таймер для завдання:', taskId);
+
+        const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
+        if (!taskCard) return;
+
+        const button = taskCard.querySelector('.task-button');
+        if (!button) return;
+
+        let remainingTime = Math.ceil(duration / 1000);
+
+        const updateTimer = () => {
+            if (remainingTime <= 0) {
+                button.textContent = 'Перевірити';
+                button.disabled = false;
+                return;
+            }
+
+            button.textContent = `Зачекайте ${remainingTime} сек...`;
+            button.disabled = true;
+            remainingTime--;
+
+            setTimeout(updateTimer, 1000);
+        };
+
+        updateTimer();
     }
 
     /**
@@ -321,7 +377,7 @@ window.TaskVerification = (function() {
         showRewardAnimation(reward);
 
         // Показуємо повідомлення
-        window.TasksServices.Notification.showReward(reward);
+        window.TasksServices?.Notification?.showReward(reward);
 
         console.log('✅ [TaskVerification] Винагорода нарахована');
     }
@@ -564,7 +620,8 @@ window.TaskVerification = (function() {
             totalCompleted: Object.keys(completedTasks).length,
             byPlatform: platforms,
             activeVerifications: state.activeVerifications.size,
-            queueLength: state.verificationQueue.length
+            queueLength: state.verificationQueue.length,
+            pendingTimers: state.taskTimestamps.size
         };
     }
 
@@ -574,6 +631,8 @@ window.TaskVerification = (function() {
     function clearCompletedCache() {
         console.log('🧹 [TaskVerification] Очищення кешу виконаних завдань');
         window.TasksUtils.storage.remove('completedTasks');
+        window.TasksUtils.storage.remove(window.TasksConstants.STORAGE_KEYS.TASK_TIMESTAMPS);
+        state.taskTimestamps.clear();
     }
 
     console.log('✅ [TaskVerification] Модуль верифікації готовий');

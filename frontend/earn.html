@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WINIX - Система завдань</title>
+
+    <!-- Критичні залежності -->
+    <script src="./js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+
+    <!-- Бібліотеки для візуалізації (якщо потрібні) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
     <!-- Базові стилі з реферальної системи -->
     <link rel="stylesheet" href="css/referrals/styles.css">
     <link rel="stylesheet" href="css/referrals/animations.css">
@@ -118,6 +126,9 @@
                             </button>
                         </div>
                     </div>
+
+                    <!-- TON Connect кнопка (буде додана динамічно) -->
+                    <div id="ton-connect-button" style="display: none;"></div>
 
                     <!-- Flex завдання (показуються тільки якщо кошелек підключено) -->
                     <div class="flex-tasks-container" id="flex-tasks" style="display: none;">
@@ -398,9 +409,9 @@
                         <h3>Як працює щоденний бонус?</h3>
                         <ul>
                             <li>Заходьте щодня та отримуйте винагороди</li>
-                            <li>Winix збільшуються з кожним днем (20-2000)</li>
-                            <li>Tickets видаються рандомно 3 рази на тиждень</li>
+                            <li>Винагороди розраховуються на сервері</li>
                             <li>Не пропускайте дні, щоб зберегти серію!</li>
+                            <li>Бонуси оновлюються о 00:00 UTC</li>
                         </ul>
                     </div>
                 </div>
@@ -494,20 +505,18 @@
         </div>
     </div>
 
-    <!-- Скрипти -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
     <!-- Модулі системи завдань -->
     <script src="js/tasks/constants.js"></script>
     <script src="js/tasks/api.js"></script>
     <script src="js/tasks/store.js"></script>
     <script src="js/tasks/services.js"></script>
     <script src="js/tasks/utils.js"></script>
-    <script src="js/tasks/bonusCalculator.js"></script>
+    <script src="js/tasks/telegramValidator.js"></script>
     <script src="js/tasks/flexEarn.js"></script>
     <script src="js/tasks/dailyBonus.js"></script>
     <script src="js/tasks/taskVerification.js"></script>
     <script src="js/tasks/tasksManager.js"></script>
+    <script src="js/tasks/walletChecker.js"></script>
     <script src="js/tasks/integration.js"></script>
 
     <!-- Базова ініціалізація -->

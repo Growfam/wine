@@ -13,7 +13,7 @@ window.TasksAPI = (function() {
         baseURL: window.TasksConstants?.API_ENDPOINTS?.BASE_URL ||
                  (window.location.hostname === 'localhost'
                      ? 'http://localhost:3000/api'
-                     : 'https://api.winix.com/api'),
+                     : '/api'),
         timeout: 10000,
         retryAttempts: 3,
         retryDelay: 1000
@@ -29,8 +29,35 @@ window.TasksAPI = (function() {
             success: 0,
             failed: 0,
             avgResponseTime: 0
+        },
+        rateLimiter: {
+            requests: [],
+            window: window.TasksConstants?.SECURITY?.RATE_LIMIT?.WINDOW || 60000,
+            maxRequests: window.TasksConstants?.SECURITY?.RATE_LIMIT?.MAX_REQUESTS || 20
         }
     };
+
+    /**
+     * Перевірка rate limit
+     */
+    function checkRateLimit() {
+        const now = Date.now();
+        const windowStart = now - state.rateLimiter.window;
+
+        // Видаляємо старі запити
+        state.rateLimiter.requests = state.rateLimiter.requests.filter(
+            timestamp => timestamp > windowStart
+        );
+
+        // Перевіряємо ліміт
+        if (state.rateLimiter.requests.length >= state.rateLimiter.maxRequests) {
+            console.warn('⚠️ [TasksAPI] Rate limit досягнуто');
+            throw new APIError('Забагато запитів. Зачекайте хвилину', 429);
+        }
+
+        // Додаємо поточний запит
+        state.rateLimiter.requests.push(now);
+    }
 
     /**
      * Базовий метод для API викликів
@@ -39,6 +66,14 @@ window.TasksAPI = (function() {
         console.log('📡 [TasksAPI] === API ВИКЛИК ===');
         console.log('🔗 [TasksAPI] Endpoint:', endpoint);
         console.log('⚙️ [TasksAPI] Options:', options);
+
+        // Перевіряємо rate limit
+        try {
+            checkRateLimit();
+        } catch (error) {
+            window.TasksUtils?.showToast(error.message, 'error');
+            throw error;
+        }
 
         const url = config.baseURL + endpoint;
         const requestId = generateRequestId();
@@ -70,7 +105,7 @@ window.TasksAPI = (function() {
         // Додаємо Telegram дані якщо є
         const telegramData = getTelegramData();
         if (telegramData) {
-            defaultOptions.headers['X-Telegram-Data'] = telegramData;
+            defaultOptions.headers['X-Telegram-Init-Data'] = telegramData;
             console.log('📱 [TasksAPI] Додано Telegram дані');
         }
 
@@ -79,7 +114,7 @@ window.TasksAPI = (function() {
         console.log('📋 [TasksAPI] Фінальні параметри запиту:', {
             url,
             method: finalOptions.method,
-            headers: finalOptions.headers
+            headers: { ...finalOptions.headers, Authorization: '[HIDDEN]' }
         });
 
         try {
@@ -97,6 +132,12 @@ window.TasksAPI = (function() {
             updateRequestStats(requestId, false, error);
 
             console.error('❌ [TasksAPI] Помилка запиту:', error);
+
+            // Якщо помилка авторизації - очищаємо токен
+            if (error.status === 401) {
+                handleAuthError();
+            }
+
             throw error;
 
         } finally {
@@ -132,12 +173,6 @@ window.TasksAPI = (function() {
 
                 console.error('❌ [TasksAPI] Помилка HTTP:', error);
 
-                // Якщо 401 - очищаємо токен
-                if (response.status === 401) {
-                    console.warn('🔐 [TasksAPI] Токен недійсний, очищаємо');
-                    clearAuthToken();
-                }
-
                 throw new APIError(error.message || 'API Error', response.status, error);
             }
 
@@ -162,6 +197,11 @@ window.TasksAPI = (function() {
      * API методи для User
      */
     const user = {
+        getProfile: async (userId) => {
+            console.log('👤 [TasksAPI] Отримання профілю:', userId);
+            return apiCall(`/user/profile/${userId}`);
+        },
+
         getBalance: async (userId) => {
             console.log('💰 [TasksAPI] Отримання балансу користувача:', userId);
             return apiCall(`/user/balance/${userId}`);
@@ -175,9 +215,29 @@ window.TasksAPI = (function() {
             });
         },
 
-        getProfile: async (userId) => {
-            console.log('👤 [TasksAPI] Отримання профілю:', userId);
-            return apiCall(`/user/profile/${userId}`);
+        getStats: async (userId) => {
+            console.log('📊 [TasksAPI] Отримання статистики:', userId);
+            return apiCall(`/user/stats/${userId}`);
+        }
+    };
+
+    /**
+     * API методи для Auth
+     */
+    const auth = {
+        validateTelegram: async (initData) => {
+            console.log('🔐 [TasksAPI] Валідація Telegram даних');
+            return apiCall('/auth/validate-telegram', {
+                method: 'POST',
+                body: JSON.stringify({ initData, timestamp: Date.now() })
+            });
+        },
+
+        refreshToken: async () => {
+            console.log('🔄 [TasksAPI] Оновлення токену');
+            return apiCall('/auth/refresh-token', {
+                method: 'POST'
+            });
         }
     };
 
@@ -185,12 +245,9 @@ window.TasksAPI = (function() {
      * API методи для Wallet
      */
     const wallet = {
-        checkStatus: async (userId, address) => {
+        checkStatus: async (userId) => {
             console.log('🔍 [TasksAPI] Перевірка статусу гаманця:', userId);
-            return apiCall(`/wallet/status/${userId}`, {
-                method: 'POST',
-                body: JSON.stringify({ address, timestamp: Date.now() })
-            });
+            return apiCall(`/wallet/status/${userId}`);
         },
 
         connect: async (userId, walletData) => {
@@ -205,6 +262,14 @@ window.TasksAPI = (function() {
             console.log('🔌 [TasksAPI] Відключення гаманця:', userId);
             return apiCall(`/wallet/disconnect/${userId}`, {
                 method: 'POST'
+            });
+        },
+
+        verify: async (userId, address) => {
+            console.log('✅ [TasksAPI] Верифікація гаманця:', userId);
+            return apiCall(`/wallet/verify/${userId}`, {
+                method: 'POST',
+                body: JSON.stringify({ address, timestamp: Date.now() })
             });
         }
     };
@@ -233,6 +298,14 @@ window.TasksAPI = (function() {
         getHistory: async (userId) => {
             console.log('📜 [TasksAPI] Отримання історії FLEX:', userId);
             return apiCall(`/flex/history/${userId}`);
+        },
+
+        checkLevels: async (userId, flexBalance) => {
+            console.log('🎯 [TasksAPI] Перевірка доступних рівнів:', userId);
+            return apiCall(`/flex/check-levels/${userId}`, {
+                method: 'POST',
+                body: JSON.stringify({ flexBalance })
+            });
         }
     };
 
@@ -245,17 +318,25 @@ window.TasksAPI = (function() {
             return apiCall(`/daily/status/${userId}`);
         },
 
-        claim: async (userId, claimData) => {
+        claim: async (userId) => {
             console.log('🎁 [TasksAPI] Отримання щоденного бонусу:', userId);
             return apiCall(`/daily/claim/${userId}`, {
                 method: 'POST',
-                body: JSON.stringify(claimData)
+                body: JSON.stringify({ timestamp: Date.now() })
             });
         },
 
         getHistory: async (userId) => {
             console.log('📜 [TasksAPI] Отримання історії щоденних бонусів:', userId);
             return apiCall(`/daily/history/${userId}`);
+        },
+
+        calculateReward: async (userId, dayNumber) => {
+            console.log('💰 [TasksAPI] Розрахунок винагороди:', userId, dayNumber);
+            return apiCall(`/daily/calculate-reward/${userId}`, {
+                method: 'POST',
+                body: JSON.stringify({ dayNumber })
+            });
         }
     };
 
@@ -268,10 +349,11 @@ window.TasksAPI = (function() {
             return apiCall(`/tasks/list/${userId}?type=${type}`);
         },
 
-        claim: async (userId, taskId) => {
-            console.log('✅ [TasksAPI] Виконання завдання:', userId, taskId);
-            return apiCall(`/tasks/claim/${userId}/${taskId}`, {
-                method: 'POST'
+        start: async (userId, taskId) => {
+            console.log('▶️ [TasksAPI] Початок виконання завдання:', userId, taskId);
+            return apiCall(`/tasks/start/${userId}/${taskId}`, {
+                method: 'POST',
+                body: JSON.stringify({ timestamp: Date.now() })
             });
         },
 
@@ -280,6 +362,47 @@ window.TasksAPI = (function() {
             return apiCall(`/tasks/verify/${userId}/${taskId}`, {
                 method: 'POST',
                 body: JSON.stringify(verificationData)
+            });
+        },
+
+        complete: async (userId, taskId) => {
+            console.log('✅ [TasksAPI] Завершення завдання:', userId, taskId);
+            return apiCall(`/tasks/complete/${userId}/${taskId}`, {
+                method: 'POST',
+                body: JSON.stringify({ timestamp: Date.now() })
+            });
+        },
+
+        claim: async (userId, taskId) => {
+            console.log('💰 [TasksAPI] Отримання винагороди за завдання:', userId, taskId);
+            return apiCall(`/tasks/claim/${userId}/${taskId}`, {
+                method: 'POST'
+            });
+        }
+    };
+
+    /**
+     * API методи для Verification
+     */
+    const verify = {
+        telegram: async (userId, channelUsername) => {
+            console.log('📱 [TasksAPI] Верифікація Telegram підписки:', userId);
+            return apiCall(`/verify/telegram/${userId}`, {
+                method: 'POST',
+                body: JSON.stringify({ channelUsername })
+            });
+        },
+
+        checkBot: async (userId) => {
+            console.log('🤖 [TasksAPI] Перевірка запуску бота:', userId);
+            return apiCall(`/verify/check-bot/${userId}`);
+        },
+
+        social: async (userId, platform, data) => {
+            console.log('🌐 [TasksAPI] Верифікація соціальної мережі:', userId, platform);
+            return apiCall(`/verify/social/${userId}/${platform}`, {
+                method: 'POST',
+                body: JSON.stringify(data)
             });
         }
     };
@@ -292,18 +415,34 @@ window.TasksAPI = (function() {
     }
 
     function getAuthToken() {
-        return localStorage.getItem('winix_auth_token');
+        return window.TelegramValidator?.getAuthToken() ||
+               sessionStorage.getItem(window.TasksConstants?.STORAGE_KEYS?.AUTH_TOKEN);
     }
 
     function clearAuthToken() {
-        localStorage.removeItem('winix_auth_token');
+        window.TelegramValidator?.clearAuthToken();
+        sessionStorage.removeItem(window.TasksConstants?.STORAGE_KEYS?.AUTH_TOKEN);
     }
 
     function getTelegramData() {
-        if (window.Telegram?.WebApp?.initData) {
-            return window.Telegram.WebApp.initData;
+        const telegramData = window.TelegramValidator?.getTelegramData();
+        if (telegramData?.initData) {
+            return telegramData.initData;
         }
         return null;
+    }
+
+    function handleAuthError() {
+        console.warn('🔐 [TasksAPI] Помилка авторизації, очищаємо токен');
+        clearAuthToken();
+
+        // Показуємо повідомлення
+        window.TasksUtils?.showToast('Сесія закінчилася. Оновіть сторінку', 'error');
+
+        // Оновлюємо сторінку через 2 секунди
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
     }
 
     function mergeOptions(defaults, custom) {
@@ -319,6 +458,11 @@ window.TasksAPI = (function() {
 
     function shouldRetry(error) {
         // Retry на мережеві помилки та таймаути
+        // Не робимо retry для 4xx помилок (клієнтські помилки)
+        if (error.status && error.status >= 400 && error.status < 500) {
+            return false;
+        }
+
         return error.name === 'AbortError' ||
                error.name === 'TypeError' ||
                error.message.includes('NetworkError') ||
@@ -381,7 +525,8 @@ window.TasksAPI = (function() {
     function getStatistics() {
         return {
             ...state.requestStats,
-            pendingRequests: state.pendingRequests.size
+            pendingRequests: state.pendingRequests.size,
+            rateLimitRemaining: state.rateLimiter.maxRequests - state.rateLimiter.requests.length
         };
     }
 
@@ -393,11 +538,13 @@ window.TasksAPI = (function() {
         call: apiCall,
 
         // Групи методів
+        auth,
         user,
         wallet,
         flex,
         daily,
         tasks,
+        verify,
 
         // Утиліти
         cancelAllRequests,

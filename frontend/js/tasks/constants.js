@@ -10,34 +10,50 @@ window.TasksConstants = (function() {
 
     // API endpoints
     const API_ENDPOINTS = {
-        // Базовий URL
+        // Базовий URL - змініть на свій реальний URL
         BASE_URL: window.location.hostname === 'localhost'
-            ? 'http://localhost:3000/api'
-            : 'https://api.winix.com/api',
+            ? 'http://localhost:8080/api'
+            : 'https://winixbot.com/api',
+
+        // Auth endpoints
+        AUTH_VALIDATE: '/auth/validate-telegram',
+        AUTH_REFRESH: '/auth/refresh-token',
+
+        // User endpoints
+        USER_PROFILE: '/user/profile',
+        USER_BALANCE: '/user/balance',
+        USER_UPDATE_BALANCE: '/user/update-balance',
+        USER_STATS: '/user/stats',
 
         // Wallet endpoints
         WALLET_STATUS: '/wallet/status',
         WALLET_CONNECT: '/wallet/connect',
         WALLET_DISCONNECT: '/wallet/disconnect',
+        WALLET_VERIFY: '/wallet/verify',
 
         // Flex endpoints
         FLEX_BALANCE: '/flex/balance',
         FLEX_CLAIM: '/flex/claim-reward',
         FLEX_HISTORY: '/flex/history',
+        FLEX_CHECK_LEVELS: '/flex/check-levels',
 
         // Daily bonus endpoints
         DAILY_STATUS: '/daily/status',
         DAILY_CLAIM: '/daily/claim',
         DAILY_HISTORY: '/daily/history',
+        DAILY_CALCULATE: '/daily/calculate-reward',
 
         // Tasks endpoints
         TASKS_LIST: '/tasks/list',
         TASKS_CLAIM: '/tasks/claim',
         TASKS_VERIFY: '/tasks/verify',
+        TASKS_START: '/tasks/start',
+        TASKS_COMPLETE: '/tasks/complete',
 
-        // User endpoints
-        USER_BALANCE: '/user/balance',
-        USER_UPDATE_BALANCE: '/user/update-balance'
+        // Verification endpoints
+        VERIFY_TELEGRAM: '/verify/telegram',
+        VERIFY_SOCIAL: '/verify/social',
+        VERIFY_CHECK_BOT: '/verify/check-bot'
     };
 
     // Flex Levels конфігурація
@@ -99,43 +115,20 @@ window.TasksConstants = (function() {
         }
     };
 
-    // Daily Bonus конфігурація
+    // Daily Bonus конфігурація - тільки для UI, розрахунки на бекенді
     const DAILY_BONUS = {
-        // Базова щоденна винагорода
-        BASE_REWARD: {
-            winix: 20
-        },
-
-        // Прогресивні винагороди
-        PROGRESSIVE_REWARDS: {
-            1: { winix: 20 },
-            2: { winix: 25 },
-            3: { winix: 30 },
-            4: { winix: 35 },
-            5: { winix: 40 },
-            6: { winix: 45 },
-            7: { winix: 50 },      // Тиждень
-            14: { winix: 100 },    // 2 тижні
-            21: { winix: 200 },    // 3 тижні
-            30: { winix: 500 }     // Місяць
-        },
-
-        // Максимальна винагорода
-        MAX_DAILY_WINIX: 2000,
-
-        // Tickets конфігурація
-        TICKET_CONFIG: {
-            days_per_week: 3,      // 3 рандомні дні на тиждень
-            min_tickets: 1,
-            max_tickets: 5,
-            progressive_multiplier: 0.5  // Збільшення з прогресом
-        },
-
-        // Загальна тривалість циклу
+        // UI конфігурація
         TOTAL_DAYS: 30,
+        RESET_HOUR: 0, // 00:00 UTC
 
-        // Час оновлення (00:00 UTC)
-        RESET_HOUR: 0
+        // Візуальні індикатори (реальні винагороди з бекенду)
+        UI_REWARDS: {
+            1: { display: '20+' },
+            7: { display: '50+' },
+            14: { display: '100+' },
+            21: { display: '200+' },
+            30: { display: '500+' }
+        }
     };
 
     // Типи завдань
@@ -150,6 +143,7 @@ window.TasksConstants = (function() {
     const TASK_STATUS = {
         AVAILABLE: 'available',
         IN_PROGRESS: 'in_progress',
+        VERIFYING: 'verifying',
         COMPLETED: 'completed',
         CLAIMED: 'claimed',
         EXPIRED: 'expired',
@@ -162,24 +156,28 @@ window.TasksConstants = (function() {
             id: 'telegram',
             name: 'Telegram',
             verified: true,
+            verificationTime: 0, // Миттєва через бота
             icon: 'telegram-icon'
         },
         YOUTUBE: {
             id: 'youtube',
             name: 'YouTube',
             verified: false,
+            verificationTime: 15000, // 15 секунд
             icon: 'youtube-icon'
         },
         TWITTER: {
             id: 'twitter',
             name: 'Twitter',
             verified: false,
+            verificationTime: 15000, // 15 секунд
             icon: 'twitter-icon'
         },
         DISCORD: {
             id: 'discord',
             name: 'Discord',
             verified: false,
+            verificationTime: 15000, // 15 секунд
             icon: 'discord-icon'
         }
     };
@@ -191,7 +189,9 @@ window.TasksConstants = (function() {
         ANIMATION_DURATION: 2000,                 // 2 секунди
         TOAST_DURATION: 3000,                     // 3 секунди
         LOADING_TIMEOUT: 10000,                   // 10 секунд
-        DEBOUNCE_DELAY: 300                      // 300 мс
+        DEBOUNCE_DELAY: 300,                      // 300 мс
+        VERIFICATION_DELAY: 15000,                // 15 секунд для соціальних мереж
+        SESSION_REFRESH: 30 * 60 * 1000          // 30 хвилин
     };
 
     // Повідомлення
@@ -201,7 +201,8 @@ window.TasksConstants = (function() {
             WALLET_CONNECTED: 'Кошелек успішно підключено!',
             REWARD_CLAIMED: 'Винагороду отримано!',
             TASK_COMPLETED: 'Завдання виконано!',
-            COPIED: 'Скопійовано в буфер обміну!'
+            COPIED: 'Скопійовано в буфер обміну!',
+            VERIFICATION_STARTED: 'Верифікація розпочата...'
         },
 
         // Помилки
@@ -211,7 +212,10 @@ window.TasksConstants = (function() {
             ALREADY_CLAIMED: 'Винагороду вже отримано сьогодні',
             NETWORK_ERROR: 'Помилка мережі. Спробуйте пізніше',
             INVALID_DATA: 'Невірні дані',
-            SESSION_EXPIRED: 'Сесія закінчилася. Оновіть сторінку'
+            SESSION_EXPIRED: 'Сесія закінчилася. Оновіть сторінку',
+            TELEGRAM_AUTH_FAILED: 'Помилка авторизації Telegram',
+            VERIFICATION_FAILED: 'Верифікація не пройдена',
+            TOO_MANY_REQUESTS: 'Забагато запитів. Зачекайте хвилину'
         },
 
         // Інформаційні
@@ -219,17 +223,22 @@ window.TasksConstants = (function() {
             LOADING: 'Завантаження...',
             CHECKING_WALLET: 'Перевірка кошелька...',
             CHECKING_BALANCE: 'Перевірка балансу...',
-            PROCESSING: 'Обробка...'
+            PROCESSING: 'Обробка...',
+            VERIFYING: 'Перевірка виконання...',
+            WAIT_VERIFICATION: 'Перейдіть за посиланням та зачекайте 15 секунд'
         }
     };
 
-    // Локальне сховище ключі
+    // Ключі для session storage
     const STORAGE_KEYS = {
+        AUTH_TOKEN: 'winix_auth_token',
+        USER_DATA: 'winix_user_data',
         FLEX_EARN_STATE: 'flexEarnState',
         DAILY_BONUS_STATE: 'dailyBonusState',
         TASKS_STATE: 'tasksState',
         USER_PREFERENCES: 'userPreferences',
-        LAST_SYNC_TIME: 'lastSyncTime'
+        LAST_SYNC_TIME: 'lastSyncTime',
+        TASK_TIMESTAMPS: 'taskTimestamps'
     };
 
     // Валюти
@@ -274,12 +283,32 @@ window.TasksConstants = (function() {
         }
     };
 
+    // Безпека
+    const SECURITY = {
+        TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '', // Буде встановлено з env
+        TELEGRAM_BOT_USERNAME: '@WinixVerifyBot',
+        RATE_LIMIT: {
+            WINDOW: 60 * 1000, // 1 хвилина
+            MAX_REQUESTS: 20
+        },
+        SESSION_DURATION: 24 * 60 * 60 * 1000, // 24 години
+        ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || '' // Для шифрування чутливих даних
+    };
+
+    // TON Connect
+    const TON_CONNECT = {
+        MANIFEST_URL: 'https://your-domain.com/tonconnect-manifest.json', // TODO: Замініть
+        NETWORK: 'mainnet', // або 'testnet' для тестування
+        SUPPORTED_WALLETS: ['tonkeeper', 'tonhub', 'openmask']
+    };
+
     // Налагодження
     const DEBUG = {
         ENABLED: window.location.hostname === 'localhost',
-        LOG_LEVEL: 'verbose', // 'error', 'warn', 'info', 'verbose'
+        LOG_LEVEL: 'info', // 'error', 'warn', 'info', 'verbose'
         SHOW_TIMESTAMPS: true,
-        MOCK_API: true // Використовувати мок дані замість реальних API
+        MOCK_API: false, // Вимкнено для продакшену
+        SHOW_NETWORK_LOGS: false
     };
 
     console.log('✅ [TasksConstants] Константи завантажено:', {
@@ -302,6 +331,8 @@ window.TasksConstants = (function() {
         STORAGE_KEYS,
         CURRENCIES,
         ANIMATIONS,
+        SECURITY,
+        TON_CONNECT,
         DEBUG
     };
 

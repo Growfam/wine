@@ -8,39 +8,8 @@ window.FlexEarnManager = (function() {
 
     console.log('💎 [FlexEarn] ===== ІНІЦІАЛІЗАЦІЯ МОДУЛЯ FLEX EARN =====');
 
-    // Конфігурація Flex завдань
-    const FLEX_LEVELS = {
-        BRONZE: {
-            name: 'Bronze',
-            required: 100000,
-            rewards: { winix: 50, tickets: 2 },
-            icon: 'bronze-icon'
-        },
-        SILVER: {
-            name: 'Silver',
-            required: 500000,
-            rewards: { winix: 150, tickets: 5 },
-            icon: 'silver-icon'
-        },
-        GOLD: {
-            name: 'Gold',
-            required: 1000000,
-            rewards: { winix: 300, tickets: 8 },
-            icon: 'gold-icon'
-        },
-        PLATINUM: {
-            name: 'Platinum',
-            required: 5000000,
-            rewards: { winix: 1000, tickets: 10 },
-            icon: 'platinum-icon'
-        },
-        DIAMOND: {
-            name: 'Diamond',
-            required: 10000000,
-            rewards: { winix: 2500, tickets: 15 },
-            icon: 'diamond-icon'
-        }
-    };
+    // Конфігурація Flex завдань (з констант)
+    const FLEX_LEVELS = window.TasksConstants?.FLEX_LEVELS || {};
 
     // Стан модуля
     let state = {
@@ -51,7 +20,8 @@ window.FlexEarnManager = (function() {
         lastClaimTime: {},
         userId: null,
         isLoading: false,
-        autoCheckInterval: null
+        autoCheckInterval: null,
+        walletChecker: null
     };
 
     /**
@@ -66,6 +36,14 @@ window.FlexEarnManager = (function() {
 
         // Завантажуємо збережений стан
         loadState();
+
+        // Ініціалізуємо WalletChecker якщо доступний
+        if (window.WalletChecker) {
+            state.walletChecker = window.WalletChecker;
+            state.walletChecker.init().catch(error => {
+                console.error('❌ [FlexEarn] Помилка ініціалізації WalletChecker:', error);
+            });
+        }
 
         // Перевіряємо статус кошелька
         checkWalletConnection();
@@ -89,7 +67,7 @@ window.FlexEarnManager = (function() {
     /**
      * Перевірка підключення кошелька
      */
-    function checkWalletConnection() {
+    async function checkWalletConnection() {
         console.log('🔍 [FlexEarn] === ПЕРЕВІРКА ПІДКЛЮЧЕННЯ КОШЕЛЬКА ===');
         console.log('📊 [FlexEarn] Поточний стан:', {
             walletConnected: state.walletConnected,
@@ -99,22 +77,31 @@ window.FlexEarnManager = (function() {
         // Показуємо індикатор завантаження
         showLoadingState();
 
-        // Симуляція API запиту
-        // В реальному застосунку це буде виклик до API
-        setTimeout(() => {
-            // Демо: симулюємо підключений кошелек
-            const isConnected = Math.random() > 0.3; // 70% шанс що підключено
+        try {
+            // Використовуємо WalletChecker якщо доступний
+            if (state.walletChecker) {
+                const isConnected = await state.walletChecker.checkWalletConnection();
+                console.log('🎲 [FlexEarn] Результат перевірки WalletChecker:', isConnected);
 
-            console.log('🎲 [FlexEarn] Результат перевірки:', isConnected ? 'ПІДКЛЮЧЕНО' : 'НЕ ПІДКЛЮЧЕНО');
+                if (isConnected) {
+                    const walletStatus = state.walletChecker.getStatus();
+                    // Дані будуть оновлені через Store
+                    return;
+                }
+            }
 
-            if (isConnected) {
+            // Альтернативна перевірка через API
+            const response = await window.TasksAPI.wallet.checkStatus(state.userId);
+            console.log('📊 [FlexEarn] Відповідь API:', response);
+
+            if (response.connected) {
                 state.walletConnected = true;
-                state.walletAddress = '0x' + Math.random().toString(36).substring(2, 15);
+                state.walletAddress = response.address;
                 console.log('✅ [FlexEarn] Кошелек підключено');
                 console.log('📍 [FlexEarn] Адреса кошелька:', state.walletAddress);
 
                 // Перевіряємо баланс FLEX
-                checkFlexBalance();
+                await checkFlexBalance();
 
                 // Показуємо завдання
                 showFlexTasks();
@@ -128,81 +115,118 @@ window.FlexEarnManager = (function() {
                 showWalletConnect();
             }
 
+        } catch (error) {
+            console.error('❌ [FlexEarn] Помилка перевірки кошелька:', error);
+            state.walletConnected = false;
+            showWalletConnect();
+        } finally {
             hideLoadingState();
             saveState();
-        }, 1000);
+        }
     }
 
     /**
      * Перевірка балансу FLEX токенів
      */
-    function checkFlexBalance() {
+    async function checkFlexBalance() {
         console.log('💰 [FlexEarn] === ПЕРЕВІРКА БАЛАНСУ FLEX ===');
         console.log('📍 [FlexEarn] Адреса для перевірки:', state.walletAddress);
 
-        if (!state.walletConnected) {
+        if (!state.walletConnected || !state.walletAddress) {
             console.warn('⚠️ [FlexEarn] Кошелек не підключено, пропускаємо перевірку балансу');
             return;
         }
 
-        // Симуляція API запиту
-        setTimeout(() => {
-            // Демо: рандомний баланс
+        try {
             const oldBalance = state.flexBalance;
-            state.flexBalance = Math.floor(Math.random() * 2000000);
+
+            // Отримуємо баланс з API
+            const response = await window.TasksAPI.flex.getBalance(state.userId, state.walletAddress);
+
+            state.flexBalance = parseInt(response.balance) || 0;
 
             console.log('💎 [FlexEarn] Баланс FLEX оновлено');
             console.log('  📊 Старий баланс:', formatNumber(oldBalance));
             console.log('  📊 Новий баланс:', formatNumber(state.flexBalance));
             console.log('  📈 Зміна:', formatNumber(state.flexBalance - oldBalance));
 
+            // Оновлюємо Store
+            window.TasksStore.actions.setFlexBalance(state.flexBalance);
+
             // Оновлюємо UI
             updateFlexTasksUI();
 
             // Перевіряємо доступні винагороди
-            checkAvailableRewards();
+            await checkAvailableRewards();
 
             saveState();
 
             console.log('✅ [FlexEarn] Перевірка балансу завершена');
-        }, 500);
+        } catch (error) {
+            console.error('❌ [FlexEarn] Помилка перевірки балансу:', error);
+            window.TasksUtils.showToast('Помилка перевірки балансу FLEX', 'error');
+        }
     }
 
     /**
      * Перевірка доступних винагород
      */
-    function checkAvailableRewards() {
+    async function checkAvailableRewards() {
         console.log('🎁 [FlexEarn] === ПЕРЕВІРКА ДОСТУПНИХ ВИНАГОРОД ===');
         console.log('💎 [FlexEarn] Поточний баланс FLEX:', formatNumber(state.flexBalance));
 
-        let availableCount = 0;
-        let totalPotentialWinix = 0;
-        let totalPotentialTickets = 0;
+        try {
+            // Перевіряємо рівні на бекенді
+            const response = await window.TasksAPI.flex.checkLevels(state.userId, state.flexBalance);
 
-        Object.keys(FLEX_LEVELS).forEach(level => {
-            const levelData = FLEX_LEVELS[level];
-            const hasEnough = state.flexBalance >= levelData.required;
-            const claimedToday = state.claimedToday[level];
+            let availableCount = 0;
+            let totalPotentialWinix = 0;
+            let totalPotentialTickets = 0;
 
-            console.log(`📊 [FlexEarn] ${level}:`, {
-                required: formatNumber(levelData.required),
-                hasEnough: hasEnough,
-                claimedToday: claimedToday,
-                canClaim: hasEnough && !claimedToday
+            // Оновлюємо стан рівнів з відповіді сервера
+            Object.entries(response.levels).forEach(([level, levelData]) => {
+                const levelConfig = FLEX_LEVELS[level];
+                if (!levelConfig) return;
+
+                const hasEnough = levelData.hasEnough;
+                const claimedToday = levelData.claimedToday;
+
+                // Оновлюємо стан
+                state.claimedToday[level] = claimedToday;
+
+                // Оновлюємо Store
+                window.TasksStore.actions.setFlexLevelAvailable(level, hasEnough);
+
+                console.log(`📊 [FlexEarn] ${level}:`, {
+                    required: formatNumber(levelConfig.required),
+                    hasEnough: hasEnough,
+                    claimedToday: claimedToday,
+                    canClaim: hasEnough && !claimedToday
+                });
+
+                if (hasEnough && !claimedToday) {
+                    availableCount++;
+                    totalPotentialWinix += levelConfig.rewards.winix;
+                    totalPotentialTickets += levelConfig.rewards.tickets;
+                }
             });
 
-            if (hasEnough && !claimedToday) {
-                availableCount++;
-                totalPotentialWinix += levelData.rewards.winix;
-                totalPotentialTickets += levelData.rewards.tickets;
-            }
-        });
+            console.log('🎯 [FlexEarn] Підсумок доступних винагород:', {
+                доступноРівнів: availableCount,
+                потенційніWinix: totalPotentialWinix,
+                потенційніTickets: totalPotentialTickets
+            });
 
-        console.log('🎯 [FlexEarn] Підсумок доступних винагород:', {
-            доступноРівнів: availableCount,
-            потенційніWinix: totalPotentialWinix,
-            потенційніTickets: totalPotentialTickets
-        });
+            if (availableCount > 0) {
+                window.TasksUtils.showToast(
+                    `Доступно ${availableCount} ${availableCount === 1 ? 'винагорода' : 'винагороди'}!`,
+                    'success'
+                );
+            }
+
+        } catch (error) {
+            console.error('❌ [FlexEarn] Помилка перевірки рівнів:', error);
+        }
     }
 
     /**
@@ -337,7 +361,7 @@ window.FlexEarnManager = (function() {
     /**
      * Отримати винагороду
      */
-    function claimReward(level) {
+    async function claimReward(level) {
         console.log('🎁 [FlexEarn] === ОТРИМАННЯ ВИНАГОРОДИ ===');
         console.log('📊 [FlexEarn] Рівень:', level);
 
@@ -353,11 +377,13 @@ window.FlexEarnManager = (function() {
             console.error('❌ [FlexEarn] Недостатньо FLEX для отримання винагороди');
             console.log('  💎 Поточний баланс:', formatNumber(state.flexBalance));
             console.log('  📊 Потрібно:', formatNumber(levelData.required));
+            window.TasksUtils.showToast('Недостатньо FLEX токенів', 'error');
             return;
         }
 
         if (state.claimedToday[level]) {
             console.warn('⚠️ [FlexEarn] Винагорода вже отримана сьогодні');
+            window.TasksUtils.showToast('Винагороду вже отримано сьогодні', 'warning');
             return;
         }
 
@@ -372,40 +398,55 @@ window.FlexEarnManager = (function() {
             console.log('🔒 [FlexEarn] Кнопка заблокована');
         }
 
-        // Симуляція API запиту
-        setTimeout(() => {
-            console.log('💰 [FlexEarn] Нараховуємо винагороду:', {
-                winix: levelData.rewards.winix,
-                tickets: levelData.rewards.tickets
-            });
+        try {
+            // Відправляємо запит на сервер
+            const response = await window.TasksAPI.flex.claimReward(state.userId, level);
 
-            // Оновлюємо стан
-            state.claimedToday[level] = true;
-            state.lastClaimTime[level] = Date.now();
+            console.log('💰 [FlexEarn] Відповідь сервера:', response);
 
-            console.log('📝 [FlexEarn] Стан оновлено:', {
-                level,
-                claimedToday: true,
-                lastClaimTime: new Date(state.lastClaimTime[level]).toLocaleString()
-            });
+            if (response.success) {
+                // Оновлюємо стан
+                state.claimedToday[level] = true;
+                state.lastClaimTime[level] = Date.now();
 
-            // Оновлюємо баланси
-            updateBalances(levelData.rewards.winix, levelData.rewards.tickets);
+                console.log('📝 [FlexEarn] Стан оновлено:', {
+                    level,
+                    claimedToday: true,
+                    lastClaimTime: new Date(state.lastClaimTime[level]).toLocaleString()
+                });
 
-            // Показуємо анімацію винагороди
-            showRewardAnimation(levelData);
+                // Оновлюємо Store
+                window.TasksStore.actions.setFlexLevelClaimed(level);
 
-            // Оновлюємо UI
-            updateClaimButton(button, level, true);
+                // Оновлюємо баланси
+                updateBalances(response.reward.winix, response.reward.tickets);
 
-            // Зберігаємо стан
-            saveState();
+                // Показуємо анімацію винагороди
+                showRewardAnimation(levelData);
 
-            console.log('✅ [FlexEarn] Винагорода успішно отримана!');
+                // Оновлюємо UI
+                updateClaimButton(button, level, true);
 
-            // Логуємо статистику
-            logClaimStatistics();
-        }, 1500);
+                // Зберігаємо стан
+                saveState();
+
+                console.log('✅ [FlexEarn] Винагорода успішно отримана!');
+
+                // Логуємо статистику
+                logClaimStatistics();
+            } else {
+                throw new Error(response.message || 'Помилка отримання винагороди');
+            }
+
+        } catch (error) {
+            console.error('❌ [FlexEarn] Помилка отримання винагороди:', error);
+            window.TasksUtils.showToast(error.message || 'Помилка отримання винагороди', 'error');
+
+            // Відновлюємо кнопку
+            if (button) {
+                updateClaimButton(button, level, true);
+            }
+        }
     }
 
     /**
@@ -414,40 +455,36 @@ window.FlexEarnManager = (function() {
     function updateBalances(winix, tickets) {
         console.log('💰 [FlexEarn] === ОНОВЛЕННЯ БАЛАНСІВ ===');
 
+        const currentBalance = window.TasksStore.selectors.getUserBalance();
+        const newBalance = {
+            winix: currentBalance.winix + winix,
+            tickets: currentBalance.tickets + tickets
+        };
+
+        console.log('💎 [FlexEarn] Оновлення балансів:', {
+            було: currentBalance,
+            додано: { winix, tickets },
+            стало: newBalance
+        });
+
+        // Оновлюємо Store
+        window.TasksStore.actions.updateBalance(newBalance);
+
+        // Оновлюємо UI
         const winixElement = document.getElementById('user-winix');
         const ticketsElement = document.getElementById('user-tickets');
 
         if (winixElement) {
-            const currentWinix = parseInt(winixElement.textContent) || 0;
-            const newWinix = currentWinix + winix;
-
-            console.log('💎 [FlexEarn] Оновлення WINIX:', {
-                було: currentWinix,
-                додано: winix,
-                стало: newWinix
-            });
-
-            winixElement.textContent = newWinix;
+            winixElement.textContent = newBalance.winix;
             winixElement.classList.add('updating');
-
             setTimeout(() => {
                 winixElement.classList.remove('updating');
             }, 800);
         }
 
         if (ticketsElement) {
-            const currentTickets = parseInt(ticketsElement.textContent) || 0;
-            const newTickets = currentTickets + tickets;
-
-            console.log('🎟️ [FlexEarn] Оновлення TICKETS:', {
-                було: currentTickets,
-                додано: tickets,
-                стало: newTickets
-            });
-
-            ticketsElement.textContent = newTickets;
+            ticketsElement.textContent = newBalance.tickets;
             ticketsElement.classList.add('updating');
-
             setTimeout(() => {
                 ticketsElement.classList.remove('updating');
             }, 800);
@@ -491,6 +528,12 @@ window.FlexEarnManager = (function() {
                 console.log('✅ [FlexEarn] Елемент анімації видалено з DOM');
             }, 500);
         }, 2000);
+
+        // Показуємо toast
+        window.TasksUtils.showToast(
+            `Отримано ${levelData.rewards.winix} WINIX та ${levelData.rewards.tickets} tickets!`,
+            'success'
+        );
     }
 
     /**
@@ -521,15 +564,14 @@ window.FlexEarnManager = (function() {
         }
 
         // Перевірка кожні 5 хвилин
-        const intervalMinutes = 5;
-        const intervalMs = intervalMinutes * 60 * 1000;
+        const intervalMs = window.TasksConstants.TIMERS.AUTO_CHECK_INTERVAL;
 
-        console.log(`⏱️ [FlexEarn] Встановлюємо інтервал: ${intervalMinutes} хвилин (${intervalMs} мс)`);
+        console.log(`⏱️ [FlexEarn] Встановлюємо інтервал: ${intervalMs / 60 / 1000} хвилин`);
 
         state.autoCheckInterval = setInterval(() => {
             if (state.walletConnected) {
                 console.log('🔄 [FlexEarn] === АВТОМАТИЧНА ПЕРЕВІРКА ===');
-                console.log('🕐 [FlexEarn] Час:', new Date().toLocaleString());
+                console.log('🕐 [FlexEarn] Час:', new Date().toISOString());
                 checkFlexBalance();
             } else {
                 console.log('⏸️ [FlexEarn] Автоматична перевірка пропущена - кошелек не підключено');
@@ -570,6 +612,26 @@ window.FlexEarnManager = (function() {
             console.log('✅ [FlexEarn] Обробник для кнопки підключення додано');
         }
 
+        // Підписуємось на зміни в Store
+        if (window.TasksStore) {
+            window.TasksStore.subscribe((state, prevState) => {
+                // Перевіряємо зміни підключення кошелька
+                if (state.wallet.connected !== prevState.wallet.connected) {
+                    console.log('🔄 [FlexEarn] Статус кошелька змінився:', state.wallet.connected);
+                    if (state.wallet.connected) {
+                        this.state.walletConnected = true;
+                        this.state.walletAddress = state.wallet.address;
+                        showFlexTasks();
+                        checkFlexBalance();
+                    } else {
+                        this.state.walletConnected = false;
+                        this.state.walletAddress = null;
+                        showWalletConnect();
+                    }
+                }
+            });
+        }
+
         console.log('✅ [FlexEarn] Всі обробники подій налаштовано');
     }
 
@@ -596,7 +658,8 @@ window.FlexEarnManager = (function() {
      */
     function showLoadingState() {
         console.log('⏳ [FlexEarn] Показуємо індикатор завантаження');
-        // Тут можна додати відображення спінера
+        state.isLoading = true;
+        window.TasksStore?.actions.setFlexChecking(true);
     }
 
     /**
@@ -604,7 +667,8 @@ window.FlexEarnManager = (function() {
      */
     function hideLoadingState() {
         console.log('✅ [FlexEarn] Приховуємо індикатор завантаження');
-        // Тут можна приховати спінер
+        state.isLoading = false;
+        window.TasksStore?.actions.setFlexChecking(false);
     }
 
     /**
@@ -622,7 +686,7 @@ window.FlexEarnManager = (function() {
                 userId: state.userId
             };
 
-            localStorage.setItem('flexEarnState', JSON.stringify(stateToSave));
+            window.TasksUtils.storage.set('flexEarnState', stateToSave);
             console.log('✅ [FlexEarn] Стан збережено:', stateToSave);
         } catch (error) {
             console.error('❌ [FlexEarn] Помилка збереження стану:', error);
@@ -635,14 +699,12 @@ window.FlexEarnManager = (function() {
     function loadState() {
         console.log('📂 [FlexEarn] Завантаження збереженого стану...');
         try {
-            const savedState = localStorage.getItem('flexEarnState');
+            const savedState = window.TasksUtils.storage.get('flexEarnState');
             if (savedState) {
-                const parsed = JSON.parse(savedState);
-
                 // Перевіряємо чи це дані поточного користувача
-                if (parsed.userId === state.userId) {
-                    Object.assign(state, parsed);
-                    console.log('✅ [FlexEarn] Стан завантажено:', parsed);
+                if (savedState.userId === state.userId) {
+                    Object.assign(state, savedState);
+                    console.log('✅ [FlexEarn] Стан завантажено:', savedState);
 
                     // Перевіряємо чи винагороди були отримані сьогодні
                     checkDailyReset();
@@ -665,7 +727,7 @@ window.FlexEarnManager = (function() {
 
         const now = new Date();
         const today = now.toDateString();
-        const lastResetDate = localStorage.getItem('flexEarnLastReset');
+        const lastResetDate = window.TasksUtils.storage.get('flexEarnLastReset');
 
         console.log('📊 [FlexEarn] Дати:', {
             сьогодні: today,
@@ -675,7 +737,11 @@ window.FlexEarnManager = (function() {
         if (lastResetDate !== today) {
             console.log('🔄 [FlexEarn] Новий день, скидаємо щоденні дані');
             state.claimedToday = {};
-            localStorage.setItem('flexEarnLastReset', today);
+            window.TasksUtils.storage.set('flexEarnLastReset', today);
+
+            // Оновлюємо Store
+            window.TasksStore?.actions.resetFlexDaily();
+
             saveState();
         } else {
             console.log('✅ [FlexEarn] Це той самий день, дані актуальні');
@@ -686,7 +752,7 @@ window.FlexEarnManager = (function() {
      * Форматувати число
      */
     function formatNumber(num) {
-        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        return window.TasksUtils?.formatNumber(num) || num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     }
 
     /**

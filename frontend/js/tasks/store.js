@@ -637,10 +637,10 @@ window.TasksStore = (function() {
     };
 
     /**
-     * Збереження стану в localStorage
+     * Збереження стану в sessionStorage
      */
     function saveStateToStorage() {
-        console.log('💾 [TasksStore] Збереження стану в localStorage');
+        console.log('💾 [TasksStore] Збереження стану в sessionStorage');
 
         try {
             const stateToSave = {
@@ -655,29 +655,37 @@ window.TasksStore = (function() {
                 }
             };
 
-            window.TasksUtils.storage.set('tasksStoreState', stateToSave);
-            console.log('✅ [TasksStore] Стан збережено');
+            // Використовуємо sessionStorage для безпеки
+            sessionStorage.setItem('tasksStoreState', JSON.stringify(stateToSave));
+            console.log('✅ [TasksStore] Стан збережено в sessionStorage');
         } catch (error) {
             console.error('❌ [TasksStore] Помилка збереження стану:', error);
         }
     }
 
     /**
-     * Завантаження стану з localStorage
+     * Завантаження стану з sessionStorage
      */
     function loadStateFromStorage() {
-        console.log('📂 [TasksStore] Завантаження стану з localStorage');
+        console.log('📂 [TasksStore] Завантаження стану з sessionStorage');
 
         try {
-            const savedState = window.TasksUtils.storage.get('tasksStoreState');
-            if (savedState) {
+            const savedStateStr = sessionStorage.getItem('tasksStoreState');
+            if (savedStateStr) {
+                const savedState = JSON.parse(savedStateStr);
                 console.log('✅ [TasksStore] Знайдено збережений стан');
-                actions.hydrateState(savedState);
+
+                // Валідуємо дані перед використанням
+                if (savedState && typeof savedState === 'object') {
+                    actions.hydrateState(savedState);
+                }
             } else {
                 console.log('📭 [TasksStore] Збережений стан не знайдено');
             }
         } catch (error) {
             console.error('❌ [TasksStore] Помилка завантаження стану:', error);
+            // Очищаємо пошкоджені дані
+            sessionStorage.removeItem('tasksStoreState');
         }
     }
 
