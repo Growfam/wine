@@ -11,14 +11,13 @@ import json
 import time
 import uuid
 from datetime import datetime
-from pathlib import Path
+
 import traceback
 
 # Сторонні бібліотеки
-from flask import Flask, render_template, request, jsonify, send_from_directory, session, g, abort
+from flask import Flask, render_template, request, jsonify, send_from_directory, g
 from flask_cors import CORS
 from dotenv import load_dotenv
-from flask_sqlalchemy import SQLAlchemy
 
 # Завантажуємо змінні середовища
 load_dotenv()
