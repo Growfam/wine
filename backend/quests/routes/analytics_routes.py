@@ -4,6 +4,7 @@ API endpoints для аналітики та статистики
 """
 
 import logging
+import psutil
 from flask import Blueprint, request, jsonify
 from ..controllers.analytics_controller import AnalyticsController
 
@@ -237,7 +238,7 @@ def health_check():
     }
     """
     from datetime import datetime, timezone
-    import psutil
+
 
     checks = {
         "database": "unknown",

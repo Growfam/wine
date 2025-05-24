@@ -685,12 +685,22 @@ def route_clear_tasks_cache(telegram_id: str):
     """
     try:
         # Очищаємо кеш для користувача
+        # Спочатку намагаємося імпортувати
+        invalidate_cache_for_entity = None
         try:
             from supabase_client import invalidate_cache_for_entity
-            invalidate_cache_for_entity(telegram_id)
-            invalidate_cache_for_entity("all_tasks")  # Очищаємо загальний кеш завдань
-            message = f"Кеш завдань очищено для користувача {telegram_id}"
         except ImportError:
+            pass
+
+        # Тепер безпечно використовуємо
+        if invalidate_cache_for_entity:
+            try:
+                invalidate_cache_for_entity(telegram_id)
+                invalidate_cache_for_entity("all_tasks")
+                message = f"Кеш завдань очищено для користувача {telegram_id}"
+            except Exception as e:
+                message = f"Помилка очищення кешу: {str(e)}"
+        else:
             message = "Функція очищення кешу недоступна"
 
         logger.info(f"Очищення кешу завдань для {telegram_id}")

@@ -5,6 +5,7 @@ API endpoints для підключення, відключення та упр�
 
 import logging
 from flask import Blueprint
+from datetime import datetime, timezone
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
@@ -324,6 +325,8 @@ def route_get_wallet_statistics():
 
 @wallet_bp.route('/health', methods=['GET'])
 def route_wallet_health():
+    from datetime import datetime, timezone
+
     """
     Перевірка здоров'я сервісу гаманців
 

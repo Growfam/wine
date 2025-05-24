@@ -3,7 +3,7 @@
 """
 
 import logging
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, jsonify
 
 from ..controllers.user_controller import (
     get_profile_route,
@@ -424,19 +424,26 @@ def check_user_exists(telegram_id):
                 "error": "Невірний Telegram ID"
             }), 400
 
-        # Імпорт функції перевірки користувача
+        # Спочатку присвоюємо None
+        get_user = None
+
+        # Намагаємося імпортувати
         try:
             from supabase_client import get_user
         except ImportError:
             try:
                 from backend.supabase_client import get_user
             except ImportError:
-                return jsonify({
-                    "exists": False,
-                    "error": "Сервіс недоступний"
-                }), 500
+                pass
 
-        # Перевіряємо користувача
+        # Перевіряємо чи імпорт успішний
+        if get_user is None:
+            return jsonify({
+                "exists": False,
+                "error": "Сервіс недоступний"
+            }), 500
+
+        # Тепер безпечно використовуємо
         user_data = get_user(str(validated_id))
         exists = user_data is not None
 

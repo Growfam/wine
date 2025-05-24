@@ -3,7 +3,7 @@
 """
 
 import logging
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify
 
 from ..controllers.daily_controller import (
     get_daily_status_route,

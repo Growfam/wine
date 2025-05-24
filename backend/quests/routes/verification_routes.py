@@ -4,7 +4,7 @@
 """
 
 import logging
-from flask import Blueprint
+from flask import Blueprint, request
 
 try:
     from .verification_controller import (
@@ -396,7 +396,7 @@ def test_verification_routes(app):
 
     # Розраховуємо успішність
     if test_results['total_routes'] > 0:
-        test_results['success_rate'] = (test_results['working_routes'] / test_results['total_routes']) * 100
+        test_results['success_rate'] = int((test_results['working_routes'] / test_results['total_routes']) * 100)
 
     logger.info(
         f"🧪 Результати тестування: {test_results['working_routes']}/{test_results['total_routes']} маршрутів працюють ({test_results['success_rate']:.1f}%)")
