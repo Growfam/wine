@@ -524,6 +524,7 @@
 .stats-icon.streak-icon {
     background: linear-gradient(135deg, #ff7e5f, #feb47b);
     box-shadow: 0 4px 16px rgba(255, 126, 95, 0.4);
+    animation: flame-flicker 3s ease-in-out infinite;
 }
 
 .stats-icon.streak-icon::before {
@@ -533,6 +534,7 @@
 .stats-icon.longest-icon {
     background: linear-gradient(135deg, #b366ff, #8b5cf6);
     box-shadow: 0 4px 16px rgba(179, 102, 255, 0.4);
+    animation: star-pulse 3s ease-in-out infinite;
 }
 
 .stats-icon.longest-icon::before {
@@ -555,6 +557,27 @@
 
 .stats-icon.tickets-icon::before {
     background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z' stroke='white' stroke-width='2'/%3E%3Cpath d='M9 6V16' stroke='white' stroke-width='2' stroke-dasharray='2 2'/%3E%3C/svg%3E");
+}
+
+/* Анімації для іконок */
+@keyframes flame-flicker {
+    0%, 100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    50% {
+        transform: scale(1.05);
+        filter: brightness(1.2);
+    }
+}
+
+@keyframes star-pulse {
+    0%, 100% {
+        transform: scale(1) rotate(0deg);
+    }
+    50% {
+        transform: scale(1.1) rotate(5deg);
+    }
 }
 
 .stats-info {
@@ -650,6 +673,19 @@
     }
 }
 
+/* Іконки в кнопці отримання */
+.claim-daily-button .button-text::before {
+    content: '';
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M7 10L12 15L17 10' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M12 15V3' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: contain;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}
+
 .claim-daily-button .button-text {
     font-size: 1rem;
 }
@@ -669,6 +705,18 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
+}
+
+/* Іконка для квитків в кнопці */
+.claim-daily-button .bonus-tickets::before {
+    content: '';
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    margin-right: 0.25rem;
+    vertical-align: middle;
+    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+    background-size: contain;
 }
 
 /* ======== ІНФОРМАЦІЯ ПРО СИСТЕМУ ======== */
@@ -770,6 +818,39 @@
     gap: 0.5rem;
 }
 
+/* Анімація для отримання винагороди */
+.daily-bonus-claimed .reward-amount::before,
+.daily-bonus-claimed .reward-tickets::before {
+    content: '';
+    display: inline-block;
+    width: 2rem;
+    height: 2rem;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+    background-size: contain;
+    animation: reward-icon-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.daily-bonus-claimed .reward-amount::before {
+    background-image: url("data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 3L3 9L12 21L21 9L18 3H6Z' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M3 9H21' stroke='white' stroke-width='2'/%3E%3Cpath d='M12 3L8 9L12 21L16 9L12 3Z' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.daily-bonus-claimed .reward-tickets::before {
+    background-image: url("data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z' stroke='%23FFD700' stroke-width='2'/%3E%3Cpath d='M9 6V16' stroke='%23FFD700' stroke-width='2' stroke-dasharray='2 2'/%3E%3C/svg%3E");
+}
+
+@keyframes reward-icon-bounce {
+    0% {
+        transform: scale(0) rotate(-180deg);
+    }
+    50% {
+        transform: scale(1.2) rotate(20deg);
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+    }
+}
+
 /* Анімації */
 @keyframes fade-in {
     0% {
@@ -793,6 +874,15 @@
     }
     50% {
         box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+    }
+}
+
+@keyframes today-glow {
+    0%, 100% {
+        box-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 20px rgba(255, 215, 0, 0.5);
     }
 }
 
@@ -822,6 +912,18 @@
 
     .calendar-grid {
         gap: 0.375rem;
+    }
+
+    .calendar-day {
+        font-size: 0.75rem;
+    }
+
+    .calendar-day-number {
+        font-size: 0.75rem;
+    }
+
+    .calendar-day-reward {
+        font-size: 0.625rem;
     }
 
     .daily-bonus-stats {
@@ -857,11 +959,16 @@
     }
 
     .calendar-day-number {
-        font-size: 0.75rem;
+        font-size: 0.625rem;
     }
 
     .calendar-day-reward {
-        font-size: 0.625rem;
+        font-size: 0.5rem;
+    }
+
+    .calendar-ticket-badge {
+        width: 1.25rem;
+        height: 1.25rem;
     }
 
     .stats-card {
