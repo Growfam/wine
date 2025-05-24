@@ -450,31 +450,24 @@ def route_get_flex_health():
 
 @flex_bp.route('/cache/clear/<telegram_id>', methods=['POST'])
 def route_clear_flex_cache(telegram_id: str):
-    """
-    Очищення кешу FLEX для користувача (адміністративний)
-
-    Args:
-        telegram_id: ID користувача в Telegram
-
-    Returns:
-        JSON з результатом
-
-    Example:
-        POST /api/flex/cache/clear/123456789
-
-        Response:
-        {
-            "status": "success",
-            "message": "Кеш FLEX очищено для користувача 123456789"
-        }
-    """
     try:
-        # Очищаємо кеш для користувача
+        # Визначаємо функцію заздалегідь
+        cache_function = None
+
         try:
             from supabase_client import invalidate_cache_for_entity
-            invalidate_cache_for_entity(telegram_id)
-            message = f"Кеш FLEX очищено для користувача {telegram_id}"
+            cache_function = invalidate_cache_for_entity
         except ImportError:
+            cache_function = None
+
+        # Використовуємо
+        if cache_function is not None:
+            try:
+                cache_function(telegram_id)
+                message = f"Кеш FLEX очищено для користувача {telegram_id}"
+            except Exception as e:
+                message = f"Помилка очищення кешу: {str(e)}"
+        else:
             message = "Функція очищення кешу недоступна"
 
         logger.info(f"Очищення кешу FLEX для {telegram_id}")
@@ -559,88 +552,92 @@ def route_simulate_flex_claim(telegram_id: str):
                 "error_code": "MISSING_LEVEL"
             }, 400
 
-        # Імпортуємо необхідні компоненти
+        # ✅ ВИПРАВЛЕНО: Спочатку намагаємося імпортувати
+        flex_rewards_model = None
+        FlexLevel = None
         try:
             from quests.models.flex_rewards import flex_rewards_model, FlexLevel
-
-            # Валідуємо рівень
-            try:
-                level = FlexLevel(level_str)
-            except ValueError:
-                valid_levels = [level.value for level in FlexLevel]
-                return {
-                    "status": "error",
-                    "message": f"Невалідний рівень. Доступні: {', '.join(valid_levels)}",
-                    "error_code": "INVALID_LEVEL"
-                }, 400
-
-            # Отримуємо конфігурацію рівня
-            config = flex_rewards_model.FLEX_LEVELS_CONFIG.get(level)
-            if not config:
-                return {
-                    "status": "error",
-                    "message": "Конфігурація рівня не знайдена",
-                    "error_code": "CONFIG_NOT_FOUND"
-                }, 404
-
-            # Використовуємо переданий баланс або отримуємо поточний
-            if flex_balance is None:
-                flex_balance = flex_rewards_model.get_user_flex_balance(telegram_id)
-            else:
-                try:
-                    flex_balance = int(flex_balance)
-                except (ValueError, TypeError):
-                    return {
-                        "status": "error",
-                        "message": "Невалідний баланс FLEX",
-                        "error_code": "INVALID_FLEX_BALANCE"
-                    }, 400
-
-            # Перевіряємо вимоги
-            requirements_met = flex_balance >= config.required_flex
-
-            # Перевіряємо чи отримував сьогодні (для реального статусу)
-            today_claims = flex_rewards_model._get_today_claims(telegram_id)
-            claimed_today = level in today_claims
-
-            can_claim = requirements_met and not claimed_today
-
-            # Визначаємо час наступного отримання
-            next_claim_available = None
-            if claimed_today:
-                next_claim_time = flex_rewards_model._get_next_claim_time(telegram_id, level)
-                if next_claim_time:
-                    next_claim_available = next_claim_time.isoformat()
-
-            logger.info(f"Симуляція FLEX для {telegram_id}: рівень={level_str}, "
-                        f"баланс={flex_balance:,}, can_claim={can_claim}")
-
-            return {
-                "status": "success",
-                "data": {
-                    "level": level_str,
-                    "flex_balance": flex_balance,
-                    "required_flex": config.required_flex,
-                    "requirements_met": requirements_met,
-                    "claimed_today": claimed_today,
-                    "can_claim": can_claim,
-                    "potential_rewards": {
-                        "winix": config.winix_reward,
-                        "tickets": config.tickets_reward
-                    },
-                    "progress_percent": min((flex_balance / config.required_flex) * 100, 100),
-                    "next_claim_available": next_claim_available,
-                    "simulation": True,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }
-            }, 200
-
         except ImportError:
+            pass
+
+        if not flex_rewards_model or not FlexLevel:
             return {
                 "status": "error",
                 "message": "FLEX сервіс недоступний",
                 "error_code": "SERVICE_UNAVAILABLE"
             }, 503
+
+        # Тепер безпечно валідуємо рівень
+        try:
+            level = FlexLevel(level_str)
+        except ValueError:
+            valid_levels = [level.value for level in FlexLevel]
+            return {
+                "status": "error",
+                "message": f"Невалідний рівень. Доступні: {', '.join(valid_levels)}",
+                "error_code": "INVALID_LEVEL"
+            }, 400
+
+        # Отримуємо конфігурацію рівня
+        config = flex_rewards_model.FLEX_LEVELS_CONFIG.get(level)
+        if not config:
+            return {
+                "status": "error",
+                "message": "Конфігурація рівня не знайдена",
+                "error_code": "CONFIG_NOT_FOUND"
+            }, 404
+
+        # Використовуємо переданий баланс або отримуємо поточний
+        if flex_balance is None:
+            flex_balance = flex_rewards_model.get_user_flex_balance(telegram_id)
+        else:
+            try:
+                flex_balance = int(flex_balance)
+            except (ValueError, TypeError):
+                return {
+                    "status": "error",
+                    "message": "Невалідний баланс FLEX",
+                    "error_code": "INVALID_FLEX_BALANCE"
+                }, 400
+
+        # Перевіряємо вимоги
+        requirements_met = flex_balance >= config.required_flex
+
+        # Перевіряємо чи отримував сьогодні (для реального статусу)
+        today_claims = flex_rewards_model._get_today_claims(telegram_id)
+        claimed_today = level in today_claims
+
+        can_claim = requirements_met and not claimed_today
+
+        # Визначаємо час наступного отримання
+        next_claim_available = None
+        if claimed_today:
+            next_claim_time = flex_rewards_model._get_next_claim_time(telegram_id, level)
+            if next_claim_time:
+                next_claim_available = next_claim_time.isoformat()
+
+        logger.info(f"Симуляція FLEX для {telegram_id}: рівень={level_str}, "
+                    f"баланс={flex_balance:,}, can_claim={can_claim}")
+
+        return {
+            "status": "success",
+            "data": {
+                "level": level_str,
+                "flex_balance": flex_balance,
+                "required_flex": config.required_flex,
+                "requirements_met": requirements_met,
+                "claimed_today": claimed_today,
+                "can_claim": can_claim,
+                "potential_rewards": {
+                    "winix": config.winix_reward,
+                    "tickets": config.tickets_reward
+                },
+                "progress_percent": min((flex_balance / config.required_flex) * 100, 100),
+                "next_claim_available": next_claim_available,
+                "simulation": True,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }, 200
 
     except Exception as e:
         logger.error(f"Помилка симуляції FLEX: {str(e)}")

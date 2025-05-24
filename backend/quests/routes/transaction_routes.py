@@ -5,7 +5,8 @@ API endpoints для отримання історії та статистики
 
 import logging
 from flask import Blueprint, request, jsonify
-from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 # Імпорт сервісів
 try:
@@ -21,7 +22,7 @@ except ImportError:
         logger.error("Не вдалося імпортувати залежності")
         transaction_service = None
 
-logger = logging.getLogger(__name__)
+
 
 # Створюємо Blueprint
 transaction_bp = Blueprint('transaction', __name__, url_prefix='/api/transactions')
@@ -401,6 +402,7 @@ def get_transaction_service_health():
     GET /api/transactions/health
     Перевірка здоров'я сервісу транзакцій
     """
+    from datetime import datetime, timezone
     try:
         from datetime import datetime, timezone
 

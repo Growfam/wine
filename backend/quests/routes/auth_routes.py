@@ -4,6 +4,7 @@
 
 import logging
 from flask import Blueprint, request, jsonify
+from datetime import datetime, timezone
 
 from ..controllers.auth_controller import (
     validate_telegram_route,
@@ -12,10 +13,7 @@ from ..controllers.auth_controller import (
 )
 from ..utils.decorators import (
     public_endpoint,
-    rate_limit,
-    validate_json,
-    handle_errors,
-    log_requests
+    validate_json
 )
 
 logger = logging.getLogger(__name__)
