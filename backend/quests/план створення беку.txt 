@@ -124,6 +124,8 @@ python# models/daily_bonus.py - схема в Supabase
 # services/reward_calculator.py - логіка розрахунків
 # controllers/daily_controller.py - status, claim, history
 # routes/daily_routes.py - /api/daily/*
+
+
 ЕТАП 4: Інтеграція TON гаманців
 Файли фронту: walletChecker.js
 
@@ -135,6 +137,7 @@ python# models/wallet.py
 # services/ton_connect_service.py
 # controllers/wallet_controller.py
 # routes/wallet_routes.py - /api/wallet/*
+
 ЕТАП 5: Система FLEX токенів
 Файли фронту: flexEarn.js
 
@@ -145,6 +148,7 @@ python# models/wallet.py
 python# models/flex_rewards.py
 # controllers/flex_controller.py - balance, claim, levels
 # routes/flex_routes.py - /api/flex/*
+
 ЕТАП 6: База завдань (Tasks)
 Файли фронту: tasksManager.js
 
@@ -155,6 +159,7 @@ CRUD для завдань
 python# models/task.py
 # controllers/tasks_controller.py - list, start, complete
 # routes/tasks_routes.py - /api/tasks/*
+
 ЕТАП 7: Система верифікації
 Файли фронту: taskVerification.js
 
@@ -166,6 +171,7 @@ python# services/telegram_service.py - інтеграція з ботом
 # services/verification_service.py
 # controllers/verification_controller.py
 # routes/verification_routes.py - /api/verify/*
+
 ЕТАП 8: Винагороди та транзакції
 Файли фронту: store.js, services.js
 
