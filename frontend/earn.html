@@ -505,6 +505,77 @@
         </div>
     </div>
 
+     <script>
+        // Ініціалізація та перевірка Telegram WebApp
+        (function() {
+            console.log("🔄 [TELEGRAM-INIT] ===== ПОЧАТОК ІНІЦІАЛІЗАЦІЇ TELEGRAM WEBAPP =====");
+            console.log("🕐 [TELEGRAM-INIT] Час:", new Date().toISOString());
+            console.log("📊 [TELEGRAM-INIT] Перевірка глобальних об'єктів:", {
+                hasTelegram: typeof window.Telegram !== 'undefined',
+                hasWebApp: window.Telegram && typeof window.Telegram.WebApp !== 'undefined'
+            });
+
+            if (!window.Telegram || !window.Telegram.WebApp) {
+                console.error("❌ [TELEGRAM-INIT] Telegram WebApp API не завантажено!");
+                console.error("❌ [TELEGRAM-INIT] window.Telegram:", window.Telegram);
+                return;
+            }
+
+            try {
+                console.log("🔄 [TELEGRAM-INIT] Виклик Telegram.WebApp.ready()...");
+                window.Telegram.WebApp.ready();
+
+                console.log("🔄 [TELEGRAM-INIT] Виклик Telegram.WebApp.expand()...");
+                window.Telegram.WebApp.expand();
+
+                console.log("✅ [TELEGRAM-INIT] Telegram WebApp успішно ініціалізовано");
+                console.log("📊 [TELEGRAM-INIT] WebApp дані:", {
+                    version: window.Telegram.WebApp.version,
+                    platform: window.Telegram.WebApp.platform,
+                    colorScheme: window.Telegram.WebApp.colorScheme,
+                    themeParams: window.Telegram.WebApp.themeParams,
+                    initDataUnsafe: window.Telegram.WebApp.initDataUnsafe
+                });
+
+                if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+                    const user = window.Telegram.WebApp.initDataUnsafe.user;
+                    console.log("👤 [TELEGRAM-INIT] Дані користувача:", {
+                        id: user.id,
+                        first_name: user.first_name,
+                        last_name: user.last_name,
+                        username: user.username,
+                        language_code: user.language_code
+                    });
+
+                    const userId = parseInt(user.id);
+                    localStorage.setItem('telegram_user_id', userId.toString());
+                    console.log("✅ [TELEGRAM-INIT] ID збережено в localStorage:", userId);
+
+                    // Одразу встановлюємо ID в DOM
+                    setTimeout(function() {
+                        console.log("🔄 [TELEGRAM-INIT] Оновлення ID в DOM...");
+                        const userIdElements = document.querySelectorAll('.user-id-value');
+                        userIdElements.forEach(function(element, index) {
+                            console.log(`  🔄 [TELEGRAM-INIT] Оновлення елемента ${index}:`, element);
+                            element.textContent = userId;
+                        });
+                    }, 100);
+                } else {
+                    console.warn("⚠️ [TELEGRAM-INIT] Дані користувача відсутні в Telegram WebApp");
+                    console.log("📊 [TELEGRAM-INIT] initDataUnsafe:", window.Telegram.WebApp.initDataUnsafe);
+                }
+            } catch (e) {
+                console.error("❌ [TELEGRAM-INIT] КРИТИЧНА ПОМИЛКА ініціалізації Telegram WebApp:", e);
+                console.error("❌ [TELEGRAM-INIT] Stack trace:", e.stack);
+            }
+
+            console.log("✅ [TELEGRAM-INIT] ===== КІНЕЦЬ ІНІЦІАЛІЗАЦІЇ TELEGRAM WEBAPP =====");
+        })();
+    </script>
+    <script src="./js/api.js"></script>
+    <script src="./js/auth.js"></script>
+    <script src="./js/core.js"></script>
+
     <!-- Модулі системи завдань -->
     <script src="js/tasks/constants.js"></script>
     <script src="js/tasks/api.js"></script>
