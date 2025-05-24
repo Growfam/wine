@@ -13,7 +13,7 @@ window.TaskVerification = (function() {
         activeVerifications: new Map(),
         verificationQueue: [],
         isProcessing: false,
-        telegramBotUsername: '@WinixVerifyBot',
+        telegramBotUsername: '@WINIX_Official_bot',
         taskTimestamps: new Map() // Зберігаємо час початку завдань
     };
 
