@@ -1,218 +1,278 @@
 """
-Моделі системи завдань WINIX
-Базові класи та утиліти для роботи з базою даних
+Модуль завдань та верифікації WINIX
+Ініціалізація системи завдань, верифікації та інтеграції з Telegram
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict
-from enum import Enum
+import os
+from typing import Optional, Dict, Any
 
+# Налаштування логування
 logger = logging.getLogger(__name__)
 
+# Версія модуля
+__version__ = "1.0.0"
 
-class TaskStatus(Enum):
-    """Статуси завдань"""
-    AVAILABLE = "available"
-    STARTED = "started"
-    PENDING = "pending"
-    COMPLETED = "completed"
-    CLAIMED = "claimed"
-    EXPIRED = "expired"
+# Інформація про модуль
+__module_info__ = {
+    "name": "WINIX Quests & Verification System",
+    "version": __version__,
+    "description": "Система завдань та верифікації для WINIX",
+    "components": [
+        "Telegram Service - інтеграція з ботом",
+        "Verification Service - логіка верифікації",
+        "Task Management - управління завданнями",
+        "Timer System - система таймерів",
+        "Reward Calculator - розрахунок винагород"
+    ]
+}
 
+# Глобальні змінні для сервісів
+_telegram_service = None
+_verification_service = None
+_services_initialized = False
 
-class TaskType(Enum):
-    """Типи завдань"""
-    SOCIAL = "social"
-    LIMITED = "limited"
-    PARTNER = "partner"
-    DAILY = "daily"
+def initialize_services() -> bool:
+    """
+    Ініціалізує всі сервіси модуля
 
+    Returns:
+        bool: True якщо всі сервіси успішно ініціалізовані
+    """
+    global _telegram_service, _verification_service, _services_initialized
 
-class TransactionType(Enum):
-    """Типи транзакцій"""
-    REWARD = "reward"
-    CLAIM = "claim"
-    SPEND = "spend"
-    BONUS = "bonus"
-    PENALTY = "penalty"
+    if _services_initialized:
+        logger.info("✅ Сервіси вже ініціалізовані")
+        return True
 
+    logger.info("🚀 Ініціалізація сервісів модуля quests...")
 
-@dataclass
-class Reward:
-    """Клас для опису винагороди"""
-    winix: int = 0
-    tickets: int = 0
-    flex: int = 0
+    try:
+        # Ініціалізація Telegram сервісу
+        try:
+            from .services.telegram_service import telegram_service
+            _telegram_service = telegram_service
+            logger.info("✅ Telegram сервіс ініціалізовано")
+        except ImportError as e:
+            logger.warning(f"⚠️ Не вдалося ініціалізувати Telegram сервіс: {str(e)}")
+            _telegram_service = None
 
-    def __post_init__(self):
-        """Валідація після ініціалізації"""
-        self.winix = max(0, int(self.winix))
-        self.tickets = max(0, int(self.tickets))
-        self.flex = max(0, int(self.flex))
+        # Ініціалізація сервісу верифікації
+        try:
+            from .services.verification_service import verification_service
+            _verification_service = verification_service
+            logger.info("✅ Сервіс верифікації ініціалізовано")
+        except ImportError as e:
+            logger.warning(f"⚠️ Не вдалося ініціалізувати сервіс верифікації: {str(e)}")
+            _verification_service = None
 
-    def total_value(self) -> int:
-        """Загальна цінність винагороди в WINIX еквіваленті"""
-        return self.winix + (self.tickets * 100) + (self.flex * 10)
+        _services_initialized = True
+        logger.info("✅ Сервіси модуля quests успішно ініціалізовані")
 
-    def is_empty(self) -> bool:
-        """Перевірка чи винагорода пуста"""
-        return self.winix == 0 and self.tickets == 0 and self.flex == 0
+        return True
 
-    def to_dict(self) -> Dict[str, int]:
-        """Конвертація в словник"""
-        return asdict(self)
+    except Exception as e:
+        logger.error(f"❌ Помилка ініціалізації сервісів: {str(e)}")
+        return False
 
+def get_telegram_service():
+    """Повертає екземпляр Telegram сервісу"""
+    if not _services_initialized:
+        initialize_services()
+    return _telegram_service
 
-@dataclass
-class UserBalance:
-    """Клас для опису балансу користувача"""
-    winix: int = 0
-    tickets: int = 0
-    flex: int = 0
+def get_verification_service():
+    """Повертає екземпляр сервісу верифікації"""
+    if not _services_initialized:
+        initialize_services()
+    return _verification_service
 
-    def __post_init__(self):
-        """Валідація після ініціалізації"""
-        self.winix = max(0, int(self.winix))
-        self.tickets = max(0, int(self.tickets))
-        self.flex = max(0, int(self.flex))
+def register_routes(app) -> bool:
+    """
+    Реєструє всі маршрути модуля в Flask додатку
 
-    def can_spend(self, reward: Reward) -> bool:
-        """Перевірка чи можна витратити задану суму"""
-        return (self.winix >= reward.winix and
-                self.tickets >= reward.tickets and
-                self.flex >= reward.flex)
+    Args:
+        app: Екземпляр Flask додатку
 
-    def add_reward(self, reward: Reward) -> 'UserBalance':
-        """Додання винагороди до балансу"""
-        return UserBalance(
-            winix=self.winix + reward.winix,
-            tickets=self.tickets + reward.tickets,
-            flex=self.flex + reward.flex
-        )
+    Returns:
+        bool: True якщо маршрути успішно зареєстровано
+    """
+    logger.info("🔧 Реєстрація маршрутів модуля quests...")
 
-    def subtract_reward(self, reward: Reward) -> 'UserBalance':
-        """Віднімання винагороди від балансу"""
-        return UserBalance(
-            winix=max(0, self.winix - reward.winix),
-            tickets=max(0, self.tickets - reward.tickets),
-            flex=max(0, self.flex - reward.flex)
-        )
+    routes_registered = 0
+    total_routes = 0
 
-    def to_dict(self) -> Dict[str, int]:
-        """Конвертація в словник"""
-        return asdict(self)
+    # Реєстрація маршрутів верифікації
+    try:
+        from .routes.verification_routes import register_verification_routes
+        if register_verification_routes(app):
+            routes_registered += 1
+            logger.info("✅ Маршрути верифікації зареєстровано")
+        else:
+            logger.error("❌ Не вдалося зареєструвати маршрути верифікації")
+        total_routes += 1
+    except ImportError as e:
+        logger.warning(f"⚠️ Маршрути верифікації недоступні: {str(e)}")
 
+    # Тут можуть бути додані інші маршрути модуля
+    # Наприклад: auth_routes, tasks_routes, etc.
 
-class BaseModel:
-    """Базовий клас для всіх моделей"""
+    success_rate = (routes_registered / total_routes * 100) if total_routes > 0 else 0
+    logger.info(f"📊 Зареєстровано {routes_registered}/{total_routes} груп маршрутів ({success_rate:.1f}%)")
 
-    def __init__(self):
-        self.created_at = datetime.now(timezone.utc)
-        self.updated_at = datetime.now(timezone.utc)
+    return routes_registered > 0
 
-    def update_timestamp(self):
-        """Оновлення часу модифікації"""
-        self.updated_at = datetime.now(timezone.utc)
+def setup_quests_module(app) -> Dict[str, Any]:
+    """
+    Повна ініціалізація модуля quests
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Базова серіалізація"""
-        result = {}
-        for key, value in self.__dict__.items():
-            if isinstance(value, datetime):
-                result[key] = value.isoformat()
-            elif isinstance(value, Enum):
-                result[key] = value.value
-            elif hasattr(value, 'to_dict'):
-                result[key] = value.to_dict()
-            else:
-                result[key] = value
+    Args:
+        app: Екземпляр Flask додатку
+
+    Returns:
+        Dict з результатами ініціалізації
+    """
+    logger.info("🎯 === ІНІЦІАЛІЗАЦІЯ МОДУЛЯ QUESTS ===")
+
+    result = {
+        "success": False,
+        "services_initialized": False,
+        "routes_registered": False,
+        "telegram_available": False,
+        "verification_available": False,
+        "errors": []
+    }
+
+    try:
+        # Ініціалізуємо сервіси
+        if initialize_services():
+            result["services_initialized"] = True
+            result["telegram_available"] = _telegram_service is not None
+            result["verification_available"] = _verification_service is not None
+        else:
+            result["errors"].append("Не вдалося ініціалізувати сервіси")
+
+        # Реєструємо маршрути
+        if register_routes(app):
+            result["routes_registered"] = True
+        else:
+            result["errors"].append("Не вдалося зареєструвати маршрути")
+
+        # Визначаємо загальний успіх
+        result["success"] = result["services_initialized"] and result["routes_registered"]
+
+        if result["success"]:
+            logger.info("✅ Модуль quests успішно ініціалізовано")
+            _log_module_status(result)
+        else:
+            logger.warning(f"⚠️ Модуль quests частково ініціалізовано з помилками: {result['errors']}")
+
         return result
 
-    def validate(self) -> List[str]:
-        """Валідація моделі - має бути перевизначена в дочірніх класах"""
-        return []
-
-
-def get_current_utc_time() -> datetime:
-    """Отримати поточний час в UTC"""
-    return datetime.now(timezone.utc)
-
-
-def format_datetime(dt: datetime) -> str:
-    """Форматування datetime для збереження в БД"""
-    if dt is None:
-        return None
-    return dt.isoformat() if dt.tzinfo else dt.replace(tzinfo=timezone.utc).isoformat()
-
-
-def parse_datetime(dt_str: str) -> Optional[datetime]:
-    """Парсинг datetime з рядка"""
-    if not dt_str:
-        return None
-    try:
-        # Підтримка різних форматів
-        for fmt in [
-            "%Y-%m-%dT%H:%M:%S.%fZ",
-            "%Y-%m-%dT%H:%M:%SZ",
-            "%Y-%m-%dT%H:%M:%S.%f",
-            "%Y-%m-%dT%H:%M:%S",
-            "%Y-%m-%d %H:%M:%S"
-        ]:
-            try:
-                dt = datetime.strptime(dt_str, fmt)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                return dt
-            except ValueError:
-                continue
-
-        # Якщо нічого не спрацювало, пробуємо ISO parse
-        return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
     except Exception as e:
-        logger.error(f"Помилка парсингу datetime '{dt_str}': {e}")
-        return None
+        logger.error(f"❌ Критична помилка ініціалізації модуля quests: {str(e)}")
+        result["errors"].append(str(e))
+        return result
 
+def _log_module_status(result: Dict[str, Any]):
+    """Логує статус модуля"""
+    logger.info("📋 Статус модуля quests:")
+    logger.info(f"   🔧 Сервіси: {'✅' if result['services_initialized'] else '❌'}")
+    logger.info(f"   📡 Telegram: {'✅' if result['telegram_available'] else '❌'}")
+    logger.info(f"   🔍 Верифікація: {'✅' if result['verification_available'] else '❌'}")
+    logger.info(f"   🌐 Маршрути: {'✅' if result['routes_registered'] else '❌'}")
 
-def validate_telegram_id(telegram_id: Any) -> Optional[int]:
-    """Валідація Telegram ID"""
-    try:
-        tid = int(telegram_id)
-        if tid <= 0:
-            return None
-        return tid
-    except (ValueError, TypeError):
-        return None
+def get_module_info() -> Dict[str, Any]:
+    """Повертає інформацію про модуль"""
+    return {
+        **__module_info__,
+        "initialized": _services_initialized,
+        "telegram_service_available": _telegram_service is not None,
+        "verification_service_available": _verification_service is not None,
+        "environment": {
+            "telegram_bot_token": bool(os.getenv('TELEGRAM_BOT_TOKEN')),
+            "telegram_bot_username": os.getenv('TELEGRAM_BOT_USERNAME', 'Не встановлено')
+        }
+    }
 
+def get_health_status() -> Dict[str, Any]:
+    """Повертає статус здоров'я модуля"""
+    health = {
+        "status": "healthy",
+        "services": {},
+        "issues": []
+    }
 
-def generate_unique_id() -> str:
-    """Генерація унікального ID"""
-    import uuid
-    return str(uuid.uuid4())
+    # Перевіряємо Telegram сервіс
+    if _telegram_service:
+        try:
+            bot_info = _telegram_service.get_bot_info_sync()
+            health["services"]["telegram"] = {
+                "status": "healthy" if bot_info else "warning",
+                "bot_info": bot_info
+            }
+            if not bot_info:
+                health["issues"].append("Telegram бот недоступний")
+        except Exception as e:
+            health["services"]["telegram"] = {
+                "status": "error",
+                "error": str(e)
+            }
+            health["issues"].append(f"Помилка Telegram сервісу: {str(e)}")
+    else:
+        health["services"]["telegram"] = {"status": "unavailable"}
+        health["issues"].append("Telegram сервіс не ініціалізовано")
 
+    # Перевіряємо сервіс верифікації
+    if _verification_service:
+        try:
+            stats = _verification_service.get_verification_statistics()
+            health["services"]["verification"] = {
+                "status": "healthy",
+                "statistics": stats
+            }
+        except Exception as e:
+            health["services"]["verification"] = {
+                "status": "error",
+                "error": str(e)
+            }
+            health["issues"].append(f"Помилка сервісу верифікації: {str(e)}")
+    else:
+        health["services"]["verification"] = {"status": "unavailable"}
+        health["issues"].append("Сервіс верифікації не ініціалізовано")
 
-# Константи для валідації
-MAX_USERNAME_LENGTH = 32
-MAX_TASK_TITLE_LENGTH = 100
-MAX_TASK_DESCRIPTION_LENGTH = 500
-MAX_REWARD_AMOUNT = 1000000
+    # Визначаємо загальний статус
+    if health["issues"]:
+        health["status"] = "warning" if len(health["issues"]) <= 2 else "error"
 
-# Експорт основних класів
+    return health
+
+# Автоматична ініціалізація при імпорті (якщо потрібно)
+def auto_initialize():
+    """Автоматична ініціалізація при імпорті модуля"""
+    if os.getenv('QUESTS_AUTO_INIT', 'false').lower() == 'true':
+        logger.info("🔄 Автоматична ініціалізація модуля quests...")
+        initialize_services()
+
+# Експортуємо основні функції та класи
 __all__ = [
-    'TaskStatus',
-    'TaskType',
-    'TransactionType',
-    'Reward',
-    'UserBalance',
-    'BaseModel',
-    'get_current_utc_time',
-    'format_datetime',
-    'parse_datetime',
-    'validate_telegram_id',
-    'generate_unique_id',
-    'MAX_USERNAME_LENGTH',
-    'MAX_TASK_TITLE_LENGTH',
-    'MAX_TASK_DESCRIPTION_LENGTH',
-    'MAX_REWARD_AMOUNT'
+    # Основні функції
+    'setup_quests_module',
+    'initialize_services',
+    'register_routes',
+
+    # Getter функції
+    'get_telegram_service',
+    'get_verification_service',
+    'get_module_info',
+    'get_health_status',
+
+    # Константи
+    '__version__',
+    '__module_info__'
 ]
+
+# Викликаємо автоініціалізацію якщо потрібно
+auto_initialize()
+
+logger.info(f"📦 Модуль quests v{__version__} завантажено")
