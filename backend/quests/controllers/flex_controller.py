@@ -1,6 +1,7 @@
 """
 Контролер для управління FLEX токенами та винагородами
 API endpoints для перевірки балансів, отримання винагород та історії
+ОНОВЛЕНО: Інтеграція з Transaction Service для атомарних операцій
 """
 
 import logging
@@ -11,13 +12,23 @@ from datetime import datetime, timezone
 # Налаштування логування
 logger = logging.getLogger(__name__)
 
+# Імпорт Transaction Service
+try:
+    from ..services.transaction_service import transaction_service
+except ImportError:
+    try:
+        from backend.quests.services.transaction_service import transaction_service
+    except ImportError:
+        logger.error("Transaction service недоступний")
+        transaction_service = None
+
 # Імпорт декораторів та утилітів
 try:
-    from quests.utils.decorators import (
+    from ..utils.decorators import (
         secure_endpoint, public_endpoint, validate_json,
         validate_telegram_id, get_current_user, get_json_data
     )
-    from quests.utils.validators import (
+    from ..utils.validators import (
         validate_telegram_id as validate_tg_id,
         validate_wallet_address, sanitize_string
     )
@@ -36,7 +47,7 @@ except ImportError:
 
 # Імпорт моделей та сервісів
 try:
-    from quests.models.flex_rewards import flex_rewards_model, FlexLevel
+    from ..models.flex_rewards import flex_rewards_model, FlexLevel
 except ImportError:
     try:
         from backend.quests.models.flex_rewards import flex_rewards_model, FlexLevel
@@ -47,7 +58,7 @@ except ImportError:
 
 
 class FlexController:
-    """Контролер для управління FLEX токенами та винагородами"""
+    """Контролер для управління FLEX токенами та винагородами з підтримкою транзакцій"""
 
     @staticmethod
     @public_endpoint(max_requests=30, window_seconds=60)
@@ -105,7 +116,8 @@ class FlexController:
                     "wallet_address": wallet_address,
                     "formatted_balance": f"{flex_balance:,}",
                     "last_updated": datetime.now(timezone.utc).isoformat(),
-                    "force_refresh": force_refresh
+                    "force_refresh": force_refresh,
+                    "transaction_service_available": transaction_service is not None
                 }
             }), 200
 
@@ -198,7 +210,8 @@ class FlexController:
                             "tickets": potential_tickets
                         }
                     },
-                    "last_updated": datetime.now(timezone.utc).isoformat()
+                    "last_updated": datetime.now(timezone.utc).isoformat(),
+                    "transaction_service_available": transaction_service is not None
                 }
             }), 200
 
@@ -215,7 +228,7 @@ class FlexController:
     @validate_json(required_fields=['level'])
     def claim_flex_reward(telegram_id: str) -> tuple[Dict[str, Any], int]:
         """
-        Отримання винагороди за рівень FLEX
+        Отримання винагороди за рівень FLEX через Transaction Service
 
         Args:
             telegram_id: ID користувача в Telegram
@@ -257,48 +270,136 @@ class FlexController:
 
             logger.debug(f"Отримання винагороди рівня {level.value} для {telegram_id}")
 
-            # Отримуємо винагороду
-            result = flex_rewards_model.claim_level_reward(telegram_id, level)
+            # Отримуємо винагороду через transaction service або flex модель
+            if transaction_service:
+                # Спочатку перевіряємо можливість отримання через flex модель
+                can_claim_result = flex_rewards_model.can_claim_level_reward(telegram_id, level)
 
-            if result['success']:
-                logger.info(f"Винагорода {level.value} успішно нарахована користувачу {telegram_id}")
+                if not can_claim_result['can_claim']:
+                    logger.warning(f"Не можна отримати винагороду {level.value} для {telegram_id}: {can_claim_result['reason']}")
 
-                # Додаємо додаткову інформацію
-                result['data'] = result.get('reward', {})
-                result['data']['telegram_id'] = telegram_id
-                result['data']['claimed_at'] = datetime.now(timezone.utc).isoformat()
-
-                return jsonify({
-                    "status": "success",
-                    "message": result['message'],
-                    "data": result['data']
-                }), 200
-            else:
-                logger.warning(f"Не вдалося отримати винагороду {level.value} для {telegram_id}: {result['message']}")
-
-                # Визначаємо код статусу на основі помилки
-                error_code = result.get('error_code', 'CLAIM_FAILED')
-
-                if error_code == 'INSUFFICIENT_FLEX':
+                    error_code = "CLAIM_FAILED"
                     status_code = 400
-                elif error_code == 'ALREADY_CLAIMED_TODAY':
-                    status_code = 429  # Too Many Requests
-                elif error_code == 'UNKNOWN_LEVEL':
-                    status_code = 400
+
+                    if 'insufficient_flex' in can_claim_result['reason'].lower():
+                        error_code = "INSUFFICIENT_FLEX"
+                    elif 'already_claimed' in can_claim_result['reason'].lower():
+                        error_code = "ALREADY_CLAIMED_TODAY"
+                        status_code = 429
+
+                    response_data = {
+                        "status": "error",
+                        "message": can_claim_result['reason'],
+                        "error_code": error_code
+                    }
+
+                    if 'next_claim_available' in can_claim_result:
+                        response_data['next_claim_available'] = can_claim_result['next_claim_available']
+
+                    return jsonify(response_data), status_code
+
+                # Отримуємо конфігурацію рівня для винагороди
+                level_config = flex_rewards_model.FLEX_LEVELS_CONFIG.get(level)
+                if not level_config:
+                    return jsonify({
+                        "status": "error",
+                        "message": "Конфігурація рівня не знайдена",
+                        "error_code": "LEVEL_CONFIG_NOT_FOUND"
+                    }), 400
+
+                # Обробляємо нарахування через transaction service
+                winix_amount = level_config.winix_reward
+                tickets_amount = level_config.tickets_reward
+
+                transaction_result = transaction_service.process_flex_reward(
+                    telegram_id=telegram_id,
+                    winix_amount=winix_amount,
+                    tickets_amount=tickets_amount,
+                    flex_level=level.value,
+                    flex_balance=flex_rewards_model.get_user_flex_balance(telegram_id)
+                )
+
+                if transaction_result['success']:
+                    # Позначаємо винагороду як отриману в flex моделі
+                    flex_mark_result = flex_rewards_model.mark_level_claimed(telegram_id, level)
+
+                    if flex_mark_result['success']:
+                        # Формуємо успішну відповідь
+                        result_data = {
+                            'level': level.value,
+                            'winix_reward': winix_amount,
+                            'tickets_reward': tickets_amount,
+                            'flex_balance': flex_rewards_model.get_user_flex_balance(telegram_id),
+                            'transaction_id': transaction_result['transaction_id'],
+                            'operations': transaction_result['operations'],
+                            'claimed_at': transaction_result['processed_at']
+                        }
+
+                        logger.info(f"FLEX винагорода {level.value} успішно нарахована користувачу {telegram_id} через transaction service")
+
+                        return jsonify({
+                            "status": "success",
+                            "message": f"Винагорода рівня {level.value} успішно отримана",
+                            "data": result_data
+                        }), 200
+                    else:
+                        logger.error(f"Не вдалося позначити рівень як отриманий: {flex_mark_result['message']}")
+                        return jsonify({
+                            "status": "error",
+                            "message": "Винагорода нарахована, але не вдалося оновити статус",
+                            "error_code": "STATUS_UPDATE_FAILED"
+                        }), 500
                 else:
-                    status_code = 500
+                    logger.error(f"Помилка transaction service: {transaction_result['error']}")
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Помилка нарахування винагороди: {transaction_result['error']}",
+                        "error_code": "TRANSACTION_FAILED"
+                    }), 500
+            else:
+                # Використовуємо старий метод через flex модель
+                result = flex_rewards_model.claim_level_reward(telegram_id, level)
 
-                response_data = {
-                    "status": "error",
-                    "message": result['message'],
-                    "error_code": error_code
-                }
+                if result['success']:
+                    logger.info(f"Винагорода {level.value} успішно нарахована користувачу {telegram_id} (без transaction service)")
 
-                # Додаємо час наступного отримання якщо є
-                if 'next_claim_available' in result:
-                    response_data['next_claim_available'] = result['next_claim_available']
+                    # Додаємо додаткову інформацію
+                    result['data'] = result.get('reward', {})
+                    result['data']['telegram_id'] = telegram_id
+                    result['data']['claimed_at'] = datetime.now(timezone.utc).isoformat()
+                    result['data']['transaction_service_used'] = False
 
-                return jsonify(response_data), status_code
+                    return jsonify({
+                        "status": "success",
+                        "message": result['message'],
+                        "data": result['data']
+                    }), 200
+                else:
+                    logger.warning(f"Не вдалося отримати винагороду {level.value} для {telegram_id}: {result['message']}")
+
+                    # Визначаємо код статусу на основі помилки
+                    error_code = result.get('error_code', 'CLAIM_FAILED')
+
+                    if error_code == 'INSUFFICIENT_FLEX':
+                        status_code = 400
+                    elif error_code == 'ALREADY_CLAIMED_TODAY':
+                        status_code = 429  # Too Many Requests
+                    elif error_code == 'UNKNOWN_LEVEL':
+                        status_code = 400
+                    else:
+                        status_code = 500
+
+                    response_data = {
+                        "status": "error",
+                        "message": result['message'],
+                        "error_code": error_code
+                    }
+
+                    # Додаємо час наступного отримання якщо є
+                    if 'next_claim_available' in result:
+                        response_data['next_claim_available'] = result['next_claim_available']
+
+                    return jsonify(response_data), status_code
 
         except Exception as e:
             logger.error(f"Помилка отримання винагороди FLEX для {telegram_id}: {str(e)}")
@@ -313,7 +414,7 @@ class FlexController:
     @validate_telegram_id
     def get_flex_history(telegram_id: str) -> tuple[Dict[str, Any], int]:
         """
-        Отримання історії FLEX винагород користувача
+        Отримання історії FLEX винагород користувача з транзакцій
 
         Args:
             telegram_id: ID користувача в Telegram
@@ -342,21 +443,59 @@ class FlexController:
                     "error_code": "INVALID_PARAMETERS"
                 }), 400
 
-            # Отримуємо історію
-            history = flex_rewards_model.get_user_flex_history(telegram_id, limit + offset)
+            # Пробуємо отримати історію з transaction service
+            transaction_history = []
+            if transaction_service:
+                try:
+                    history_result = transaction_service.get_user_transaction_history(
+                        telegram_id=telegram_id,
+                        limit=limit + offset
+                    )
 
-            # Застосовуємо offset
-            paginated_history = history[offset:offset + limit] if offset > 0 else history[:limit]
+                    if history_result['success']:
+                        # Фільтруємо тільки flex_reward транзакції
+                        all_transactions = history_result.get('transactions', [])
+                        flex_transactions = [
+                            t for t in all_transactions
+                            if t.get('type') == 'flex_reward' and t.get('status') == 'completed'
+                        ]
+
+                        # Застосовуємо offset та limit
+                        paginated_transactions = flex_transactions[offset:offset + limit] if offset > 0 else flex_transactions[:limit]
+
+                        # Конвертуємо в формат історії FLEX
+                        for trans in paginated_transactions:
+                            metadata = trans.get('metadata', {})
+                            transaction_history.append({
+                                'transaction_id': trans.get('id'),
+                                'level': metadata.get('flex_level', 'unknown'),
+                                'winix_awarded': trans.get('amount', {}).get('winix', 0),
+                                'tickets_awarded': trans.get('amount', {}).get('tickets', 0),
+                                'flex_balance': metadata.get('flex_balance', 0),
+                                'claimed_at': trans.get('created_at'),
+                                'description': trans.get('description', ''),
+                                'status': trans.get('status')
+                            })
+
+                        logger.info(f"Отримано {len(transaction_history)} FLEX транзакцій з transaction service")
+
+                except Exception as e:
+                    logger.warning(f"Помилка отримання історії з transaction service: {e}")
+
+            # Fallback до старого методу якщо transaction service недоступний або порожній
+            if not transaction_history:
+                history = flex_rewards_model.get_user_flex_history(telegram_id, limit + offset)
+                transaction_history = history[offset:offset + limit] if offset > 0 else history[:limit]
 
             # Рахуємо загальну статистику
-            total_records = len(history)
-            total_winix = sum(item['winix_awarded'] for item in history)
-            total_tickets = sum(item['tickets_awarded'] for item in history)
+            total_records = len(transaction_history)
+            total_winix = sum(item.get('winix_awarded', 0) for item in transaction_history)
+            total_tickets = sum(item.get('tickets_awarded', 0) for item in transaction_history)
 
             # Статистика по рівнях
             level_stats = {}
-            for item in history:
-                level = item['level']
+            for item in transaction_history:
+                level = item.get('level', 'unknown')
                 if level not in level_stats:
                     level_stats[level] = {
                         'count': 0,
@@ -364,8 +503,8 @@ class FlexController:
                         'total_tickets': 0
                     }
                 level_stats[level]['count'] += 1
-                level_stats[level]['total_winix'] += item['winix_awarded']
-                level_stats[level]['total_tickets'] += item['tickets_awarded']
+                level_stats[level]['total_winix'] += item.get('winix_awarded', 0)
+                level_stats[level]['total_tickets'] += item.get('tickets_awarded', 0)
 
             logger.info(f"Історія FLEX для {telegram_id}: {total_records} записів, "
                         f"всього {total_winix} WINIX та {total_tickets} tickets")
@@ -374,12 +513,12 @@ class FlexController:
                 "status": "success",
                 "data": {
                     "telegram_id": telegram_id,
-                    "history": paginated_history,
+                    "history": transaction_history,
                     "pagination": {
                         "limit": limit,
                         "offset": offset,
                         "total": total_records,
-                        "has_more": offset + limit < total_records
+                        "has_more": len(transaction_history) == limit  # Приблизна оцінка
                     },
                     "statistics": {
                         "total_claims": total_records,
@@ -388,7 +527,8 @@ class FlexController:
                             "tickets": total_tickets
                         },
                         "level_breakdown": level_stats
-                    }
+                    },
+                    "data_source": "transaction_service" if transaction_service and transaction_history else "flex_model"
                 }
             }), 200
 
@@ -444,6 +584,36 @@ class FlexController:
                 "last_updated": user_status.last_updated.isoformat()
             }
 
+            # Додаємо статистику з транзакцій якщо доступно
+            if transaction_service:
+                try:
+                    history_result = transaction_service.get_user_transaction_history(
+                        telegram_id=telegram_id,
+                        limit=100
+                    )
+
+                    if history_result['success']:
+                        flex_transactions = [
+                            t for t in history_result.get('transactions', [])
+                            if t.get('type') == 'flex_reward' and t.get('status') == 'completed'
+                        ]
+
+                        transaction_stats = {
+                            'total_claims_from_transactions': len(flex_transactions),
+                            'total_winix_from_transactions': sum(
+                                t.get('amount', {}).get('winix', 0) for t in flex_transactions
+                            ),
+                            'total_tickets_from_transactions': sum(
+                                t.get('amount', {}).get('tickets', 0) for t in flex_transactions
+                            ),
+                            'last_transaction_date': flex_transactions[0].get('created_at') if flex_transactions else None
+                        }
+
+                        status_data['transaction_statistics'] = transaction_stats
+
+                except Exception as e:
+                    logger.warning(f"Не вдалося отримати статистику з транзакцій: {e}")
+
             # Додаємо рекомендації
             recommendations = []
 
@@ -470,6 +640,10 @@ class FlexController:
                     })
 
             status_data["recommendations"] = recommendations
+            status_data["service_info"] = {
+                "transaction_service_available": transaction_service is not None,
+                "atomic_operations_enabled": transaction_service is not None
+            }
 
             logger.info(f"Статус FLEX для {telegram_id}: баланс={user_status.current_flex_balance:,}, "
                         f"доступно рівнів={len(user_status.available_levels)}")
@@ -506,14 +680,43 @@ class FlexController:
                     "error_code": "SERVICE_UNAVAILABLE"
                 }), 503
 
-            # Отримуємо статистику
+            # Отримуємо статистику з flex моделі
             statistics = flex_rewards_model.get_flex_statistics()
+
+            # Додаємо статистику з transaction service якщо доступний
+            if transaction_service:
+                try:
+                    transaction_stats_result = transaction_service.get_service_statistics()
+
+                    if transaction_stats_result['success']:
+                        transaction_stats = transaction_stats_result.get('statistics', {})
+
+                        # Фільтруємо статистику по FLEX транзакціях
+                        type_breakdown = transaction_stats.get('type_breakdown', {})
+                        flex_transaction_count = type_breakdown.get('flex_reward', 0)
+
+                        statistics['transaction_service_stats'] = {
+                            'flex_transactions': flex_transaction_count,
+                            'service_available': True
+                        }
+
+                except Exception as e:
+                    logger.warning(f"Не вдалося отримати статистику транзакцій: {e}")
+                    statistics['transaction_service_stats'] = {
+                        'service_available': False,
+                        'error': str(e)
+                    }
+            else:
+                statistics['transaction_service_stats'] = {
+                    'service_available': False
+                }
 
             # Додаємо метадані
             statistics['metadata'] = {
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "system_version": "1.0.0",
-                "currency": "FLEX/WINIX/TICKETS"
+                "currency": "FLEX/WINIX/TICKETS",
+                "transaction_service_integration": transaction_service is not None
             }
 
             logger.info(f"Статистика FLEX: {statistics.get('total_claims', 0)} отримань, "
@@ -580,7 +783,8 @@ class FlexController:
                 "total_max_daily_tickets": sum(
                     config.tickets_reward for config in flex_rewards_model.FLEX_LEVELS_CONFIG.values()),
                 "claim_cooldown_hours": flex_rewards_model.CLAIM_COOLDOWN_HOURS,
-                "last_updated": datetime.now(timezone.utc).isoformat()
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "transaction_service_integration": transaction_service is not None
             }
 
             logger.info(f"Конфігурація рівнів FLEX: {len(levels_config)} рівнів")
@@ -637,9 +841,31 @@ class FlexController:
                 }
                 overall_healthy = False
 
+            # Перевірка Transaction Service
+            if transaction_service:
+                try:
+                    stats_result = transaction_service.get_service_statistics()
+                    health_status['transaction_service'] = {
+                        "status": "healthy" if stats_result['success'] else "degraded",
+                        "version": "1.0.0",
+                        "integration": "active"
+                    }
+                except Exception as e:
+                    health_status['transaction_service'] = {
+                        "status": "unhealthy",
+                        "error": str(e)
+                    }
+                    # Не впливає на загальне здоров'я FLEX сервісу
+            else:
+                health_status['transaction_service'] = {
+                    "status": "unavailable",
+                    "error": "Service not loaded",
+                    "impact": "fallback_mode_active"
+                }
+
             # Перевірка TON Connect сервісу
             try:
-                from quests.services.ton_connect_service import ton_connect_service
+                from ..services.ton_connect_service import ton_connect_service
                 if ton_connect_service:
                     network_info = ton_connect_service.get_network_info()
                     health_status['ton_connect'] = {
@@ -692,7 +918,12 @@ class FlexController:
                 "status": status,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "services": health_status,
-                "version": "1.0.0"
+                "version": "1.0.0",
+                "features": {
+                    "transaction_service_integration": transaction_service is not None,
+                    "atomic_operations": transaction_service is not None,
+                    "fallback_mode": transaction_service is None
+                }
             }), http_code
 
         except Exception as e:

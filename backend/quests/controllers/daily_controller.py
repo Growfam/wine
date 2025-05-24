@@ -1,6 +1,7 @@
 """
 Контролер щоденних бонусів для системи завдань WINIX
 Обробка отримання, статусу та історії щоденних винагород
+ОНОВЛЕНО: Інтеграція з Transaction Service для атомарних операцій
 """
 
 import logging
@@ -16,7 +17,17 @@ from ..services.reward_calculator import reward_calculator, calculate_daily_rewa
 from ..utils.decorators import ValidationError
 from ..utils.validators import validate_telegram_id
 
-# Імпорт функцій роботи з БД
+# Імпорт Transaction Service
+try:
+    from ..services.transaction_service import transaction_service
+except ImportError:
+    try:
+        from backend.quests.services.transaction_service import transaction_service
+    except ImportError:
+        logger.error("Transaction service недоступний, використовуємо старий метод")
+        transaction_service = None
+
+# Імпорт функцій роботи з БД (fallback)
 try:
     from supabase_client import get_user, update_balance, update_coins
 except ImportError:
@@ -26,12 +37,8 @@ except ImportError:
         # Fallback для тестування
         def get_user(telegram_id):
             return None
-
-
         def update_balance(telegram_id, amount):
             return None
-
-
         def update_coins(telegram_id, amount):
             return None
 
@@ -39,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 class DailyController:
-    """Контролер щоденних бонусів"""
+    """Контролер щоденних бонусів з підтримкою транзакцій"""
 
     @staticmethod
     def get_daily_status(telegram_id: str) -> Dict[str, Any]:
@@ -114,7 +121,7 @@ class DailyController:
     @staticmethod
     def claim_daily_bonus(telegram_id: str, timestamp: Optional[int] = None) -> Dict[str, Any]:
         """
-        Отримання щоденного бонусу
+        Отримання щоденного бонусу через Transaction Service
 
         Args:
             telegram_id: Telegram ID користувача
@@ -159,27 +166,47 @@ class DailyController:
 
             logger.info(f"Розрахована винагорода: {reward.to_dict()}")
 
+            # Нараховуємо винагороду через Transaction Service
+            if transaction_service:
+                # Використовуємо атомарну транзакцію
+                transaction_result = transaction_service.process_daily_bonus(
+                    telegram_id=str(validated_id),
+                    winix_amount=reward.winix,
+                    tickets_amount=reward.tickets,
+                    day_number=daily_status.current_day_number,
+                    streak=daily_status.current_streak
+                )
+
+                if transaction_result['success']:
+                    success_operations = transaction_result['operations']
+                    transaction_id = transaction_result['transaction_id']
+                    logger.info(f"Щоденний бонус нарахований через transaction service: {success_operations}")
+                else:
+                    logger.error(f"Помилка transaction service: {transaction_result['error']}")
+                    raise ValidationError(f"Помилка нарахування: {transaction_result['error']}")
+            else:
+                # Fallback до старого методу
+                success_operations = []
+                transaction_id = None
+
+                if reward.winix > 0:
+                    winix_result = update_balance(str(validated_id), reward.winix)
+                    if winix_result:
+                        success_operations.append(f"WINIX +{reward.winix}")
+                    else:
+                        logger.error("Помилка нарахування WINIX")
+                        raise ValidationError("Помилка нарахування WINIX")
+
+                if reward.tickets > 0:
+                    tickets_result = update_coins(str(validated_id), reward.tickets)
+                    if tickets_result:
+                        success_operations.append(f"Tickets +{reward.tickets}")
+                    else:
+                        logger.error("Помилка нарахування tickets")
+                        raise ValidationError("Помилка нарахування tickets")
+
             # Отримуємо бонус (оновлює статус)
             entry = daily_status.claim_bonus(reward)
-
-            # Нараховуємо винагороду в БД
-            success_operations = []
-
-            if reward.winix > 0:
-                winix_result = update_balance(str(validated_id), reward.winix)
-                if winix_result:
-                    success_operations.append(f"WINIX +{reward.winix}")
-                else:
-                    logger.error("Помилка нарахування WINIX")
-                    raise ValidationError("Помилка нарахування WINIX")
-
-            if reward.tickets > 0:
-                tickets_result = update_coins(str(validated_id), reward.tickets)
-                if tickets_result:
-                    success_operations.append(f"Tickets +{reward.tickets}")
-                else:
-                    logger.error("Помилка нарахування tickets")
-                    raise ValidationError("Помилка нарахування tickets")
 
             # Зберігаємо оновлений статус
             if not daily_bonus_manager.save_status_to_db(daily_status):
@@ -207,6 +234,10 @@ class DailyController:
                 "total_days_claimed": daily_status.total_days_claimed
             }
 
+            # Додаємо transaction_id якщо є
+            if transaction_id:
+                response_data["transaction_id"] = transaction_id
+
             return {
                 "status": "success",
                 "data": response_data
@@ -221,7 +252,7 @@ class DailyController:
     @staticmethod
     def get_daily_history(telegram_id: str, limit: int = 30) -> Dict[str, Any]:
         """
-        Отримання історії щоденних бонусів
+        Отримання історії щоденних бонусів з транзакціями
 
         Args:
             telegram_id: Telegram ID користувача
@@ -238,9 +269,46 @@ class DailyController:
             if not validated_id:
                 raise ValidationError("Невірний Telegram ID")
 
-            # TODO: Реалізувати завантаження з БД
-            # Поки що повертаємо порожню історію
+            # Отримуємо історію з transaction service якщо доступний
             history_entries = []
+            transaction_history = []
+
+            if transaction_service:
+                # Отримуємо транзакції daily_bonus
+                try:
+                    history_result = transaction_service.get_user_transaction_history(
+                        telegram_id=str(validated_id),
+                        limit=limit
+                    )
+
+                    if history_result['success']:
+                        # Фільтруємо тільки daily_bonus транзакції
+                        all_transactions = history_result.get('transactions', [])
+                        transaction_history = [
+                            t for t in all_transactions
+                            if t.get('type') == 'daily_bonus'
+                        ]
+
+                        # Конвертуємо в формат історії
+                        for trans in transaction_history[:limit]:
+                            metadata = trans.get('metadata', {})
+                            history_entries.append({
+                                'transaction_id': trans.get('id'),
+                                'claim_date': trans.get('created_at'),
+                                'day_number': metadata.get('day_number', 1),
+                                'streak': metadata.get('streak', 1),
+                                'reward': {
+                                    'winix': trans.get('amount', {}).get('winix', 0),
+                                    'tickets': trans.get('amount', {}).get('tickets', 0)
+                                },
+                                'status': trans.get('status'),
+                                'description': trans.get('description', '')
+                            })
+
+                        logger.info(f"Отримано {len(history_entries)} записів історії з transaction service")
+
+                except Exception as e:
+                    logger.warning(f"Помилка отримання історії з transaction service: {e}")
 
             # Отримуємо поточний статус для статистики
             daily_status = daily_bonus_manager.get_user_status(validated_id)
@@ -252,7 +320,8 @@ class DailyController:
                     "total_entries": len(history_entries),
                     "statistics": daily_status.get_statistics(),
                     "current_streak": daily_status.current_streak,
-                    "longest_streak": daily_status.longest_streak
+                    "longest_streak": daily_status.longest_streak,
+                    "has_transaction_history": len(transaction_history) > 0
                 }
             }
 
@@ -315,7 +384,8 @@ class DailyController:
                     "is_special_day": is_special,
                     "multiplier": multiplier,
                     "calculated_for_level": user_level,
-                    "assuming_perfect_streak": True
+                    "assuming_perfect_streak": True,
+                    "transaction_service_available": transaction_service is not None
                 }
             }
 
@@ -368,7 +438,11 @@ class DailyController:
                     "calculated_for_level": user_level,
                     "month_duration": 30,
                     "special_days_count": len([d for d in preview if d["is_special"]]),
-                    "calculator_info": reward_calculator.get_calculator_stats()
+                    "calculator_info": reward_calculator.get_calculator_stats(),
+                    "transaction_service_info": {
+                        "available": transaction_service is not None,
+                        "atomic_operations": transaction_service is not None
+                    }
                 }
             }
 
@@ -410,6 +484,33 @@ class DailyController:
             if not daily_bonus_manager.save_status_to_db(daily_status):
                 raise ValidationError("Помилка збереження статусу")
 
+            # Логуємо операцію через transaction service якщо доступний
+            if transaction_service:
+                try:
+                    # Створюємо запис про адміністративну операцію
+                    from ..models.transaction import TransactionAmount, TransactionType
+
+                    admin_result = transaction_service.process_reward(
+                        telegram_id=str(validated_id),
+                        reward_amount=TransactionAmount(winix=0, tickets=0, flex=0),  # Нульова винагорода
+                        transaction_type=TransactionType.ADMIN_ADJUSTMENT,
+                        description=f"Скидання серії щоденних бонусів: {reason}",
+                        reference_id=f"streak_reset_{validated_id}_{int(datetime.now(timezone.utc).timestamp())}",
+                        reference_type="streak_reset",
+                        metadata={
+                            'operation': 'streak_reset',
+                            'old_streak': old_streak,
+                            'new_streak': daily_status.current_streak,
+                            'reason': reason,
+                            'admin_action': True
+                        }
+                    )
+
+                    logger.info(f"Адміністративна операція зареєстрована: {admin_result.get('transaction_id')}")
+
+                except Exception as e:
+                    logger.warning(f"Не вдалося зареєструвати адміністративну операцію: {e}")
+
             logger.info(f"Серія користувача {validated_id} скинута: {old_streak} -> {daily_status.current_streak}")
 
             return {
@@ -418,7 +519,8 @@ class DailyController:
                 "old_streak": old_streak,
                 "new_streak": daily_status.current_streak,
                 "reason": reason,
-                "reset_at": datetime.now(timezone.utc).isoformat()
+                "reset_at": datetime.now(timezone.utc).isoformat(),
+                "transaction_service_used": transaction_service is not None
             }
 
         except ValidationError:
@@ -426,6 +528,79 @@ class DailyController:
         except Exception as e:
             logger.error(f"Помилка скидання серії {telegram_id}: {e}", exc_info=True)
             raise ValidationError("Помилка скидання серії")
+
+    @staticmethod
+    def get_user_daily_statistics(telegram_id: str) -> Dict[str, Any]:
+        """
+        Отримання детальної статистики щоденних бонусів користувача
+
+        Args:
+            telegram_id: Telegram ID користувача
+
+        Returns:
+            Dict зі статистикою
+        """
+        try:
+            logger.info(f"=== СТАТИСТИКА ЩОДЕННИХ БОНУСІВ {telegram_id} ===")
+
+            # Валідація telegram_id
+            validated_id = validate_telegram_id(telegram_id)
+            if not validated_id:
+                raise ValidationError("Невірний Telegram ID")
+
+            # Отримуємо базову статистику
+            daily_status = daily_bonus_manager.get_user_status(validated_id)
+            base_stats = daily_status.get_statistics()
+
+            # Додаємо статистику з транзакцій якщо доступно
+            transaction_stats = {}
+            if transaction_service:
+                try:
+                    history_result = transaction_service.get_user_transaction_history(
+                        telegram_id=str(validated_id),
+                        limit=100
+                    )
+
+                    if history_result['success']:
+                        daily_transactions = [
+                            t for t in history_result.get('transactions', [])
+                            if t.get('type') == 'daily_bonus' and t.get('status') == 'completed'
+                        ]
+
+                        total_winix = sum(t.get('amount', {}).get('winix', 0) for t in daily_transactions)
+                        total_tickets = sum(t.get('amount', {}).get('tickets', 0) for t in daily_transactions)
+
+                        transaction_stats = {
+                            'total_claims_from_transactions': len(daily_transactions),
+                            'total_winix_earned': total_winix,
+                            'total_tickets_earned': total_tickets,
+                            'average_winix_per_day': total_winix / len(daily_transactions) if daily_transactions else 0,
+                            'last_claim_transaction': daily_transactions[0] if daily_transactions else None
+                        }
+
+                except Exception as e:
+                    logger.warning(f"Помилка отримання статистики з транзакцій: {e}")
+
+            # Об'єднуємо статистику
+            combined_stats = {
+                **base_stats,
+                'transaction_statistics': transaction_stats,
+                'service_info': {
+                    'transaction_service_available': transaction_service is not None,
+                    'atomic_operations_enabled': transaction_service is not None
+                }
+            }
+
+            return {
+                "status": "success",
+                "data": combined_stats
+            }
+
+        except ValidationError:
+            raise
+        except Exception as e:
+            logger.error(f"Помилка отримання статистики {telegram_id}: {e}", exc_info=True)
+            raise ValidationError("Помилка отримання статистики")
 
     @staticmethod
     def _calculate_hours_until_next_claim(daily_status: DailyBonusStatus) -> float:
@@ -472,6 +647,11 @@ def reset_streak_route(telegram_id: str, reason: str = "manual"):
     return DailyController.reset_user_streak(telegram_id, reason)
 
 
+def get_daily_statistics_route(telegram_id: str):
+    """Роут для отримання статистики"""
+    return DailyController.get_user_daily_statistics(telegram_id)
+
+
 # Експорт
 __all__ = [
     'DailyController',
@@ -480,5 +660,6 @@ __all__ = [
     'get_daily_history_route',
     'calculate_reward_route',
     'get_reward_preview_route',
-    'reset_streak_route'
+    'reset_streak_route',
+    'get_daily_statistics_route'
 ]
