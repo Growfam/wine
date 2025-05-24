@@ -6,11 +6,13 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 from ..models.user_quest import UserQuest, UserBalance, Reward
 from ..utils.decorators import ValidationError
-from ..utils.validators import validate_telegram_id, validate_reward_amount
+from ..utils.validators import validate_telegram_id
 
 # Імпорт Transaction Service
 try:
@@ -41,7 +43,7 @@ except ImportError:
         def update_coins(telegram_id, amount):
             return None
 
-logger = logging.getLogger(__name__)
+
 
 
 class UserController:
@@ -243,6 +245,7 @@ class UserController:
         try:
             logger.info(f"=== ОНОВЛЕННЯ БАЛАНСУ КОРИСТУВАЧА {telegram_id} ===")
             logger.info(f"Оновлення: {balance_updates}")
+            transaction_result = None
 
             # Валідація telegram_id
             validated_id = validate_telegram_id(telegram_id)
@@ -353,7 +356,9 @@ class UserController:
                         if diff != 0:
                             operations.append(f"{field.upper()}: {current_balance.to_dict()[field]} -> {new_balances[field]} ({diff:+})")
 
-                    transaction_id = transaction_result.get('transaction_id') if 'transaction_result' in locals() else None
+                    transaction_id = None
+                    if 'transaction_result' in locals() and transaction_result and isinstance(transaction_result, dict):
+                        transaction_id = transaction_result.get('transaction_id')
 
                     logger.info(f"Баланс користувача {validated_id} оновлено через transaction service: {operations}")
 

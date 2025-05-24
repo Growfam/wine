@@ -1,21 +1,91 @@
-"""
-Модель користувача для системи завдань WINIX
-Розширює базову модель користувача додатковою функціональністю для завдань
-"""
-
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 
-from . import (
-    BaseModel, TaskStatus, UserBalance, Reward,
-    get_current_utc_time, validate_telegram_id,
-    MAX_USERNAME_LENGTH
-)
-
 logger = logging.getLogger(__name__)
 
+# Константи
+MAX_USERNAME_LENGTH = 64
+
+# Базові класи
+@dataclass
+class BaseModel:
+    """Базова модель"""
+    def __init__(self):
+        pass
+
+@dataclass
+class UserBalance:
+    """Баланс користувача"""
+    winix: float = 0.0
+    tickets: int = 0
+    flex: float = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "winix": self.winix,
+            "tickets": self.tickets,
+            "flex": self.flex
+        }
+
+    def add_reward(self, reward: 'Reward') -> 'UserBalance':
+        return UserBalance(
+            winix=self.winix + reward.winix,
+            tickets=self.tickets + reward.tickets,
+            flex=self.flex + reward.flex
+        )
+
+    def can_spend(self, reward: 'Reward') -> bool:
+        return (self.winix >= reward.winix and
+                self.tickets >= reward.tickets and
+                self.flex >= reward.flex)
+
+    def subtract_reward(self, reward: 'Reward') -> 'UserBalance':
+        return UserBalance(
+            winix=self.winix - reward.winix,
+            tickets=self.tickets - reward.tickets,
+            flex=self.flex - reward.flex
+        )
+
+@dataclass
+class Reward:
+    """Винагорода"""
+    winix: int = 0
+    tickets: int = 0
+    flex: int = 0
+
+    def is_empty(self) -> bool:
+        return self.winix == 0 and self.tickets == 0 and self.flex == 0
+
+    def total_value(self) -> int:
+        return self.winix + self.tickets + self.flex
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "winix": self.winix,
+            "tickets": self.tickets,
+            "flex": self.flex
+        }
+
+class TaskStatus:
+    """Статуси завдань"""
+    PENDING = "pending"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+def get_current_utc_time() -> datetime:
+    """Отримання поточного UTC часу"""
+    return datetime.now(timezone.utc)
+
+def validate_telegram_id(telegram_id) -> Optional[int]:
+    """Валідація Telegram ID"""
+    try:
+        tid = int(telegram_id)
+        return tid if tid > 0 else None
+    except (ValueError, TypeError):
+        return None
 
 @dataclass
 class UserQuest(BaseModel):

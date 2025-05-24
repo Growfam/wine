@@ -5,8 +5,25 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, Type
 from flask import request, jsonify
+
+# Налаштування логування
+logger = logging.getLogger(__name__)
+
+# Ініціалізація всіх змінних для безпечного імпорту
+transaction_service: Optional[Any] = None
+TransactionError: Optional[Type[Exception]] = None
+InsufficientFundsError: Optional[Type[Exception]] = None
+TransactionValidationError: Optional[Type[Exception]] = None
+TransactionProcessingError: Optional[Type[Exception]] = None
+Transaction: Optional[Any] = None
+TransactionAmount: Optional[Any] = None
+TransactionType: Optional[Any] = None
+TransactionStatus: Optional[Any] = None
+transaction_model: Optional[Any] = None
+ValidationError: Optional[Type[Exception]] = None
+validate_telegram_id: Optional[Any] = None
 
 # Імпорт сервісів та моделей
 try:
@@ -21,6 +38,18 @@ try:
     from ..utils.decorators import ValidationError
     from ..utils.validators import validate_telegram_id
 except ImportError:
+    transaction_service = None
+    TransactionError = None
+    InsufficientFundsError = None
+    TransactionValidationError = None
+    TransactionProcessingError = None
+    Transaction = None
+    TransactionAmount = None
+    TransactionType = None
+    TransactionStatus = None
+    transaction_model = None
+    ValidationError = None
+    validate_telegram_id = None
     try:
         from backend.quests.services.transaction_service import (
             transaction_service, TransactionError, InsufficientFundsError,
@@ -33,11 +62,61 @@ except ImportError:
         from backend.quests.utils.decorators import ValidationError
         from backend.quests.utils.validators import validate_telegram_id
     except ImportError:
-        logger.error("Не вдалося імпортувати залежності транзакцій")
         transaction_service = None
+        TransactionError = None
+        InsufficientFundsError = None
+        TransactionValidationError = None
+        TransactionProcessingError = None
+        Transaction = None
+        TransactionAmount = None
+        TransactionType = None
+        TransactionStatus = None
+        transaction_model = None
+        ValidationError = None
+        validate_telegram_id = None
+        logger.error("Не вдалося імпортувати залежності транзакцій")
 
-logger = logging.getLogger(__name__)
+# Fallback функції для випадків коли імпорти недоступні
+def fallback_validate_telegram_id(telegram_id: str) -> str:
+    """Fallback валідація telegram_id"""
+    return str(telegram_id).strip()
 
+# Встановлюємо fallback якщо функція не була імпортована
+if validate_telegram_id is None:
+    validate_telegram_id = fallback_validate_telegram_id
+
+# Fallback класи для винятків
+class FallbackTransactionError(Exception):
+    """Fallback для TransactionError"""
+    pass
+
+class FallbackInsufficientFundsError(Exception):
+    """Fallback для InsufficientFundsError"""
+    pass
+
+class FallbackTransactionValidationError(Exception):
+    """Fallback для TransactionValidationError"""
+    pass
+
+class FallbackTransactionProcessingError(Exception):
+    """Fallback для TransactionProcessingError"""
+    pass
+
+class FallbackValidationError(Exception):
+    """Fallback для ValidationError"""
+    pass
+
+# Встановлюємо fallback класи якщо не були імпортовані
+if TransactionError is None:
+    TransactionError = FallbackTransactionError
+if InsufficientFundsError is None:
+    InsufficientFundsError = FallbackInsufficientFundsError
+if TransactionValidationError is None:
+    TransactionValidationError = FallbackTransactionValidationError
+if TransactionProcessingError is None:
+    TransactionProcessingError = FallbackTransactionProcessingError
+if ValidationError is None:
+    ValidationError = FallbackValidationError
 
 class TransactionController:
     """Контролер для управління транзакціями"""
