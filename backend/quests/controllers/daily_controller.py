@@ -3,14 +3,15 @@
 Обробка отримання, статусу та історії щоденних винагород
 ОНОВЛЕНО: Інтеграція з Transaction Service для атомарних операцій
 """
-
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
+# Оголошуємо logger одразу після імпортів
+logger = logging.getLogger(__name__)
+
 from ..models.daily_bonus import (
-    DailyBonusStatus, DailyBonusEntry, daily_bonus_manager,
-    create_new_daily_status
+    DailyBonusStatus, daily_bonus_manager
 )
 from ..models.user_quest import UserQuest
 from ..services.reward_calculator import reward_calculator, calculate_daily_reward

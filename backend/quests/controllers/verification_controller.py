@@ -6,14 +6,22 @@ Flask endpoints для системи верифікації WINIX
 import logging
 import json
 from datetime import datetime, timezone
-from flask import request, jsonify
 from functools import wraps
-from typing import Dict, Any, Optional
+from typing import Any, Optional, Callable
+from flask import request, jsonify
+
+# Ініціалізація змінних
+verification_service: Optional[Any] = None
+telegram_service: Optional[Any] = None
+get_user: Optional[Callable] = None
+update_user: Optional[Callable] = None
 
 try:
     from .verification_service import verification_service
     from .telegram_service import telegram_service
 except ImportError:
+    verification_service = None
+    telegram_service = None
     try:
         from verification_service import verification_service
         from telegram_service import telegram_service
@@ -24,6 +32,8 @@ except ImportError:
 try:
     from supabase_client import get_user, update_user
 except ImportError:
+    get_user = None
+    update_user = None
     try:
         from backend.supabase_client import get_user, update_user
     except ImportError:
@@ -503,7 +513,7 @@ def get_user_completed_tasks(user_id: str):
             }), 503
 
         # Отримуємо виконані завдання
-        result = supabase.table('completed_tasks').select('*').eq('user_id', user_id).execute()
+        result = supabase.table('completed_tasks').select('*').eq('user_id', user_id).execute()  # type: ignore
 
         completed_tasks = []
         for task in result.data:
@@ -553,7 +563,7 @@ def check_task_completion(user_id: str, task_id: str):
             }), 503
 
         # Перевіряємо чи завдання виконано
-        result = supabase.table('completed_tasks').select('*').eq('user_id', user_id).eq('task_id', task_id).execute()
+        result = supabase.table('completed_tasks').select('*').eq('user_id', user_id).eq('task_id', task_id).execute() # type: ignore
 
         is_completed = len(result.data) > 0
 

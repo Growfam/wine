@@ -2,26 +2,23 @@
 Контролер Analytics для системи завдань WINIX
 Обробка аналітичних подій та генерація статистики
 """
-
-import os
 import logging
-import json
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional, Union
-from flask import request, jsonify, g
+from typing import Dict, Any, List, Optional
+from flask import request, jsonify
 from collections import defaultdict, Counter
 
 # Імпорт декораторів
 from ..utils.decorators import (
-    public_endpoint, secure_endpoint, handle_errors,
+    public_endpoint, secure_endpoint,
     validate_json, get_current_user, get_json_data
 )
 
 # Імпорт моделей аналітики
 from ..models.analytics import (
     AnalyticsEvent, EventType, EventSeverity, UserSession, UserStats,
-    analytics_db, create_event, create_task_event, create_wallet_event
+    analytics_db, create_event, create_task_event
 )
 
 logger = logging.getLogger(__name__)

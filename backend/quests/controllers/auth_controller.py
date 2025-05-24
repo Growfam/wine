@@ -8,9 +8,13 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from flask import request, jsonify
 
-from ..utils.validators import validate_telegram_webapp_data, ValidationResult
+try:
+    import jwt
+except ImportError:
+    jwt = None
+
+from ..utils.validators import validate_telegram_webapp_data
 from ..utils.decorators import generate_jwt_token, decode_jwt_token, AuthError
-from ..models.user_quest import UserQuest, create_new_user
 
 # Імпорт функцій роботи з БД
 try:
@@ -33,6 +37,10 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+try:
+    import jwt
+except ImportError:
+    jwt = None
 
 class AuthController:
     """Контролер авторизації"""
@@ -236,7 +244,6 @@ class AuthController:
             # Декодуємо поточний токен (навіть якщо він застарів)
             try:
                 # Спочатку спробуємо декодувати без перевірки терміну дії
-                import jwt
                 from ..utils.decorators import JWT_SECRET, JWT_ALGORITHM
 
                 payload = jwt.decode(
