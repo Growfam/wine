@@ -10,10 +10,10 @@ window.TasksAPI = (function() {
 
     // Конфігурація
     const config = {
-        baseURL: window.TasksConstants?.API_ENDPOINTS?.BASE_URL ||
-                 (window.location.hostname === 'localhost'
-                     ? 'http://localhost:3000/api'
-                     : '/api'),
+       baseURL: window.TasksConstants?.API_ENDPOINTS?.BASE_URL ||
+         (window.location.hostname === 'localhost'
+             ? 'http://localhost:8080/api'
+             : '/api'),
         timeout: 10000,
         retryAttempts: 3,
         retryDelay: 1000
