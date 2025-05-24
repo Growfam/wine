@@ -1,471 +1,464 @@
 """
-Маршрути системи завдань WINIX
-Централізована реєстрація всіх маршрутів з обробкою помилок
+📊 WINIX Models Package
+Моделі даних системи завдань WINIX
+
+Цей пакет містить всі моделі для роботи з даними:
+- Користувачі та їх завдання
+- Транзакції та винагороди
+- Щоденні бонуси та FLEX системи
+- Аналітика та статистика
+- TON гаманці та завдання
 """
 
 import logging
-from typing import Dict, Any, List
-from flask import Flask
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# Словник для відстеження статусу реєстрації маршрутів
-_routes_status: Dict[str, Dict[str, Any]] = {}
+# Словник для відстеження статусу моделей
+_models_status: Dict[str, Dict[str, Any]] = {}
 
-# === ІМПОРТ МАРШРУТІВ З ОБРОБКОЮ ПОМИЛОК ===
-
-# Auth маршрути
+# === ANALYTICS MODEL ===
 try:
-    from .auth_routes import register_auth_routes
-    _routes_status['auth'] = {
+    from .analytics import (
+        AnalyticsDB,
+        AnalyticsEvent,
+        UserSession,
+        UserStats,
+        EventType,
+        EventSeverity,
+        analytics_db,
+        create_event,
+        create_task_event,
+        create_wallet_event
+    )
+    _models_status['analytics'] = {
         'loaded': True,
-        'register_function': register_auth_routes,
-        'prefix': '/api/auth',
-        'description': 'Авторизація та аутентифікація'
+        'classes': ['AnalyticsDB', 'AnalyticsEvent', 'UserSession', 'UserStats'],
+        'enums': ['EventType', 'EventSeverity'],
+        'functions': ['create_event', 'create_task_event', 'create_wallet_event'],
+        'instances': ['analytics_db'],
+        'description': 'Аналітика та статистика користувачів'
     }
-    logger.info("✅ Auth маршрути імпортовано")
+    logger.info("✅ Analytics моделі імпортовано")
 except ImportError as e:
-    logger.warning(f"⚠️ Auth маршрути недоступні: {e}")
-    _routes_status['auth'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_auth_routes = None
+    logger.warning(f"⚠️ Analytics моделі недоступні: {e}")
+    _models_status['analytics'] = {'loaded': False, 'error': str(e)}
+    # Заглушки
+    AnalyticsDB = AnalyticsEvent = UserSession = UserStats = None
+    EventType = EventSeverity = analytics_db = None
+    create_event = create_task_event = create_wallet_event = None
 
-# User маршрути
+# === DAILY BONUS MODEL ===
 try:
-    from .user_routes import register_user_routes
-    _routes_status['user'] = {
+    from .daily_bonus import (
+        DailyBonusEntry,
+        DailyBonusStatus,
+        DailyBonusManager,
+        daily_bonus_manager,
+        create_new_daily_status,
+        get_daily_bonus_constants,
+        Reward
+    )
+    _models_status['daily_bonus'] = {
         'loaded': True,
-        'register_function': register_user_routes,
-        'prefix': '/api/user',
-        'description': 'Управління користувачами'
+        'classes': ['DailyBonusEntry', 'DailyBonusStatus', 'DailyBonusManager', 'Reward'],
+        'functions': ['create_new_daily_status', 'get_daily_bonus_constants'],
+        'instances': ['daily_bonus_manager'],
+        'description': 'Щоденні бонуси та серії'
     }
-    logger.info("✅ User маршрути імпортовано")
+    logger.info("✅ Daily Bonus моделі імпортовано")
 except ImportError as e:
-    logger.warning(f"⚠️ User маршрути недоступні: {e}")
-    _routes_status['user'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_user_routes = None
+    logger.warning(f"⚠️ Daily Bonus моделі недоступні: {e}")
+    _models_status['daily_bonus'] = {'loaded': False, 'error': str(e)}
+    # Заглушки
+    DailyBonusEntry = DailyBonusStatus = DailyBonusManager = None
+    daily_bonus_manager = create_new_daily_status = get_daily_bonus_constants = None
+    Reward = None
 
-# Daily маршрути
+# === FLEX REWARDS MODEL ===
 try:
-    from .daily_routes import register_daily_routes
-    _routes_status['daily'] = {
+    from .flex_rewards import (
+        FlexRewardsModel,
+        FlexLevel,
+        RewardStatus,
+        FlexRewardConfig,
+        UserFlexStatus,
+        flex_rewards_model
+    )
+    _models_status['flex_rewards'] = {
         'loaded': True,
-        'register_function': register_daily_routes,
-        'prefix': '/api/daily',
-        'description': 'Щоденні бонуси'
-    }
-    logger.info("✅ Daily маршрути імпортовано")
-except ImportError as e:
-    logger.warning(f"⚠️ Daily маршрути недоступні: {e}")
-    _routes_status['daily'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_daily_routes = None
-
-# FLEX маршрути
-try:
-    from .flex_routes import register_flex_routes
-    _routes_status['flex'] = {
-        'loaded': True,
-        'register_function': register_flex_routes,
-        'prefix': '/api/flex',
+        'classes': ['FlexRewardsModel', 'FlexRewardConfig', 'UserFlexStatus'],
+        'enums': ['FlexLevel', 'RewardStatus'],
+        'instances': ['flex_rewards_model'],
         'description': 'FLEX токени та винагороди'
     }
-    logger.info("✅ FLEX маршрути імпортовано")
+    logger.info("✅ FLEX Rewards моделі імпортовано")
 except ImportError as e:
-    logger.warning(f"⚠️ FLEX маршрути недоступні: {e}")
-    _routes_status['flex'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_flex_routes = None
+    logger.warning(f"⚠️ FLEX Rewards моделі недоступні: {e}")
+    _models_status['flex_rewards'] = {'loaded': False, 'error': str(e)}
+    # Заглушки
+    FlexRewardsModel = FlexLevel = RewardStatus = None
+    FlexRewardConfig = UserFlexStatus = flex_rewards_model = None
 
-# Tasks маршрути
+# === TASK MODEL ===
 try:
-    from .tasks_routes import register_tasks_routes
-    _routes_status['tasks'] = {
+    from .task import (
+        TaskModel,
+        TaskType,
+        TaskStatus,
+        TaskPlatform,
+        TaskAction,
+        TaskReward,
+        TaskRequirements,
+        TaskMetadata,
+        task_model
+    )
+    _models_status['task'] = {
         'loaded': True,
-        'register_function': register_tasks_routes,
-        'prefix': '/api/tasks',
-        'description': 'Завдання та верифікація'
+        'classes': ['TaskModel', 'TaskReward', 'TaskRequirements', 'TaskMetadata'],
+        'enums': ['TaskType', 'TaskStatus', 'TaskPlatform', 'TaskAction'],
+        'instances': ['task_model'],
+        'description': 'Завдання та їх виконання'
     }
-    logger.info("✅ Tasks маршрути імпортовано")
+    logger.info("✅ Task моделі імпортовано")
 except ImportError as e:
-    logger.warning(f"⚠️ Tasks маршрути недоступні: {e}")
-    _routes_status['tasks'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_tasks_routes = None
+    logger.warning(f"⚠️ Task моделі недоступні: {e}")
+    _models_status['task'] = {'loaded': False, 'error': str(e)}
+    # Заглушки
+    TaskModel = TaskType = TaskStatus = TaskPlatform = TaskAction = None
+    TaskReward = TaskRequirements = TaskMetadata = task_model = None
 
-# Transaction маршрути
+# === TRANSACTION MODEL ===
 try:
-    from .transaction_routes import register_transaction_routes
-    _routes_status['transaction'] = {
+    from .transaction import (
+        TransactionModel,
+        Transaction,
+        TransactionAmount,
+        TransactionType,
+        TransactionStatus,
+        CurrencyType,
+        transaction_model
+    )
+    _models_status['transaction'] = {
         'loaded': True,
-        'register_function': register_transaction_routes,
-        'prefix': '/api/transactions',
-        'description': 'Історія транзакцій'
+        'classes': ['TransactionModel', 'Transaction', 'TransactionAmount'],
+        'enums': ['TransactionType', 'TransactionStatus', 'CurrencyType'],
+        'instances': ['transaction_model'],
+        'description': 'Транзакції та операції з балансом'
     }
-    logger.info("✅ Transaction маршрути імпортовано")
+    logger.info("✅ Transaction моделі імпортовано")
 except ImportError as e:
-    logger.warning(f"⚠️ Transaction маршрути недоступні: {e}")
-    _routes_status['transaction'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_transaction_routes = None
+    logger.warning(f"⚠️ Transaction моделі недоступні: {e}")
+    _models_status['transaction'] = {'loaded': False, 'error': str(e)}
+    # Заглушки
+    TransactionModel = Transaction = TransactionAmount = None
+    TransactionType = TransactionStatus = CurrencyType = transaction_model = None
 
-# Verification маршрути
+# === USER QUEST MODEL ===
 try:
-    from .verification_routes import register_verification_routes
-    _routes_status['verification'] = {
+    from .user_quest import (
+        UserQuest,
+        UserBalance,
+        Reward as UserReward,
+        TaskStatus as UserTaskStatus,
+        create_new_user,
+        validate_telegram_id,
+        get_current_utc_time
+    )
+    _models_status['user_quest'] = {
         'loaded': True,
-        'register_function': register_verification_routes,
-        'prefix': '/api/verify',
-        'description': 'Верифікація завдань'
+        'classes': ['UserQuest', 'UserBalance'],
+        'functions': ['create_new_user', 'validate_telegram_id', 'get_current_utc_time'],
+        'description': 'Користувачі та їх профілі'
     }
-    logger.info("✅ Verification маршрути імпортовано")
+    logger.info("✅ User Quest моделі імпортовано")
 except ImportError as e:
-    logger.warning(f"⚠️ Verification маршрути недоступні: {e}")
-    _routes_status['verification'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_verification_routes = None
+    logger.warning(f"⚠️ User Quest моделі недоступні: {e}")
+    _models_status['user_quest'] = {'loaded': False, 'error': str(e)}
+    # Заглушки
+    UserQuest = UserBalance = UserReward = UserTaskStatus = None
+    create_new_user = validate_telegram_id = get_current_utc_time = None
 
-# Wallet маршрути
+# === WALLET MODEL ===
 try:
-    from .wallet_routes import register_wallet_routes
-    _routes_status['wallet'] = {
+    from .wallet import (
+        WalletModel,
+        WalletStatus,
+        WalletProvider,
+        WalletConnectionBonus,
+        wallet_model
+    )
+    _models_status['wallet'] = {
         'loaded': True,
-        'register_function': register_wallet_routes,
-        'prefix': '/api/wallet',
-        'description': 'TON гаманці'
+        'classes': ['WalletModel', 'WalletConnectionBonus'],
+        'enums': ['WalletStatus', 'WalletProvider'],
+        'instances': ['wallet_model'],
+        'description': 'TON гаманці та з\'єднання'
     }
-    logger.info("✅ Wallet маршрути імпортовано")
+    logger.info("✅ Wallet моделі імпортовано")
 except ImportError as e:
-    logger.warning(f"⚠️ Wallet маршрути недоступні: {e}")
-    _routes_status['wallet'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_wallet_routes = None
+    logger.warning(f"⚠️ Wallet моделі недоступні: {e}")
+    _models_status['wallet'] = {'loaded': False, 'error': str(e)}
+    # Заглушки
+    WalletModel = WalletStatus = WalletProvider = None
+    WalletConnectionBonus = wallet_model = None
 
-# Analytics маршрути
-try:
-    from .analytics_routes import register_analytics_routes
-    _routes_status['analytics'] = {
-        'loaded': True,
-        'register_function': register_analytics_routes,
-        'prefix': '/api/analytics',
-        'description': 'Аналітика та статистика'
-    }
-    logger.info("✅ Analytics маршрути імпортовано")
-except ImportError as e:
-    logger.warning(f"⚠️ Analytics маршрути недоступні: {e}")
-    _routes_status['analytics'] = {
-        'loaded': False,
-        'error': str(e),
-        'register_function': None
-    }
-    register_analytics_routes = None
+# === УТИЛІТИ ПАКЕТУ ===
 
-
-def register_quests_routes(app: Flask, routes_to_register: List[str] = None) -> Dict[str, Any]:
+def get_models_status() -> Dict[str, Any]:
     """
-    Реєстрація всіх маршрутів системи завдань
-
-    Args:
-        app: Flask додаток
-        routes_to_register: Список маршрутів для реєстрації (за замовчуванням - всі)
+    Отримання статусу всіх моделей
 
     Returns:
-        Dict з результатами реєстрації
+        Dict з інформацією про статус кожної моделі
     """
-    logger.info("=== РЕЄСТРАЦІЯ МАРШРУТІВ СИСТЕМИ ЗАВДАНЬ ===")
+    return _models_status.copy()
 
-    registration_results = {
-        'total_attempted': 0,
-        'successfully_registered': 0,
-        'failed_registrations': 0,
-        'registered_routes': [],
-        'failed_routes': [],
-        'summary': {}
-    }
-
-    # Визначаємо які маршрути реєструвати
-    # Визначаємо які маршрути реєструвати
-    if routes_to_register is None:
-        routes_to_register = list(_routes_status.keys())
-
-    # ЗАМІНІТЬ ЦЕ:
-    # Функції реєстрації у визначеному порядку пріоритету - ТІЛЬКИ ТІ ЩО ДОСТУПНІ
-    route_registry = []
-
-    # Порядок пріоритету
-    priority_routes = [
-        ('auth', register_auth_routes),
-        ('user', register_user_routes),
-        ('daily', register_daily_routes),
-        ('tasks', register_tasks_routes),
-        ('flex', register_flex_routes),
-        ('wallet', register_wallet_routes),
-        ('transaction', register_transaction_routes),
-        ('verification', register_verification_routes),
-        ('analytics', register_analytics_routes)
-    ]
-
-    # Додаємо тільки ті функції що не None та callable
-    for route_name, register_func in priority_routes:
-        if register_func is not None and callable(register_func):
-            route_registry.append((route_name, register_func))
-        else:
-            logger.debug(f"⏭️ Пропускаємо {route_name} - функція недоступна")
-
-    # Реєструємо маршрути в порядку пріоритету
-    for route_name, register_func in route_registry:
-        if route_name not in routes_to_register:
-            continue
-
-        registration_results['total_attempted'] += 1
-        route_status = _routes_status.get(route_name, {})
-
-        if not route_status.get('loaded', False):
-            logger.warning(f"⏭️ Пропускаємо {route_name} маршрути (не завантажені)")
-            registration_results['failed_routes'].append({
-                'name': route_name,
-                'reason': 'not_loaded',
-                'error': route_status.get('error', 'Import failed')
-            })
-            registration_results['failed_registrations'] += 1
-            continue
-
-        if register_func is None:
-            logger.warning(f"⏭️ Пропускаємо {route_name} маршрути (функція реєстрації недоступна)")
-            registration_results['failed_routes'].append({
-                'name': route_name,
-                'reason': 'no_register_function',
-                'error': 'Register function is None'
-            })
-            registration_results['failed_registrations'] += 1
-            continue
-
-        try:
-            logger.info(f"🔧 Реєстрація {route_name} маршрутів...")
-
-            # Викликаємо функцію реєстрації
-            result = register_func(app)
-
-            if result is True or result is None:  # Більшість функцій повертають True або None при успіху
-                registration_results['successfully_registered'] += 1
-                registration_results['registered_routes'].append({
-                    'name': route_name,
-                    'prefix': route_status.get('prefix', 'unknown'),
-                    'description': route_status.get('description', '')
-                })
-                logger.info(f"✅ {route_name.title()} маршрути зареєстровано")
-            else:
-                registration_results['failed_registrations'] += 1
-                registration_results['failed_routes'].append({
-                    'name': route_name,
-                    'reason': 'registration_failed',
-                    'error': f'Function returned: {result}'
-                })
-                logger.error(f"❌ Помилка реєстрації {route_name} маршрутів")
-
-        except Exception as e:
-            registration_results['failed_registrations'] += 1
-            registration_results['failed_routes'].append({
-                'name': route_name,
-                'reason': 'exception',
-                'error': str(e)
-            })
-            logger.error(f"❌ Виняток при реєстрації {route_name} маршрутів: {e}", exc_info=True)
-
-    # Підрахунок загальної кількості маршрутів
-    total_routes_count = 0
-    for rule in app.url_map.iter_rules():
-        if '/api/' in rule.rule:
-            total_routes_count += 1
-
-    # Формуємо підсумок
-    registration_results['summary'] = {
-        'success_rate': round(
-            (registration_results['successfully_registered'] / registration_results['total_attempted']) * 100, 1
-        ) if registration_results['total_attempted'] > 0 else 0,
-        'total_api_routes': total_routes_count,
-        'system_status': 'healthy' if registration_results['successfully_registered'] >= registration_results['failed_registrations'] else 'degraded'
-    }
-
-    # Логуємо результат
-    _log_registration_summary(registration_results)
-
-    return registration_results
-
-
-def _log_registration_summary(results: Dict[str, Any]):
-    """Виведення підсумку реєстрації маршрутів"""
-    summary = results['summary']
-
-    if results['successfully_registered'] == results['total_attempted']:
-        logger.info(f"🎉 Всі {results['total_attempted']} груп маршрутів зареєстровано успішно!")
-    else:
-        logger.warning(
-            f"⚠️ Зареєстровано {results['successfully_registered']}/{results['total_attempted']} "
-            f"груп маршрутів ({summary['success_rate']}%)"
-        )
-
-    if results['registered_routes']:
-        logger.info("✅ Успішно зареєстровані маршрути:")
-        for route in results['registered_routes']:
-            logger.info(f"  • {route['name']}: {route['prefix']} - {route['description']}")
-
-    if results['failed_routes']:
-        logger.warning("❌ Проблемні маршрути:")
-        for route in results['failed_routes']:
-            logger.warning(f"  • {route['name']}: {route['reason']} - {route['error']}")
-
-    logger.info(f"📊 Загальна кількість API маршрутів: {summary['total_api_routes']}")
-    logger.info(f"🏥 Статус системи: {summary['system_status']}")
-
-
-def get_routes_status() -> Dict[str, Any]:
+def get_loaded_models() -> Dict[str, Any]:
     """
-    Отримання статусу всіх маршрутів
+    Отримання списку завантажених моделей
 
     Returns:
-        Dict з інформацією про статус кожної групи маршрутів
-    """
-    return _routes_status.copy()
-
-
-def get_loaded_routes() -> Dict[str, Any]:
-    """
-    Отримання списку завантажених маршрутів
-
-    Returns:
-        Dict з завантаженими маршрутами
+        Dict з завантаженими моделями
     """
     return {
-        name: status for name, status in _routes_status.items()
+        name: status for name, status in _models_status.items()
         if status.get('loaded', False)
     }
 
-
-def get_failed_routes() -> Dict[str, Any]:
+def get_failed_models() -> Dict[str, Any]:
     """
-    Отримання списку маршрутів що не завантажились
+    Отримання списку моделей що не завантажились
 
     Returns:
-        Dict з маршрутами що не завантажились
+        Dict з моделями що не завантажились
     """
     return {
-        name: status for name, status in _routes_status.items()
+        name: status for name, status in _models_status.items()
         if not status.get('loaded', False)
     }
 
-
-def register_specific_routes(app: Flask, route_names: List[str]) -> Dict[str, Any]:
+def initialize_models() -> Dict[str, Any]:
     """
-    Реєстрація конкретних груп маршрутів
-
-    Args:
-        app: Flask додаток
-        route_names: Список назв маршрутів для реєстрації
+    Ініціалізація всіх моделей
 
     Returns:
-        Dict з результатами реєстрації
+        Dict з результатом ініціалізації
     """
-    logger.info(f"🎯 Реєстрація вибраних маршрутів: {', '.join(route_names)}")
-    return register_quests_routes(app, route_names)
+    logger.info("🚀 Ініціалізація моделей WINIX...")
 
+    loaded = get_loaded_models()
+    failed = get_failed_models()
 
-def register_core_routes(app: Flask) -> Dict[str, Any]:
+    result = {
+        'total_models': len(_models_status),
+        'loaded_models': len(loaded),
+        'failed_models': len(failed),
+        'success_rate': (len(loaded) / len(_models_status)) * 100 if _models_status else 0,
+        'loaded_list': list(loaded.keys()),
+        'failed_list': list(failed.keys()),
+        'status': 'healthy' if len(loaded) >= len(failed) else 'degraded'
+    }
+
+    if result['success_rate'] == 100:
+        logger.info(f"🎉 Всі {result['total_models']} моделей ініціалізовано успішно!")
+    else:
+        logger.warning(f"⚠️ Ініціалізовано {result['loaded_models']}/{result['total_models']} моделей")
+
+    return result
+
+def get_model_by_name(model_name: str):
     """
-    Реєстрація тільки основних маршрутів (auth, user, tasks)
+    Отримання моделі за назвою
 
     Args:
-        app: Flask додаток
+        model_name: Назва моделі
 
     Returns:
-        Dict з результатами реєстрації
+        Інстанція моделі або None
     """
-    core_routes = ['auth', 'user', 'tasks', 'daily']
-    logger.info("🔧 Реєстрація основних маршрутів системи")
-    return register_quests_routes(app, core_routes)
+    model_instances = {
+        'analytics': analytics_db,
+        'daily_bonus': daily_bonus_manager,
+        'flex_rewards': flex_rewards_model,
+        'task': task_model,
+        'transaction': transaction_model,
+        'wallet': wallet_model
+    }
 
+    model_instance = model_instances.get(model_name)
+    if model_instance is None:
+        logger.warning(f"⚠️ Модель '{model_name}' не знайдена або недоступна")
 
-def register_extended_routes(app: Flask) -> Dict[str, Any]:
+    return model_instance
+
+def create_user_from_telegram_data(telegram_data: Dict[str, Any]) -> Optional[UserQuest]:
     """
-    Реєстрація розширених маршрутів (flex, wallet, analytics)
+    Створення користувача з Telegram даних
 
     Args:
-        app: Flask додаток
+        telegram_data: Дані з Telegram WebApp
 
     Returns:
-        Dict з результатами реєстрації
+        UserQuest об'єкт або None
     """
-    extended_routes = ['flex', 'wallet', 'transaction', 'verification', 'analytics']
-    logger.info("🚀 Реєстрація розширених маршрутів системи")
-    return register_quests_routes(app, extended_routes)
+    try:
+        if not UserQuest:
+            logger.error("UserQuest модель недоступна")
+            return None
 
+        telegram_id = telegram_data.get('id')
+        if not validate_telegram_id(telegram_id):
+            logger.error(f"Невірний telegram_id: {telegram_id}")
+            return None
 
-def log_routes_summary():
-    """Виведення підсумку завантаження маршрутів"""
-    loaded_count = len(get_loaded_routes())
-    failed_count = len(get_failed_routes())
-    total_count = len(_routes_status)
+        return create_new_user(
+            telegram_id=telegram_id,
+            username=telegram_data.get('username', ''),
+            first_name=telegram_data.get('first_name', ''),
+            last_name=telegram_data.get('last_name', ''),
+            language_code=telegram_data.get('language_code', 'uk')
+        )
 
-    logger.info(f"📊 Статус маршрутів: {loaded_count}/{total_count} завантажено")
+    except Exception as e:
+        logger.error(f"Помилка створення користувача з Telegram даних: {e}")
+        return None
 
-    if loaded_count > 0:
-        logger.info("✅ Завантажені маршрути:")
-        for name, status in get_loaded_routes().items():
-            logger.info(f"  • {name}: {status.get('prefix', 'N/A')} - {status.get('description', 'N/A')}")
+def create_transaction_for_reward(telegram_id: str, reward_data: Dict[str, Any],
+                                 transaction_type: str, description: str = "") -> Optional[Transaction]:
+    """
+    Створення транзакції для винагороди
 
-    if failed_count > 0:
-        logger.warning("❌ Маршрути з помилками:")
-        for name, status in get_failed_routes().items():
+    Args:
+        telegram_id: ID користувача
+        reward_data: Дані винагороди
+        transaction_type: Тип транзакції
+        description: Опис транзакції
+
+    Returns:
+        Transaction об'єкт або None
+    """
+    try:
+        if not Transaction or not TransactionAmount or not TransactionType:
+            logger.error("Transaction моделі недоступні")
+            return None
+
+        amount = TransactionAmount(
+            winix=float(reward_data.get('winix', 0)),
+            tickets=int(reward_data.get('tickets', 0)),
+            flex=int(reward_data.get('flex', 0))
+        )
+
+        return Transaction(
+            telegram_id=telegram_id,
+            type=TransactionType(transaction_type),
+            amount=amount,
+            description=description
+        )
+
+    except Exception as e:
+        logger.error(f"Помилка створення транзакції: {e}")
+        return None
+
+def log_models_summary():
+    """Виведення підсумку завантаження моделей"""
+    loaded = get_loaded_models()
+    failed = get_failed_models()
+
+    logger.info(f"📊 Статус моделей: {len(loaded)}/{len(_models_status)} завантажено")
+
+    if loaded:
+        logger.info("✅ Завантажені моделі:")
+        for name, status in loaded.items():
+            classes_count = len(status.get('classes', []))
+            enums_count = len(status.get('enums', []))
+            functions_count = len(status.get('functions', []))
+            logger.info(f"  • {name}: {classes_count} класів, {enums_count} енумів, {functions_count} функцій - {status.get('description', '')}")
+
+    if failed:
+        logger.warning("❌ Моделі з помилками:")
+        for name, status in failed.items():
             logger.warning(f"  • {name}: {status.get('error', 'Unknown error')}")
 
+# Автоматичний виклик при імпорті
+log_models_summary()
 
-# Логуємо підсумок при імпорті
-log_routes_summary()
+# === ЕКСПОРТ ===
 
-# Експорт основних функцій
 __all__ = [
-    'register_quests_routes',
-    'register_specific_routes',
-    'register_core_routes',
-    'register_extended_routes',
-    'get_routes_status',
-    'get_loaded_routes',
-    'get_failed_routes',
-    'log_routes_summary',
+    # === ANALYTICS ===
+    'AnalyticsDB',
+    'AnalyticsEvent',
+    'UserSession',
+    'UserStats',
+    'EventType',
+    'EventSeverity',
+    'analytics_db',
+    'create_event',
+    'create_task_event',
+    'create_wallet_event',
 
-    # Функції реєстрації (якщо доступні)
-    'register_auth_routes',
-    'register_user_routes',
-    'register_daily_routes',
-    'register_tasks_routes',
-    'register_flex_routes',
-    'register_wallet_routes',
-    'register_transaction_routes',
-    'register_verification_routes',
-    'register_analytics_routes'
+    # === DAILY BONUS ===
+    'DailyBonusEntry',
+    'DailyBonusStatus',
+    'DailyBonusManager',
+    'daily_bonus_manager',
+    'create_new_daily_status',
+    'get_daily_bonus_constants',
+    'Reward',
+
+    # === FLEX REWARDS ===
+    'FlexRewardsModel',
+    'FlexLevel',
+    'RewardStatus',
+    'FlexRewardConfig',
+    'UserFlexStatus',
+    'flex_rewards_model',
+
+    # === TASK ===
+    'TaskModel',
+    'TaskType',
+    'TaskStatus',
+    'TaskPlatform',
+    'TaskAction',
+    'TaskReward',
+    'TaskRequirements',
+    'TaskMetadata',
+    'task_model',
+
+    # === TRANSACTION ===
+    'TransactionModel',
+    'Transaction',
+    'TransactionAmount',
+    'TransactionType',
+    'TransactionStatus',
+    'CurrencyType',
+    'transaction_model',
+
+    # === USER QUEST ===
+    'UserQuest',
+    'UserBalance',
+    'UserReward',
+    'UserTaskStatus',
+    'create_new_user',
+    'validate_telegram_id',
+    'get_current_utc_time',
+
+    # === WALLET ===
+    'WalletModel',
+    'WalletStatus',
+    'WalletProvider',
+    'WalletConnectionBonus',
+    'wallet_model',
+
+    # === УТИЛІТИ ПАКЕТУ ===
+    'get_models_status',
+    'get_loaded_models',
+    'get_failed_models',
+    'initialize_models',
+    'get_model_by_name',
+    'create_user_from_telegram_data',
+    'create_transaction_for_reward',
+    'log_models_summary'
 ]
