@@ -13,7 +13,7 @@ window.TasksConstants = (function() {
         // Базовий URL - змініть на свій реальний URL
         BASE_URL: window.location.hostname === 'localhost'
             ? 'http://localhost:8080/api'
-            : 'https://winixbot.com/api',
+            : '/api',
 
         // Auth endpoints
         AUTH_VALIDATE: '/auth/validate-telegram',
