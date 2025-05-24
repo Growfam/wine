@@ -182,6 +182,7 @@ python# services/telegram_service.py - інтеграція з ботом
 python# models/transaction.py
 # services/transaction_service.py
 # Оновлення всіх контролерів для використання транзакцій
+
 ЕТАП 9: Аналітика та статистика
 Файли фронту: services.js (AnalyticsService)
 
