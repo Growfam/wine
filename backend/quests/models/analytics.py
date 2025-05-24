@@ -2,11 +2,9 @@
 Модель Analytics для системи завдань WINIX
 Збереження та аналіз подій користувачів
 """
-
-import os
 import uuid
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass, asdict
 from enum import Enum

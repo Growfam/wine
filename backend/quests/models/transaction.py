@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from enum import Enum
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 # Імпорт функцій роботи з БД
 try:

@@ -2,18 +2,18 @@
 Модель гаманця для системи завдань WINIX
 Управління TON гаманцями користувачів
 """
-
-import os
-import time
 import logging
-import hashlib
+import re
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
+
+# Імпорт клієнта Supabase
+# ЗАМІНІТЬ імпорт Supabase (рядки 14-21) на цей код:
 
 # Імпорт клієнта Supabase
 try:
@@ -24,6 +24,34 @@ except ImportError:
     except ImportError:
         logger.error("Не вдалося імпортувати supabase_client")
         supabase = None
+
+
+        # Fallback функції для уникнення NameError
+        def cached(timeout=300):
+            """Fallback декоратор для кешування"""
+
+            def decorator(func):
+                def wrapper(*args, **kwargs):
+                    return func(*args, **kwargs)
+
+                return wrapper
+
+            return decorator
+
+
+        def retry_supabase(func, max_retries=3):
+            """Fallback функція для retry"""
+            try:
+                return func()
+            except Exception as e:
+                logger.error(f"Помилка виконання функції: {e}")
+                return None
+
+
+        def invalidate_cache_for_entity(entity_id):
+            """Fallback функція для інвалідації кешу"""
+            logger.debug(f"Кеш інвалідовано для {entity_id} (fallback)")
+            pass
 
 
 class WalletStatus(Enum):
@@ -93,7 +121,6 @@ class WalletModel:
                 return False
 
             # Перевіряємо символи (base64url: A-Z, a-z, 0-9, -, _)
-            import re
             if not re.match(r'^[A-Za-z0-9_-]+$', address):
                 return False
 

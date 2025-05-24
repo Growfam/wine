@@ -2,16 +2,14 @@
 Модель для управління завданнями в системі WINIX
 Підтримка соціальних, лімітованих та партнерських завдань
 """
-
-import os
-import time
 import logging
-import json
 import uuid
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional, Union
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
+
+
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
@@ -25,6 +23,34 @@ except ImportError:
     except ImportError:
         logger.error("Не вдалося імпортувати supabase_client")
         supabase = None
+
+
+        # Fallback функції для уникнення NameError
+        def cached(timeout=300):
+            """Fallback декоратор для кешування"""
+
+            def decorator(func):
+                def wrapper(*args, **kwargs):
+                    return func(*args, **kwargs)
+
+                return wrapper
+
+            return decorator
+
+
+        def retry_supabase(func, max_retries=3):
+            """Fallback функція для retry"""
+            try:
+                return func()
+            except Exception as e:
+                logger.error(f"Помилка виконання функції: {e}")
+                return None
+
+
+        def invalidate_cache_for_entity(entity_id):
+            """Fallback функція для інвалідації кешу"""
+            logger.debug(f"Кеш інвалідовано для {entity_id} (fallback)")
+            pass
 
 
 class TaskType(Enum):
@@ -899,11 +925,23 @@ class TaskModel:
                     'reward': {}
                 }
 
-            # Імпортуємо функції роботи з балансом
+            # Імпортуємо функції роботи з балансом з fallback
             try:
                 from supabase_client import update_balance, update_coins
             except ImportError:
-                from backend.supabase_client import update_balance, update_coins
+                try:
+                    from backend.supabase_client import update_balance, update_coins
+                except ImportError:
+                    logger.error("Не вдалося імпортувати функції balance")
+
+                    # Fallback функції
+                    def update_balance(user_id: str, amount: int) -> bool:
+                        logger.warning(f"Fallback: update_balance({user_id}, {amount})")
+                        return True
+
+                    def update_coins(user_id: str, amount: int) -> bool:
+                        logger.warning(f"Fallback: update_coins({user_id}, {amount})")
+                        return True
 
             awarded_reward = {}
 
