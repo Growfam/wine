@@ -15,14 +15,15 @@
     <link rel="stylesheet" href="css/earn/daily-bonus.css">
     <link rel="stylesheet" href="css/earn/tasks.css">
     <link rel="stylesheet" href="css/earn/tasks-cards.css">
+    <link rel="stylesheet" href="css/earn/tasks-icons.css">
     <link rel="stylesheet" href="css/earn/verification.css">
     <link rel="stylesheet" href="css/earn/responsive.css">
 </head>
 <body>
-    <!-- SVG фільтри для іконок -->
-    <svg class="winix-filters">
+    <!-- SVG фільтри та спрайт для іконок -->
+    <svg class="winix-filters" style="display: none;">
       <defs>
-        <!-- Золоте світіння для Flex -->
+        <!-- Золоте світіння -->
         <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
           <feFlood flood-color="#FFD700" flood-opacity="0.5" result="color" />
@@ -32,6 +33,28 @@
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+
+        <!-- Фіолетове світіння -->
+        <filter id="purple-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+          <feFlood flood-color="#b366ff" flood-opacity="0.5" result="color" />
+          <feComposite in="color" in2="blur" operator="in" result="glow" />
+          <feMerge>
+            <feMergeNode in="glow" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+
+        <!-- Градієнти -->
+        <linearGradient id="purple-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#b366ff" />
+          <stop offset="100%" stop-color="#8b5cf6" />
+        </linearGradient>
+
+        <linearGradient id="gold-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#FFD700" />
+          <stop offset="100%" stop-color="#FFA000" />
+        </linearGradient>
       </defs>
     </svg>
 
@@ -116,15 +139,15 @@
                             <div class="task-rewards">
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
-                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                        <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
                                     <span class="reward-text">50 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
-                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                        <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
                                     <span class="reward-text">2 tickets щодня</span>
                                 </div>
@@ -157,15 +180,15 @@
                             <div class="task-rewards">
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
-                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                        <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
                                     <span class="reward-text">150 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
-                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                        <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
                                     <span class="reward-text">5 tickets щодня</span>
                                 </div>
@@ -198,15 +221,15 @@
                             <div class="task-rewards">
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
-                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                        <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
                                     <span class="reward-text">300 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
-                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                        <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
                                     <span class="reward-text">8 tickets щодня</span>
                                 </div>
@@ -239,15 +262,15 @@
                             <div class="task-rewards">
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
-                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                        <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
                                     <span class="reward-text">1,000 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
-                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                        <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
                                     <span class="reward-text">10 tickets щодня</span>
                                 </div>
@@ -281,15 +304,15 @@
                             <div class="task-rewards">
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="9" stroke="#FFD700" stroke-width="1.5"/>
-                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#FFD700" stroke-width="1.5" stroke-linecap="round"/>
+                                        <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
+                                        <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
                                     <span class="reward-text">2,500 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <rect x="6" y="8" width="12" height="8" rx="1" stroke="#b366ff" stroke-width="1.5"/>
-                                        <path d="M10 5V8M14 5V8" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
+                                        <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
+                                        <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
                                     <span class="reward-text">15 tickets щодня</span>
                                 </div>
@@ -309,46 +332,64 @@
 
                 <!-- ВКЛАДКА 2: DAILY BONUS -->
                 <div class="main-tab-pane" id="daily-tab">
-                    <!-- Статистика щоденного бонусу -->
-                    <div class="daily-bonus-stats">
-                        <div class="stats-card">
-                            <div class="stats-icon">🔥</div>
-                            <div class="stats-info">
-                                <div class="stats-value" id="current-streak">0</div>
-                                <div class="stats-label">Поточна серія</div>
+                    <!-- Прогрес бар місяця -->
+                    <div class="month-progress-container">
+                        <div class="month-progress-header">
+                            <h3 class="month-progress-title">Прогрес за місяць</h3>
+                            <div class="month-progress-stats">
+                                <div class="progress-stat">
+                                    <div class="progress-stat-icon fire-icon"></div>
+                                    <span id="current-streak">0</span> днів
+                                </div>
+                                <div class="progress-stat">
+                                    <div class="progress-stat-icon star-icon"></div>
+                                    <span id="longest-streak">0</span> рекорд
+                                </div>
                             </div>
                         </div>
-                        <div class="stats-card">
-                            <div class="stats-icon">⭐</div>
-                            <div class="stats-info">
-                                <div class="stats-value" id="longest-streak">0</div>
-                                <div class="stats-label">Найдовша серія</div>
-                            </div>
+                        <div class="month-progress-bar">
+                            <div class="month-progress-fill" id="month-progress-fill" style="width: 0%"></div>
                         </div>
-                        <div class="stats-card">
-                            <div class="stats-icon">💎</div>
-                            <div class="stats-info">
-                                <div class="stats-value" id="total-winix-claimed">0</div>
-                                <div class="stats-label">Зібрано WINIX</div>
-                            </div>
-                        </div>
-                        <div class="stats-card">
-                            <div class="stats-icon">🎟️</div>
-                            <div class="stats-info">
-                                <div class="stats-value" id="total-tickets-claimed">0</div>
-                                <div class="stats-label">Зібрано TICKETS</div>
-                            </div>
+                        <div class="month-progress-text">
+                            <span id="days-completed">0</span> з 30 днів завершено
                         </div>
                     </div>
 
-                    <!-- Календар на 30 днів -->
-                    <div class="daily-calendar">
-                        <!-- Дні будуть динамічно створені через JS -->
+                    <!-- Останні 5 днів -->
+                    <div class="recent-days-container">
+                        <h3 class="recent-days-title">Останні 5 днів</h3>
+                        <div class="recent-days-grid" id="recent-days-grid">
+                            <!-- Дні будуть додані динамічно -->
+                        </div>
+                    </div>
+
+                    <!-- Календар нагород -->
+                    <div class="rewards-calendar-container">
+                        <div class="calendar-header">
+                            <h3 class="calendar-title">Календар нагород</h3>
+                            <div class="calendar-legend">
+                                <div class="legend-item">
+                                    <div class="legend-dot claimed"></div>
+                                    <span>Отримано</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-dot available"></div>
+                                    <span>Доступно</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-dot future"></div>
+                                    <span>Майбутнє</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="calendar-grid" id="daily-calendar">
+                            <!-- Дні календаря будуть додані динамічно -->
+                        </div>
                     </div>
 
                     <!-- Кнопка отримання щоденного бонусу -->
-                    <button class="claim-daily-button available">
-                        <span class="button-text">Отримати 20 WINIX</span>
+                    <button class="claim-daily-button available" id="claim-daily-button">
+                        <span class="button-text">Отримати щоденний бонус</span>
                         <span class="timer"></span>
                     </button>
 
@@ -366,29 +407,17 @@
 
                 <!-- ВКЛАДКА 3: SOCIAL -->
                 <div class="main-tab-pane" id="social-tab">
-                    <!-- Завдання будуть додані динамічно через TasksManager -->
-                    <div class="tasks-loading">
-                        <div class="loading-spinner"></div>
-                        <p>Завантаження завдань...</p>
-                    </div>
+                    <!-- Контейнер для завдань буде заповнений через TasksManager -->
                 </div>
 
                 <!-- ВКЛАДКА 4: LIMITED -->
                 <div class="main-tab-pane" id="limited-tab">
-                    <!-- Завдання будуть додані динамічно через TasksManager -->
-                    <div class="tasks-loading">
-                        <div class="loading-spinner"></div>
-                        <p>Завантаження завдань...</p>
-                    </div>
+                    <!-- Контейнер для завдань буде заповнений через TasksManager -->
                 </div>
 
                 <!-- ВКЛАДКА 5: PARTNER -->
                 <div class="main-tab-pane" id="partner-tab">
-                    <!-- Завдання будуть додані динамічно через TasksManager -->
-                    <div class="tasks-loading">
-                        <div class="loading-spinner"></div>
-                        <p>Завантаження завдань...</p>
-                    </div>
+                    <!-- Контейнер для завдань буде заповнений через TasksManager -->
                 </div>
             </div>
         </section>
@@ -523,7 +552,7 @@
                 });
             });
 
-            console.log('✅ [MAIN] Сторінка завантажена, система завдань готова до роботи');
+            console.log('[MAIN] Сторінка завантажена, система завдань готова до роботи');
         });
 
         // Функції для popup верифікації

@@ -125,6 +125,12 @@ window.DailyBonusManager = (function() {
         const store = window.TasksStore;
         const dailyBonus = store.getState().dailyBonus;
 
+        // Оновлюємо прогрес бар місяця
+        updateMonthProgressUI(dailyBonus);
+
+        // Оновлюємо останні 5 днів
+        updateRecentDaysUI(dailyBonus);
+
         // Оновлюємо календар
         updateCalendarUI(dailyBonus);
 
@@ -138,12 +144,110 @@ window.DailyBonusManager = (function() {
     }
 
     /**
+     * Оновлення прогрес бару місяця
+     */
+    function updateMonthProgressUI(dailyBonus) {
+        console.log('📊 [DailyBonus] Оновлення прогрес бару місяця...');
+
+        const progressFill = document.getElementById('month-progress-fill');
+        const daysCompleted = document.getElementById('days-completed');
+        const currentStreakSpan = document.getElementById('current-streak');
+        const longestStreakSpan = document.getElementById('longest-streak');
+
+        if (progressFill) {
+            const progress = (dailyBonus.claimedDays.length / 30) * 100;
+            progressFill.style.width = `${progress}%`;
+        }
+
+        if (daysCompleted) {
+            daysCompleted.textContent = dailyBonus.claimedDays.length;
+        }
+
+        if (currentStreakSpan) {
+            currentStreakSpan.textContent = dailyBonus.currentStreak;
+        }
+
+        if (longestStreakSpan) {
+            longestStreakSpan.textContent = dailyBonus.longestStreak;
+        }
+
+        console.log('✅ [DailyBonus] Прогрес бар оновлено');
+    }
+
+    /**
+     * Оновлення останніх 5 днів
+     */
+    function updateRecentDaysUI(dailyBonus) {
+        console.log('📅 [DailyBonus] Оновлення останніх 5 днів...');
+
+        const recentDaysGrid = document.getElementById('recent-days-grid');
+        if (!recentDaysGrid) return;
+
+        recentDaysGrid.innerHTML = '';
+
+        // Визначаємо останні 5 днів
+        const today = new Date();
+        const currentDay = dailyBonus.currentStreak + 1;
+        const startDay = Math.max(1, currentDay - 4);
+        const endDay = Math.min(startDay + 4, 30);
+
+        for (let day = startDay; day <= endDay; day++) {
+            const dayCard = createRecentDayCard(day, dailyBonus, currentDay);
+            recentDaysGrid.appendChild(dayCard);
+        }
+
+        console.log('✅ [DailyBonus] Останні дні оновлено');
+    }
+
+    /**
+     * Створення картки останнього дня
+     */
+    function createRecentDayCard(dayNumber, dailyBonus, currentDay) {
+        const card = document.createElement('div');
+        card.className = 'recent-day-card';
+
+        const isToday = dayNumber === currentDay;
+        const isClaimed = dayNumber < currentDay;
+        const isFuture = dayNumber > currentDay;
+
+        if (isToday) card.classList.add('today');
+        if (isClaimed) card.classList.add('claimed');
+
+        const reward = window.BonusCalculator.calculateDailyReward(dayNumber);
+
+        // Перевіряємо чи є квитки
+        const hasTickets = dailyBonus.ticketDays.some(ticketDate => {
+            const date = new Date(ticketDate);
+            return date.getDate() === dayNumber;
+        });
+
+        card.innerHTML = `
+            <div class="recent-day-number">${dayNumber}</div>
+            <div class="recent-day-label">День</div>
+            <div class="recent-day-rewards">
+                <div class="recent-day-reward winix">
+                    <span class="reward-icon-small winix-icon-small"></span>
+                    ${reward.winix}
+                </div>
+                ${hasTickets ? `
+                    <div class="recent-day-reward tickets">
+                        <span class="reward-icon-small ticket-icon-small"></span>
+                        ${reward.tickets || 2}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        return card;
+    }
+
+    /**
      * Оновлення календаря
      */
     function updateCalendarUI(dailyBonus) {
         console.log('📅 [DailyBonus] Оновлення календаря...');
 
-        const calendar = document.querySelector('.daily-calendar');
+        const calendar = document.getElementById('daily-calendar');
         if (!calendar) {
             console.warn('⚠️ [DailyBonus] Елемент календаря не знайдено');
             return;
@@ -168,42 +272,38 @@ window.DailyBonusManager = (function() {
         console.log(`📅 [DailyBonus] Створення дня ${dayNumber}`);
 
         const cell = document.createElement('div');
-        cell.className = 'day-cell';
+        cell.className = 'calendar-day';
         cell.setAttribute('data-day', dayNumber);
 
         // Визначаємо стан дня
-        const today = new Date();
-        const dayDate = new Date(today);
-        dayDate.setDate(dayDate.getDate() - dailyBonus.currentStreak + dayNumber - 1);
-
-        const isClaimed = dailyBonus.claimedDays.some(claimedDate => {
-            return new Date(claimedDate).toDateString() === dayDate.toDateString();
-        });
-
-        const isToday = dayNumber === dailyBonus.currentStreak + 1;
-        const isFuture = dayNumber > dailyBonus.currentStreak + 1;
+        const currentDay = dailyBonus.currentStreak + 1;
+        const isClaimed = dayNumber < currentDay;
+        const isToday = dayNumber === currentDay;
+        const isFuture = dayNumber > currentDay;
 
         // Встановлюємо класи
-        if (isClaimed) {
-            cell.classList.add('claimed');
-        }
-        if (isToday) {
-            cell.classList.add('today');
-        }
-        if (isFuture) {
-            cell.classList.add('future');
+        if (isClaimed) cell.classList.add('claimed');
+        if (isToday) cell.classList.add('today');
+        if (isFuture) cell.classList.add('future');
+
+        // Спеціальні дні (кожен 7-й день)
+        if (dayNumber % 7 === 0) {
+            cell.classList.add('special');
         }
 
         // Перевіряємо чи є квитки в цей день
         const hasTickets = dailyBonus.ticketDays.some(ticketDate => {
-            return new Date(ticketDate).toDateString() === dayDate.toDateString();
+            const date = new Date(ticketDate);
+            return date.getDate() === dayNumber;
         });
+
+        const reward = window.BonusCalculator.calculateDailyReward(dayNumber);
 
         // Вміст комірки
         cell.innerHTML = `
-            <div class="day-number">${dayNumber}</div>
-            <div class="day-reward">${getDayReward(dayNumber).winix}</div>
-            ${hasTickets ? '<div class="ticket-indicator">🎟️</div>' : ''}
+            <div class="calendar-day-number">${dayNumber}</div>
+            <div class="calendar-day-reward">${reward.winix}</div>
+            ${hasTickets ? '<div class="calendar-ticket-badge"></div>' : ''}
         `;
 
         return cell;
@@ -223,13 +323,13 @@ window.DailyBonusManager = (function() {
         console.log('📊 [DailyBonus] Оновлення статистики...');
 
         // Поточна серія
-        const streakElement = document.getElementById('current-streak');
+        const streakElement = document.getElementById('current-streak-stats');
         if (streakElement) {
             streakElement.textContent = dailyBonus.currentStreak;
         }
 
         // Найдовша серія
-        const longestStreakElement = document.getElementById('longest-streak');
+        const longestStreakElement = document.getElementById('longest-streak-stats');
         if (longestStreakElement) {
             longestStreakElement.textContent = dailyBonus.longestStreak;
         }
@@ -255,7 +355,7 @@ window.DailyBonusManager = (function() {
     function updateClaimButtonUI() {
         console.log('🔘 [DailyBonus] Оновлення кнопки отримання...');
 
-        const button = document.querySelector('.claim-daily-button');
+        const button = document.getElementById('claim-daily-button');
         if (!button) return;
 
         const canClaim = window.TasksStore.selectors.canClaimDailyBonus();
@@ -272,7 +372,7 @@ window.DailyBonusManager = (function() {
 
             button.innerHTML = `
                 <span class="button-text">Отримати ${reward.winix} WINIX</span>
-                ${reward.tickets > 0 ? `<span class="bonus-tickets">+${reward.tickets} 🎟️</span>` : ''}
+                ${reward.tickets > 0 ? `<span class="bonus-tickets">+${reward.tickets}</span>` : ''}
             `;
         } else {
             button.disabled = true;
@@ -416,9 +516,20 @@ window.DailyBonusManager = (function() {
         const animDiv = document.createElement('div');
         animDiv.className = 'daily-bonus-claimed';
 
-        let content = `<div class="reward-amount">+${reward.winix} WINIX</div>`;
+        let content = `
+            <div class="reward-amount">
+                <span class="winix-icon-small"></span>
+                +${reward.winix} WINIX
+            </div>
+        `;
+
         if (reward.tickets > 0) {
-            content += `<div class="reward-tickets">+${reward.tickets} TICKETS 🎟️</div>`;
+            content += `
+                <div class="reward-tickets">
+                    <span class="ticket-icon-small"></span>
+                    +${reward.tickets} TICKETS
+                </div>
+            `;
         }
 
         animDiv.innerHTML = content;
@@ -481,17 +592,17 @@ window.DailyBonusManager = (function() {
         console.log('🎯 [DailyBonus] Налаштування обробників подій');
 
         // Кнопка отримання
-        const claimButton = document.querySelector('.claim-daily-button');
+        const claimButton = document.getElementById('claim-daily-button');
         if (claimButton) {
             claimButton.addEventListener('click', claimDailyBonus);
             console.log('✅ [DailyBonus] Обробник кнопки отримання додано');
         }
 
         // Клік на день в календарі
-        const calendar = document.querySelector('.daily-calendar');
+        const calendar = document.getElementById('daily-calendar');
         if (calendar) {
             calendar.addEventListener('click', (e) => {
-                const dayCell = e.target.closest('.day-cell');
+                const dayCell = e.target.closest('.calendar-day');
                 if (dayCell) {
                     const day = parseInt(dayCell.getAttribute('data-day'));
                     console.log(`📅 [DailyBonus] Клік на день ${day}`);

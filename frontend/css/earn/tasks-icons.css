@@ -1,0 +1,378 @@
+/* WINIX Tasks Icons - Преміальні SVG іконки для системи завдань */
+
+/* ======== БАЗОВА КОНФІГУРАЦІЯ ======== */
+.winix-icon {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    position: relative;
+}
+
+.winix-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* ======== ІКОНКИ ПЛАТФОРМ ======== */
+
+/* Telegram */
+.icon-telegram {
+    background: linear-gradient(135deg, #0088cc, #0077b5);
+    border-radius: 50%;
+    padding: 0.5rem;
+    box-shadow: 0 4px 16px rgba(0, 136, 204, 0.3);
+}
+
+.icon-telegram svg {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}
+
+/* YouTube */
+.icon-youtube {
+    background: linear-gradient(135deg, #ff0000, #cc0000);
+    border-radius: 50%;
+    padding: 0.5rem;
+    box-shadow: 0 4px 16px rgba(255, 0, 0, 0.3);
+}
+
+.icon-youtube svg {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}
+
+/* Twitter */
+.icon-twitter {
+    background: linear-gradient(135deg, #1DA1F2, #1a91da);
+    border-radius: 50%;
+    padding: 0.5rem;
+    box-shadow: 0 4px 16px rgba(29, 161, 242, 0.3);
+}
+
+.icon-twitter svg {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}
+
+/* Discord */
+.icon-discord {
+    background: linear-gradient(135deg, #7289DA, #5865F2);
+    border-radius: 50%;
+    padding: 0.5rem;
+    box-shadow: 0 4px 16px rgba(114, 137, 218, 0.3);
+}
+
+.icon-discord svg {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}
+
+/* ======== ІКОНКИ ВИНАГОРОД ======== */
+
+/* WINIX токен */
+.icon-winix {
+    width: 20px;
+    height: 20px;
+}
+
+.icon-winix svg {
+    filter: drop-shadow(0 0 3px rgba(179, 102, 255, 0.5));
+    animation: pulse-purple 3s infinite ease-in-out;
+}
+
+/* Tickets */
+.icon-tickets {
+    width: 20px;
+    height: 20px;
+}
+
+.icon-tickets svg {
+    filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.5));
+    animation: pulse-gold 3s infinite ease-in-out;
+}
+
+/* ======== ІКОНКИ СТАТУСІВ ======== */
+
+/* Виконано */
+.icon-completed {
+    width: 20px;
+    height: 20px;
+    background: #4CAF50;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-completed svg {
+    width: 14px;
+    height: 14px;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
+}
+
+/* В процесі */
+.icon-in-progress {
+    width: 20px;
+    height: 20px;
+    animation: rotate 2s linear infinite;
+}
+
+.icon-in-progress svg {
+    filter: drop-shadow(0 0 3px rgba(255, 165, 0, 0.5));
+}
+
+/* Гаряче */
+.icon-hot {
+    width: 20px;
+    height: 20px;
+    animation: pulse-hot 1.5s infinite ease-in-out;
+}
+
+.icon-hot svg {
+    filter: drop-shadow(0 0 3px rgba(244, 67, 54, 0.7));
+}
+
+/* Нове */
+.icon-new {
+    width: 20px;
+    height: 20px;
+    animation: pulse-new 2s infinite ease-in-out;
+}
+
+.icon-new svg {
+    filter: drop-shadow(0 0 3px rgba(76, 175, 80, 0.7));
+}
+
+/* ======== ІКОНКИ ДЛЯ DAILY BONUS ======== */
+
+/* Вогонь (серія) */
+.icon-streak {
+    width: 32px;
+    height: 32px;
+}
+
+.icon-streak svg {
+    filter: drop-shadow(0 0 4px rgba(255, 82, 82, 0.6));
+    animation: flame-flicker 2s infinite alternate;
+}
+
+/* Зірка */
+.icon-star {
+    width: 32px;
+    height: 32px;
+}
+
+.icon-star svg {
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+    animation: star-sparkle 3s infinite ease-in-out;
+}
+
+/* Таймер */
+.icon-timer {
+    width: 20px;
+    height: 20px;
+}
+
+.icon-timer svg {
+    filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
+    animation: timer-pulse 2s infinite ease-in-out;
+}
+
+/* ======== ІКОНКИ НАВІГАЦІЇ ======== */
+
+/* Flex Earn */
+.flex-icon {
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(135deg, #FFD700, #FFA000);
+    mask: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z' fill='black'/%3E%3C/svg%3E") no-repeat center;
+    mask-size: contain;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z' fill='black'/%3E%3C/svg%3E") no-repeat center;
+    -webkit-mask-size: contain;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+}
+
+/* ======== АНІМАЦІЇ ======== */
+
+/* Пульсація фіолетова */
+@keyframes pulse-purple {
+    0%, 100% {
+        filter: drop-shadow(0 0 3px rgba(179, 102, 255, 0.5));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 6px rgba(179, 102, 255, 0.8));
+        transform: scale(1.05);
+    }
+}
+
+/* Пульсація золота */
+@keyframes pulse-gold {
+    0%, 100% {
+        filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.5));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.8));
+        transform: scale(1.05);
+    }
+}
+
+/* Пульсація гарячого */
+@keyframes pulse-hot {
+    0%, 100% {
+        filter: drop-shadow(0 0 3px rgba(244, 67, 54, 0.7));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 6px rgba(244, 67, 54, 1));
+        transform: scale(1.1);
+    }
+}
+
+/* Пульсація нового */
+@keyframes pulse-new {
+    0%, 100% {
+        filter: drop-shadow(0 0 3px rgba(76, 175, 80, 0.7));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 6px rgba(76, 175, 80, 1));
+        transform: scale(1.05);
+    }
+}
+
+/* Обертання */
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Мерехтіння вогню */
+@keyframes flame-flicker {
+    0% {
+        filter: drop-shadow(0 0 4px rgba(255, 82, 82, 0.6));
+        transform: scale(1) translateY(0);
+    }
+    25% {
+        filter: drop-shadow(0 0 6px rgba(255, 165, 0, 0.8));
+        transform: scale(1.05) translateY(-1px);
+    }
+    50% {
+        filter: drop-shadow(0 0 5px rgba(255, 82, 82, 0.7));
+        transform: scale(0.98) translateY(0);
+    }
+    75% {
+        filter: drop-shadow(0 0 7px rgba(255, 165, 0, 0.9));
+        transform: scale(1.02) translateY(-1px);
+    }
+    100% {
+        filter: drop-shadow(0 0 4px rgba(255, 82, 82, 0.6));
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Мерехтіння зірки */
+@keyframes star-sparkle {
+    0%, 100% {
+        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+        transform: scale(1) rotate(0deg);
+    }
+    25% {
+        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 1));
+        transform: scale(1.1) rotate(5deg);
+    }
+    50% {
+        filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.8));
+        transform: scale(1) rotate(-5deg);
+    }
+    75% {
+        filter: drop-shadow(0 0 10px rgba(255, 215, 0, 1));
+        transform: scale(1.15) rotate(3deg);
+    }
+}
+
+/* Пульсація таймера */
+@keyframes timer-pulse {
+    0%, 100% {
+        filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.8));
+        transform: scale(1.05);
+    }
+}
+
+/* ======== СПЕЦІАЛЬНІ ЕФЕКТИ ======== */
+
+/* Світіння для активних елементів */
+.glow-active {
+    position: relative;
+}
+
+.glow-active::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #b366ff, #8b5cf6, #b366ff);
+    border-radius: inherit;
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+    filter: blur(8px);
+}
+
+.glow-active:hover::after {
+    opacity: 0.7;
+}
+
+/* Градієнтна обводка */
+.gradient-border {
+    position: relative;
+    background: rgba(139, 92, 246, 0.1);
+    backdrop-filter: blur(20px);
+}
+
+.gradient-border::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    background: linear-gradient(45deg, #b366ff, #8b5cf6, #FFD700, #8b5cf6);
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0.5;
+    animation: gradient-rotate 3s linear infinite;
+}
+
+@keyframes gradient-rotate {
+    0% {
+        filter: hue-rotate(0deg);
+    }
+    100% {
+        filter: hue-rotate(360deg);
+    }
+}
+
+/* ======== АДАПТИВНІСТЬ ======== */
+@media (max-width: 450px) {
+    .winix-icon {
+        width: 20px;
+        height: 20px;
+    }
+
+    .icon-streak,
+    .icon-star {
+        width: 28px;
+        height: 28px;
+    }
+}
