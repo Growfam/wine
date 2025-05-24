@@ -193,6 +193,7 @@ python# models/transaction.py
 python# models/analytics.py
 # controllers/analytics_controller.py
 # routes/analytics_routes.py - /api/analytics/*
+
 ЕТАП 10: Оптимізація та безпека
 Файли фронту: api.js, constants.js
 
