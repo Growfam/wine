@@ -1,6 +1,7 @@
 """
 Основний файл Flask застосунку для системи WINIX
 Оптимізована версія з покращеною структурою, логуванням і обробкою помилок
+🔥 WINIX Quests System Integration 🔥
 """
 
 # Стандартні бібліотеки
@@ -43,7 +44,15 @@ BASE_DIR = os.path.dirname(BACKEND_DIR)
 if BACKEND_DIR not in sys.path:
     sys.path.append(BACKEND_DIR)
 
-
+# 🎯 WINIX Quests System Integration
+try:
+    from quests import winix, initialize_winix_quests, get_package_info, quick_test
+    WINIX_QUESTS_AVAILABLE = True
+    logger.info("🎯 WINIX Quests System підключено!")
+except ImportError as e:
+    logger.error(f"❌ Помилка підключення WINIX Quests: {e}")
+    winix = None
+    WINIX_QUESTS_AVAILABLE = False
 
 # Перевірка валідності UUID
 def is_valid_uuid(uuid_string):
@@ -52,6 +61,123 @@ def is_valid_uuid(uuid_string):
         uuid_obj = uuid.UUID(str(uuid_string).strip())
         return True
     except (ValueError, AttributeError, TypeError):
+        return False
+
+def initialize_winix_system(app):
+    """🚀 Ініціалізація WINIX Quests System"""
+    if not WINIX_QUESTS_AVAILABLE:
+        logger.warning("⚠️ WINIX Quests недоступний, пропускаємо ініціалізацію")
+        return False
+
+    try:
+        logger.info("🚀 === ІНІЦІАЛІЗАЦІЯ WINIX QUESTS SYSTEM ===")
+
+        # Повна ініціалізація системи
+        result = initialize_winix_quests()
+
+        # Логуємо результат
+        if result['success_rate'] >= 90:
+            logger.info(f"🎉 WINIX System ініціалізовано ВІДМІННО! Оцінка: {result['success_rate']:.1f}%")
+        elif result['success_rate'] >= 70:
+            logger.warning(f"⚠️ WINIX System ініціалізовано з попередженнями. Оцінка: {result['success_rate']:.1f}%")
+        else:
+            logger.error(f"❌ WINIX System ініціалізовано з помилками. Оцінка: {result['success_rate']:.1f}%")
+
+        # Додаємо health check для WINIX
+        @app.route('/api/winix/health', methods=['GET'])
+        def winix_health_check():
+            """Health check для WINIX Quests System"""
+            try:
+                health = winix.health_check()
+                return jsonify({
+                    "status": "ok",
+                    "winix_health": health,
+                    "initialization_result": result
+                })
+            except Exception as e:
+                logger.error(f"Помилка WINIX health check: {e}")
+                return jsonify({
+                    "status": "error",
+                    "error": str(e)
+                }), 500
+
+        # Додаємо інформаційний endpoint
+        @app.route('/api/winix/info', methods=['GET'])
+        def winix_info():
+            """Інформація про WINIX Quests System"""
+            try:
+                info = get_package_info()
+                return jsonify(info)
+            except Exception as e:
+                logger.error(f"Помилка WINIX info: {e}")
+                return jsonify({
+                    "status": "error",
+                    "error": str(e)
+                }), 500
+
+        # Додаємо quick test endpoint
+        @app.route('/api/winix/test', methods=['GET'])
+        def winix_quick_test():
+            """Швидкий тест WINIX системи"""
+            try:
+                test_result = quick_test()
+                return jsonify({
+                    "status": "success",
+                    "test_results": test_result
+                })
+            except Exception as e:
+                logger.error(f"Помилка WINIX тесту: {e}")
+                return jsonify({
+                    "status": "error",
+                    "error": str(e)
+                }), 500
+
+        # Додаємо demo endpoint
+        @app.route('/api/winix/demo/<telegram_id>', methods=['GET'])
+        def winix_demo(telegram_id):
+            """Демонстрація можливостей WINIX"""
+            try:
+                from supabase_client import get_winix_user_summary, ensure_winix_user_exists
+
+                # Переконуємося що користувач існує
+                ensure_winix_user_exists(telegram_id)
+
+                results = {}
+
+                # Тест 1: Основна інформація про користувача
+                summary = get_winix_user_summary(telegram_id)
+                results["user_summary"] = summary
+
+                # Тест 2: Перевірка сервісів
+                services_status = {}
+                for service_name, service in winix.services.items():
+                    services_status[service_name] = {
+                        "available": service is not None,
+                        "class": service.__class__.__name__ if service else None
+                    }
+                results["services_status"] = services_status
+
+                # Тест 3: Health check
+                health = winix.health_check()
+                results["health_check"] = health
+
+                return jsonify({
+                    "status": "success",
+                    "demo_results": results,
+                    "winix_version": winix.version
+                })
+
+            except Exception as e:
+                logger.error(f"Помилка winix_demo: {e}")
+                return jsonify({
+                    "status": "error",
+                    "message": str(e)
+                }), 500
+
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Критична помилка ініціалізації WINIX: {e}")
         return False
 
 def create_app(config_name=None):
@@ -90,8 +216,6 @@ def create_app(config_name=None):
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///winix.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-
-
     # Налаштовуємо CORS
     setup_cors(app)
 
@@ -101,7 +225,15 @@ def create_app(config_name=None):
     # Додаємо health check endpoint
     add_health_check(app)
 
-    # Реєструємо маршрути API
+    # 🔥 ІНІЦІАЛІЗУЄМО WINIX QUESTS SYSTEM
+    winix_initialized = initialize_winix_system(app)
+
+    if winix_initialized:
+        logger.info("🎉 WINIX Quests System успішно інтегровано!")
+    else:
+        logger.warning("⚠️ WINIX Quests System не вдалося ініціалізувати")
+
+    # Реєструємо маршрути API (тепер з WINIX)
     register_api_routes(app)
 
     # Реєструємо діагностичні маршрути
@@ -188,6 +320,42 @@ def setup_request_handlers(app):
         g.start_time = time.time()
         logger.info(f"Отримано запит: {request.method} {request.path}")
 
+        # 🎯 WINIX Analytics Middleware
+        if WINIX_QUESTS_AVAILABLE and request.path.startswith('/api/'):
+            try:
+                # Якщо це API запит до WINIX маршрутів
+                if any(part in request.path for part in [
+                    'daily', 'flex', 'tasks', 'transactions', 'verify', 'wallet', 'winix'
+                ]):
+                    from supabase_client import create_analytics_event
+
+                    # Отримуємо user_id з заголовків або шляху
+                    user_id = request.headers.get('X-Telegram-User-Id')
+                    if not user_id and '/user/' in request.path:
+                        # Витягуємо з URL
+                        parts = request.path.split('/')
+                        try:
+                            user_idx = parts.index('user') + 1
+                            if user_idx < len(parts):
+                                user_id = parts[user_idx]
+                        except (ValueError, IndexError):
+                            pass
+
+                    if user_id:
+                        create_analytics_event(
+                            telegram_id=user_id,
+                            event_type="api_request",
+                            event_data={
+                                "path": request.path,
+                                "method": request.method,
+                                "ip": request.remote_addr,
+                                "user_agent": request.headers.get('User-Agent', '')[:100]  # Обрізаємо для БД
+                            }
+                        )
+            except Exception as e:
+                # Не блокуємо запит через помилки аналітики
+                logger.debug(f"WINIX analytics error: {e}")
+
         # Визначаємо мову користувача
         try:
             import i18n
@@ -212,11 +380,32 @@ def add_health_check(app):
     @app.route('/api/health', methods=['GET'])
     def health_check():
         """Перевірка стану API"""
-        return jsonify({
+        health_data = {
             "status": "ok",
             "timestamp": datetime.utcnow().isoformat(),
             "service": "WINIX API"
-        })
+        }
+
+        # Додаємо інформацію про WINIX якщо доступний
+        if WINIX_QUESTS_AVAILABLE:
+            try:
+                winix_health = winix.health_check()
+                health_data["winix"] = {
+                    "available": True,
+                    "components": {
+                        name: status['loaded']
+                        for name, status in winix_health['components'].items()
+                    }
+                }
+            except Exception as e:
+                health_data["winix"] = {
+                    "available": False,
+                    "error": str(e)
+                }
+        else:
+            health_data["winix"] = {"available": False}
+
+        return jsonify(health_data)
 
 
 def register_api_routes(app):
@@ -229,6 +418,39 @@ def register_api_routes(app):
             logger.error(f"❌ Помилка реєстрації маршрутів {name}: {error}")
             if error:
                 logger.error(traceback.format_exc())
+
+    # 🔥 НАЙПЕРШЕ - реєструємо WINIX Quests маршрути!
+    if WINIX_QUESTS_AVAILABLE:
+        try:
+            success = winix.register_routes(app)
+            log_registration_result("WINIX Quests", success)
+
+            if success:
+                logger.info("🎯 WINIX Quests маршрути активні!")
+                # Логуємо кількість зареєстрованих маршрутів
+                winix_routes_count = 0
+                for rule in app.url_map.iter_rules():
+                    if any(path in rule.rule for path in [
+                        '/api/auth/', '/api/user/', '/api/daily/',
+                        '/api/analytics/', '/api/flex/', '/api/tasks/',
+                        '/api/transactions/', '/api/verify/', '/api/wallet/'
+                    ]):
+                        winix_routes_count += 1
+                logger.info(f"📊 WINIX Quests: {winix_routes_count} маршрутів зареєстровано")
+            else:
+                logger.error("❌ Не вдалося зареєструвати WINIX Quests маршрути")
+
+        except Exception as e:
+            log_registration_result("WINIX Quests", False, str(e))
+    else:
+        logger.warning("⚠️ WINIX Quests недоступний, використовуємо старі маршрути")
+        # Fallback до старих quests маршрутів
+        try:
+            from quests.routes import register_quests_routes
+            register_quests_routes(app)
+            log_registration_result("завдань (legacy)", True)
+        except Exception as e:
+            log_registration_result("завдань (legacy)", False, str(e))
 
     # Реєстрація маршрутів розіграшів
     try:
@@ -269,14 +491,6 @@ def register_api_routes(app):
         log_registration_result("транзакцій", True)
     except Exception as e:
         log_registration_result("транзакцій", False, str(e))
-
-    # Реєстрація маршрутів завдань
-    try:
-        from quests.routes import register_quests_routes
-        register_quests_routes(app)
-        log_registration_result("завдань", True)
-    except Exception as e:
-        log_registration_result("завдань", False, str(e))
 
     # Реєстрація маршрутів рефералів
     try:
@@ -335,9 +549,10 @@ def register_utility_routes(app):
     """Реєстрація діагностичних та утилітарних маршрутів"""
     # Імпорт необхідних компонентів
     try:
-        from supabase_client import test_supabase_connection, supabase
+        from supabase_client import test_supabase_connection, supabase, test_winix_integration
     except ImportError:
         test_supabase_connection = lambda: {"status": "error", "message": "Функція недоступна"}
+        test_winix_integration = lambda: {"status": "error", "message": "Функція недоступна"}
         supabase = None
 
     @app.route('/api/ping')
@@ -359,6 +574,16 @@ def register_utility_routes(app):
         """Діагностичний маршрут для перевірки конфігурації"""
         # Перевіряємо з'єднання з Supabase
         supabase_test = test_supabase_connection()
+
+        # 🎯 Додаємо перевірку WINIX
+        winix_test = {}
+        if WINIX_QUESTS_AVAILABLE:
+            try:
+                winix_test = test_winix_integration()
+            except:
+                winix_test = {"status": "error", "message": "WINIX тест недоступний"}
+        else:
+            winix_test = {"status": "unavailable", "message": "WINIX не завантажено"}
 
         # Перевіряємо шляхи до директорій
         assets_dir = os.path.join(BASE_DIR, 'frontend/assets')
@@ -389,6 +614,7 @@ def register_utility_routes(app):
 
         return jsonify({
             "status": "running",
+            "winix_available": WINIX_QUESTS_AVAILABLE,
             "environment": {
                 "base_dir": BASE_DIR,
                 "current_dir": os.getcwd(),
@@ -402,7 +628,8 @@ def register_utility_routes(app):
                 "index_html_exists": index_html_exists,
                 "original_index_html_exists": original_index_html_exists,
                 "raffles_html_exists": raffles_html_exists,
-                "supabase_test": supabase_test
+                "supabase_test": supabase_test,
+                "winix_test": winix_test
             },
             "routes": routes[:20]  # Обмежуємо до 20 маршрутів для читабельності
         })
@@ -891,6 +1118,25 @@ def init_raffle_service():
 # Створення та ініціалізація застосунку
 app = create_app()
 
+# 🎯 Додаткова перевірка WINIX після створення app
+if WINIX_QUESTS_AVAILABLE and winix:
+    try:
+        # Фінальна перевірка стану системи
+        health = winix.health_check()
+        components_active = sum(1 for status in health['components'].values() if status['loaded'])
+        total_components = len(health['components'])
+        logger.info(f"🔍 Фінальна перевірка WINIX: компонентів активно {components_active}/{total_components}")
+
+        if components_active == total_components:
+            logger.info("🎉 ВСІ WINIX КОМПОНЕНТИ АКТИВНІ!")
+        elif components_active >= total_components * 0.8:
+            logger.warning(f"⚠️ Більшість WINIX компонентів активні ({components_active}/{total_components})")
+        else:
+            logger.error(f"❌ Багато WINIX компонентів неактивні ({components_active}/{total_components})")
+
+    except Exception as e:
+        logger.error(f"Помилка фінальної перевірки WINIX: {e}")
+
 # Запускаємо сервіс розіграшів, якщо налаштовано
 init_raffle_service()
 
@@ -901,13 +1147,19 @@ if __name__ == '__main__':
         logger.critical("❌ Додаток не ініціалізовано!")
         exit(1)
 
+    # Остання перевірка WINIX перед запуском
+    if WINIX_QUESTS_AVAILABLE:
+        logger.info("🚀 WINIX Quests System готовий до роботи!")
+    else:
+        logger.warning("⚠️ Запуск без WINIX Quests System")
+
     # Визначення порту
     port = int(os.environ.get('PORT', 8080))
 
     # Безпечне отримання DEBUG
     debug = getattr(app.config, 'DEBUG', True) if hasattr(app, 'config') else True
 
-    logger.info(f"Запуск застосунку на порту {port}, режим налагодження: {debug}")
+    logger.info(f"🌟 Запуск WINIX застосунку на порту {port}, режим налагодження: {debug}")
 
     # Запуск сервера
     app.run(host='0.0.0.0', port=port, debug=debug)
