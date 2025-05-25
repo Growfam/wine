@@ -136,11 +136,21 @@ class MemoryCache:
         self.config = config
         self._cache: Dict[str, CacheItem] = {}
         self._access_order: List[str] = []  # Для LRU
-        self._lock = asyncio.Lock()
+        self._lock = None  # Lazy initialization для lock
+
+    def _get_lock(self):
+        """Lazy initialization для asyncio.Lock"""
+        if self._lock is None:
+            try:
+                self._lock = asyncio.Lock()
+            except RuntimeError:
+                # Немає event loop, створюємо фіктивний lock
+                self._lock = FakeLock()
+        return self._lock
 
     async def get(self, key: str) -> Optional[Any]:
         """Отримати значення з кешу"""
-        async with self._lock:
+        async with self._get_lock():
             item = self._cache.get(key)
             if not item:
                 return None
@@ -156,7 +166,7 @@ class MemoryCache:
     async def set(self, key: str, value: Any, ttl: Optional[int] = None,
                   tags: Optional[List[str]] = None) -> bool:
         """Зберегти значення в кеші"""
-        async with self._lock:
+        async with self._get_lock():
             if ttl is None:
                 ttl = self.config.default_ttl
 
@@ -176,7 +186,7 @@ class MemoryCache:
 
     async def delete(self, key: str) -> bool:
         """Видалити елемент з кешу"""
-        async with self._lock:
+        async with self._get_lock():
             return await self._delete(key)
 
     async def _delete(self, key: str) -> bool:
@@ -190,14 +200,14 @@ class MemoryCache:
 
     async def clear(self) -> bool:
         """Очистити весь кеш"""
-        async with self._lock:
+        async with self._get_lock():
             self._cache.clear()
             self._access_order.clear()
             return True
 
     async def exists(self, key: str) -> bool:
         """Перевірити чи існує ключ"""
-        async with self._lock:
+        async with self._get_lock():
             item = self._cache.get(key)
             if not item:
                 return False
@@ -208,7 +218,7 @@ class MemoryCache:
 
     async def get_by_tags(self, tags: List[str]) -> Dict[str, Any]:
         """Отримати всі елементи з вказаними тегами"""
-        async with self._lock:
+        async with self._get_lock():
             result = {}
             for key, item in self._cache.items():
                 if item.is_expired():
@@ -219,7 +229,7 @@ class MemoryCache:
 
     async def delete_by_tags(self, tags: List[str]) -> int:
         """Видалити всі елементи з вказаними тегами"""
-        async with self._lock:
+        async with self._get_lock():
             keys_to_delete = []
             for key, item in self._cache.items():
                 if any(tag in item.tags for tag in tags):
@@ -268,7 +278,7 @@ class MemoryCache:
 
     async def cleanup_expired(self) -> int:
         """Очистити застарілі елементи"""
-        async with self._lock:
+        async with self._get_lock():
             expired_keys = []
             for key, item in self._cache.items():
                 if item.is_expired():
@@ -281,7 +291,7 @@ class MemoryCache:
 
     async def get_stats(self) -> Dict[str, Any]:
         """Отримати статистику кешу"""
-        async with self._lock:
+        async with self._get_lock():
             total_size = sum(item.size for item in self._cache.values())
             return {
                 'type': 'memory',
@@ -291,6 +301,16 @@ class MemoryCache:
                 'max_items': self.config.max_memory_items,
                 'max_size_mb': self.config.max_memory_size / 1024 / 1024
             }
+
+
+class FakeLock:
+    """Фіктивний lock для випадків коли немає event loop"""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 
 class RedisCache:
@@ -525,16 +545,19 @@ class RedisCache:
 class CacheManager:
     """Головний менеджер кешування"""
 
-    def __init__(self, config: Optional[CacheConfig] = None):
+    def __init__(self, config: Optional[CacheConfig] = None, start_cleanup: bool = True):
         self.config = config or self._load_config()
         self.stats = CacheStats()
+        self._cleanup_task = None
+        self._cleanup_started = False
 
         # Ініціалізуємо кеші
         self.memory_cache = MemoryCache(self.config)
         self.redis_cache = RedisCache(self.config) if self.config.type != CacheType.MEMORY else None
 
-        # Запускаємо періодичну очистку
-        self._start_cleanup_task()
+        # Запускаємо періодичну очистку тільки якщо дозволено
+        if start_cleanup:
+            self._start_cleanup_task()
 
     def _load_config(self) -> CacheConfig:
         """Завантажити конфігурацію з змінних середовища"""
@@ -677,30 +700,99 @@ class CacheManager:
         return stats
 
     def _start_cleanup_task(self):
-        """Запустити фонову задачу очищення"""
+        """Запустити фонову задачу очищення (з перевіркою event loop)"""
+        if self._cleanup_started:
+            return
 
-        async def cleanup_task():
-            while True:
-                try:
-                    await asyncio.sleep(300)  # Кожні 5 хвилин
+        try:
+            # Перевіряємо чи є запущений event loop
+            asyncio.get_running_loop()
 
-                    expired_count = 0
-                    if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-                        expired_count += await self.memory_cache.cleanup_expired()
+            async def cleanup_task():
+                while True:
+                    try:
+                        await asyncio.sleep(300)  # Кожні 5 хвилин
 
-                    if expired_count > 0:
-                        logger.info(f"Очищено {expired_count} застарілих елементів кешу")
-                        self.stats.evictions += expired_count
-                        self.stats.last_cleanup = datetime.now(timezone.utc)
+                        expired_count = 0
+                        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
+                            expired_count += await self.memory_cache.cleanup_expired()
 
-                except Exception as e:
-                    logger.error(f"Помилка очищення кешу: {str(e)}")
+                        if expired_count > 0:
+                            logger.info(f"Очищено {expired_count} застарілих елементів кешу")
+                            self.stats.evictions += expired_count
+                            self.stats.last_cleanup = datetime.now(timezone.utc)
 
-        asyncio.create_task(cleanup_task())
+                    except Exception as e:
+                        logger.error(f"Помилка очищення кешу: {str(e)}")
+
+            self._cleanup_task = asyncio.create_task(cleanup_task())
+            self._cleanup_started = True
+            logger.info("✅ Cleanup task запущено")
+
+        except RuntimeError:
+            # Немає запущеного event loop - відкладаємо запуск
+            logger.info("⏳ Cleanup task буде запущено пізніше (немає event loop)")
+
+    def start_cleanup_if_needed(self):
+        """Запустити cleanup task якщо ще не запущено та є event loop"""
+        if not self._cleanup_started:
+            self._start_cleanup_task()
 
 
-# Глобальний екземпляр менеджера кешу
-cache_manager = CacheManager()
+# ===============================
+# ВИПРАВЛЕННЯ: Lazy initialization
+# ===============================
+
+# Глобальна змінна для lazy initialization
+_cache_manager_instance = None
+
+def get_cache_manager() -> CacheManager:
+    """
+    Lazy initialization для CacheManager
+    Створює CacheManager тільки при першому запиті
+    """
+    global _cache_manager_instance
+
+    if _cache_manager_instance is None:
+        try:
+            # Перевіряємо чи є запущений event loop
+            try:
+                asyncio.get_running_loop()
+                # Event loop запущено, можемо створювати CacheManager з cleanup
+                _cache_manager_instance = CacheManager(start_cleanup=True)
+            except RuntimeError:
+                # Немає запущеного event loop, створюємо CacheManager без cleanup
+                _cache_manager_instance = CacheManager(start_cleanup=False)
+
+        except Exception as e:
+            logger.error(f"Помилка створення CacheManager: {e}")
+            # Fallback: створюємо базовий CacheManager
+            _cache_manager_instance = CacheManager(start_cleanup=False)
+
+    # Якщо cleanup ще не запущено, спробуємо запустити
+    if hasattr(_cache_manager_instance, 'start_cleanup_if_needed'):
+        _cache_manager_instance.start_cleanup_if_needed()
+
+    return _cache_manager_instance
+
+
+class CacheManagerProxy:
+    """
+    Proxy для lazy initialization CacheManager
+    Забезпечує зворотну сумісність з глобальним cache_manager
+    """
+
+    def __getattr__(self, name):
+        manager = get_cache_manager()
+        return getattr(manager, name)
+
+    def __call__(self, *args, **kwargs):
+        manager = get_cache_manager()
+        return manager(*args, **kwargs)
+
+
+# Експортуємо proxy як cache_manager для зворотної сумісності
+cache_manager = CacheManagerProxy()
 
 
 # Декоратори для кешування
@@ -718,6 +810,9 @@ def cache(ttl: Optional[int] = None, tags: Optional[List[str]] = None,
     def decorator(func: F) -> F:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
+            # Отримуємо менеджер кешу
+            manager = get_cache_manager()
+
             # Генеруємо ключ кешу
             if key_func:
                 cache_key = key_func(*args, **kwargs)
@@ -725,7 +820,7 @@ def cache(ttl: Optional[int] = None, tags: Optional[List[str]] = None,
                 cache_key = _generate_cache_key(func.__name__, args, kwargs)
 
             # Перевіряємо кеш
-            cached_result = await cache_manager.get(cache_key)
+            cached_result = await manager.get(cache_key)
             if cached_result is not None:
                 return cached_result
 
@@ -736,7 +831,7 @@ def cache(ttl: Optional[int] = None, tags: Optional[List[str]] = None,
                 result = func(*args, **kwargs)
 
             # Зберігаємо в кеші
-            await cache_manager.set(cache_key, result, ttl, tags)
+            await manager.set(cache_key, result, ttl, tags)
 
             return result
 
@@ -771,10 +866,11 @@ def cache_invalidate(tags: Optional[List[str]] = None, key: Optional[str] = None
                 result = func(*args, **kwargs)
 
             # Інвалідуємо кеш
+            manager = get_cache_manager()
             if key:
-                await cache_manager.delete(key)
+                await manager.delete(key)
             elif tags:
-                await cache_manager.delete_by_tags(tags)
+                await manager.delete_by_tags(tags)
 
             return result
 
@@ -808,6 +904,7 @@ __all__ = [
     'CacheStats',
     'CacheManager',
     'cache_manager',
+    'get_cache_manager',
     'cache',
     'cache_invalidate'
 ]
