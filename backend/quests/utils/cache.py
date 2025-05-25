@@ -1,910 +1,725 @@
 """
-Система кешування для WINIX
-Redis інтеграція, кешування запитів та оптимізація продуктивності
+Кеш система для WINIX Quests з підтримкою Redis та in-memory storage
+Виправлена версія без async проблем при імпорті
 """
 
-import os
-import redis
-import json
-import pickle
-import hashlib
-import logging
-import functools
 import asyncio
-from datetime import datetime, timezone
-from typing import Any, Optional, Dict, List, Callable, TypeVar
-from dataclasses import dataclass, asdict
-from enum import Enum
+import json
+import logging
 import time
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+import hashlib
+import threading
 
 logger = logging.getLogger(__name__)
 
-# Типи
-T = TypeVar('T')
-F = TypeVar('F', bound=Callable[..., Any])
-
-
-class CacheType(Enum):
-    """Типи кешу"""
-    MEMORY = "memory"  # Локальний кеш в пам'яті
-    REDIS = "redis"  # Redis кеш
-    HYBRID = "hybrid"  # Гібридний (пам'ять + Redis)
-
-
-class CachePolicy(Enum):
-    """Політики кешування"""
-    LRU = "lru"  # Least Recently Used
-    LFU = "lfu"  # Least Frequently Used
-    TTL = "ttl"  # Time To Live
-    FIFO = "fifo"  # First In First Out
-
-
-@dataclass
-class CacheConfig:
-    """Конфігурація кешу"""
-    type: CacheType = CacheType.HYBRID
-    policy: CachePolicy = CachePolicy.LRU
-    default_ttl: int = 300  # 5 хвилин
-    max_memory_items: int = 1000
-    max_memory_size: int = 10 * 1024 * 1024  # 10MB
-    redis_host: str = "localhost"
-    redis_port: int = 6379
-    redis_db: int = 0
-    redis_password: Optional[str] = None
-    redis_prefix: str = "winix:"
-    compression: bool = True
-    serialization: str = "json"  # json, pickle
-
-
-@dataclass
-class CacheStats:
-    """Статистика кешу"""
-    hits: int = 0
-    misses: int = 0
-    sets: int = 0
-    deletes: int = 0
-    evictions: int = 0
-    memory_usage: int = 0
-    redis_connections: int = 0
-    last_cleanup: Optional[datetime] = None
-
-    @property
-    def hit_rate(self) -> float:
-        """Відсоток попадань в кеш"""
-        total = self.hits + self.misses
-        return (self.hits / total * 100) if total > 0 else 0.0
-
-    def to_dict(self) -> Dict[str, Any]:
-        data = asdict(self)
-        if self.last_cleanup:
-            data['last_cleanup'] = self.last_cleanup.isoformat()
-        return data
+# Константи для кешу
+DEFAULT_TTL = 300  # 5 хвилин
+MAX_MEMORY_ITEMS = 1000
+CLEANUP_INTERVAL = 60  # 1 хвилина
 
 
 class CacheItem:
-    """Елемент кешу"""
+    """Елемент кешу з TTL та метаданими"""
 
-    def __init__(self, value: Any, ttl: Optional[int] = None,
-                 access_count: int = 0, tags: Optional[List[str]] = None):
+    def __init__(self, value: Any, ttl: int = DEFAULT_TTL):
         self.value = value
         self.created_at = time.time()
-        self.expires_at = (time.time() + ttl) if ttl else None
-        self.last_accessed = time.time()
-        self.access_count = access_count
-        self.tags = tags or []
-        self.size = self._calculate_size(value)
+        self.ttl = ttl
+        self.access_count = 0
+        self.last_accessed = self.created_at
 
-    def _calculate_size(self, value: Any) -> int:
-        """Розрахувати розмір об'єкта"""
-        try:
-            if isinstance(value, str):
-                return len(value.encode('utf-8'))
-            elif isinstance(value, (int, float, bool)):
-                return 8
-            elif isinstance(value, (list, dict)):
-                return len(json.dumps(value, default=str).encode('utf-8'))
-            else:
-                return len(pickle.dumps(value))
-        except:
-            return 100  # Приблизний розмір за замовчуванням
+    @property
+    def expires_at(self) -> float:
+        """Час закінчення TTL"""
+        return self.created_at + self.ttl
 
+    @property
     def is_expired(self) -> bool:
-        """Перевірити чи не застарів елемент"""
-        return self.expires_at is not None and time.time() > self.expires_at
+        """Перевірка чи закінчився TTL"""
+        return time.time() > self.expires_at
+
+    @property
+    def remaining_ttl(self) -> float:
+        """Залишковий час життя в секундах"""
+        return max(0, self.expires_at - time.time())
 
     def touch(self):
-        """Оновити час останнього доступу"""
-        self.last_accessed = time.time()
+        """Оновлює час останнього доступу"""
         self.access_count += 1
+        self.last_accessed = time.time()
 
     def to_dict(self) -> Dict[str, Any]:
+        """Конвертує в словник для серіалізації"""
         return {
             'value': self.value,
             'created_at': self.created_at,
-            'expires_at': self.expires_at,
-            'last_accessed': self.last_accessed,
+            'ttl': self.ttl,
             'access_count': self.access_count,
-            'tags': self.tags,
-            'size': self.size
+            'last_accessed': self.last_accessed
         }
 
 
 class MemoryCache:
-    """Локальний кеш в пам'яті"""
+    """In-memory кеш з TTL та LRU евикцією"""
 
-    def __init__(self, config: CacheConfig):
-        self.config = config
+    def __init__(self, max_items: int = MAX_MEMORY_ITEMS):
+        self.max_items = max_items
         self._cache: Dict[str, CacheItem] = {}
-        self._access_order: List[str] = []  # Для LRU
-        self._lock = None  # Lazy initialization для lock
+        self._lock = threading.RLock()
 
-    def _get_lock(self):
-        """Lazy initialization для asyncio.Lock"""
-        if self._lock is None:
-            try:
-                self._lock = asyncio.Lock()
-            except RuntimeError:
-                # Немає event loop, створюємо фіктивний lock
-                self._lock = FakeLock()
-        return self._lock
-
-    async def get(self, key: str) -> Optional[Any]:
-        """Отримати значення з кешу"""
-        async with self._get_lock():
+    def get(self, key: str) -> Optional[Any]:
+        """Отримує значення з кешу"""
+        with self._lock:
             item = self._cache.get(key)
-            if not item:
+            if item is None:
                 return None
 
-            if item.is_expired():
-                await self._delete(key)
+            if item.is_expired:
+                del self._cache[key]
                 return None
 
             item.touch()
-            self._update_access_order(key)
             return item.value
 
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None,
-                  tags: Optional[List[str]] = None) -> bool:
-        """Зберегти значення в кеші"""
-        async with self._get_lock():
-            if ttl is None:
-                ttl = self.config.default_ttl
+    def set(self, key: str, value: Any, ttl: int = DEFAULT_TTL) -> bool:
+        """Зберігає значення в кеші"""
+        with self._lock:
+            # Очищуємо простір якщо потрібно
+            if len(self._cache) >= self.max_items:
+                self._evict_lru()
 
-            item = CacheItem(value, ttl, tags=tags)
-
-            # Перевіряємо ліміти пам'яті
-            if len(self._cache) >= self.config.max_memory_items:
-                await self._evict_items()
-
-            total_size = sum(item.size for item in self._cache.values()) + item.size
-            if total_size > self.config.max_memory_size:
-                await self._evict_by_size()
-
-            self._cache[key] = item
-            self._update_access_order(key)
+            self._cache[key] = CacheItem(value, ttl)
             return True
 
-    async def delete(self, key: str) -> bool:
-        """Видалити елемент з кешу"""
-        async with self._get_lock():
-            return await self._delete(key)
+    def delete(self, key: str) -> bool:
+        """Видаляє ключ з кешу"""
+        with self._lock:
+            return self._cache.pop(key, None) is not None
 
-    async def _delete(self, key: str) -> bool:
-        """Внутрішній метод видалення"""
-        if key in self._cache:
-            del self._cache[key]
-            if key in self._access_order:
-                self._access_order.remove(key)
-            return True
-        return False
-
-    async def clear(self) -> bool:
-        """Очистити весь кеш"""
-        async with self._get_lock():
+    def clear(self) -> bool:
+        """Очищує весь кеш"""
+        with self._lock:
             self._cache.clear()
-            self._access_order.clear()
             return True
 
-    async def exists(self, key: str) -> bool:
-        """Перевірити чи існує ключ"""
-        async with self._get_lock():
+    def exists(self, key: str) -> bool:
+        """Перевіряє існування ключа"""
+        with self._lock:
             item = self._cache.get(key)
-            if not item:
+            if item is None:
                 return False
-            if item.is_expired():
-                await self._delete(key)
+
+            if item.is_expired:
+                del self._cache[key]
                 return False
+
             return True
 
-    async def get_by_tags(self, tags: List[str]) -> Dict[str, Any]:
-        """Отримати всі елементи з вказаними тегами"""
-        async with self._get_lock():
-            result = {}
-            for key, item in self._cache.items():
-                if item.is_expired():
-                    continue
-                if any(tag in item.tags for tag in tags):
-                    result[key] = item.value
-            return result
+    def size(self) -> int:
+        """Повертає кількість елементів в кеші"""
+        with self._lock:
+            return len(self._cache)
 
-    async def delete_by_tags(self, tags: List[str]) -> int:
-        """Видалити всі елементи з вказаними тегами"""
-        async with self._get_lock():
-            keys_to_delete = []
-            for key, item in self._cache.items():
-                if any(tag in item.tags for tag in tags):
-                    keys_to_delete.append(key)
-
-            for key in keys_to_delete:
-                await self._delete(key)
-
-            return len(keys_to_delete)
-
-    def _update_access_order(self, key: str):
-        """Оновити порядок доступу для LRU"""
-        if key in self._access_order:
-            self._access_order.remove(key)
-        self._access_order.append(key)
-
-    async def _evict_items(self):
-        """Видалити елементи згідно з політикою"""
-        if self.config.policy == CachePolicy.LRU:
-            # Видаляємо найменш нещодавно використовувані
-            keys_to_remove = self._access_order[:len(self._access_order) // 4]
-            for key in keys_to_remove:
-                await self._delete(key)
-
-        elif self.config.policy == CachePolicy.LFU:
-            # Видаляємо найменш часто використовувані
-            items = [(key, item.access_count) for key, item in self._cache.items()]
-            items.sort(key=lambda x: x[1])
-            keys_to_remove = [key for key, _ in items[:len(items) // 4]]
-            for key in keys_to_remove:
-                await self._delete(key)
-
-    async def _evict_by_size(self):
-        """Видалити елементи для звільнення пам'яті"""
-        target_size = self.config.max_memory_size * 0.75  # 75% від ліміту
-        current_size = sum(item.size for item in self._cache.values())
-
-        # Сортуємо за розміром (спочатку найбільші)
-        items = sorted(self._cache.items(), key=lambda x: x[1].size, reverse=True)
-
-        for key, item in items:
-            if current_size <= target_size:
-                break
-            current_size -= item.size
-            await self._delete(key)
-
-    async def cleanup_expired(self) -> int:
-        """Очистити застарілі елементи"""
-        async with self._get_lock():
+    def cleanup_expired(self) -> int:
+        """Видаляє прострочені елементи"""
+        with self._lock:
             expired_keys = []
+            current_time = time.time()
+
             for key, item in self._cache.items():
-                if item.is_expired():
+                if item.created_at + item.ttl < current_time:
                     expired_keys.append(key)
 
             for key in expired_keys:
-                await self._delete(key)
+                del self._cache[key]
 
             return len(expired_keys)
 
-    async def get_stats(self) -> Dict[str, Any]:
-        """Отримати статистику кешу"""
-        async with self._get_lock():
-            total_size = sum(item.size for item in self._cache.values())
+    def _evict_lru(self):
+        """Видаляє найменш використовувані елементи"""
+        if not self._cache:
+            return
+
+        # Сортуємо за часом останнього доступу
+        sorted_items = sorted(
+            self._cache.items(),
+            key=lambda x: x[1].last_accessed
+        )
+
+        # Видаляємо 10% найстаріших
+        to_remove = max(1, len(sorted_items) // 10)
+        for i in range(to_remove):
+            key, _ = sorted_items[i]
+            del self._cache[key]
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Статистика кешу"""
+        with self._lock:
+            total_access = sum(item.access_count for item in self._cache.values())
+
             return {
-                'type': 'memory',
-                'items': len(self._cache),
-                'size_bytes': total_size,
-                'size_mb': round(total_size / 1024 / 1024, 2),
-                'max_items': self.config.max_memory_items,
-                'max_size_mb': self.config.max_memory_size / 1024 / 1024
+                'total_items': len(self._cache),
+                'max_items': self.max_items,
+                'total_accesses': total_access,
+                'memory_usage_percent': (len(self._cache) / self.max_items) * 100
             }
-
-
-class FakeLock:
-    """Фіктивний lock для випадків коли немає event loop"""
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
 
 
 class RedisCache:
-    """Redis кеш"""
+    """Redis кеш (заглушка для майбутньої реалізації)"""
 
-    def __init__(self, config: CacheConfig):
-        self.config = config
-        self._redis: Optional[redis.Redis] = None
-        self._connect()
+    def __init__(self, redis_url: Optional[str] = None):
+        self.redis_url = redis_url
+        self._connected = False
 
-    def _connect(self):
-        """Підключитися до Redis"""
-        try:
-            self._redis = redis.Redis(
-                host=self.config.redis_host,
-                port=self.config.redis_port,
-                db=self.config.redis_db,
-                password=self.config.redis_password,
-                decode_responses=False,  # Для підтримки binary даних
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                retry_on_timeout=True,
-                health_check_interval=30
-            )
+        # Спроба підключення до Redis
+        if redis_url:
+            try:
+                import redis
+                self._redis = redis.from_url(redis_url, decode_responses=True)
+                # Тестове підключення
+                self._redis.ping()
+                self._connected = True
+                logger.info(f"✅ Підключено до Redis: {redis_url}")
+            except Exception as e:
+                logger.warning(f"⚠️ Не вдалося підключитися до Redis: {e}")
+                self._connected = False
 
-            # Перевіряємо з'єднання
-            self._redis.ping()
-            logger.info(f"✅ Підключено до Redis: {self.config.redis_host}:{self.config.redis_port}")
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
 
-        except Exception as e:
-            logger.error(f"❌ Помилка підключення до Redis: {str(e)}")
-            self._redis = None
-
-    def _make_key(self, key: str) -> str:
-        """Створити ключ з префіксом"""
-        return f"{self.config.redis_prefix}{key}"
-
-    def _serialize(self, value: Any) -> bytes:
-        """Серіалізувати значення"""
-        try:
-            if self.config.serialization == "json":
-                return json.dumps(value, default=str, ensure_ascii=False).encode('utf-8')
-            else:  # pickle
-                return pickle.dumps(value)
-        except Exception as e:
-            logger.error(f"Помилка серіалізації: {str(e)}")
-            return pickle.dumps(value)
-
-    def _deserialize(self, data: bytes) -> Any:
-        """Десеріалізувати значення"""
-        try:
-            if self.config.serialization == "json":
-                return json.loads(data.decode('utf-8'))
-            else:  # pickle
-                return pickle.loads(data)
-        except json.JSONDecodeError:
-            # Fallback на pickle
-            return pickle.loads(data)
-        except Exception as e:
-            logger.error(f"Помилка десеріалізації: {str(e)}")
-            return None
-
-    async def get(self, key: str) -> Optional[Any]:
-        """Отримати значення з Redis"""
-        if not self._redis:
+    def get(self, key: str) -> Optional[Any]:
+        """Отримує значення з Redis"""
+        if not self._connected:
             return None
 
         try:
-            redis_key = self._make_key(key)
-            data = self._redis.get(redis_key)
-
-            if data is None:
+            value = self._redis.get(key)
+            if value is None:
                 return None
-
-            return self._deserialize(data)
-
+            return json.loads(value)
         except Exception as e:
-            logger.error(f"Помилка отримання з Redis {key}: {str(e)}")
+            logger.error(f"Помилка читання з Redis: {e}")
             return None
 
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None,
-                  tags: Optional[List[str]] = None) -> bool:
-        """Зберегти значення в Redis"""
-        if not self._redis:
+    def set(self, key: str, value: Any, ttl: int = DEFAULT_TTL) -> bool:
+        """Зберігає значення в Redis"""
+        if not self._connected:
             return False
 
         try:
-            redis_key = self._make_key(key)
-            data = self._serialize(value)
-
-            if ttl is None:
-                ttl = self.config.default_ttl
-
-            result = self._redis.setex(redis_key, ttl, data)
-
-            # Зберігаємо теги окремо
-            if tags:
-                for tag in tags:
-                    tag_key = self._make_key(f"tag:{tag}")
-                    self._redis.sadd(tag_key, key)
-                    self._redis.expire(tag_key, ttl + 60)  # Трохи довше ніж основний ключ
-
-            return bool(result)
-
-        except Exception as e:
-            logger.error(f"Помилка збереження в Redis {key}: {str(e)}")
-            return False
-
-    async def delete(self, key: str) -> bool:
-        """Видалити елемент з Redis"""
-        if not self._redis:
-            return False
-
-        try:
-            redis_key = self._make_key(key)
-            result = self._redis.delete(redis_key)
-            return bool(result)
-
-        except Exception as e:
-            logger.error(f"Помилка видалення з Redis {key}: {str(e)}")
-            return False
-
-    async def clear(self) -> bool:
-        """Очистити всі ключі з префіксом"""
-        if not self._redis:
-            return False
-
-        try:
-            pattern = f"{self.config.redis_prefix}*"
-            keys = self._redis.keys(pattern)
-
-            if keys:
-                self._redis.delete(*keys)
-
+            json_value = json.dumps(value, default=str)
+            self._redis.setex(key, ttl, json_value)
             return True
-
         except Exception as e:
-            logger.error(f"Помилка очищення Redis: {str(e)}")
+            logger.error(f"Помилка запису в Redis: {e}")
             return False
 
-    async def exists(self, key: str) -> bool:
-        """Перевірити чи існує ключ"""
-        if not self._redis:
+    def delete(self, key: str) -> bool:
+        """Видаляє ключ з Redis"""
+        if not self._connected:
             return False
 
         try:
-            redis_key = self._make_key(key)
-            return bool(self._redis.exists(redis_key))
-
+            return bool(self._redis.delete(key))
         except Exception as e:
-            logger.error(f"Помилка перевірки існування в Redis {key}: {str(e)}")
+            logger.error(f"Помилка видалення з Redis: {e}")
             return False
 
-    async def get_by_tags(self, tags: List[str]) -> Dict[str, Any]:
-        """Отримати всі елементи з вказаними тегами"""
-        if not self._redis:
-            return {}
+    def clear(self) -> bool:
+        """Очищує Redis (обережно!)"""
+        if not self._connected:
+            return False
 
         try:
-            all_keys = set()
-            for tag in tags:
-                tag_key = self._make_key(f"tag:{tag}")
-                keys = self._redis.smembers(tag_key)
-                all_keys.update(key.decode('utf-8') if isinstance(key, bytes) else key for key in keys)
-
-            result = {}
-            for key in all_keys:
-                value = await self.get(key)
-                if value is not None:
-                    result[key] = value
-
-            return result
-
+            self._redis.flushdb()
+            return True
         except Exception as e:
-            logger.error(f"Помилка отримання по тегах з Redis: {str(e)}")
-            return {}
+            logger.error(f"Помилка очищення Redis: {e}")
+            return False
 
-    async def delete_by_tags(self, tags: List[str]) -> int:
-        """Видалити всі елементи з вказаними тегами"""
-        if not self._redis:
-            return 0
+    def exists(self, key: str) -> bool:
+        """Перевіряє існування ключа в Redis"""
+        if not self._connected:
+            return False
 
         try:
-            all_keys = set()
-            for tag in tags:
-                tag_key = self._make_key(f"tag:{tag}")
-                keys = self._redis.smembers(tag_key)
-                all_keys.update(key.decode('utf-8') if isinstance(key, bytes) else key for key in keys)
-
-            deleted_count = 0
-            for key in all_keys:
-                if await self.delete(key):
-                    deleted_count += 1
-
-            # Видаляємо також ключі тегів
-            for tag in tags:
-                tag_key = self._make_key(f"tag:{tag}")
-                self._redis.delete(tag_key)
-
-            return deleted_count
-
+            return bool(self._redis.exists(key))
         except Exception as e:
-            logger.error(f"Помилка видалення по тегах з Redis: {str(e)}")
-            return 0
-
-    async def get_stats(self) -> Dict[str, Any]:
-        """Отримати статистику Redis"""
-        if not self._redis:
-            return {'type': 'redis', 'connected': False}
-
-        try:
-            info = self._redis.info()
-            memory_info = self._redis.info('memory')
-
-            return {
-                'type': 'redis',
-                'connected': True,
-                'version': info.get('redis_version'),
-                'used_memory': memory_info.get('used_memory'),
-                'used_memory_human': memory_info.get('used_memory_human'),
-                'connected_clients': info.get('connected_clients'),
-                'total_commands_processed': info.get('total_commands_processed'),
-                'keyspace_hits': info.get('keyspace_hits', 0),
-                'keyspace_misses': info.get('keyspace_misses', 0)
-            }
-
-        except Exception as e:
-            logger.error(f"Помилка отримання статистики Redis: {str(e)}")
-            return {'type': 'redis', 'connected': False, 'error': str(e)}
+            logger.error(f"Помилка перевірки існування в Redis: {e}")
+            return False
 
 
 class CacheManager:
-    """Головний менеджер кешування"""
+    """
+    Головний менеджер кешу з підтримкою Redis та in-memory
+    Виправлена версія без async проблем
+    """
 
-    def __init__(self, config: Optional[CacheConfig] = None, start_cleanup: bool = True):
-        self.config = config or self._load_config()
-        self.stats = CacheStats()
-        self._cleanup_task = None
-        self._cleanup_started = False
+    def __init__(self,
+                 redis_url: Optional[str] = None,
+                 enable_memory_cache: bool = True,
+                 auto_start_cleanup: bool = False):
+        """
+        Ініціалізація менеджера кешу
+
+        Args:
+            redis_url: URL для підключення до Redis
+            enable_memory_cache: Чи використовувати in-memory кеш
+            auto_start_cleanup: Чи автоматично запускати cleanup task
+        """
+        self.redis_url = redis_url
+        self.enable_memory_cache = enable_memory_cache
 
         # Ініціалізуємо кеші
-        self.memory_cache = MemoryCache(self.config)
-        self.redis_cache = RedisCache(self.config) if self.config.type != CacheType.MEMORY else None
+        self.redis_cache = RedisCache(redis_url) if redis_url else None
+        self.memory_cache = MemoryCache() if enable_memory_cache else None
 
-        # Запускаємо періодичну очистку тільки якщо дозволено
-        if start_cleanup:
-            self._start_cleanup_task()
+        # Cleanup task контроль
+        self._cleanup_task = None
+        self._cleanup_running = False
+        self._should_stop_cleanup = False
 
-    def _load_config(self) -> CacheConfig:
-        """Завантажити конфігурацію з змінних середовища"""
-        return CacheConfig(
-            type=CacheType(os.getenv('CACHE_TYPE', 'hybrid')),
-            default_ttl=int(os.getenv('CACHE_DEFAULT_TTL', '300')),
-            max_memory_items=int(os.getenv('CACHE_MAX_MEMORY_ITEMS', '1000')),
-            redis_host=os.getenv('REDIS_HOST', 'localhost'),
-            redis_port=int(os.getenv('REDIS_PORT', '6379')),
-            redis_db=int(os.getenv('REDIS_DB', '0')),
-            redis_password=os.getenv('REDIS_PASSWORD'),
-            redis_prefix=os.getenv('REDIS_PREFIX', 'winix:'),
-            compression=os.getenv('CACHE_COMPRESSION', 'true').lower() == 'true',
-            serialization=os.getenv('CACHE_SERIALIZATION', 'json')
-        )
-
-    async def get(self, key: str) -> Optional[Any]:
-        """Отримати значення з кешу"""
-        # Спочатку перевіряємо пам'ять
-        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-            value = await self.memory_cache.get(key)
-            if value is not None:
-                self.stats.hits += 1
-                return value
-
-        # Потім Redis
-        if self.redis_cache and self.config.type in [CacheType.REDIS, CacheType.HYBRID]:
-            value = await self.redis_cache.get(key)
-            if value is not None:
-                self.stats.hits += 1
-
-                # Для гібридного режиму зберігаємо в пам'яті
-                if self.config.type == CacheType.HYBRID:
-                    await self.memory_cache.set(key, value, ttl=60)  # Коротший TTL в пам'яті
-
-                return value
-
-        self.stats.misses += 1
-        return None
-
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None,
-                  tags: Optional[List[str]] = None) -> bool:
-        """Зберегти значення в кеші"""
-        success = False
-
-        # Зберігаємо в пам'яті
-        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-            success = await self.memory_cache.set(key, value, ttl, tags) or success
-
-        # Зберігаємо в Redis
-        if self.redis_cache and self.config.type in [CacheType.REDIS, CacheType.HYBRID]:
-            success = await self.redis_cache.set(key, value, ttl, tags) or success
-
-        if success:
-            self.stats.sets += 1
-
-        return success
-
-    async def delete(self, key: str) -> bool:
-        """Видалити елемент з кешу"""
-        success = False
-
-        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-            success = await self.memory_cache.delete(key) or success
-
-        if self.redis_cache and self.config.type in [CacheType.REDIS, CacheType.HYBRID]:
-            success = await self.redis_cache.delete(key) or success
-
-        if success:
-            self.stats.deletes += 1
-
-        return success
-
-    async def clear(self) -> bool:
-        """Очистити весь кеш"""
-        success = False
-
-        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-            success = await self.memory_cache.clear() or success
-
-        if self.redis_cache and self.config.type in [CacheType.REDIS, CacheType.HYBRID]:
-            success = await self.redis_cache.clear() or success
-
-        return success
-
-    async def exists(self, key: str) -> bool:
-        """Перевірити чи існує ключ"""
-        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-            if await self.memory_cache.exists(key):
-                return True
-
-        if self.redis_cache and self.config.type in [CacheType.REDIS, CacheType.HYBRID]:
-            return await self.redis_cache.exists(key)
-
-        return False
-
-    async def get_by_tags(self, tags: List[str]) -> Dict[str, Any]:
-        """Отримати всі елементи з вказаними тегами"""
-        result = {}
-
-        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-            memory_result = await self.memory_cache.get_by_tags(tags)
-            result.update(memory_result)
-
-        if self.redis_cache and self.config.type in [CacheType.REDIS, CacheType.HYBRID]:
-            redis_result = await self.redis_cache.get_by_tags(tags)
-            result.update(redis_result)
-
-        return result
-
-    async def delete_by_tags(self, tags: List[str]) -> int:
-        """Видалити всі елементи з вказаними тегами"""
-        total_deleted = 0
-
-        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-            total_deleted += await self.memory_cache.delete_by_tags(tags)
-
-        if self.redis_cache and self.config.type in [CacheType.REDIS, CacheType.HYBRID]:
-            total_deleted += await self.redis_cache.delete_by_tags(tags)
-
-        return total_deleted
-
-    async def get_stats(self) -> Dict[str, Any]:
-        """Отримати детальну статистику"""
-        stats = self.stats.to_dict()
-
-        # Додаємо статистику окремих кешів
-        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-            stats['memory'] = await self.memory_cache.get_stats()
-
-        if self.redis_cache and self.config.type in [CacheType.REDIS, CacheType.HYBRID]:
-            stats['redis'] = await self.redis_cache.get_stats()
-
-        stats['config'] = {
-            'type': self.config.type.value,
-            'policy': self.config.policy.value,
-            'default_ttl': self.config.default_ttl
+        # Статистика
+        self._stats = {
+            'hits': 0,
+            'misses': 0,
+            'sets': 0,
+            'deletes': 0,
+            'errors': 0
         }
+
+        # Автоматичний запуск cleanup якщо дозволено
+        if auto_start_cleanup:
+            try:
+                self.start_cleanup_task()
+            except Exception as e:
+                logger.warning(f"⚠️ Не вдалося запустити cleanup task: {e}")
+
+    def start_cleanup_task(self):
+        """Запускає cleanup task (викликати після створення event loop)"""
+        try:
+            # Перевіряємо чи є event loop
+            loop = asyncio.get_running_loop()
+
+            if self._cleanup_task is None or self._cleanup_task.done():
+                self._should_stop_cleanup = False
+                self._cleanup_task = loop.create_task(self._cleanup_loop())
+                logger.info("✅ Cleanup task запущено")
+                return True
+        except RuntimeError:
+            logger.debug("Немає event loop для cleanup task")
+            return False
+        except Exception as e:
+            logger.error(f"Помилка запуску cleanup task: {e}")
+            return False
+
+    def stop_cleanup_task(self):
+        """Зупиняє cleanup task"""
+        self._should_stop_cleanup = True
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
+            logger.info("🛑 Cleanup task зупинено")
+
+    async def _cleanup_loop(self):
+        """Основний цикл очищення кешу"""
+        self._cleanup_running = True
+
+        try:
+            while not self._should_stop_cleanup:
+                try:
+                    # Очищуємо memory cache
+                    if self.memory_cache:
+                        expired_count = self.memory_cache.cleanup_expired()
+                        if expired_count > 0:
+                            logger.debug(f"Очищено {expired_count} прострочених записів з memory cache")
+
+                    # Чекаємо перед наступною ітерацією
+                    await asyncio.sleep(CLEANUP_INTERVAL)
+
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error(f"Помилка в cleanup loop: {e}")
+                    await asyncio.sleep(CLEANUP_INTERVAL)
+
+        finally:
+            self._cleanup_running = False
+            logger.debug("Cleanup loop завершено")
+
+    def _generate_key(self, key: str, namespace: str = "") -> str:
+        """Генерує фінальний ключ з namespace"""
+        if namespace:
+            return f"{namespace}:{key}"
+        return key
+
+    def get(self, key: str, namespace: str = "", default: Any = None) -> Any:
+        """
+        Отримує значення з кешу
+
+        Args:
+            key: Ключ для пошуку
+            namespace: Простір імен
+            default: Значення за замовчуванням
+
+        Returns:
+            Значення з кешу або default
+        """
+        final_key = self._generate_key(key, namespace)
+
+        try:
+            # Спочатку перевіряємо Redis
+            if self.redis_cache and self.redis_cache.is_connected:
+                value = self.redis_cache.get(final_key)
+                if value is not None:
+                    self._stats['hits'] += 1
+                    return value
+
+            # Потім memory cache
+            if self.memory_cache:
+                value = self.memory_cache.get(final_key)
+                if value is not None:
+                    self._stats['hits'] += 1
+                    return value
+
+            # Нічого не знайдено
+            self._stats['misses'] += 1
+            return default
+
+        except Exception as e:
+            self._stats['errors'] += 1
+            logger.error(f"Помилка отримання з кешу {final_key}: {e}")
+            return default
+
+    def set(self,
+            key: str,
+            value: Any,
+            ttl: int = DEFAULT_TTL,
+            namespace: str = "") -> bool:
+        """
+        Зберігає значення в кеші
+
+        Args:
+            key: Ключ для збереження
+            value: Значення для збереження
+            ttl: Час життя в секундах
+            namespace: Простір імен
+
+        Returns:
+            True якщо збережено успішно
+        """
+        final_key = self._generate_key(key, namespace)
+        success = False
+
+        try:
+            # Зберігаємо в Redis
+            if self.redis_cache and self.redis_cache.is_connected:
+                if self.redis_cache.set(final_key, value, ttl):
+                    success = True
+
+            # Зберігаємо в memory cache
+            if self.memory_cache:
+                if self.memory_cache.set(final_key, value, ttl):
+                    success = True
+
+            if success:
+                self._stats['sets'] += 1
+
+            return success
+
+        except Exception as e:
+            self._stats['errors'] += 1
+            logger.error(f"Помилка збереження в кеші {final_key}: {e}")
+            return False
+
+    def delete(self, key: str, namespace: str = "") -> bool:
+        """
+        Видаляє ключ з кешу
+
+        Args:
+            key: Ключ для видалення
+            namespace: Простір імен
+
+        Returns:
+            True якщо видалено
+        """
+        final_key = self._generate_key(key, namespace)
+        deleted = False
+
+        try:
+            # Видаляємо з Redis
+            if self.redis_cache and self.redis_cache.is_connected:
+                if self.redis_cache.delete(final_key):
+                    deleted = True
+
+            # Видаляємо з memory cache
+            if self.memory_cache:
+                if self.memory_cache.delete(final_key):
+                    deleted = True
+
+            if deleted:
+                self._stats['deletes'] += 1
+
+            return deleted
+
+        except Exception as e:
+            self._stats['errors'] += 1
+            logger.error(f"Помилка видалення з кешу {final_key}: {e}")
+            return False
+
+    def exists(self, key: str, namespace: str = "") -> bool:
+        """Перевіряє існування ключа"""
+        final_key = self._generate_key(key, namespace)
+
+        try:
+            # Перевіряємо Redis
+            if self.redis_cache and self.redis_cache.is_connected:
+                if self.redis_cache.exists(final_key):
+                    return True
+
+            # Перевіряємо memory cache
+            if self.memory_cache:
+                if self.memory_cache.exists(final_key):
+                    return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"Помилка перевірки існування {final_key}: {e}")
+            return False
+
+    def clear(self, namespace: str = "") -> bool:
+        """Очищує кеш"""
+        try:
+            success = True
+
+            if namespace:
+                # Очищаємо тільки конкретний namespace (складно реалізувати)
+                logger.warning("Очищення по namespace поки не підтримується")
+                return False
+            else:
+                # Очищаємо весь кеш
+                if self.redis_cache and self.redis_cache.is_connected:
+                    success &= self.redis_cache.clear()
+
+                if self.memory_cache:
+                    success &= self.memory_cache.clear()
+
+            return success
+
+        except Exception as e:
+            logger.error(f"Помилка очищення кешу: {e}")
+            return False
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Отримує статистику кешу"""
+        stats = self._stats.copy()
+
+        # Додаємо інформацію про кеші
+        stats.update({
+            'redis_connected': self.redis_cache.is_connected if self.redis_cache else False,
+            'memory_cache_enabled': self.memory_cache is not None,
+            'cleanup_running': self._cleanup_running,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
+
+        # Статистика memory cache
+        if self.memory_cache:
+            stats['memory_cache'] = self.memory_cache.get_stats()
 
         return stats
 
-    def _start_cleanup_task(self):
-        """Запустити фонову задачу очищення (з перевіркою event loop)"""
-        if self._cleanup_started:
-            return
+    def invalidate_pattern(self, pattern: str, namespace: str = "") -> int:
+        """Видаляє ключі за патерном (поки тільки prefix)"""
+        # Поки що проста реалізація - тільки для memory cache
+        if not self.memory_cache:
+            return 0
+
+        prefix = self._generate_key(pattern, namespace)
+        deleted = 0
 
         try:
-            # Перевіряємо чи є запущений event loop
-            asyncio.get_running_loop()
+            keys_to_delete = []
+            for key in self.memory_cache._cache.keys():
+                if key.startswith(prefix):
+                    keys_to_delete.append(key)
 
-            async def cleanup_task():
-                while True:
-                    try:
-                        await asyncio.sleep(300)  # Кожні 5 хвилин
+            for key in keys_to_delete:
+                if self.memory_cache.delete(key.replace(f"{namespace}:" if namespace else "", "")):
+                    deleted += 1
 
-                        expired_count = 0
-                        if self.config.type in [CacheType.MEMORY, CacheType.HYBRID]:
-                            expired_count += await self.memory_cache.cleanup_expired()
-
-                        if expired_count > 0:
-                            logger.info(f"Очищено {expired_count} застарілих елементів кешу")
-                            self.stats.evictions += expired_count
-                            self.stats.last_cleanup = datetime.now(timezone.utc)
-
-                    except Exception as e:
-                        logger.error(f"Помилка очищення кешу: {str(e)}")
-
-            self._cleanup_task = asyncio.create_task(cleanup_task())
-            self._cleanup_started = True
-            logger.info("✅ Cleanup task запущено")
-
-        except RuntimeError:
-            # Немає запущеного event loop - відкладаємо запуск
-            logger.info("⏳ Cleanup task буде запущено пізніше (немає event loop)")
-
-    def start_cleanup_if_needed(self):
-        """Запустити cleanup task якщо ще не запущено та є event loop"""
-        if not self._cleanup_started:
-            self._start_cleanup_task()
-
-
-# ===============================
-# ВИПРАВЛЕННЯ: Lazy initialization
-# ===============================
-
-# Глобальна змінна для lazy initialization
-_cache_manager_instance = None
-
-def get_cache_manager() -> CacheManager:
-    """
-    Lazy initialization для CacheManager
-    Створює CacheManager тільки при першому запиті
-    """
-    global _cache_manager_instance
-
-    if _cache_manager_instance is None:
-        try:
-            # Перевіряємо чи є запущений event loop
-            try:
-                asyncio.get_running_loop()
-                # Event loop запущено, можемо створювати CacheManager з cleanup
-                _cache_manager_instance = CacheManager(start_cleanup=True)
-            except RuntimeError:
-                # Немає запущеного event loop, створюємо CacheManager без cleanup
-                _cache_manager_instance = CacheManager(start_cleanup=False)
+            return deleted
 
         except Exception as e:
-            logger.error(f"Помилка створення CacheManager: {e}")
-            # Fallback: створюємо базовий CacheManager
-            _cache_manager_instance = CacheManager(start_cleanup=False)
-
-    # Якщо cleanup ще не запущено, спробуємо запустити
-    if hasattr(_cache_manager_instance, 'start_cleanup_if_needed'):
-        _cache_manager_instance.start_cleanup_if_needed()
-
-    return _cache_manager_instance
+            logger.error(f"Помилка invalidate_pattern: {e}")
+            return 0
 
 
-class CacheManagerProxy:
+# ✅ ГЛОБАЛЬНІ ЗМІННІ ДЛЯ LAZY INITIALIZATION
+
+_cache_manager_instance = None
+_initialization_attempted = False
+_initialization_lock = threading.Lock()
+
+
+def get_cache_manager(redis_url: Optional[str] = None) -> Optional[CacheManager]:
     """
-    Proxy для lazy initialization CacheManager
-    Забезпечує зворотну сумісність з глобальним cache_manager
+    Отримує глобальний екземпляр CacheManager з lazy initialization
+
+    Args:
+        redis_url: URL Redis для першої ініціалізації
+
+    Returns:
+        CacheManager або None якщо не вдалося ініціалізувати
+    """
+    global _cache_manager_instance, _initialization_attempted
+
+    # Якщо вже є екземпляр - повертаємо його
+    if _cache_manager_instance is not None:
+        return _cache_manager_instance
+
+    # Thread-safe ініціалізація
+    with _initialization_lock:
+        # Двойна перевірка
+        if _cache_manager_instance is not None:
+            return _cache_manager_instance
+
+        if _initialization_attempted:
+            return None
+
+        _initialization_attempted = True
+
+        try:
+            # Створюємо manager без автоматичного cleanup
+            _cache_manager_instance = CacheManager(
+                redis_url=redis_url,
+                enable_memory_cache=True,
+                auto_start_cleanup=False  # НЕ запускаємо async task автоматично
+            )
+
+            logger.info("✅ CacheManager ініціалізовано (lazy)")
+            return _cache_manager_instance
+
+        except Exception as e:
+            logger.error(f"❌ Помилка ініціалізації CacheManager: {e}")
+            return None
+
+
+def start_cache_cleanup():
+    """
+    Запускає cleanup task для глобального cache manager
+    Викликати після створення event loop
+    """
+    manager = get_cache_manager()
+    if manager:
+        return manager.start_cleanup_task()
+    return False
+
+
+# ✅ PROXY КЛАС ДЛЯ ЗВОРОТНОЇ СУМІСНОСТІ
+
+class _CacheManagerProxy:
+    """
+    Proxy об'єкт для зворотної сумісності з існуючим кодом
+    Автоматично викликає get_cache_manager() при доступі до методів
     """
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         manager = get_cache_manager()
+        if manager is None:
+            # Fallback для випадків коли manager недоступний
+            if name in ['get', 'set', 'delete', 'exists', 'clear']:
+                return self._create_fallback_method(name)
+            raise AttributeError(f"CacheManager недоступний. Метод '{name}' не може бути викликаний.")
+
         return getattr(manager, name)
 
-    def __call__(self, *args, **kwargs):
+    def _create_fallback_method(self, method_name: str):
+        """Створює fallback метод який не робить нічого"""
+        def fallback(*args, **kwargs):
+            logger.warning(f"CacheManager недоступний, {method_name} ігнорується")
+            if method_name == 'get':
+                return kwargs.get('default')
+            return False
+        return fallback
+
+    def __bool__(self):
+        return get_cache_manager() is not None
+
+    def __repr__(self):
         manager = get_cache_manager()
-        return manager(*args, **kwargs)
+        if manager:
+            return f"<CacheManagerProxy: {manager}>"
+        return "<CacheManagerProxy: Manager не ініціалізовано>"
 
 
-# Експортуємо proxy як cache_manager для зворотної сумісності
-cache_manager = CacheManagerProxy()
+# ✅ ГЛОБАЛЬНИЙ ОБ'ЄКТ ДЛЯ ЕКСПОРТУ
+
+# ЗАМІСТЬ: cache_manager = CacheManager()  # ❌ Викликає async проблеми
+cache_manager = _CacheManagerProxy()  # ✅ Безпечний proxy об'єкт
 
 
-# Декоратори для кешування
-def cache(ttl: Optional[int] = None, tags: Optional[List[str]] = None,
-          key_func: Optional[Callable] = None):
+# ✅ UTILITY ФУНКЦІЇ
+
+def cache_key_for_user(user_id: str, operation: str) -> str:
+    """Генерує ключ кешу для користувача"""
+    return f"user:{user_id}:{operation}"
+
+
+def cache_key_for_data(data_type: str, identifier: str) -> str:
+    """Генерує ключ кешу для даних"""
+    return f"data:{data_type}:{identifier}"
+
+
+def hash_key(key: str) -> str:
+    """Створює хеш від ключа для коротших імен"""
+    return hashlib.md5(key.encode()).hexdigest()
+
+
+# ✅ ДЕКОРАТОРИ ДЛЯ КЕШУВАННЯ
+
+def cached(ttl: int = DEFAULT_TTL, namespace: str = ""):
     """
     Декоратор для кешування результатів функцій
 
     Args:
-        ttl: Час життя в секундах
-        tags: Теги для групування
-        key_func: Функція для генерації ключа кешу
+        ttl: Час життя кешу в секундах
+        namespace: Простір імен для кешу
     """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            # Генеруємо ключ з назви функції та аргументів
+            key_data = f"{func.__name__}:{str(args)}:{str(sorted(kwargs.items()))}"
+            cache_key = hash_key(key_data)
 
-    def decorator(func: F) -> F:
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            # Отримуємо менеджер кешу
-            manager = get_cache_manager()
-
-            # Генеруємо ключ кешу
-            if key_func:
-                cache_key = key_func(*args, **kwargs)
-            else:
-                cache_key = _generate_cache_key(func.__name__, args, kwargs)
-
-            # Перевіряємо кеш
-            cached_result = await manager.get(cache_key)
+            # Спробуємо отримати з кешу
+            cached_result = cache_manager.get(cache_key, namespace)
             if cached_result is not None:
                 return cached_result
 
-            # Виконуємо функцію
-            if asyncio.iscoroutinefunction(func):
-                result = await func(*args, **kwargs)
-            else:
-                result = func(*args, **kwargs)
-
-            # Зберігаємо в кеші
-            await manager.set(cache_key, result, ttl, tags)
+            # Виконуємо функцію та кешуємо результат
+            result = func(*args, **kwargs)
+            cache_manager.set(cache_key, result, ttl, namespace)
 
             return result
-
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            return asyncio.run(async_wrapper(*args, **kwargs))
-
-        if asyncio.iscoroutinefunction(func):
-            return async_wrapper
-        else:
-            return sync_wrapper
-
+        return wrapper
     return decorator
 
 
-def cache_invalidate(tags: Optional[List[str]] = None, key: Optional[str] = None):
-    """
-    Декоратор для інвалідації кешу після виконання функції
+# ✅ ІНІЦІАЛІЗАЦІЯ ПРИ ІМПОРТІ
 
-    Args:
-        tags: Теги для видалення
-        key: Конкретний ключ для видалення
-    """
+logger.info("📦 Cache модуль завантажено (без async ініціалізації)")
 
-    def decorator(func: F) -> F:
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            # Виконуємо функцію
-            if asyncio.iscoroutinefunction(func):
-                result = await func(*args, **kwargs)
-            else:
-                result = func(*args, **kwargs)
-
-            # Інвалідуємо кеш
-            manager = get_cache_manager()
-            if key:
-                await manager.delete(key)
-            elif tags:
-                await manager.delete_by_tags(tags)
-
-            return result
-
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            return asyncio.run(async_wrapper(*args, **kwargs))
-
-        if asyncio.iscoroutinefunction(func):
-            return async_wrapper
-        else:
-            return sync_wrapper
-
-    return decorator
-
-
-def _generate_cache_key(func_name: str, args: tuple, kwargs: dict) -> str:
-    """Генерувати ключ кешу на основі функції та аргументів"""
-    # Створюємо хеш від аргументів
-    args_str = json.dumps(args, default=str, sort_keys=True)
-    kwargs_str = json.dumps(kwargs, default=str, sort_keys=True)
-
-    combined = f"{func_name}:{args_str}:{kwargs_str}"
-    return hashlib.md5(combined.encode()).hexdigest()
-
-
-# Експорт
+# Експортуємо головні об'єкти
 __all__ = [
-    'CacheType',
-    'CachePolicy',
-    'CacheConfig',
-    'CacheStats',
-    'CacheManager',
     'cache_manager',
     'get_cache_manager',
-    'cache',
-    'cache_invalidate'
+    'start_cache_cleanup',
+    'CacheManager',
+    'cached',
+    'cache_key_for_user',
+    'cache_key_for_data'
 ]
