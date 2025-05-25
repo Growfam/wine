@@ -8,6 +8,51 @@ window.TelegramValidator = (function() {
 
     console.log('🔐 [TelegramValidator] ===== ІНІЦІАЛІЗАЦІЯ МОДУЛЯ ВАЛІДАЦІЇ TELEGRAM (PRODUCTION) =====');
 
+    // Стан модуля
+    const moduleState = {
+        isInitialized: false,
+        apiAvailable: false,
+        lastApiCheck: 0,
+        retryCount: 0,
+        maxRetries: 3
+    };
+
+    /**
+     * Перевірка доступності API перед валідацією
+     */
+    async function checkApiAvailability() {
+        console.log('🔍 [TelegramValidator] Перевірка доступності API...');
+
+        const now = Date.now();
+        // Кешуємо результат на 30 секунд
+        if (moduleState.apiAvailable && (now - moduleState.lastApiCheck) < 30000) {
+            console.log('✅ [TelegramValidator] API доступний (кеш)');
+            return true;
+        }
+
+        try {
+            // Простий ping до API
+            const response = await fetch('/api/ping', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 5000
+            });
+
+            moduleState.apiAvailable = response.ok;
+            moduleState.lastApiCheck = now;
+            moduleState.retryCount = 0;
+
+            console.log(`${moduleState.apiAvailable ? '✅' : '❌'} [TelegramValidator] API статус:`, response.status);
+            return moduleState.apiAvailable;
+
+        } catch (error) {
+            console.error('❌ [TelegramValidator] API недоступний:', error.message);
+            moduleState.apiAvailable = false;
+            moduleState.lastApiCheck = now;
+            return false;
+        }
+    }
+
     /**
      * Строга перевірка наявності Telegram WebApp
      */
@@ -141,9 +186,30 @@ window.TelegramValidator = (function() {
             throw new Error('Немає даних для валідації');
         }
 
+        // Перевіряємо доступність API
+        const apiAvailable = await checkApiAvailability();
+        if (!apiAvailable) {
+            console.error('❌ [TelegramValidator] API недоступний для валідації');
+
+            // Інкрементуємо лічильник спроб
+            moduleState.retryCount++;
+
+            if (moduleState.retryCount >= moduleState.maxRetries) {
+                throw new Error('Сервер тимчасово недоступний. Спробуйте пізніше або оновіть сторінку');
+            } else {
+                throw new Error(`Сервер недоступний. Спроба ${moduleState.retryCount}/${moduleState.maxRetries}`);
+            }
+        }
+
         try {
             console.log('📤 [TelegramValidator] Відправка даних на сервер...');
             console.log('📊 [TelegramValidator] Довжина initData:', telegramData.initData.length);
+
+            // Перевіряємо наявність TasksAPI
+            if (!window.TasksAPI?.auth?.validateTelegram) {
+                console.error('❌ [TelegramValidator] TasksAPI не доступний');
+                throw new Error('API модуль не ініціалізовано');
+            }
 
             const response = await window.TasksAPI.auth.validateTelegram(telegramData.initData);
 
@@ -158,6 +224,9 @@ window.TelegramValidator = (function() {
                     sessionStorage.setItem(storageKey, response.token);
                     console.log('💾 [TelegramValidator] Токен збережено');
                 }
+
+                // Скидаємо лічильник помилок
+                moduleState.retryCount = 0;
 
                 return {
                     valid: true,
@@ -181,6 +250,8 @@ window.TelegramValidator = (function() {
                 throw new Error('Сервер тимчасово недоступний. Спробуйте пізніше');
             } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
                 throw new Error('Проблеми з мережею. Перевірте підключення до інтернету');
+            } else if (error.message.includes('API модуль не ініціалізовано')) {
+                throw new Error('Система ініціалізується. Зачекайте...');
             }
 
             throw new Error(error.message || 'Помилка валідації даних');
@@ -201,8 +272,9 @@ window.TelegramValidator = (function() {
             // Локальна валідація
             validateUserLocally(telegramData.user);
 
-            // Серверна валідація
+            // Серверна валідація з перевіркою доступності API
             console.log('🔄 [TelegramValidator] Переходимо до серверної валідації...');
+
             const serverValidation = await validateOnServer(telegramData);
 
             if (serverValidation.valid) {
@@ -330,7 +402,18 @@ window.TelegramValidator = (function() {
             throw new Error('Немає токену для оновлення');
         }
 
+        // Перевіряємо доступність API
+        const apiAvailable = await checkApiAvailability();
+        if (!apiAvailable) {
+            console.error('❌ [TelegramValidator] API недоступний для оновлення токену');
+            throw new Error('Сервер недоступний для оновлення токену');
+        }
+
         try {
+            if (!window.TasksAPI?.auth?.refreshToken) {
+                throw new Error('API модуль не ініціалізовано');
+            }
+
             const response = await window.TasksAPI.auth.refreshToken();
 
             if (response.token) {
@@ -358,7 +441,7 @@ window.TelegramValidator = (function() {
         const refreshInterval = window.TasksConstants?.TIMERS?.SESSION_REFRESH || 30 * 60 * 1000;
 
         setInterval(async () => {
-            if (isAuthenticated()) {
+            if (isAuthenticated() && moduleState.apiAvailable) {
                 try {
                     const token = getAuthToken();
                     if (token) {
@@ -421,6 +504,47 @@ window.TelegramValidator = (function() {
     }
 
     /**
+     * Показати повідомлення про недоступність сервера
+     */
+    function showServerUnavailableError() {
+        const container = document.querySelector('.container') || document.body;
+        if (container) {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: #1a1a2e;
+                color: white;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                padding: 20px;
+                z-index: 10000;
+            `;
+            errorDiv.innerHTML = `
+                <h2 style="color: #e74c3c; margin-bottom: 20px;">🚫 Сервер недоступний</h2>
+                <p style="margin-bottom: 20px; font-size: 16px;">
+                    Сервер тимчасово недоступний.<br>
+                    Спробуйте оновити сторінку.
+                </p>
+                <p style="color: #95a5a6; font-size: 14px; margin-bottom: 20px;">
+                    Якщо проблема не зникає, зверніться до підтримки
+                </p>
+                <button onclick="window.location.reload()" 
+                        style="margin-top: 20px; padding: 10px 20px; background: #b366ff; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                    Оновити сторінку
+                </button>
+            `;
+            container.appendChild(errorDiv);
+        }
+    }
+
+    /**
      * Ініціалізація
      */
     function init() {
@@ -439,6 +563,7 @@ window.TelegramValidator = (function() {
                 console.log('✅ [TelegramValidator] Telegram дані доступні при ініціалізації');
             }
 
+            moduleState.isInitialized = true;
             console.log('✅ [TelegramValidator] Модуль ініціалізовано');
 
         } catch (error) {
@@ -483,11 +608,13 @@ window.TelegramValidator = (function() {
         }
     }
 
-    // Автоматична ініціалізація
+    // Автоматична ініціалізація з затримкою
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(init, 100); // Невелика затримка для завантаження залежностей
+        });
     } else {
-        init();
+        setTimeout(init, 100);
     }
 
     console.log('✅ [TelegramValidator] Модуль валідації Telegram готовий (Production)');
@@ -501,7 +628,9 @@ window.TelegramValidator = (function() {
         clearAuthToken,
         refreshToken,
         setupWebApp,
-        checkTelegramAvailability
+        checkTelegramAvailability,
+        checkApiAvailability,
+        showServerUnavailableError
     };
 
 })();
