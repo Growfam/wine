@@ -1,12 +1,12 @@
 /**
- * Сервісні функції для системи завдань WINIX
- * Координація роботи між модулями
+ * Сервісні функції для системи завдань WINIX - Production Version
+ * Координація роботи між модулями без Mock даних
  */
 
 window.TasksServices = (function() {
     'use strict';
 
-    console.log('🛠️ [TasksServices] ===== ІНІЦІАЛІЗАЦІЯ СЕРВІСНОГО МОДУЛЯ =====');
+    console.log('🛠️ [TasksServices] ===== ІНІЦІАЛІЗАЦІЯ СЕРВІСНОГО МОДУЛЯ (PRODUCTION) =====');
 
     /**
      * Сервіс авторизації
@@ -19,7 +19,7 @@ window.TasksServices = (function() {
             console.log('👤 [AuthService] === ІНІЦІАЛІЗАЦІЯ КОРИСТУВАЧА ===');
 
             try {
-                // Валідуємо Telegram дані
+                // Тільки реальна валідація
                 const validation = await window.TelegramValidator.validateTelegramAuth();
 
                 if (!validation.valid) {
@@ -30,38 +30,39 @@ window.TasksServices = (function() {
 
                 const telegramUser = validation.user;
                 console.log('📱 [AuthService] Telegram користувач:', {
-                    id: telegramUser.id,
+                    id: telegramUser.id || telegramUser.telegram_id,
                     username: telegramUser.username
                 });
 
                 // Завантажуємо профіль з бекенду
-                const profile = await window.TasksAPI.user.getProfile(telegramUser.id);
+                const profile = await window.TasksAPI.user.getProfile(telegramUser.telegram_id || telegramUser.id);
                 console.log('✅ [AuthService] Профіль завантажено:', profile);
 
                 // Оновлюємо стор
                 window.TasksStore.actions.setUser({
-                    id: profile.id,
-                    telegramId: telegramUser.id,
-                    username: profile.username || telegramUser.username,
-                    firstName: profile.firstName || telegramUser.firstName,
-                    lastName: profile.lastName || telegramUser.lastName,
-                    balance: profile.balance || { winix: 0, tickets: 0, flex: 0 }
+                    id: profile.data.id,
+                    telegramId: telegramUser.telegram_id || telegramUser.id,
+                    username: profile.data.username || telegramUser.username,
+                    firstName: profile.data.first_name || telegramUser.first_name,
+                    lastName: profile.data.last_name || telegramUser.last_name,
+                    balance: profile.data.balance || { winix: 0, tickets: 0, flex: 0 }
                 });
 
                 // Оновлюємо UI
-                this.updateUserUI(profile);
+                this.updateUserUI(profile.data);
 
-                return profile;
+                return profile.data;
 
             } catch (error) {
                 console.error('❌ [AuthService] Помилка ініціалізації користувача:', error);
 
                 // Показуємо повідомлення користувачу
                 window.TasksUtils.showToast(
-                    'Помилка авторизації. Оновіть сторінку',
+                    'Помилка авторизації. Перевірте підключення до інтернету та оновіть сторінку',
                     'error'
                 );
 
+                // Не робимо fallback - викидаємо помилку
                 throw error;
             }
         },
@@ -75,7 +76,7 @@ window.TasksServices = (function() {
             // Оновлюємо ID
             const userIdElement = document.getElementById('header-user-id');
             if (userIdElement) {
-                userIdElement.textContent = user.id;
+                userIdElement.textContent = user.telegram_id || user.id || '';
             }
 
             // Оновлюємо аватар
@@ -89,11 +90,11 @@ window.TasksServices = (function() {
             const ticketsElement = document.getElementById('user-tickets');
 
             if (winixElement) {
-                winixElement.textContent = user.balance.winix || 0;
+                winixElement.textContent = user.balance?.winix || 0;
             }
 
             if (ticketsElement) {
-                ticketsElement.textContent = user.balance.tickets || 0;
+                ticketsElement.textContent = user.balance?.tickets || 0;
             }
         },
 
@@ -107,13 +108,24 @@ window.TasksServices = (function() {
 
             if (!isAuth) {
                 console.warn('⚠️ [AuthService] Користувач не авторизований');
+
+                // Показуємо помилку і пропонуємо оновити
+                window.TasksUtils.showToast(
+                    'Сесія закінчилася. Оновіть сторінку',
+                    'error'
+                );
+
+                // Автоматичне оновлення через 3 секунди
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+
                 return false;
             }
 
             // Спробуємо оновити токен якщо потрібно
             const token = window.TelegramValidator.getAuthToken();
             if (token) {
-                // Перевіряємо термін дії токена
                 try {
                     const payload = JSON.parse(atob(token.split('.')[1]));
                     const exp = payload.exp * 1000;
@@ -125,6 +137,20 @@ window.TasksServices = (function() {
                     }
                 } catch (error) {
                     console.error('❌ [AuthService] Помилка перевірки токену:', error);
+
+                    // Очищаємо недійсний токен
+                    window.TelegramValidator.clearAuthToken();
+
+                    window.TasksUtils.showToast(
+                        'Помилка авторизації. Оновіть сторінку',
+                        'error'
+                    );
+
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+
+                    return false;
                 }
             }
 
@@ -197,7 +223,7 @@ window.TasksServices = (function() {
                 const userId = window.TasksStore.selectors.getUserId();
                 if (!userId) {
                     console.warn('⚠️ [SyncService] User ID не знайдено');
-                    return;
+                    throw new Error('User ID відсутній');
                 }
 
                 // Паралельно завантажуємо всі дані
@@ -224,6 +250,18 @@ window.TasksServices = (function() {
 
             } catch (error) {
                 console.error('❌ [SyncService] Помилка синхронізації:', error);
+
+                // Критичні помилки
+                if (error.message.includes('User ID') || error.message.includes('авторизації')) {
+                    window.TasksUtils.showToast(
+                        'Помилка авторизації. Оновлюємо сторінку...',
+                        'error'
+                    );
+
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                }
             } finally {
                 this.isSyncing = false;
             }
@@ -236,14 +274,19 @@ window.TasksServices = (function() {
             console.log('💰 [SyncService] Синхронізація балансу...');
 
             const response = await window.TasksAPI.user.getBalance(userId);
-            window.TasksStore.actions.updateBalance(response.balance);
 
-            // Оновлюємо UI
-            AuthService.updateUserUI({
-                balance: response.balance
-            });
+            if (response.status === 'success') {
+                window.TasksStore.actions.updateBalance(response.balance);
 
-            return response;
+                // Оновлюємо UI
+                AuthService.updateUserUI({
+                    balance: response.balance
+                });
+
+                return response;
+            } else {
+                throw new Error(response.message || 'Помилка отримання балансу');
+            }
         },
 
         /**
@@ -255,14 +298,16 @@ window.TasksServices = (function() {
             const wallet = window.TasksStore.selectors.getWalletAddress();
             if (!wallet) {
                 console.log('⏸️ [SyncService] Гаманець не підключено');
-                return null;
+                return { skipped: true, reason: 'wallet_not_connected' };
             }
 
             if (window.FlexEarnManager) {
                 await window.FlexEarnManager.checkFlexBalance();
+                return { synced: true };
             }
 
-            return { synced: true };
+            console.warn('⚠️ [SyncService] FlexEarnManager недоступний');
+            return { skipped: true, reason: 'flex_manager_unavailable' };
         },
 
         /**
@@ -273,12 +318,16 @@ window.TasksServices = (function() {
 
             const response = await window.TasksAPI.daily.getStatus(userId);
 
-            // Оновлюємо UI через менеджер
-            if (window.DailyBonusManager && window.DailyBonusManager.updateDailyBonusUI) {
-                window.DailyBonusManager.updateDailyBonusUI();
-            }
+            if (response.status === 'success') {
+                // Оновлюємо UI через менеджер
+                if (window.DailyBonusManager && window.DailyBonusManager.updateDailyBonusUI) {
+                    window.DailyBonusManager.updateDailyBonusUI();
+                }
 
-            return response;
+                return response;
+            } else {
+                throw new Error(response.message || 'Помилка отримання статусу щоденного бонусу');
+            }
         },
 
         /**
@@ -289,14 +338,18 @@ window.TasksServices = (function() {
 
             const response = await window.TasksAPI.tasks.getList(userId);
 
-            // Оновлюємо завдання в сторі
-            if (response.tasks) {
-                Object.entries(response.tasks).forEach(([type, tasks]) => {
-                    window.TasksStore.actions.setTasks(type, tasks);
-                });
-            }
+            if (response.status === 'success') {
+                // Оновлюємо завдання в сторі
+                if (response.data.tasks) {
+                    Object.entries(response.data.tasks).forEach(([type, tasks]) => {
+                        window.TasksStore.actions.setTasks(type, tasks);
+                    });
+                }
 
-            return response;
+                return response;
+            } else {
+                throw new Error(response.message || 'Помилка отримання завдань');
+            }
         }
     };
 
@@ -350,14 +403,20 @@ window.TasksServices = (function() {
         showReward(reward) {
             console.log('🎁 [NotificationService] Винагорода:', reward);
 
-            let message = '';
+            let message = 'Отримано: ';
+            const parts = [];
+
             if (reward.winix > 0) {
-                message += `+${reward.winix} WINIX`;
+                parts.push(`+${reward.winix} WINIX`);
             }
             if (reward.tickets > 0) {
-                if (message) message += ' та ';
-                message += `+${reward.tickets} tickets`;
+                parts.push(`+${reward.tickets} tickets`);
             }
+            if (reward.flex > 0) {
+                parts.push(`+${reward.flex} FLEX`);
+            }
+
+            message += parts.join(' та ');
 
             this.showSuccess(message, 4000);
 
@@ -369,13 +428,17 @@ window.TasksServices = (function() {
          * Вібрація (якщо підтримується)
          */
         vibrate(pattern) {
-            if ('vibrate' in navigator && window.Telegram?.WebApp?.HapticFeedback) {
+            if (window.Telegram?.WebApp?.HapticFeedback) {
                 try {
                     window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
                 } catch (e) {
                     // Fallback до стандартної вібрації
-                    navigator.vibrate(pattern);
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate(pattern);
+                    }
                 }
+            } else if ('vibrate' in navigator) {
+                navigator.vibrate(pattern);
             }
         }
     };
@@ -463,7 +526,15 @@ window.TasksServices = (function() {
          */
         trackError(error, context) {
             console.log('🐛 [AnalyticsService] Помилка:', error, context);
-            this.trackEvent('Error', error.name || 'Unknown', context, 1);
+
+            const errorData = {
+                name: error.name || 'UnknownError',
+                message: error.message || 'Unknown error',
+                stack: error.stack ? error.stack.substring(0, 500) : null, // Обмежуємо розмір
+                context: context
+            };
+
+            this.trackEvent('Error', errorData.name, context, 1);
         },
 
         /**
@@ -484,6 +555,7 @@ window.TasksServices = (function() {
      */
     const CacheService = {
         cache: new Map(),
+        maxSize: 100,
 
         /**
          * Отримати з кешу
@@ -515,9 +587,10 @@ window.TasksServices = (function() {
             });
 
             // Обмежуємо розмір кешу
-            if (this.cache.size > 100) {
+            if (this.cache.size > this.maxSize) {
                 const firstKey = this.cache.keys().next().value;
                 this.cache.delete(firstKey);
+                console.log(`🗑️ [CacheService] Видалено старий запис: ${firstKey}`);
             }
         },
 
@@ -538,13 +611,6 @@ window.TasksServices = (function() {
         },
 
         /**
-         * Отримати розмір кешу
-         */
-        size() {
-            return this.cache.size;
-        },
-
-        /**
          * Отримати статистику кешу
          */
         getStats() {
@@ -556,13 +622,18 @@ window.TasksServices = (function() {
                 if (item.expires && item.expires < now) {
                     expiredCount++;
                 }
-                totalSize += JSON.stringify(item.value).length;
+                try {
+                    totalSize += JSON.stringify(item.value).length;
+                } catch (e) {
+                    // Ігноруємо помилки серіалізації
+                }
             });
 
             return {
                 entries: this.cache.size,
                 expired: expiredCount,
-                sizeKB: (totalSize / 1024).toFixed(2)
+                sizeKB: (totalSize / 1024).toFixed(2),
+                maxSize: this.maxSize
             };
         }
     };
@@ -603,53 +674,51 @@ window.TasksServices = (function() {
         },
 
         /**
-         * Валідація транзакції
-         */
-        validateTransaction(transaction) {
-            console.log('🔍 [ValidationService] Валідація транзакції:', transaction);
-
-            const errors = [];
-
-            if (!transaction.amount || transaction.amount <= 0) {
-                errors.push('Невірна сума транзакції');
-            }
-
-            if (!transaction.type || !['claim', 'spend', 'bonus'].includes(transaction.type)) {
-                errors.push('Невірний тип транзакції');
-            }
-
-            if (!transaction.userId) {
-                errors.push('ID користувача відсутній');
-            }
-
-            if (!transaction.timestamp || transaction.timestamp > Date.now()) {
-                errors.push('Невірна мітка часу');
-            }
-
-            if (errors.length > 0) {
-                console.error('❌ [ValidationService] Помилки валідації:', errors);
-                return { valid: false, errors };
-            }
-
-            console.log('✅ [ValidationService] Транзакція валідна');
-            return { valid: true };
-        },
-
-        /**
          * Валідація адреси гаманця
          */
         validateWalletAddress(address) {
             console.log('🔍 [ValidationService] Валідація адреси:', address);
 
-            // TON адреса має бути 48 символів
-            const isValid = /^[a-zA-Z0-9_-]{48}$/.test(address);
+            const rules = window.TasksConstants?.VALIDATION_RULES?.WALLET_ADDRESS;
 
-            if (!isValid) {
-                console.error('❌ [ValidationService] Невірний формат адреси');
-                return { valid: false, error: 'Невірний формат адреси TON' };
+            if (rules) {
+                const isValid = rules.PATTERN.test(address) && address.length === rules.LENGTH;
+
+                if (!isValid) {
+                    console.error('❌ [ValidationService] Невірний формат адреси');
+                    return { valid: false, error: 'Невірний формат адреси TON' };
+                }
+            } else {
+                // Fallback валідація
+                const isValid = /^[a-zA-Z0-9_-]{48}$/.test(address);
+
+                if (!isValid) {
+                    console.error('❌ [ValidationService] Невірний формат адреси');
+                    return { valid: false, error: 'Невірний формат адреси TON' };
+                }
             }
 
             console.log('✅ [ValidationService] Адреса валідна');
+            return { valid: true };
+        },
+
+        /**
+         * Валідація Telegram ID
+         */
+        validateTelegramId(telegramId) {
+            const rules = window.TasksConstants?.VALIDATION_RULES?.TELEGRAM_ID;
+            const id = parseInt(telegramId);
+
+            if (!id || isNaN(id)) {
+                return { valid: false, error: 'Невірний формат ID' };
+            }
+
+            if (rules) {
+                if (id < rules.MIN || id > rules.MAX) {
+                    return { valid: false, error: 'ID поза допустимим діапазоном' };
+                }
+            }
+
             return { valid: true };
         }
     };
@@ -658,24 +727,34 @@ window.TasksServices = (function() {
      * Ініціалізація сервісів
      */
     function init() {
-        console.log('🚀 [TasksServices] Ініціалізація сервісів');
+        console.log('🚀 [TasksServices] Ініціалізація сервісів (Production)');
 
-        // Ініціалізуємо аналітику
-        AnalyticsService.init();
+        try {
+            // Ініціалізуємо аналітику
+            AnalyticsService.init();
 
-        // Запускаємо автосинхронізацію
-        SyncService.startAutoSync();
+            // Запускаємо автосинхронізацію
+            SyncService.startAutoSync();
 
-        // Відстежуємо початок роботи
-        AnalyticsService.trackEvent('System', 'init', 'services');
+            // Відстежуємо початок роботи
+            AnalyticsService.trackEvent('System', 'init', 'services_production');
 
-        console.log('✅ [TasksServices] Сервіси ініціалізовано');
+            console.log('✅ [TasksServices] Сервіси ініціалізовано (Production)');
+
+        } catch (error) {
+            console.error('❌ [TasksServices] Помилка ініціалізації сервісів:', error);
+
+            // Відстежуємо помилку
+            AnalyticsService.trackError(error, 'services_init');
+
+            throw error;
+        }
     }
 
     // Автоматична ініціалізація з затримкою
     setTimeout(init, 100);
 
-    console.log('✅ [TasksServices] Сервісний модуль готовий');
+    console.log('✅ [TasksServices] Сервісний модуль готовий (Production)');
 
     // Публічний API
     return {
@@ -689,4 +768,4 @@ window.TasksServices = (function() {
 
 })();
 
-console.log('✅ [TasksServices] Модуль експортовано глобально');
+console.log('✅ [TasksServices] Модуль експортовано глобально (Production)');

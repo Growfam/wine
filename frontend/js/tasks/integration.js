@@ -1,12 +1,12 @@
 /**
- * Головний інтеграційний модуль для системи завдань WINIX
- * Координує роботу всіх підмодулів
+ * Головний інтеграційний модуль для системи завдань WINIX - Production Version
+ * Координує роботу всіх підмодулів без Mock даних
  */
 
 window.TasksIntegration = (function() {
     'use strict';
 
-    console.log('🚀 [TasksIntegration] ===== ІНІЦІАЛІЗАЦІЯ ІНТЕГРАЦІЙНОГО МОДУЛЯ =====');
+    console.log('🚀 [TasksIntegration] ===== ІНІЦІАЛІЗАЦІЯ ІНТЕГРАЦІЙНОГО МОДУЛЯ (PRODUCTION) =====');
 
     /**
      * Конструктор інтеграції
@@ -28,8 +28,7 @@ window.TasksIntegration = (function() {
             isInitialized: false,
             currentTab: 'flex',
             walletConnected: false,
-            isAuthenticating: false,
-            useMockData: true // За замовчуванням використовуємо mock дані
+            isAuthenticating: false
         };
 
         this.config = {
@@ -49,8 +48,8 @@ window.TasksIntegration = (function() {
         console.log('🕐 [TasksIntegration] Час початку:', new Date().toISOString());
 
         try {
-            // Перевіряємо чи працюємо з mock даними
-            this.checkMockMode();
+            // Перевіряємо наявність необхідних сервісів
+            this.checkRequiredServices();
 
             // Спочатку авторизуємо користувача
             await this.authenticateUser();
@@ -67,10 +66,8 @@ window.TasksIntegration = (function() {
             // Налаштовуємо автозбереження
             this.setupAutoSave();
 
-            // Запускаємо початкову синхронізацію (якщо не mock режим)
-            if (!this.state.useMockData) {
-                await this.initialSync();
-            }
+            // Запускаємо початкову синхронізацію
+            await this.initialSync();
 
             // Позначаємо як ініціалізовано
             this.state.isInitialized = true;
@@ -90,44 +87,32 @@ window.TasksIntegration = (function() {
             console.error('❌ [TasksIntegration] Stack trace:', error.stack);
 
             // Показуємо користувачу помилку
-            this.showError('Помилка ініціалізації системи. Працюємо в режимі тестування.');
+            this.showError('Помилка ініціалізації системи. Перевірте підключення до інтернету та оновіть сторінку');
 
-            // Продовжуємо роботу в mock режимі
-            this.state.useMockData = true;
-            this.state.isInitialized = true;
-
-            return this;
+            throw error;
         }
     };
 
     /**
-     * Перевірка mock режиму
+     * Перевірити наявність обов'язкових сервісів
      */
-    TasksIntegration.prototype.checkMockMode = function() {
-        console.log('🎭 [TasksIntegration] Перевірка режиму роботи...');
+    TasksIntegration.prototype.checkRequiredServices = function() {
+        console.log('🔍 [TasksIntegration] Перевірка обов`язкових сервісів...');
 
-        // Перевіряємо наявність Telegram WebApp
-        const hasTelegram = window.Telegram?.WebApp?.initData;
+        const requiredServices = [
+            'TasksAPI',
+            'TasksStore',
+            'TelegramValidator',
+            'TasksConstants'
+        ];
 
-        // Перевіряємо доступність API
-        const hasAPI = window.TasksAPI && typeof window.TasksAPI.call === 'function';
+        const missing = requiredServices.filter(service => !window[service]);
 
-        // Використовуємо mock якщо немає Telegram або на localhost
-        this.state.useMockData = !hasTelegram ||
-                                window.location.hostname === 'localhost' ||
-                                window.location.hostname === '127.0.0.1';
-
-        console.log('📊 [TasksIntegration] Режим роботи:', {
-            useMockData: this.state.useMockData,
-            hasTelegram,
-            hasAPI,
-            hostname: window.location.hostname
-        });
-
-        if (this.state.useMockData) {
-            console.warn('⚠️ [TasksIntegration] Працюємо в тестовому режимі з Mock даними');
-            this.showToast('Тестовий режим', 'info');
+        if (missing.length > 0) {
+            throw new Error(`Відсутні обов'язкові сервіси: ${missing.join(', ')}`);
         }
+
+        console.log('✅ [TasksIntegration] Всі обов`язкові сервіси присутні');
     };
 
     /**
@@ -144,32 +129,12 @@ window.TasksIntegration = (function() {
         this.state.isAuthenticating = true;
 
         try {
-            let user;
-
-            if (this.state.useMockData) {
-                // Mock авторизація
-                console.log('🎭 [TasksIntegration] Mock авторизація');
-                user = {
-                    id: 123456789,
-                    username: 'testuser',
-                    firstName: 'Test',
-                    lastName: 'User',
-                    balance: { winix: 1000, tickets: 10 }
-                };
-
-                // Зберігаємо в Store
-                if (window.TasksStore) {
-                    window.TasksStore.actions.setUser(user);
-                }
-            } else {
-                // Реальна авторизація через AuthService
-                if (window.TasksServices?.Auth) {
-                    user = await window.TasksServices.Auth.initUser();
-                } else {
-                    throw new Error('Auth service not available');
-                }
+            // Тільки реальна авторизація через AuthService
+            if (!window.TasksServices?.Auth) {
+                throw new Error('Auth service not available');
             }
 
+            const user = await window.TasksServices.Auth.initUser();
             this.state.userId = user.id;
             console.log('✅ [TasksIntegration] Користувач авторизований:', user.id);
 
@@ -178,12 +143,8 @@ window.TasksIntegration = (function() {
 
         } catch (error) {
             console.error('❌ [TasksIntegration] Помилка авторизації:', error);
-
-            // Fallback на mock користувача
-            this.state.useMockData = true;
-            this.state.userId = 123456789;
-
-            console.warn('⚠️ [TasksIntegration] Використовуємо mock користувача');
+            this.showError('Помилка авторизації. Перевірте підключення до інтернету та оновіть сторінку');
+            throw error;
         } finally {
             this.state.isAuthenticating = false;
         }
@@ -198,7 +159,7 @@ window.TasksIntegration = (function() {
         // Оновлюємо ID
         const userIdElement = document.getElementById('header-user-id');
         if (userIdElement) {
-            userIdElement.textContent = user.id || '123456789';
+            userIdElement.textContent = user.id || '';
         }
 
         // Оновлюємо аватар
@@ -272,8 +233,8 @@ window.TasksIntegration = (function() {
         const userId = this.state.userId;
 
         try {
-            // WalletChecker - опціональний
-            if (window.WalletChecker && !this.state.useMockData) {
+            // WalletChecker
+            if (window.WalletChecker) {
                 console.log('  🔧 [TasksIntegration] Ініціалізація WalletChecker...');
                 try {
                     this.managers.walletChecker = window.WalletChecker;
@@ -321,8 +282,7 @@ window.TasksIntegration = (function() {
 
         } catch (error) {
             console.error('❌ [TasksIntegration] Помилка ініціалізації менеджерів:', error);
-            // Продовжуємо роботу з тими менеджерами, які вдалося ініціалізувати
-            console.warn('⚠️ [TasksIntegration] Продовжуємо з частковою ініціалізацією');
+            throw error;
         }
     };
 
@@ -331,11 +291,6 @@ window.TasksIntegration = (function() {
      */
     TasksIntegration.prototype.initialSync = async function() {
         console.log('🔄 [TasksIntegration] === ПОЧАТКОВА СИНХРОНІЗАЦІЯ ===');
-
-        if (this.state.useMockData) {
-            console.log('🎭 [TasksIntegration] Пропускаємо синхронізацію в mock режимі');
-            return;
-        }
 
         try {
             // Запускаємо синхронізацію через SyncService
@@ -538,8 +493,7 @@ window.TasksIntegration = (function() {
             const stateToSave = {
                 userId: this.state.userId,
                 currentTab: this.state.currentTab,
-                timestamp: Date.now(),
-                useMockData: this.state.useMockData
+                timestamp: Date.now()
             };
 
             if (window.TasksUtils?.storage) {
@@ -557,13 +511,13 @@ window.TasksIntegration = (function() {
     TasksIntegration.prototype.onPageVisible = function() {
         console.log('👁️ [TasksIntegration] Обробка відновлення видимості...');
 
-        // Перевіряємо сесію (якщо не mock режим)
-        if (!this.state.useMockData && window.TasksServices?.Auth) {
+        // Перевіряємо сесію
+        if (window.TasksServices?.Auth) {
             window.TasksServices.Auth.checkSession();
         }
 
-        // Синхронізуємо дані (якщо не mock режим)
-        if (!this.state.useMockData && window.TasksServices?.Sync) {
+        // Синхронізуємо дані
+        if (window.TasksServices?.Sync) {
             window.TasksServices.Sync.syncData();
         }
 
@@ -587,8 +541,8 @@ window.TasksIntegration = (function() {
 
         this.showToast('З\'єднання відновлено', 'success');
 
-        // Синхронізуємо дані (якщо не mock режим)
-        if (!this.state.useMockData && window.TasksServices?.Sync) {
+        // Синхронізуємо дані
+        if (window.TasksServices?.Sync) {
             window.TasksServices.Sync.syncData();
         }
 
@@ -654,7 +608,7 @@ window.TasksIntegration = (function() {
     // Створюємо і повертаємо екземпляр
     const integration = new TasksIntegration();
 
-    console.log('✅ [TasksIntegration] Інтеграційний модуль готовий до ініціалізації');
+    console.log('✅ [TasksIntegration] Інтеграційний модуль готовий до ініціалізації (Production)');
 
     return integration;
 
@@ -670,12 +624,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     } catch (error) {
         console.error('❌ [TasksIntegration] Не вдалося запустити систему:', error);
 
-        // Показуємо користувачу повідомлення про тестовий режим
+        // Показуємо користувачу повідомлення про помилку
         const container = document.querySelector('.container');
         if (container) {
             const notice = document.createElement('div');
-            notice.style.cssText = 'background: #f39c12; color: white; padding: 10px; text-align: center; margin-bottom: 10px;';
-            notice.textContent = 'Працюємо в тестовому режимі';
+            notice.style.cssText = 'background: #e74c3c; color: white; padding: 15px; text-align: center; margin-bottom: 10px; border-radius: 8px;';
+            notice.innerHTML = `
+                <strong>Помилка ініціалізації системи</strong><br>
+                Перевірте підключення до інтернету та оновіть сторінку
+            `;
             container.insertBefore(notice, container.firstChild);
         }
     }

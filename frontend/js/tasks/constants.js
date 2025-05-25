@@ -1,19 +1,17 @@
 /**
- * Константи для системи завдань WINIX
- * Централізоване сховище всіх констант
+ * Константи для системи завдань WINIX - Production Version
+ * Централізоване сховище всіх констант без Mock налаштувань
  */
 
 window.TasksConstants = (function() {
     'use strict';
 
-    console.log('📋 [TasksConstants] Завантаження констант системи завдань');
+    console.log('📋 [TasksConstants] Завантаження констант системи завдань (Production)');
 
-    // API endpoints
+    // API endpoints - використовувати тільки продакшн URL
     const API_ENDPOINTS = {
-        // Базовий URL - змініть на свій реальний URL
-        BASE_URL: window.location.hostname === 'localhost'
-            ? 'http://localhost:8080/api'
-            : '/api',
+        // Використовувати тільки продакшн URL
+        BASE_URL: '/api',
 
         // Auth endpoints
         AUTH_VALIDATE: '/auth/validate-telegram',
@@ -33,9 +31,9 @@ window.TasksConstants = (function() {
 
         // Flex endpoints
         FLEX_BALANCE: '/flex/balance',
-        FLEX_CLAIM: '/flex/claim-reward',
+        FLEX_CLAIM: '/flex/claim',
         FLEX_HISTORY: '/flex/history',
-        FLEX_CHECK_LEVELS: '/flex/check-levels',
+        FLEX_LEVELS: '/flex/levels',
 
         // Daily bonus endpoints
         DAILY_STATUS: '/daily/status',
@@ -59,59 +57,69 @@ window.TasksConstants = (function() {
     // Flex Levels конфігурація
     const FLEX_LEVELS = {
         BRONZE: {
-            id: 'BRONZE',
+            id: 'bronze',
             name: 'Bronze',
-            required: 100000,
+            required: 10000,
             rewards: {
-                winix: 50,
-                tickets: 2
+                winix: 25,
+                tickets: 1
             },
             color: '#CD7F32',
-            gradient: 'linear-gradient(135deg, #CD7F32, #A0522D)'
+            gradient: 'linear-gradient(135deg, #CD7F32, #A0522D)',
+            description: 'Базовий рівень для початківців',
+            icon: '🥉'
         },
         SILVER: {
-            id: 'SILVER',
+            id: 'silver',
             name: 'Silver',
-            required: 500000,
+            required: 50000,
             rewards: {
-                winix: 150,
-                tickets: 5
+                winix: 75,
+                tickets: 2
             },
             color: '#C0C0C0',
-            gradient: 'linear-gradient(135deg, #C0C0C0, #A8A8A8)'
+            gradient: 'linear-gradient(135deg, #C0C0C0, #A8A8A8)',
+            description: 'Рівень для досвідчених користувачів',
+            icon: '🥈'
         },
         GOLD: {
-            id: 'GOLD',
+            id: 'gold',
             name: 'Gold',
-            required: 1000000,
+            required: 150000,
             rewards: {
-                winix: 300,
-                tickets: 8
+                winix: 150,
+                tickets: 4
             },
             color: '#FFD700',
-            gradient: 'linear-gradient(135deg, #FFD700, #FFA500)'
+            gradient: 'linear-gradient(135deg, #FFD700, #FFA500)',
+            description: 'Високий рівень з відмінними винагородами',
+            icon: '🥇'
         },
         PLATINUM: {
-            id: 'PLATINUM',
+            id: 'platinum',
             name: 'Platinum',
-            required: 5000000,
+            required: 500000,
             rewards: {
-                winix: 1000,
+                winix: 300,
                 tickets: 10
             },
             color: '#E5E4E2',
-            gradient: 'linear-gradient(135deg, #E5E4E2, #B8B8B8)'
+            gradient: 'linear-gradient(135deg, #E5E4E2, #B8B8B8)',
+            description: 'Преміум рівень для великих інвесторів',
+            icon: '💎'
         },
         DIAMOND: {
-            id: 'DIAMOND',
+            id: 'diamond',
             name: 'Diamond',
-            required: 10000000,
+            required: 1000000,
             rewards: {
-                winix: 2500,
+                winix: 500,
                 tickets: 15
             },
             color: '#B9F2FF',
-            gradient: 'linear-gradient(135deg, #B9F2FF, #4FC3F7)'
+            gradient: 'linear-gradient(135deg, #B9F2FF, #4FC3F7)',
+            description: 'Найвищий рівень з максимальними винагородами',
+            icon: '💠'
         }
     };
 
@@ -215,7 +223,8 @@ window.TasksConstants = (function() {
             SESSION_EXPIRED: 'Сесія закінчилася. Оновіть сторінку',
             TELEGRAM_AUTH_FAILED: 'Помилка авторизації Telegram',
             VERIFICATION_FAILED: 'Верифікація не пройдена',
-            TOO_MANY_REQUESTS: 'Забагато запитів. Зачекайте хвилину'
+            TOO_MANY_REQUESTS: 'Забагато запитів. Зачекайте хвилину',
+            TELEGRAM_REQUIRED: 'Додаток повинен бути відкритий через Telegram'
         },
 
         // Інформаційні
@@ -285,37 +294,70 @@ window.TasksConstants = (function() {
 
     // Безпека
     const SECURITY = {
-        TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '', // Буде встановлено з env
         TELEGRAM_BOT_USERNAME: '@WINIX_Official_bot',
         RATE_LIMIT: {
             WINDOW: 60 * 1000, // 1 хвилина
-            MAX_REQUESTS: 20
+            MAX_REQUESTS: 50    // Збільшено для продакшену
         },
         SESSION_DURATION: 24 * 60 * 60 * 1000, // 24 години
-        ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || '' // Для шифрування чутливих даних
+        MAX_RETRY_ATTEMPTS: 3,
+        TIMEOUT_SECONDS: 30
     };
 
     // TON Connect
     const TON_CONNECT = {
-        MANIFEST_URL: 'https://your-domain.com/tonconnect-manifest.json', // TODO: Замініть
-        NETWORK: 'mainnet', // або 'testnet' для тестування
-        SUPPORTED_WALLETS: ['tonkeeper', 'tonhub', 'openmask']
+        MANIFEST_URL: 'https://winixbot.com/tonconnect-manifest.json',
+        NETWORK: 'mainnet',
+        SUPPORTED_WALLETS: ['tonkeeper', 'tonhub', 'mytonwallet', 'openmask']
     };
 
-    // Налагодження
+    // Налагодження - вимкнути для продакшену
     const DEBUG = {
-        ENABLED: window.location.hostname === 'localhost',
-        LOG_LEVEL: 'info', // 'error', 'warn', 'info', 'verbose'
-        SHOW_TIMESTAMPS: true,
-        MOCK_API: false, // Вимкнено для продакшену
-        SHOW_NETWORK_LOGS: false
+        ENABLED: false, // Завжди false для продакшену
+        LOG_LEVEL: 'error', // Тільки помилки
+        SHOW_TIMESTAMPS: false,
+        SHOW_NETWORK_LOGS: false,
+        ENABLE_CONSOLE: false
     };
 
-    console.log('✅ [TasksConstants] Константи завантажено:', {
+    // Production конфігурація
+    const PRODUCTION_CONFIG = {
+        API_BASE_URL: '/api',
+        TELEGRAM_BOT_USERNAME: '@WINIX_Official_bot',
+        TON_CONNECT_MANIFEST: 'https://winixbot.com/tonconnect-manifest.json',
+        DEBUG_MODE: false,
+        LOG_LEVEL: 'error',
+        CACHE_ENABLED: true,
+        PERFORMANCE_MONITORING: true,
+        ERROR_REPORTING: true
+    };
+
+    // Додаткові валідації для продакшену
+    const VALIDATION_RULES = {
+        TELEGRAM_ID: {
+            MIN: 1,
+            MAX: 999999999999999
+        },
+        WALLET_ADDRESS: {
+            LENGTH: 48,
+            PATTERN: /^[a-zA-Z0-9_-]{48}$/
+        },
+        FLEX_BALANCE: {
+            MIN: 0,
+            MAX: 999999999999
+        },
+        WINIX_AMOUNT: {
+            MIN: 0,
+            MAX: 999999999
+        }
+    };
+
+    console.log('✅ [TasksConstants] Константи завантажено (Production):', {
         flexLevels: Object.keys(FLEX_LEVELS).length,
         endpoints: Object.keys(API_ENDPOINTS).length,
         taskTypes: Object.keys(TASK_TYPES).length,
-        debug: DEBUG.ENABLED
+        debug: DEBUG.ENABLED,
+        production: !DEBUG.ENABLED
     });
 
     // Публічний інтерфейс
@@ -333,9 +375,11 @@ window.TasksConstants = (function() {
         ANIMATIONS,
         SECURITY,
         TON_CONNECT,
-        DEBUG
+        DEBUG,
+        PRODUCTION_CONFIG,
+        VALIDATION_RULES
     };
 
 })();
 
-console.log('✅ [TasksConstants] Модуль констант готовий до використання');
+console.log('✅ [TasksConstants] Модуль констант готовий до використання (Production)');
