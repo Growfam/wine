@@ -1,32 +1,22 @@
 /**
- * API модуль для системи завдань WINIX
- * Централізоване управління всіма API викликами
+ * API модуль для системи завдань WINIX - Production Version
+ * Централізоване управління всіма API викликами без Mock даних
  */
 
 window.TasksAPI = (function() {
     'use strict';
 
-    console.log('🌐 [TasksAPI] ===== ІНІЦІАЛІЗАЦІЯ API МОДУЛЯ =====');
+    console.log('🌐 [TasksAPI] ===== ІНІЦІАЛІЗАЦІЯ API МОДУЛЯ (PRODUCTION) =====');
 
     // Конфігурація
     const config = {
-       baseURL: window.TasksConstants?.API_ENDPOINTS?.BASE_URL ||
-         (window.location.hostname === 'localhost'
-             ? 'http://localhost:8080/api'
-             : '/api'),
+        baseURL: window.TasksConstants?.API_ENDPOINTS?.BASE_URL || '/api',
         timeout: 10000,
         retryAttempts: 3,
         retryDelay: 1000
     };
 
     console.log('⚙️ [TasksAPI] Конфігурація:', config);
-
-    // Перевірка чи використовувати Mock API
-const USE_MOCK_API = window.location.hostname === 'localhost' || !window.TasksConstants?.API_ENDPOINTS?.BASE_URL;
-
-if (USE_MOCK_API) {
-    console.warn('⚠️ [TasksAPI] Використовується Mock API для тестування');
-}
 
     // Стан модуля
     const state = {
@@ -70,45 +60,6 @@ if (USE_MOCK_API) {
      * Базовий метод для API викликів
      */
     async function apiCall(endpoint, options = {}) {
-    console.log('📡 [TasksAPI] === API ВИКЛИК ===');
-    console.log('🔗 [TasksAPI] Endpoint:', endpoint);
-
-    // Використовуємо Mock API якщо потрібно
-    if (USE_MOCK_API && window.MockAPI) {
-        console.log('🎭 [TasksAPI] Перенаправлення на Mock API');
-
-        // Мапінг endpoints на mock функції
-        const mockMap = {
-            '/auth/validate-telegram': 'validateTelegram',
-            '/user/profile/': 'getProfile',
-            '/user/balance/': 'getBalance',
-            '/daily/status/': 'getDailyStatus',
-            '/daily/claim/': 'claimDailyBonus',
-            '/tasks/list/': 'getTasks',
-            '/wallet/status/': 'getWalletStatus',
-            '/flex/balance/': 'getFlexBalance'
-        };
-
-        // Знаходимо відповідну mock функцію
-        let mockFunction = null;
-        for (const [pattern, funcName] of Object.entries(mockMap)) {
-            if (endpoint.includes(pattern)) {
-                mockFunction = window.MockAPI[funcName];
-                break;
-            }
-        }
-
-        if (mockFunction) {
-            try {
-                const result = await mockFunction();
-                console.log('✅ [TasksAPI] Mock відповідь:', result);
-                return result;
-            } catch (error) {
-                console.error('❌ [TasksAPI] Mock помилка:', error);
-                throw error;
-            }
-        }
-    }
         console.log('📡 [TasksAPI] === API ВИКЛИК ===');
         console.log('🔗 [TasksAPI] Endpoint:', endpoint);
         console.log('⚙️ [TasksAPI] Options:', options);
@@ -335,9 +286,9 @@ if (USE_MOCK_API) {
 
         claimReward: async (userId, level) => {
             console.log('🎁 [TasksAPI] Отримання винагороди FLEX:', userId, level);
-            return apiCall(`/flex/claim-reward/${userId}/${level}`, {
+            return apiCall(`/flex/claim/${userId}`, {
                 method: 'POST',
-                body: JSON.stringify({ timestamp: Date.now() })
+                body: JSON.stringify({ level, timestamp: Date.now() })
             });
         },
 
@@ -348,9 +299,11 @@ if (USE_MOCK_API) {
 
         checkLevels: async (userId, flexBalance) => {
             console.log('🎯 [TasksAPI] Перевірка доступних рівнів:', userId);
-            return apiCall(`/flex/check-levels/${userId}`, {
-                method: 'POST',
-                body: JSON.stringify({ flexBalance })
+            return apiCall(`/flex/levels/${userId}`, {
+                method: 'GET',
+                headers: {
+                    'X-Flex-Balance': flexBalance
+                }
             });
         }
     };
@@ -576,7 +529,7 @@ if (USE_MOCK_API) {
         };
     }
 
-    console.log('✅ [TasksAPI] API модуль готовий до використання');
+    console.log('✅ [TasksAPI] API модуль готовий до використання (Production)');
 
     // Публічний API
     return {
@@ -602,4 +555,4 @@ if (USE_MOCK_API) {
 
 })();
 
-console.log('✅ [TasksAPI] Модуль експортовано глобально');
+console.log('✅ [TasksAPI] Модуль експортовано глобально (Production)');

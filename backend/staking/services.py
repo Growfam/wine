@@ -4,7 +4,7 @@
 Використовує таблицю staking_sessions для збереження даних стейкінгу.
 """
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import uuid
 from typing import Tuple, Dict, Union, Any, Optional, List
 import traceback
@@ -13,10 +13,10 @@ import traceback
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Імпорт суппабейс клієнта
+# Імпорт суппабейс клієнта (ВИПРАВЛЕНИЙ)
 from supabase_client import (
     get_user, update_user, update_balance, supabase,
-    get_user_staking_sessions, get_staking_session,
+    get_user_staking_sessions, get_staking_session,  # ✅ Тепер ця функція існує!
     update_staking_session, complete_staking_session,
     delete_staking_session, verify_staking_consistency,
     create_staking_session, get_all_active_staking_sessions,

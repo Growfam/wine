@@ -1,12 +1,39 @@
 /**
- * Модуль валідації Telegram даних для системи WINIX
- * Перевірка автентичності Telegram WebApp даних
+ * Модуль валідації Telegram даних для системи WINIX - Production Version
+ * Перевірка автентичності Telegram WebApp даних без заглушок
  */
 
 window.TelegramValidator = (function() {
     'use strict';
 
-    console.log('🔐 [TelegramValidator] ===== ІНІЦІАЛІЗАЦІЯ МОДУЛЯ ВАЛІДАЦІЇ TELEGRAM =====');
+    console.log('🔐 [TelegramValidator] ===== ІНІЦІАЛІЗАЦІЯ МОДУЛЯ ВАЛІДАЦІЇ TELEGRAM (PRODUCTION) =====');
+
+    /**
+     * Строга перевірка наявності Telegram WebApp
+     */
+    function checkTelegramAvailability() {
+        console.log('🔍 [TelegramValidator] Перевірка доступності Telegram WebApp...');
+
+        if (!window.Telegram?.WebApp) {
+            console.error('❌ [TelegramValidator] Telegram WebApp не знайдено');
+            throw new Error('Додаток повинен бути відкритий через Telegram');
+        }
+
+        const webApp = window.Telegram.WebApp;
+
+        if (!webApp.initData) {
+            console.error('❌ [TelegramValidator] Telegram initData відсутні');
+            throw new Error('Невірні дані Telegram WebApp');
+        }
+
+        if (!webApp.initDataUnsafe) {
+            console.error('❌ [TelegramValidator] Telegram initDataUnsafe відсутні');
+            throw new Error('Дані користувача недоступні');
+        }
+
+        console.log('✅ [TelegramValidator] Telegram WebApp доступний');
+        return true;
+    }
 
     /**
      * Отримати та валідувати Telegram дані
@@ -14,39 +41,38 @@ window.TelegramValidator = (function() {
     function getTelegramData() {
         console.log('📱 [TelegramValidator] Отримання Telegram даних...');
 
-        // Додаткове логування для діагностики
-        console.log('🔍 [TelegramValidator] window.Telegram:', window.Telegram);
-        console.log('🔍 [TelegramValidator] window.Telegram.WebApp:', window.Telegram?.WebApp);
-
-        if (!window.Telegram?.WebApp) {
-            console.error('❌ [TelegramValidator] Telegram WebApp не знайдено');
-            console.error('❌ [TelegramValidator] Переконайтеся, що додаток відкрито через Telegram');
-            return null;
-        }
+        // Строга перевірка доступності
+        checkTelegramAvailability();
 
         const webApp = window.Telegram.WebApp;
         const initData = webApp.initData;
         const initDataUnsafe = webApp.initDataUnsafe;
 
-        // Детальне логування даних
-        console.log('🔍 [TelegramValidator] initData:', initData);
-        console.log('🔍 [TelegramValidator] initDataUnsafe:', initDataUnsafe);
-        console.log('🔍 [TelegramValidator] webApp.version:', webApp.version);
-        console.log('🔍 [TelegramValidator] webApp.platform:', webApp.platform);
+        console.log('🔍 [TelegramValidator] WebApp version:', webApp.version);
+        console.log('🔍 [TelegramValidator] WebApp platform:', webApp.platform);
+        console.log('🔍 [TelegramValidator] InitData length:', initData.length);
 
-        if (!initData || !initDataUnsafe) {
-            console.error('❌ [TelegramValidator] Telegram дані відсутні');
-            console.error('❌ [TelegramValidator] Можлива причина: додаток відкрито не через Telegram');
-            return null;
+        // Перевіряємо наявність користувача
+        if (!initDataUnsafe.user) {
+            console.error('❌ [TelegramValidator] Дані користувача відсутні');
+            throw new Error('Дані користувача недоступні');
         }
 
-        console.log('✅ [TelegramValidator] Telegram дані отримано');
-        console.log('👤 [TelegramValidator] Користувач:', initDataUnsafe.user);
+        // Перевіряємо обов'язкові поля користувача
+        const user = initDataUnsafe.user;
+        if (!user.id || typeof user.id !== 'number') {
+            console.error('❌ [TelegramValidator] Невірний ID користувача');
+            throw new Error('Невірний ID користувача');
+        }
+
+        console.log('✅ [TelegramValidator] Telegram дані валідні');
+        console.log('👤 [TelegramValidator] Користувач ID:', user.id);
+        console.log('👤 [TelegramValidator] Username:', user.username || 'Не вказано');
 
         return {
             initData: initData,
             initDataUnsafe: initDataUnsafe,
-            user: initDataUnsafe.user || null,
+            user: user,
             auth_date: initDataUnsafe.auth_date || null,
             hash: initDataUnsafe.hash || null,
             chat_instance: initDataUnsafe.chat_instance || null,
@@ -60,26 +86,19 @@ window.TelegramValidator = (function() {
      */
     function validateUserLocally(userData) {
         console.log('🔍 [TelegramValidator] Локальна валідація користувача...');
-        console.log('📊 [TelegramValidator] Дані для валідації:', userData);
 
         if (!userData) {
-            console.error('❌ [TelegramValidator] Дані користувача відсутні');
-            return false;
+            throw new Error('Дані користувача відсутні');
         }
 
         // Перевіряємо обов'язкові поля
-        const requiredFields = ['id'];
-        for (const field of requiredFields) {
-            if (!userData[field]) {
-                console.error(`❌ [TelegramValidator] Відсутнє обов'язкове поле: ${field}`);
-                return false;
-            }
+        if (!userData.id || typeof userData.id !== 'number' || userData.id <= 0) {
+            throw new Error('Невірний ID користувача');
         }
 
-        // Перевіряємо тип ID
-        if (typeof userData.id !== 'number' || userData.id <= 0) {
-            console.error('❌ [TelegramValidator] Невірний формат ID користувача:', userData.id);
-            return false;
+        // Перевіряємо довжину username якщо є
+        if (userData.username && (userData.username.length < 5 || userData.username.length > 32)) {
+            console.warn('⚠️ [TelegramValidator] Підозрілий username:', userData.username);
         }
 
         // Перевіряємо давність auth_date якщо є
@@ -92,8 +111,19 @@ window.TelegramValidator = (function() {
             console.log('⏰ [TelegramValidator] Вік даних:', age, 'секунд');
 
             if (age > maxAge) {
-                console.error('❌ [TelegramValidator] Дані застарілі (старші 24 годин)');
-                return false;
+                throw new Error('Дані застарілі. Оновіть сторінку');
+            }
+
+            if (age < 0) {
+                throw new Error('Невірна мітка часу авторизації');
+            }
+        }
+
+        // Перевіряємо валідність ID за діапазоном
+        const validation = window.TasksConstants?.VALIDATION_RULES?.TELEGRAM_ID;
+        if (validation) {
+            if (userData.id < validation.MIN || userData.id > validation.MAX) {
+                throw new Error('Невірний діапазон ID користувача');
             }
         }
 
@@ -108,18 +138,16 @@ window.TelegramValidator = (function() {
         console.log('🌐 [TelegramValidator] === СЕРВЕРНА ВАЛІДАЦІЯ ===');
 
         if (!telegramData || !telegramData.initData) {
-            console.error('❌ [TelegramValidator] Немає даних для валідації');
-            return { valid: false, error: 'No data' };
+            throw new Error('Немає даних для валідації');
         }
 
         try {
             console.log('📤 [TelegramValidator] Відправка даних на сервер...');
-            console.log('📊 [TelegramValidator] URL:', '/auth/validate-telegram');
             console.log('📊 [TelegramValidator] Довжина initData:', telegramData.initData.length);
 
             const response = await window.TasksAPI.auth.validateTelegram(telegramData.initData);
 
-            console.log('📊 [TelegramValidator] Відповідь сервера:', response);
+            console.log('📊 [TelegramValidator] Відповідь сервера отримана');
 
             if (response.valid) {
                 console.log('✅ [TelegramValidator] Серверна валідація пройдена');
@@ -128,8 +156,7 @@ window.TelegramValidator = (function() {
                 if (response.token) {
                     const storageKey = window.TasksConstants?.STORAGE_KEYS?.AUTH_TOKEN || 'winix_auth_token';
                     sessionStorage.setItem(storageKey, response.token);
-                    console.log('💾 [TelegramValidator] Токен збережено в sessionStorage');
-                    console.log('🔑 [TelegramValidator] Ключ:', storageKey);
+                    console.log('💾 [TelegramValidator] Токен збережено');
                 }
 
                 return {
@@ -139,27 +166,24 @@ window.TelegramValidator = (function() {
                 };
             } else {
                 console.error('❌ [TelegramValidator] Серверна валідація не пройдена');
-                console.error('❌ [TelegramValidator] Причина:', response.error || 'Unknown');
-                return {
-                    valid: false,
-                    error: response.error || 'Validation failed'
-                };
+                throw new Error(response.error || 'Валідація не пройдена');
             }
 
         } catch (error) {
             console.error('❌ [TelegramValidator] Помилка серверної валідації:', error);
-            console.error('❌ [TelegramValidator] Stack:', error.stack);
 
             // Детальна інформація про помилку
-            if (error.response) {
-                console.error('❌ [TelegramValidator] Response status:', error.response.status);
-                console.error('❌ [TelegramValidator] Response data:', error.response.data);
+            if (error.status === 401) {
+                throw new Error('Помилка авторизації. Перезапустіть додаток через Telegram');
+            } else if (error.status === 403) {
+                throw new Error('Доступ заборонено. Перевірте права доступу');
+            } else if (error.status >= 500) {
+                throw new Error('Сервер тимчасово недоступний. Спробуйте пізніше');
+            } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+                throw new Error('Проблеми з мережею. Перевірте підключення до інтернету');
             }
 
-            return {
-                valid: false,
-                error: error.message || 'Network error'
-            };
+            throw new Error(error.message || 'Помилка валідації даних');
         }
     }
 
@@ -170,51 +194,54 @@ window.TelegramValidator = (function() {
         console.log('🔐 [TelegramValidator] === ПОВНА ВАЛІДАЦІЯ ===');
         console.log('🕐 [TelegramValidator] Час початку:', new Date().toISOString());
 
-        // Отримуємо дані
-        const telegramData = getTelegramData();
-        if (!telegramData) {
-            console.error('❌ [TelegramValidator] Не вдалося отримати Telegram дані');
-            return {
-                valid: false,
-                error: 'No Telegram data available'
-            };
-        }
+        try {
+            // Отримуємо дані
+            const telegramData = getTelegramData();
 
-        // Локальна валідація
-        if (!validateUserLocally(telegramData.user)) {
-            console.error('❌ [TelegramValidator] Локальна валідація провалена');
-            return {
-                valid: false,
-                error: 'Local validation failed'
-            };
-        }
+            // Локальна валідація
+            validateUserLocally(telegramData.user);
 
-        // Серверна валідація
-        console.log('🔄 [TelegramValidator] Переходимо до серверної валідації...');
-        const serverValidation = await validateOnServer(telegramData);
+            // Серверна валідація
+            console.log('🔄 [TelegramValidator] Переходимо до серверної валідації...');
+            const serverValidation = await validateOnServer(telegramData);
 
-        if (serverValidation.valid) {
-            console.log('✅ [TelegramValidator] Валідація успішна!');
+            if (serverValidation.valid) {
+                console.log('✅ [TelegramValidator] Валідація успішна!');
 
-            // Оновлюємо дані користувача в сторі
-            if (window.TasksStore) {
-                console.log('📝 [TelegramValidator] Оновлення даних в Store...');
-                window.TasksStore.actions.setUser({
-                    id: serverValidation.user.id,
-                    telegramId: serverValidation.user.telegramId || telegramData.user.id,
-                    username: serverValidation.user.username || telegramData.user.username,
-                    firstName: serverValidation.user.firstName || telegramData.user.first_name,
-                    lastName: serverValidation.user.lastName || telegramData.user.last_name,
-                    photoUrl: serverValidation.user.photoUrl || telegramData.user.photo_url,
-                    languageCode: serverValidation.user.languageCode || telegramData.user.language_code
-                });
-                console.log('✅ [TelegramValidator] Дані користувача оновлено в Store');
+                // Оновлюємо дані користувача в сторі
+                if (window.TasksStore) {
+                    console.log('📝 [TelegramValidator] Оновлення даних в Store...');
+                    window.TasksStore.actions.setUser({
+                        id: serverValidation.user.id,
+                        telegramId: serverValidation.user.telegram_id || telegramData.user.id,
+                        username: serverValidation.user.username || telegramData.user.username,
+                        firstName: serverValidation.user.first_name || telegramData.user.first_name,
+                        lastName: serverValidation.user.last_name || telegramData.user.last_name,
+                        photoUrl: serverValidation.user.photo_url || telegramData.user.photo_url,
+                        languageCode: serverValidation.user.language_code || telegramData.user.language_code,
+                        balance: serverValidation.user.balance || { winix: 0, tickets: 0, flex: 0 }
+                    });
+                    console.log('✅ [TelegramValidator] Дані користувача оновлено в Store');
+                }
+
+                return serverValidation;
+            } else {
+                throw new Error(serverValidation.error || 'Валідація провалена');
             }
-        } else {
-            console.error('❌ [TelegramValidator] Валідація провалена:', serverValidation.error);
-        }
 
-        return serverValidation;
+        } catch (error) {
+            console.error('❌ [TelegramValidator] Валідація провалена:', error.message);
+
+            // Показуємо помилку користувачу
+            if (window.TasksUtils?.showToast) {
+                window.TasksUtils.showToast(error.message, 'error');
+            }
+
+            return {
+                valid: false,
+                error: error.message
+            };
+        }
     }
 
     /**
@@ -223,9 +250,32 @@ window.TelegramValidator = (function() {
     function getAuthToken() {
         const storageKey = window.TasksConstants?.STORAGE_KEYS?.AUTH_TOKEN || 'winix_auth_token';
         const token = sessionStorage.getItem(storageKey);
-        console.log('🔑 [TelegramValidator] Отримання токену з ключа:', storageKey);
-        console.log('🔑 [TelegramValidator] Токен:', token ? 'Присутній' : 'Відсутній');
-        return token;
+
+        if (!token) {
+            console.log('🔑 [TelegramValidator] Токен відсутній');
+            return null;
+        }
+
+        // Перевіряємо термін дії токену
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const exp = payload.exp * 1000;
+            const now = Date.now();
+
+            if (exp <= now) {
+                console.warn('⚠️ [TelegramValidator] Токен застарілий');
+                clearAuthToken();
+                return null;
+            }
+
+            console.log('🔑 [TelegramValidator] Токен валідний');
+            return token;
+
+        } catch (error) {
+            console.error('❌ [TelegramValidator] Помилка парсингу токену:', error);
+            clearAuthToken();
+            return null;
+        }
     }
 
     /**
@@ -235,6 +285,12 @@ window.TelegramValidator = (function() {
         console.log('🗑️ [TelegramValidator] Очищення токену');
         const storageKey = window.TasksConstants?.STORAGE_KEYS?.AUTH_TOKEN || 'winix_auth_token';
         sessionStorage.removeItem(storageKey);
+
+        // Очищаємо дані користувача зі Store
+        if (window.TasksStore) {
+            window.TasksStore.actions.clearUser();
+        }
+
         console.log('✅ [TelegramValidator] Токен видалено');
     }
 
@@ -242,20 +298,24 @@ window.TelegramValidator = (function() {
      * Перевірити чи користувач авторизований
      */
     function isAuthenticated() {
-        const token = getAuthToken();
-        const hasToken = !!token;
-        const telegramData = getTelegramData();
-        const hasTelegramData = !!telegramData;
+        try {
+            // Перевіряємо наявність токену
+            const token = getAuthToken();
+            if (!token) {
+                console.log('🔐 [TelegramValidator] Токен відсутній');
+                return false;
+            }
 
-        const isAuth = hasToken && hasTelegramData;
+            // Перевіряємо наявність Telegram даних
+            checkTelegramAvailability();
 
-        console.log('🔐 [TelegramValidator] Перевірка авторизації:', {
-            hasToken,
-            hasTelegramData,
-            isAuthenticated: isAuth
-        });
+            console.log('🔐 [TelegramValidator] Користувач авторизований');
+            return true;
 
-        return isAuth;
+        } catch (error) {
+            console.log('🔐 [TelegramValidator] Користувач не авторизований:', error.message);
+            return false;
+        }
     }
 
     /**
@@ -267,7 +327,7 @@ window.TelegramValidator = (function() {
         const currentToken = getAuthToken();
         if (!currentToken) {
             console.error('❌ [TelegramValidator] Немає токену для оновлення');
-            return false;
+            throw new Error('Немає токену для оновлення');
         }
 
         try {
@@ -280,13 +340,12 @@ window.TelegramValidator = (function() {
                 return true;
             }
 
-            console.error('❌ [TelegramValidator] Сервер не повернув новий токен');
-            return false;
+            throw new Error('Сервер не повернув новий токен');
 
         } catch (error) {
             console.error('❌ [TelegramValidator] Помилка оновлення токену:', error);
             clearAuthToken();
-            return false;
+            throw error;
         }
     }
 
@@ -298,43 +357,29 @@ window.TelegramValidator = (function() {
 
         const refreshInterval = window.TasksConstants?.TIMERS?.SESSION_REFRESH || 30 * 60 * 1000;
 
-        // Оновлюємо кожні 30 хвилин
         setInterval(async () => {
             if (isAuthenticated()) {
-                console.log('🔄 [TelegramValidator] Автоматичне оновлення токену');
-                await refreshToken();
+                try {
+                    const token = getAuthToken();
+                    if (token) {
+                        // Перевіряємо чи потрібно оновити токен (за 5 хвилин до закінчення)
+                        const payload = JSON.parse(atob(token.split('.')[1]));
+                        const exp = payload.exp * 1000;
+                        const now = Date.now();
+                        const timeUntilExpiry = exp - now;
+
+                        if (timeUntilExpiry < 5 * 60 * 1000) { // Менше 5 хвилин
+                            console.log('🔄 [TelegramValidator] Автоматичне оновлення токену');
+                            await refreshToken();
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ [TelegramValidator] Помилка автооновлення токену:', error);
+                }
             }
         }, refreshInterval);
 
         console.log(`✅ [TelegramValidator] Автооновлення налаштовано (кожні ${refreshInterval / 1000 / 60} хвилин)`);
-    }
-
-    /**
-     * Форматувати дані для відправки
-     */
-    function formatInitData(data) {
-        const params = new URLSearchParams();
-
-        // Додаємо всі параметри крім hash
-        Object.entries(data).forEach(([key, value]) => {
-            if (key !== 'hash' && value !== undefined && value !== null) {
-                if (typeof value === 'object') {
-                    params.append(key, JSON.stringify(value));
-                } else {
-                    params.append(key, String(value));
-                }
-            }
-        });
-
-        // Сортуємо параметри алфавітно
-        const sortedParams = new URLSearchParams([...params].sort());
-
-        // Додаємо hash в кінці
-        if (data.hash) {
-            sortedParams.append('hash', data.hash);
-        }
-
-        return sortedParams.toString();
     }
 
     /**
@@ -343,33 +388,36 @@ window.TelegramValidator = (function() {
     function setupWebApp() {
         console.log('📱 [TelegramValidator] Налаштування Telegram WebApp');
 
-        if (!window.Telegram?.WebApp) {
-            console.error('❌ [TelegramValidator] Telegram WebApp недоступний');
-            return;
+        try {
+            checkTelegramAvailability();
+
+            const webApp = window.Telegram.WebApp;
+
+            // Налаштування кольорів
+            if (webApp.setHeaderColor) {
+                webApp.setHeaderColor('#1a1a2e');
+            }
+
+            if (webApp.setBackgroundColor) {
+                webApp.setBackgroundColor('#0f0f1e');
+            }
+
+            // Розгортаємо на весь екран
+            if (webApp.expand) {
+                webApp.expand();
+            }
+
+            // Готовність
+            if (webApp.ready) {
+                webApp.ready();
+            }
+
+            console.log('✅ [TelegramValidator] WebApp налаштовано');
+
+        } catch (error) {
+            console.error('❌ [TelegramValidator] Помилка налаштування WebApp:', error);
+            throw error;
         }
-
-        const webApp = window.Telegram.WebApp;
-
-        // Логування поточних налаштувань
-        console.log('📊 [TelegramValidator] Поточні налаштування WebApp:', {
-            version: webApp.version,
-            platform: webApp.platform,
-            colorScheme: webApp.colorScheme,
-            viewportHeight: webApp.viewportHeight,
-            viewportStableHeight: webApp.viewportStableHeight
-        });
-
-        // Налаштування кольорів
-        webApp.setHeaderColor('#1a1a2e');
-        webApp.setBackgroundColor('#0f0f1e');
-
-        // Розгортаємо на весь екран
-        webApp.expand();
-
-        // Готовність
-        webApp.ready();
-
-        console.log('✅ [TelegramValidator] WebApp налаштовано');
     }
 
     /**
@@ -378,21 +426,61 @@ window.TelegramValidator = (function() {
     function init() {
         console.log('🚀 [TelegramValidator] Ініціалізація модуля');
 
-        // Налаштовуємо WebApp
-        setupWebApp();
+        try {
+            // Налаштовуємо WebApp
+            setupWebApp();
 
-        // Налаштовуємо автооновлення токену
-        setupTokenRefresh();
+            // Налаштовуємо автооновлення токену
+            setupTokenRefresh();
 
-        // Логуємо початкові дані
-        const telegramData = getTelegramData();
-        if (telegramData) {
-            console.log('✅ [TelegramValidator] Telegram дані доступні при ініціалізації');
-        } else {
-            console.warn('⚠️ [TelegramValidator] Telegram дані відсутні при ініціалізації');
+            // Перевіряємо початкові дані
+            const telegramData = getTelegramData();
+            if (telegramData) {
+                console.log('✅ [TelegramValidator] Telegram дані доступні при ініціалізації');
+            }
+
+            console.log('✅ [TelegramValidator] Модуль ініціалізовано');
+
+        } catch (error) {
+            console.error('❌ [TelegramValidator] Помилка ініціалізації:', error);
+
+            // Показуємо критичну помилку
+            const container = document.querySelector('.container') || document.body;
+            if (container) {
+                const errorDiv = document.createElement('div');
+                errorDiv.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: #1a1a2e;
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    text-align: center;
+                    padding: 20px;
+                    z-index: 10000;
+                `;
+                errorDiv.innerHTML = `
+                    <h2 style="color: #e74c3c; margin-bottom: 20px;">❌ Помилка ініціалізації</h2>
+                    <p style="margin-bottom: 20px; font-size: 16px;">${error.message}</p>
+                    <p style="color: #95a5a6; font-size: 14px;">
+                        Переконайтеся, що додаток відкрито через Telegram, <br>
+                        та спробуйте оновити сторінку
+                    </p>
+                    <button onclick="window.location.reload()" 
+                            style="margin-top: 20px; padding: 10px 20px; background: #b366ff; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                        Оновити сторінку
+                    </button>
+                `;
+                container.appendChild(errorDiv);
+            }
+
+            throw error;
         }
-
-        console.log('✅ [TelegramValidator] Модуль ініціалізовано');
     }
 
     // Автоматична ініціалізація
@@ -402,7 +490,7 @@ window.TelegramValidator = (function() {
         init();
     }
 
-    console.log('✅ [TelegramValidator] Модуль валідації Telegram готовий');
+    console.log('✅ [TelegramValidator] Модуль валідації Telegram готовий (Production)');
 
     // Публічний API
     return {
@@ -412,10 +500,10 @@ window.TelegramValidator = (function() {
         getAuthToken,
         clearAuthToken,
         refreshToken,
-        formatInitData,
-        setupWebApp
+        setupWebApp,
+        checkTelegramAvailability
     };
 
 })();
 
-console.log('✅ [TelegramValidator] Модуль експортовано глобально');
+console.log('✅ [TelegramValidator] Модуль експортовано глобально (Production)');
