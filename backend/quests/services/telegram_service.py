@@ -1,14 +1,12 @@
 """
-Сервіс для інтеграції з Telegram ботом
-Верифікація підписок та інших дій користувачів
+Сервіс для інтеграції з Telegram ботом - ВИПРАВЛЕНА ВЕРСІЯ
+Безпечна верифікація підписок та інших дій користувачів
 """
 
 import os
 import logging
 import asyncio
 from typing import Dict, Any, Optional
-from telegram import Bot
-from telegram.error import BadRequest, Forbidden
 from dotenv import load_dotenv
 
 # Завантаження змінних середовища
@@ -16,6 +14,31 @@ load_dotenv()
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
+
+# === БЕЗПЕЧНИЙ ІМПОРТ TELEGRAM ===
+HAS_TELEGRAM = False
+Bot = None
+BadRequest = Forbidden = None
+
+try:
+    from telegram import Bot
+    from telegram.error import BadRequest, Forbidden
+    HAS_TELEGRAM = True
+    logger.info("✅ Telegram пакет доступний")
+except ImportError as e:
+    logger.warning(f"⚠️ Telegram пакет недоступний: {e}")
+    logger.info("💡 Встановіть: pip install python-telegram-bot")
+
+    # Заглушки для класів
+    class Bot:
+        def __init__(self, token): pass
+        async def get_chat(self, user_id): return None
+        async def get_chat_member(self, chat_id, user_id): return None
+        async def send_message(self, chat_id, text, **kwargs): return None
+        async def get_me(self): return None
+
+    class BadRequest(Exception): pass
+    class Forbidden(Exception): pass
 
 
 class TelegramService:
@@ -26,6 +49,11 @@ class TelegramService:
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.bot_username = os.getenv('TELEGRAM_BOT_USERNAME', '@WINIX_Official_bot')
         self.bot = None
+        self.is_available = HAS_TELEGRAM and bool(self.bot_token)
+
+        if not HAS_TELEGRAM:
+            logger.warning("⚠️ Telegram пакет недоступний - сервіс працює в режимі заглушки")
+            return
 
         if self.bot_token:
             try:
@@ -33,8 +61,10 @@ class TelegramService:
                 logger.info("✅ Telegram бот ініціалізовано")
             except Exception as e:
                 logger.error(f"❌ Помилка ініціалізації Telegram бота: {str(e)}")
+                self.is_available = False
         else:
             logger.warning("⚠️ TELEGRAM_BOT_TOKEN не встановлено")
+            self.is_available = False
 
     async def check_bot_started(self, user_id: str) -> bool:
         """
@@ -46,7 +76,7 @@ class TelegramService:
         Returns:
             bool: True якщо бот запущено
         """
-        if not self.bot:
+        if not self.is_available or not self.bot:
             logger.warning("🤖 Telegram бот не ініціалізовано")
             return False
 
@@ -81,7 +111,7 @@ class TelegramService:
         Returns:
             Dict з результатом перевірки
         """
-        if not self.bot:
+        if not self.is_available or not self.bot:
             return {
                 'subscribed': False,
                 'error': 'Telegram бот не ініціалізовано'
@@ -162,7 +192,7 @@ class TelegramService:
         Returns:
             bool: True якщо повідомлення відправлено
         """
-        if not self.bot:
+        if not self.is_available or not self.bot:
             logger.warning("🤖 Telegram бот не ініціалізовано")
             return False
 
@@ -189,7 +219,7 @@ class TelegramService:
         Returns:
             Dict з інформацією про бота або None
         """
-        if not self.bot:
+        if not self.is_available or not self.bot:
             return None
 
         try:
@@ -206,7 +236,7 @@ class TelegramService:
 
     def run_async_task(self, coro):
         """
-        Запускає асинхронну задачу в синхронному контексті
+        БЕЗПЕЧНИЙ запуск асинхронної задачі в синхронному контексті
 
         Args:
             coro: Корутина для виконання
@@ -214,60 +244,115 @@ class TelegramService:
         Returns:
             Результат виконання корутини
         """
-        try:
-            # Отримуємо поточний event loop
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Якщо loop вже запущено, створюємо новий в окремому потоці
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, coro)
-                    return future.result()
-            else:
-                # Якщо loop не запущено, використовуємо його
-                return loop.run_until_complete(coro)
-        except RuntimeError:
-            # Якщо немає event loop, створюємо новий
-            return asyncio.run(coro)
+        if not self.is_available:
+            logger.warning("⚠️ Telegram сервіс недоступний")
+            return None
 
-    # Синхронні обгортки для зручності використання в Flask
+        try:
+            # Спочатку пробуємо отримати поточний event loop
+            try:
+                loop = asyncio.get_running_loop()
+                # Якщо loop вже запущено, використовуємо asyncio.run в окремому потоці
+                import concurrent.futures
+                import threading
+
+                def run_in_thread():
+                    return asyncio.run(coro)
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_in_thread)
+                    return future.result(timeout=30)  # 30 секунд timeout
+
+            except RuntimeError:
+                # Немає запущеного loop, можемо використовувати asyncio.run
+                return asyncio.run(coro)
+
+        except Exception as e:
+            logger.error(f"❌ Помилка виконання async задачі: {str(e)}")
+            return None
+
+    # === СИНХРОННІ ОБГОРТКИ ===
     def check_bot_started_sync(self, user_id: str) -> bool:
         """Синхронна версія check_bot_started"""
-        return self.run_async_task(self.check_bot_started(user_id))
+        if not self.is_available:
+            return False
+        result = self.run_async_task(self.check_bot_started(user_id))
+        return result if result is not None else False
 
     def check_channel_subscription_sync(self, user_id: str, channel_username: str) -> Dict[str, Any]:
         """Синхронна версія check_channel_subscription"""
-        return self.run_async_task(self.check_channel_subscription(user_id, channel_username))
+        if not self.is_available:
+            return {'subscribed': False, 'error': 'Сервіс недоступний'}
+        result = self.run_async_task(self.check_channel_subscription(user_id, channel_username))
+        return result if result is not None else {'subscribed': False, 'error': 'Помилка виконання'}
 
     def send_verification_message_sync(self, user_id: str, message: str) -> bool:
         """Синхронна версія send_verification_message"""
-        return self.run_async_task(self.send_verification_message(user_id, message))
+        if not self.is_available:
+            return False
+        result = self.run_async_task(self.send_verification_message(user_id, message))
+        return result if result is not None else False
 
     def get_bot_info_sync(self) -> Optional[Dict[str, Any]]:
         """Синхронна версія get_bot_info"""
+        if not self.is_available:
+            return None
         return self.run_async_task(self.get_bot_info())
 
+    def get_service_status(self) -> Dict[str, Any]:
+        """Отримання статусу сервісу"""
+        return {
+            'available': self.is_available,
+            'has_telegram_package': HAS_TELEGRAM,
+            'has_bot_token': bool(self.bot_token),
+            'bot_username': self.bot_username,
+            'bot_initialized': self.bot is not None
+        }
 
-# Глобальний екземпляр сервісу
-telegram_service = TelegramService()
+
+# Глобальний екземпляр сервісу з безпечною ініціалізацією
+try:
+    telegram_service = TelegramService()
+    logger.info("✅ TelegramService створено")
+except Exception as e:
+    logger.error(f"❌ Помилка створення TelegramService: {e}")
+    # Створюємо заглушку
+    class TelegramServiceStub:
+        def __init__(self):
+            self.is_available = False
+        def check_bot_started_sync(self, user_id): return False
+        def check_channel_subscription_sync(self, user_id, channel): return {'subscribed': False}
+        def send_verification_message_sync(self, user_id, message): return False
+        def get_bot_info_sync(self): return None
+        def get_service_status(self): return {'available': False, 'error': 'Service creation failed'}
+
+    telegram_service = TelegramServiceStub()
 
 
-# Функції для зручного використання
+# === ФУНКЦІЇ ДЛЯ ЗРУЧНОГО ВИКОРИСТАННЯ ===
 def check_bot_started(user_id: str) -> bool:
     """Перевіряє чи користувач запустив бота"""
     return telegram_service.check_bot_started_sync(user_id)
-
 
 def check_channel_subscription(user_id: str, channel_username: str) -> Dict[str, Any]:
     """Перевіряє підписку на канал"""
     return telegram_service.check_channel_subscription_sync(user_id, channel_username)
 
-
 def send_verification_message(user_id: str, message: str) -> bool:
     """Відправляє повідомлення користувачу"""
     return telegram_service.send_verification_message_sync(user_id, message)
 
-
 def get_bot_info() -> Optional[Dict[str, Any]]:
     """Отримує інформацію про бота"""
     return telegram_service.get_bot_info_sync()
+
+# === ЕКСПОРТ ===
+__all__ = [
+    'TelegramService',
+    'telegram_service',
+    'check_bot_started',
+    'check_channel_subscription',
+    'send_verification_message',
+    'get_bot_info',
+    'HAS_TELEGRAM'
+]

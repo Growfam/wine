@@ -35,3 +35,26 @@ python-telegram-bot==20.8
 redis==4.5.4
 hiredis==2.2.3
 psutil>=5.9.0
+
+# HTTP/Async для TON Connect Service
+aiohttp==3.9.1
+asyncio-mqtt==0.16.1
+
+# Додаткові HTTP клієнти
+httpx==0.26.0
+
+# Утиліти для роботи з часом
+python-dateutil==2.8.2
+pytz==2023.4
+
+# Валідація даних
+pydantic==2.5.2
+
+# Математичні операції
+numpy==1.26.2
+
+# JSON обробка
+orjson==3.9.10
+
+# Logging
+structlog==23.2.0

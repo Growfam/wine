@@ -1,6 +1,6 @@
 """
-Сервіс верифікації завдань WINIX
-Обробка різних типів завдань та таймерів
+Сервіс верифікації завдань WINIX - ВИПРАВЛЕНА ВЕРСІЯ
+Безпечна обробка різних типів завдань та таймерів БЕЗ автостарту threading
 """
 
 import logging
@@ -12,21 +12,34 @@ from enum import Enum
 import threading
 from queue import Queue, Empty
 
+# Налаштування логування
+logger = logging.getLogger(__name__)
+
+# === БЕЗПЕЧНИЙ ІМПОРТ ЗАЛЕЖНОСТЕЙ ===
+supabase = get_user = update_user = None
 try:
     from supabase_client import supabase, get_user, update_user
+    logger.info("✅ Supabase client імпортовано")
 except ImportError:
-    from backend.supabase_client import supabase, get_user, update_user
+    try:
+        from backend.supabase_client import supabase, get_user, update_user
+        logger.info("✅ Backend supabase client імпортовано")
+    except ImportError:
+        logger.warning("⚠️ Supabase client недоступний - працюємо в режимі заглушки")
+        def get_user(telegram_id): return None
+        def update_user(telegram_id, data): return None
 
+# Безпечний імпорт Telegram Service
+telegram_service = None
 try:
     from .telegram_service import telegram_service
+    logger.info("✅ TelegramService імпортовано для верифікації")
 except ImportError:
     try:
         from telegram_service import telegram_service
+        logger.info("✅ TelegramService (direct) імпортовано")
     except ImportError:
-        telegram_service = None
-
-# Налаштування логування
-logger = logging.getLogger(__name__)
+        logger.warning("⚠️ TelegramService недоступний для верифікації")
 
 
 class TaskType(Enum):
@@ -52,14 +65,20 @@ class VerificationStatus(Enum):
 
 
 class VerificationService:
-    """Основний сервіс верифікації завдань"""
+    """Основний сервіс верифікації завдань БЕЗ автостарту threading"""
 
-    def __init__(self):
-        """Ініціалізація сервісу"""
+    def __init__(self, auto_start_processor=False):
+        """
+        Ініціалізація сервісу БЕЗ автоматичного запуску обробника
+
+        Args:
+            auto_start_processor: Чи запускати обробник автоматично (за замовчуванням False)
+        """
         self.verification_queue = Queue()
         self.active_verifications = {}
         self.task_timers = {}
         self.is_processing = False
+        self._processor_thread = None
 
         # Конфігурація таймерів (в секундах)
         self.timer_config = {
@@ -74,16 +93,23 @@ class VerificationService:
         # Максимальна кількість спроб
         self.max_retries = 3
 
-        # Запускаємо обробник черги
-        self._start_queue_processor()
+        # Запускаємо обробник тільки якщо це явно вказано
+        if auto_start_processor:
+            self.start_queue_processor()
 
-        logger.info("✅ VerificationService ініціалізовано")
+        logger.info("✅ VerificationService ініціалізовано БЕЗ автостарту")
 
-    def _start_queue_processor(self):
-        """Запускає обробник черги верифікацій"""
+    def start_queue_processor(self):
+        """Ручний запуск обробника черги верифікацій"""
+        if self.is_processing:
+            logger.warning("⚠️ Обробник черги вже запущено")
+            return
 
         def process_queue():
-            while True:
+            self.is_processing = True
+            logger.info("🔄 Обробник черги верифікацій запущено")
+
+            while self.is_processing:
                 try:
                     if not self.verification_queue.empty():
                         self._process_next_verification()
@@ -92,9 +118,23 @@ class VerificationService:
                     logger.error(f"❌ Помилка в обробнику черги: {str(e)}")
                     time.sleep(5)  # Пауза при помилці
 
-        thread = threading.Thread(target=process_queue, daemon=True)
-        thread.start()
-        logger.info("🔄 Обробник черги верифікацій запущено")
+            logger.info("🛑 Обробник черги верифікацій зупинено")
+
+        self._processor_thread = threading.Thread(target=process_queue, daemon=True)
+        self._processor_thread.start()
+        logger.info("🚀 Обробник черги верифікацій запущено вручну")
+
+    def stop_queue_processor(self):
+        """Зупинка обробника черги"""
+        if not self.is_processing:
+            logger.warning("⚠️ Обробник черги не запущено")
+            return
+
+        self.is_processing = False
+        if self._processor_thread and self._processor_thread.is_alive():
+            self._processor_thread.join(timeout=5)  # Чекаємо максимум 5 секунд
+
+        logger.info("🛑 Обробник черги верифікацій зупинено")
 
     def start_task_verification(self, user_id: str, task_id: str, task_type: str,
                                 task_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -187,6 +227,10 @@ class VerificationService:
 
     def _start_instant_verification(self, verification: Dict[str, Any]) -> Dict[str, Any]:
         """Запускає миттєву верифікацію (Telegram)"""
+        # Запускаємо обробник якщо не запущений
+        if not self.is_processing:
+            self.start_queue_processor()
+
         # Додаємо в чергу для обробки
         self.verification_queue.put(verification)
 
@@ -238,6 +282,11 @@ class VerificationService:
                 if self._check_timer_completion(verification['id']):
                     # Таймер завершено, можна перевіряти
                     verification['status'] = VerificationStatus.PENDING.value
+
+                    # Запускаємо обробник якщо потрібно
+                    if not self.is_processing:
+                        self.start_queue_processor()
+
                     self.verification_queue.put(verification)
 
                     return {
@@ -519,6 +568,25 @@ class VerificationService:
     def _award_reward(self, user_id: str, task_id: str, reward: Dict[str, Any]):
         """Нараховує винагороду користувачу"""
         try:
+            # Якщо є транзакційний сервіс, використовуємо його
+            try:
+                from ..services.transaction_service import transaction_service
+                if transaction_service:
+                    from ..models.transaction import TransactionAmount, TransactionType
+                    amount = TransactionAmount(
+                        winix=reward.get('winix', 0),
+                        tickets=reward.get('tickets', 0)
+                    )
+                    result = transaction_service.process_task_reward(
+                        user_id, amount.winix, amount.tickets, task_id, "verification_reward"
+                    )
+                    if result['success']:
+                        logger.info(f"💰 Винагорода нарахована через TransactionService: {reward}")
+                        return
+            except ImportError:
+                pass
+
+            # Fallback до прямого оновлення
             from users.controllers import update_user_balance
 
             # Нараховуємо WINIX
@@ -653,6 +721,7 @@ class VerificationService:
             'active_verifications': len(self.active_verifications),
             'queue_length': self.verification_queue.qsize(),
             'active_timers': len(self.task_timers),
+            'processor_running': self.is_processing,
             'timer_config': {task_type.value: duration for task_type, duration in self.timer_config.items()}
         }
 
@@ -672,6 +741,40 @@ class VerificationService:
             self._cleanup_verification(ver_id)
             logger.info(f"🧹 Видалено застарілу верифікацію: {ver_id}")
 
+    def get_service_status(self) -> Dict[str, Any]:
+        """Отримання статусу сервісу"""
+        return {
+            'processor_running': self.is_processing,
+            'active_verifications': len(self.active_verifications),
+            'queue_length': self.verification_queue.qsize(),
+            'active_timers': len(self.task_timers),
+            'telegram_service_available': telegram_service is not None,
+            'supabase_available': supabase is not None
+        }
 
-# Глобальний екземпляр сервісу
-verification_service = VerificationService()
+
+# Глобальний екземпляр сервісу БЕЗ автостарту
+try:
+    verification_service = VerificationService(auto_start_processor=False)
+    logger.info("✅ VerificationService створено БЕЗ автостарту")
+except Exception as e:
+    logger.error(f"❌ Помилка створення VerificationService: {e}")
+    # Заглушка
+    class VerificationServiceStub:
+        def __init__(self):
+            self.is_processing = False
+        def start_task_verification(self, *args): return {'success': False, 'error': 'Service unavailable'}
+        def check_verification_status(self, *args): return {'success': False, 'error': 'Service unavailable'}
+        def complete_verification(self, *args): return {'success': False, 'error': 'Service unavailable'}
+        def get_service_status(self): return {'available': False, 'error': 'Service creation failed'}
+
+    verification_service = VerificationServiceStub()
+
+
+# === ЕКСПОРТ ===
+__all__ = [
+    'VerificationService',
+    'verification_service',
+    'TaskType',
+    'VerificationStatus'
+]
