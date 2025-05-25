@@ -1,16 +1,18 @@
 """
 Кеш система для WINIX Quests з підтримкою Redis та in-memory storage
-Виправлена версія без async проблем при імпорті
+Повна версія з усіма необхідними класами та енумами
 """
 
 import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
 import hashlib
 import threading
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+from enum import Enum
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,93 @@ logger = logging.getLogger(__name__)
 DEFAULT_TTL = 300  # 5 хвилин
 MAX_MEMORY_ITEMS = 1000
 CLEANUP_INTERVAL = 60  # 1 хвилина
+
+
+# === ЕНУМИ ТА КЛАСИ КОНФІГУРАЦІЇ ===
+
+class CacheType(Enum):
+    """Типи кешу"""
+    MEMORY = "memory"
+    REDIS = "redis"
+    HYBRID = "hybrid"
+    DISABLED = "disabled"
+
+
+class CachePolicy(Enum):
+    """Політики кешування"""
+    LRU = "lru"  # Least Recently Used
+    LFU = "lfu"  # Least Frequently Used
+    FIFO = "fifo"  # First In First Out
+    TTL = "ttl"  # Time To Live
+    WRITE_THROUGH = "write_through"
+    WRITE_BACK = "write_back"
+
+
+@dataclass
+class CacheConfig:
+    """Конфігурація кешу"""
+    cache_type: CacheType = CacheType.HYBRID
+    policy: CachePolicy = CachePolicy.LRU
+    max_memory_items: int = 1000
+    default_ttl: int = 300
+    redis_url: Optional[str] = None
+    redis_db: int = 0
+    compression_enabled: bool = False
+    encryption_enabled: bool = False
+    namespace: str = "winix"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Конвертує в словник"""
+        return {
+            'cache_type': self.cache_type.value,
+            'policy': self.policy.value,
+            'max_memory_items': self.max_memory_items,
+            'default_ttl': self.default_ttl,
+            'redis_url': self.redis_url,
+            'redis_db': self.redis_db,
+            'compression_enabled': self.compression_enabled,
+            'encryption_enabled': self.encryption_enabled,
+            'namespace': self.namespace
+        }
+
+
+@dataclass
+class CacheStats:
+    """Статистика кешу"""
+    hits: int = 0
+    misses: int = 0
+    sets: int = 0
+    deletes: int = 0
+    errors: int = 0
+    total_items: int = 0
+    memory_usage_bytes: int = 0
+    hit_rate: float = 0.0
+    miss_rate: float = 0.0
+
+    def calculate_rates(self):
+        """Обчислює процентні показники"""
+        total_requests = self.hits + self.misses
+        if total_requests > 0:
+            self.hit_rate = (self.hits / total_requests) * 100
+            self.miss_rate = (self.misses / total_requests) * 100
+        else:
+            self.hit_rate = 0.0
+            self.miss_rate = 0.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Конвертує в словник"""
+        self.calculate_rates()
+        return {
+            'hits': self.hits,
+            'misses': self.misses,
+            'sets': self.sets,
+            'deletes': self.deletes,
+            'errors': self.errors,
+            'total_items': self.total_items,
+            'memory_usage_bytes': self.memory_usage_bytes,
+            'hit_rate': round(self.hit_rate, 2),
+            'miss_rate': round(self.miss_rate, 2)
+        }
 
 
 class CacheItem:
@@ -168,11 +257,12 @@ class MemoryCache:
 
 
 class RedisCache:
-    """Redis кеш (заглушка для майбутньої реалізації)"""
+    """Redis кеш"""
 
     def __init__(self, redis_url: Optional[str] = None):
         self.redis_url = redis_url
         self._connected = False
+        self._redis = None
 
         # Спроба підключення до Redis
         if redis_url:
@@ -256,7 +346,6 @@ class RedisCache:
 class CacheManager:
     """
     Головний менеджер кешу з підтримкою Redis та in-memory
-    Виправлена версія без async проблем
     """
 
     def __init__(self,
@@ -284,13 +373,7 @@ class CacheManager:
         self._should_stop_cleanup = False
 
         # Статистика
-        self._stats = {
-            'hits': 0,
-            'misses': 0,
-            'sets': 0,
-            'deletes': 0,
-            'errors': 0
-        }
+        self._stats = CacheStats()
 
         # Автоматичний запуск cleanup якщо дозволено
         if auto_start_cleanup:
@@ -375,22 +458,22 @@ class CacheManager:
             if self.redis_cache and self.redis_cache.is_connected:
                 value = self.redis_cache.get(final_key)
                 if value is not None:
-                    self._stats['hits'] += 1
+                    self._stats.hits += 1
                     return value
 
             # Потім memory cache
             if self.memory_cache:
                 value = self.memory_cache.get(final_key)
                 if value is not None:
-                    self._stats['hits'] += 1
+                    self._stats.hits += 1
                     return value
 
             # Нічого не знайдено
-            self._stats['misses'] += 1
+            self._stats.misses += 1
             return default
 
         except Exception as e:
-            self._stats['errors'] += 1
+            self._stats.errors += 1
             logger.error(f"Помилка отримання з кешу {final_key}: {e}")
             return default
 
@@ -426,12 +509,12 @@ class CacheManager:
                     success = True
 
             if success:
-                self._stats['sets'] += 1
+                self._stats.sets += 1
 
             return success
 
         except Exception as e:
-            self._stats['errors'] += 1
+            self._stats.errors += 1
             logger.error(f"Помилка збереження в кеші {final_key}: {e}")
             return False
 
@@ -461,12 +544,12 @@ class CacheManager:
                     deleted = True
 
             if deleted:
-                self._stats['deletes'] += 1
+                self._stats.deletes += 1
 
             return deleted
 
         except Exception as e:
-            self._stats['errors'] += 1
+            self._stats.errors += 1
             logger.error(f"Помилка видалення з кешу {final_key}: {e}")
             return False
 
@@ -516,7 +599,7 @@ class CacheManager:
 
     def get_stats(self) -> Dict[str, Any]:
         """Отримує статистику кешу"""
-        stats = self._stats.copy()
+        stats = self._stats.to_dict()
 
         # Додаємо інформацію про кеші
         stats.update({
@@ -548,7 +631,8 @@ class CacheManager:
                     keys_to_delete.append(key)
 
             for key in keys_to_delete:
-                if self.memory_cache.delete(key.replace(f"{namespace}:" if namespace else "", "")):
+                clean_key = key.replace(f"{namespace}:" if namespace else "", "")
+                if self.memory_cache.delete(clean_key):
                     deleted += 1
 
             return deleted
@@ -658,8 +742,7 @@ class _CacheManagerProxy:
 
 # ✅ ГЛОБАЛЬНИЙ ОБ'ЄКТ ДЛЯ ЕКСПОРТУ
 
-# ЗАМІСТЬ: cache_manager = CacheManager()  # ❌ Викликає async проблеми
-cache_manager = _CacheManagerProxy()  # ✅ Безпечний proxy об'єкт
+cache_manager = _CacheManagerProxy()
 
 
 # ✅ UTILITY ФУНКЦІЇ
@@ -709,17 +792,57 @@ def cached(ttl: int = DEFAULT_TTL, namespace: str = ""):
     return decorator
 
 
+def cache(ttl: int = DEFAULT_TTL, namespace: str = ""):
+    """
+    Alias для cached декоратора для зворотної сумісності
+
+    Args:
+        ttl: Час життя кешу в секундах
+        namespace: Простір імен для кешу
+    """
+    return cached(ttl=ttl, namespace=namespace)
+
+
+def cache_invalidate(pattern: str, namespace: str = ""):
+    """
+    Utility функція для інвалідації кешу за патерном
+
+    Args:
+        pattern: Патерн для пошуку ключів
+        namespace: Простір імен
+    """
+    manager = get_cache_manager()
+    if manager:
+        return manager.invalidate_pattern(pattern, namespace)
+    return 0
+
+
 # ✅ ІНІЦІАЛІЗАЦІЯ ПРИ ІМПОРТІ
 
-logger.info("📦 Cache модуль завантажено (без async ініціалізації)")
+logger.info("📦 Cache модуль завантажено")
 
 # Експортуємо головні об'єкти
 __all__ = [
+    # Основні класи
+    'CacheManager',
+    'CacheType',
+    'CachePolicy',
+    'CacheConfig',
+    'CacheStats',
+    'MemoryCache',
+    'RedisCache',
+    'CacheItem',
+
+    # Глобальні об'єкти
     'cache_manager',
+
+    # Функції
     'get_cache_manager',
     'start_cache_cleanup',
-    'CacheManager',
     'cached',
+    'cache',
+    'cache_invalidate',
     'cache_key_for_user',
-    'cache_key_for_data'
+    'cache_key_for_data',
+    'hash_key'
 ]

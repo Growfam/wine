@@ -6,7 +6,7 @@
 Тут об'єднано ВСЕ: моделі, сервіси, контролери, маршрути, утиліти.
 
 Автор: ростік 🇺🇦
-Версія: 2.0.0 (MEGA EDITION)
+Версія: 2.0.1 (MEGA EDITION)
 Дата: 2025
 
 🎯 Можливості:
@@ -29,7 +29,7 @@ from flask import Flask
 logger = logging.getLogger(__name__)
 
 # Метаінформація пакету
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __author__ = "ростік"
 __description__ = "WINIX Quests System - Повна система завдань з TON інтеграцією"
 __license__ = "MIT"
@@ -48,6 +48,75 @@ COMPONENTS_STATUS = {
 
 # === ІМПОРТ ВСІХ КОМПОНЕНТІВ ===
 
+# 🛠️ === UTILS (ПЕРШИМ) ===
+logger.info("🔧 Завантаження утилітів...")
+try:
+    from .utils import (
+        # Cache
+        CacheManager, CacheType, CachePolicy, CacheConfig,
+        CacheStats, MemoryCache, RedisCache, cache_manager,
+        cache, cache_invalidate,
+
+        # Constants
+        Environment, DatabaseType, LogLevel,
+        TaskType, TaskStatus, TaskDifficulty, FlexLevel,
+        DailyBonusType, ReferralLevel, BadgeType, CurrencyType,
+        AnalyticsEventType, SocialPlatform,
+
+        ENVIRONMENT, DEBUG, LOG_LEVEL, API_BASE_URL, API_VERSION,
+        RATE_LIMIT_ENABLED, CACHE_ENABLED, JWT_SECRET_KEY,
+        TELEGRAM_BOT_TOKEN, SUPABASE_URL,
+
+        TASK_REWARDS, FLEX_LEVELS_CONFIG, DAILY_BONUS_CONFIG,
+        REFERRAL_REWARDS, BADGE_REQUIREMENTS, CURRENCIES_CONFIG,
+        SOCIAL_PLATFORMS_CONFIG, VALIDATION_RULES,
+
+        MAX_BALANCE_LIMITS, SYNC_INTERVALS, OPERATION_TIMEOUTS,
+        TASK_VERIFICATION_TIMEOUT, SUCCESS_MESSAGES, ERROR_MESSAGES,
+
+        get_environment, is_development, is_production,
+        get_task_reward, get_flex_level_config, get_badge_requirements,
+        get_currency_config, get_social_platform_config,
+        validate_amount, get_verification_timeout,
+
+        # Decorators
+        require_auth, optional_auth, validate_user_access,
+        rate_limit, validate_json, validate_telegram_id,
+        handle_errors, log_requests, security_headers,
+        block_suspicious_requests, validate_input_data,
+        secure_endpoint, public_endpoint,
+        generate_jwt_token, decode_jwt_token,
+        get_current_user, get_json_data, clear_rate_limit_storage,
+        AuthError, ValidationError, SecurityError,
+
+        # Validators
+        validate_telegram_webapp_data, validate_username,
+        validate_reward_amount, validate_task_type, validate_task_status,
+        validate_url, validate_social_platform, validate_wallet_address,
+        validate_timestamp, sanitize_string, create_validation_report,
+        ValidationResult, TelegramValidationError,
+        STANDARD_VALIDATION_RULES,
+
+        # Утиліти utils
+        get_utils_info, validate_user_input,
+        create_secure_endpoint_decorator, setup_logging_with_constants
+    )
+
+    COMPONENTS_STATUS['utils'] = {
+        'loaded': True,
+        'error': None,
+        'count': len(get_utils_info()['modules'])
+    }
+    logger.info(f"✅ Utils завантажено: {COMPONENTS_STATUS['utils']['count']} модулів")
+
+except ImportError as e:
+    COMPONENTS_STATUS['utils'] = {'loaded': False, 'error': str(e), 'count': 0}
+    logger.error(f"❌ Помилка завантаження Utils: {e}")
+    # Створюємо заглушки для критичних компонентів
+    cache_manager = None
+    validate_telegram_webapp_data = lambda *args, **kwargs: {"valid": False, "error": "Utils unavailable"}
+
+
 # 📊 === MODELS ===
 logger.info("🏗️ Завантаження моделей...")
 try:
@@ -63,20 +132,21 @@ try:
         get_daily_bonus_constants, Reward,
 
         # FLEX Rewards
-        FlexRewardsModel, FlexLevel, RewardStatus,
+        FlexRewardsModel, FlexLevel as ModelFlexLevel, RewardStatus,
         FlexRewardConfig, UserFlexStatus, flex_rewards_model,
 
         # Tasks
-        TaskModel, TaskType, TaskStatus, TaskPlatform, TaskAction,
-        TaskReward, TaskRequirements, TaskMetadata, task_model,
+        TaskModel, TaskType as ModelTaskType, TaskStatus as ModelTaskStatus,
+        TaskPlatform, TaskAction, TaskReward, TaskRequirements, TaskMetadata, task_model,
 
         # Transactions
         TransactionModel, Transaction, TransactionAmount,
-        TransactionType, TransactionStatus, CurrencyType, transaction_model,
+        TransactionType as ModelTransactionType, TransactionStatus as ModelTransactionStatus,
+        CurrencyType as ModelCurrencyType, transaction_model,
 
         # Users
         UserQuest, UserBalance, UserReward, UserTaskStatus,
-        create_new_user, validate_telegram_id, get_current_utc_time,
+        create_new_user, validate_telegram_id as validate_telegram_id_model, get_current_utc_time,
 
         # Wallets
         WalletModel, WalletStatus, WalletProvider,
@@ -101,6 +171,7 @@ except ImportError as e:
     # Створюємо заглушки для критичних компонентів
     analytics_db = daily_bonus_manager = task_model = None
     transaction_model = wallet_model = flex_rewards_model = None
+
 
 # ⚙️ === SERVICES ===
 logger.info("🔧 Завантаження сервісів...")
@@ -146,6 +217,7 @@ except ImportError as e:
     # Заглушки
     reward_calculator = telegram_service = ton_connect_service = None
     transaction_service = verification_service = None
+
 
 # 🎮 === CONTROLLERS ===
 logger.info("🎯 Завантаження контролерів...")
@@ -220,6 +292,7 @@ except ImportError as e:
     # Заглушки для контролерів
     AnalyticsController = AuthController = DailyController = None
 
+
 # 🛣️ === ROUTES ===
 logger.info("🗺️ Завантаження маршрутів...")
 try:
@@ -236,76 +309,6 @@ except ImportError as e:
     COMPONENTS_STATUS['routes'] = {'loaded': False, 'error': str(e), 'count': 0}
     logger.error(f"❌ Помилка завантаження Routes: {e}")
     register_quests_routes = None
-
-# 🛠️ === UTILS ===
-logger.info("🔧 Завантаження утилітів...")
-try:
-    from .utils import (
-        # Cache
-        CacheManager, CacheType, CachePolicy, CacheConfig,
-        CacheStats, MemoryCache, RedisCache, cache_manager,
-        cache, cache_invalidate,
-
-        # Constants
-        Environment, DatabaseType, LogLevel,
-        TaskType as ConstTaskType, TaskStatus as ConstTaskStatus,
-        TaskDifficulty, FlexLevel as ConstFlexLevel,
-        DailyBonusType, ReferralLevel, BadgeType,
-        CurrencyType as ConstCurrencyType, AnalyticsEventType, SocialPlatform,
-
-        ENVIRONMENT, DEBUG, LOG_LEVEL, API_BASE_URL, API_VERSION,
-        RATE_LIMIT_ENABLED, CACHE_ENABLED, JWT_SECRET_KEY,
-        TELEGRAM_BOT_TOKEN, SUPABASE_URL,
-
-        TASK_REWARDS, FLEX_LEVELS_CONFIG, DAILY_BONUS_CONFIG,
-        REFERRAL_REWARDS, BADGE_REQUIREMENTS, CURRENCIES_CONFIG,
-        SOCIAL_PLATFORMS_CONFIG, VALIDATION_RULES,
-        MAX_BALANCE_LIMITS, SYNC_INTERVALS, OPERATION_TIMEOUTS,
-        TASK_VERIFICATION_TIMEOUT, SUCCESS_MESSAGES, ERROR_MESSAGES,
-
-        get_environment, is_development, is_production,
-        get_task_reward, get_flex_level_config, get_badge_requirements,
-        get_currency_config, get_social_platform_config,
-        validate_amount, get_verification_timeout,
-
-        # Decorators
-        require_auth, optional_auth, validate_user_access,
-        rate_limit, validate_json, validate_telegram_id as validate_telegram_id_decorator,
-        handle_errors, log_requests, security_headers,
-        block_suspicious_requests, validate_input_data,
-        secure_endpoint, public_endpoint,
-        generate_jwt_token, decode_jwt_token,
-        get_current_user, get_json_data, clear_rate_limit_storage,
-        AuthError, ValidationError, SecurityError,
-
-        # Validators
-        validate_telegram_webapp_data, validate_telegram_id as validate_telegram_id_validator,
-        validate_username, validate_reward_amount,
-        validate_task_type, validate_task_status,
-        validate_url, validate_social_platform,
-        validate_wallet_address, validate_timestamp,
-        sanitize_string, create_validation_report,
-        ValidationResult, TelegramValidationError,
-        STANDARD_VALIDATION_RULES,
-
-        # Утиліти utils
-        get_utils_info, validate_user_input,
-        create_secure_endpoint_decorator, setup_logging_with_constants
-    )
-
-    utils_info = get_utils_info()
-    COMPONENTS_STATUS['utils'] = {
-        'loaded': True,
-        'error': None,
-        'count': utils_info['available_modules']
-    }
-    logger.info(f"✅ Utils завантажено: {utils_info['available_modules']}/{utils_info['total_modules']} модулів")
-
-except ImportError as e:
-    COMPONENTS_STATUS['utils'] = {'loaded': False, 'error': str(e), 'count': 0}
-    logger.error(f"❌ Помилка завантаження Utils: {e}")
-    # Заглушки
-    cache_manager = None
 
 
 # === WINIX CORE API ===
@@ -330,55 +333,67 @@ class WinixQuests:
 
     def _init_models(self):
         """Ініціалізація моделей"""
-        return {
-            'analytics': analytics_db,
-            'daily_bonus': daily_bonus_manager,
-            'flex_rewards': flex_rewards_model,
-            'task': task_model,
-            'transaction': transaction_model,
-            'wallet': wallet_model
-        }
+        models = {}
+        if COMPONENTS_STATUS['models']['loaded']:
+            models.update({
+                'analytics': analytics_db,
+                'daily_bonus': daily_bonus_manager,
+                'flex_rewards': flex_rewards_model,
+                'task': task_model,
+                'transaction': transaction_model,
+                'wallet': wallet_model
+            })
+        return models
 
     def _init_services(self):
         """Ініціалізація сервісів"""
-        return {
-            'reward_calculator': reward_calculator,
-            'telegram': telegram_service,
-            'ton_connect': ton_connect_service,
-            'transaction': transaction_service,
-            'verification': verification_service
-        }
+        services = {}
+        if COMPONENTS_STATUS['services']['loaded']:
+            services.update({
+                'reward_calculator': reward_calculator,
+                'telegram': telegram_service,
+                'ton_connect': ton_connect_service,
+                'transaction': transaction_service,
+                'verification': verification_service
+            })
+        return services
 
     def _init_controllers(self):
         """Ініціалізація контролерів"""
-        return {
-            'analytics': AnalyticsController,
-            'auth': AuthController,
-            'daily': DailyController,
-            'flex': FlexController,
-            'tasks': TasksController,
-            'transaction': TransactionController,
-            'user': UserController,
-            'wallet': WalletController
-        }
+        controllers = {}
+        if COMPONENTS_STATUS['controllers']['loaded']:
+            controllers.update({
+                'analytics': AnalyticsController,
+                'auth': AuthController,
+                'daily': DailyController,
+                'flex': FlexController,
+                'tasks': TasksController,
+                'transaction': TransactionController,
+                'user': UserController,
+                'wallet': WalletController
+            })
+        return controllers
 
     def _init_utils(self):
         """Ініціалізація утилітів"""
-        return {
-            'cache': cache_manager,
-            'validators': {
-                'telegram_webapp': validate_telegram_webapp_data,
-                'telegram_id': validate_telegram_id_validator,
-                'username': validate_username,
-                'wallet_address': validate_wallet_address
-            },
-            'decorators': {
-                'auth': require_auth,
-                'secure': secure_endpoint,
-                'public': public_endpoint,
-                'rate_limit': rate_limit
-            }
-        }
+        utils = {}
+        if COMPONENTS_STATUS['utils']['loaded']:
+            utils.update({
+                'cache': cache_manager,
+                'validators': {
+                    'telegram_webapp': validate_telegram_webapp_data,
+                    'telegram_id': validate_telegram_id,
+                    'username': validate_username,
+                    'wallet_address': validate_wallet_address
+                },
+                'decorators': {
+                    'auth': require_auth,
+                    'secure': secure_endpoint,
+                    'public': public_endpoint,
+                    'rate_limit': rate_limit
+                }
+            })
+        return utils
 
     def get_model(self, name: str):
         """Отримати модель за назвою"""
@@ -602,10 +617,11 @@ def quick_test() -> Dict[str, Any]:
         logger.warning("⚠️ Controllers недоступні для тестування")
 
     # Тест утилітів
-    if validate_telegram_id_validator and cache_manager:
+    if validate_telegram_webapp_data and cache_manager:
         try:
             # Тест валідації
-            if validate_telegram_id_validator(123456789):
+            result = validate_telegram_webapp_data("test_data")
+            if result:
                 tests['utils_test'] = True
                 logger.info("✅ Utils тест пройдено")
             else:
@@ -720,20 +736,19 @@ __all__ = [
     'get_daily_bonus_constants', 'Reward',
 
     # FLEX Rewards
-    'FlexRewardsModel', 'FlexLevel', 'RewardStatus',
+    'FlexRewardsModel', 'RewardStatus',
     'FlexRewardConfig', 'UserFlexStatus', 'flex_rewards_model',
 
     # Tasks
-    'TaskModel', 'TaskType', 'TaskStatus', 'TaskPlatform', 'TaskAction',
+    'TaskModel', 'TaskPlatform', 'TaskAction',
     'TaskReward', 'TaskRequirements', 'TaskMetadata', 'task_model',
 
     # Transactions
-    'TransactionModel', 'Transaction', 'TransactionAmount',
-    'TransactionType', 'TransactionStatus', 'CurrencyType', 'transaction_model',
+    'TransactionModel', 'Transaction', 'TransactionAmount', 'transaction_model',
 
     # Users
     'UserQuest', 'UserBalance', 'UserReward', 'UserTaskStatus',
-    'create_new_user', 'validate_telegram_id', 'get_current_utc_time',
+    'create_new_user', 'get_current_utc_time',
 
     # Wallets
     'WalletModel', 'WalletStatus', 'WalletProvider',
