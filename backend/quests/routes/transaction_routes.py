@@ -25,7 +25,7 @@ except ImportError:
 
 
 # Створюємо Blueprint
-transaction_bp = Blueprint('transaction', __name__, url_prefix='/api/transactions')
+transaction_bp = Blueprint('quests_transaction', __name__, url_prefix='/api/transactions')
 
 
 @transaction_bp.route('/user/<telegram_id>/history', methods=['GET'])

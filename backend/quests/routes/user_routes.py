@@ -24,7 +24,7 @@ from ..utils.decorators import (
 logger = logging.getLogger(__name__)
 
 # Створюємо Blueprint для user маршрутів
-user_bp = Blueprint('user', __name__, url_prefix='/api/user')
+user_bp = Blueprint('quests_user', __name__, url_prefix='/api/user')
 
 
 @user_bp.route('/profile/<telegram_id>', methods=['GET'])

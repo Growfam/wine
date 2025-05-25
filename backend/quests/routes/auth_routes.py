@@ -19,7 +19,7 @@ from ..utils.decorators import (
 logger = logging.getLogger(__name__)
 
 # Створюємо Blueprint для auth маршрутів
-auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+auth_bp = Blueprint('quests_auth', __name__, url_prefix='/api/auth')
 
 
 @auth_bp.route('/validate-telegram', methods=['POST'])
