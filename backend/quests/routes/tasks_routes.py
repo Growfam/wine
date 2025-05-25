@@ -70,7 +70,7 @@ except ImportError:
             return {"status": "error", "message": "Контролер недоступний"}, 503
 
 # Створення Blueprint для маршрутів завдань
-tasks_bp = Blueprint('tasks', __name__)
+tasks_bp = Blueprint('winix_tasks', __name__)
 
 
 @tasks_bp.route('/list/<telegram_id>', methods=['GET'])
