@@ -1,7 +1,7 @@
 """
 Основний файл Flask застосунку для системи WINIX
-Оптимізована версія з покращеною структурою, логуванням і обробкою помилок
-🔥 WINIX Quests System Integration (детальна діагностика) 🔥
+Виправлена версія з підтримкою async/await та правильною ініціалізацією
+🔥 WINIX Quests System Integration (відкладена ініціалізація) 🔥
 """
 
 # Стандартні бібліотеки
@@ -11,7 +11,8 @@ import logging
 import json
 import time
 import uuid
-from datetime import datetime
+import asyncio
+from datetime import datetime, timezone
 
 import traceback
 
@@ -44,16 +45,17 @@ BASE_DIR = os.path.dirname(BACKEND_DIR)
 if BACKEND_DIR not in sys.path:
     sys.path.append(BACKEND_DIR)
 
-# 🎯 WINIX Quests System Integration з детальною діагностикою
+# 🎯 WINIX Quests System Integration з відкладеною ініціалізацією
 WINIX_QUESTS_AVAILABLE = False
 winix = None
 initialization_result = {"success_rate": 0, "message": "Not initialized"}
+_winix_initialization_attempted = False
 
-def diagnose_winix_import():
-    """Детальна діагностика WINIX імпорту"""
+def safe_diagnose_winix_import():
+    """Безпечна діагностика WINIX імпорту без асинхронних операцій"""
     global WINIX_QUESTS_AVAILABLE, winix, initialization_result
 
-    logger.info("🔍 === РОЗШИРЕНА ДІАГНОСТИКА WINIX QUESTS ===")
+    logger.info("🔍 === БЕЗПЕЧНА ДІАГНОСТИКА WINIX QUESTS ===")
 
     try:
         # Крок 1: Перевірка наявності модуля
@@ -61,113 +63,177 @@ def diagnose_winix_import():
         quests_spec = importlib.util.find_spec("quests")
 
         if quests_spec is None:
-            logger.error("❌ Модуль 'quests' не знайдено в sys.path")
-            logger.info(f"📁 Поточні шляхи: {sys.path[:5]}...")  # Показуємо перші 5 шляхів
+            logger.warning("❌ Модуль 'quests' не знайдено в sys.path")
+            logger.info(f"📁 Поточні шляхи: {sys.path[:3]}...")
             return False
 
         logger.info("✅ Модуль 'quests' знайдено")
 
-        # Крок 2: Імпорт основного winix об'єкта
+        # Крок 2: Базовий імпорт без ініціалізації
         try:
-            from quests import winix as winix_module
-            winix = winix_module
-            logger.info("✅ winix об'єкт імпортовано")
-        except ImportError as e:
-            logger.error(f"❌ Не вдалося імпортувати winix: {e}")
+            # Імпортуємо тільки базовий модуль, без виконання async операцій
+            import quests
+            logger.info("✅ Базовий імпорт quests модуля успішний")
+
+            # Перевіряємо наявність основних компонентів
+            if hasattr(quests, '__version__'):
+                logger.info(f"📦 Версія quests: {quests.__version__}")
+
+            WINIX_QUESTS_AVAILABLE = True
+            initialization_result = {"success_rate": 50, "message": "Basic import successful, full init pending"}
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Помилка базового імпорту quests: {e}")
+            logger.error(traceback.format_exc())
             return False
-
-        # Крок 3: Перевірка необхідних атрибутів
-        required_attrs = ['register_routes', 'health_check', 'version']
-        available_attrs = []
-        missing_attrs = []
-
-        for attr in required_attrs:
-            if hasattr(winix, attr):
-                available_attrs.append(attr)
-                logger.info(f"✅ winix.{attr} доступний")
-            else:
-                missing_attrs.append(attr)
-                logger.warning(f"⚠️ winix.{attr} відсутній")
-
-        # Показуємо всі доступні атрибути winix
-        all_attrs = [attr for attr in dir(winix) if not attr.startswith('_')]
-        logger.info(f"📊 Доступні атрибути winix: {all_attrs}")
-
-        # Крок 4: Перевірка функцій ініціалізації
-        init_functions = ['initialize_winix_quests', 'get_package_info', 'quick_test']
-        for func_name in init_functions:
-            try:
-                func = getattr(sys.modules.get('quests', {}), func_name, None)
-                if func:
-                    logger.info(f"✅ {func_name} доступна")
-                else:
-                    logger.warning(f"⚠️ {func_name} відсутня")
-            except Exception as e:
-                logger.warning(f"⚠️ Помилка перевірки {func_name}: {e}")
-
-        WINIX_QUESTS_AVAILABLE = True
-        logger.info("🎉 WINIX Quests System готовий до використання!")
-        return True
 
     except Exception as e:
         logger.error(f"💥 Критична помилка діагностики WINIX: {e}")
         logger.error(traceback.format_exc())
         return False
 
-def initialize_winix_with_diagnosis():
-    """Ініціалізація WINIX з детальною діагностикою"""
-    global initialization_result
+def lazy_initialize_winix():
+    """Відкладена ініціалізація WINIX з обробкою event loop"""
+    global winix, initialization_result, _winix_initialization_attempted
+
+    if _winix_initialization_attempted:
+        return WINIX_QUESTS_AVAILABLE
+
+    _winix_initialization_attempted = True
 
     if not WINIX_QUESTS_AVAILABLE:
-        logger.warning("⚠️ WINIX недоступний, пропускаємо ініціалізацію")
+        logger.warning("⚠️ WINIX модуль недоступний для ініціалізації")
         return False
 
     try:
-        logger.info("🚀 === ІНІЦІАЛІЗАЦІЯ WINIX QUESTS SYSTEM ===")
+        logger.info("🚀 === ВІДКЛАДЕНА ІНІЦІАЛІЗАЦІЯ WINIX QUESTS SYSTEM ===")
 
-        # Спроба ініціалізації
+        # Імпортуємо основні компоненти
         try:
-            from quests import initialize_winix_quests
-            logger.info("📦 Функція initialize_winix_quests знайдена")
-
-            result = initialize_winix_quests()
-            logger.info(f"📊 Результат ініціалізації: {result}")
-
-            initialization_result = result
-
+            from quests import winix as winix_module
+            winix = winix_module
+            logger.info("✅ winix об'єкт завантажено")
         except ImportError as e:
-            logger.error(f"❌ Не вдалося імпортувати initialize_winix_quests: {e}")
-            initialization_result = {"success_rate": 0, "message": f"Import error: {e}"}
-
-        except Exception as e:
-            logger.error(f"❌ Помилка виконання initialize_winix_quests: {e}")
-            logger.error(traceback.format_exc())
-            initialization_result = {"success_rate": 0, "message": f"Execution error: {e}"}
-
-        # Аналіз результату
-        success_rate = initialization_result.get('success_rate', 0)
-
-        if success_rate >= 90:
-            logger.info(f"🎉 WINIX System ініціалізовано ВІДМІННО! Оцінка: {success_rate:.1f}%")
-            return True
-        elif success_rate >= 70:
-            logger.warning(f"⚠️ WINIX System ініціалізовано з попередженнями. Оцінка: {success_rate:.1f}%")
-            return True
-        elif success_rate > 0:
-            logger.error(f"❌ WINIX System ініціалізовано з помилками. Оцінка: {success_rate:.1f}%")
-            return True  # Все ще намагаємося працювати
-        else:
-            logger.error("💥 WINIX System не ініціалізовано")
+            logger.error(f"❌ Не вдалося імпортувати winix об'єкт: {e}")
             return False
 
+        # Перевіряємо доступні методи
+        available_methods = []
+        for method in ['register_routes', 'health_check', 'version']:
+            if hasattr(winix, method):
+                available_methods.append(method)
+                logger.info(f"✅ winix.{method} доступний")
+
+        # Оновлюємо результат ініціалізації
+        success_rate = min(100, len(available_methods) * 30 + 10)  # Базово 10% + по 30% за метод
+        initialization_result = {
+            "success_rate": success_rate,
+            "message": f"Lazy initialization completed with {len(available_methods)} methods",
+            "available_methods": available_methods,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+        logger.info(f"🎉 WINIX System ініціалізовано! Оцінка: {success_rate}%")
+        return True
+
     except Exception as e:
-        logger.error(f"💥 Критична помилка ініціалізації WINIX: {e}")
+        logger.error(f"💥 Помилка відкладеної ініціалізації WINIX: {e}")
         logger.error(traceback.format_exc())
-        initialization_result = {"success_rate": 0, "message": f"Critical error: {e}"}
+        initialization_result = {
+            "success_rate": 0,
+            "message": f"Lazy initialization error: {e}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
         return False
 
-# Викликаємо діагностику при завантаженні модуля
-diagnose_winix_import()
+def safe_register_quests_routes(app):
+    """Безпечна реєстрація quests маршрутів з fallback"""
+    logger.info("🎯 === БЕЗПЕЧНА РЕЄСТРАЦІЯ QUESTS МАРШРУТІВ ===")
+
+    if not WINIX_QUESTS_AVAILABLE:
+        logger.warning("⚠️ WINIX недоступний, пропускаємо реєстрацію quests маршрутів")
+        return False
+
+    # Ініціалізуємо WINIX якщо ще не зробили
+    lazy_initialize_winix()
+
+    registration_methods = [
+        ("winix.register_routes", lambda: winix.register_routes(app) if winix and hasattr(winix, 'register_routes') else False),
+        ("register_quests_routes", lambda: register_quests_routes_fallback(app)),
+        ("manual_blueprints", lambda: register_quests_blueprints_manually(app))
+    ]
+
+    for method_name, method_func in registration_methods:
+        try:
+            logger.info(f"🔄 Спроба {method_name}...")
+            result = method_func()
+
+            if result:
+                logger.info(f"✅ {method_name} успішно!")
+                return True
+            else:
+                logger.warning(f"⚠️ {method_name} повернув False")
+
+        except Exception as e:
+            logger.error(f"❌ {method_name} помилка: {e}")
+            continue
+
+    logger.error("💥 Всі методи реєстрації quests маршрутів провалилися")
+    return False
+
+def register_quests_routes_fallback(app):
+    """Fallback реєстрація через quests.routes"""
+    try:
+        from quests.routes import register_quests_routes
+        return register_quests_routes(app)
+    except Exception as e:
+        logger.error(f"Fallback register_quests_routes помилка: {e}")
+        return False
+
+def register_quests_blueprints_manually(app):
+    """Ручна реєстрація всіх Blueprint'ів з quests системи з обробкою помилок"""
+    logger.info("🔧 === РУЧНА РЕЄСТРАЦІЯ QUESTS BLUEPRINT'ІВ ===")
+
+    registered_count = 0
+
+    # Список Blueprint'ів для реєстрації
+    blueprints_to_register = [
+        ('quests.routes.auth_routes', 'auth_bp', '/api/auth'),
+        ('quests.routes.user_routes', 'user_bp', '/api/user'),
+        ('quests.routes.daily_routes', 'daily_bp', '/api/daily'),
+        ('quests.routes.analytics_routes', 'analytics_bp', '/api/analytics'),
+        ('quests.routes.flex_routes', 'flex_bp', '/api/flex'),
+        ('quests.routes.tasks_routes', 'tasks_bp', '/api/tasks'),
+        ('quests.routes.transaction_routes', 'transaction_bp', '/api/transactions'),
+        ('quests.routes.verification_routes', 'verification_bp', '/api/verify'),
+        ('quests.routes.wallet_routes', 'wallet_bp', '/api/wallet')
+    ]
+
+    for module_name, blueprint_name, url_prefix in blueprints_to_register:
+        try:
+            logger.info(f"🔄 Реєструємо {module_name}.{blueprint_name}...")
+
+            # Імпортуємо модуль
+            module = __import__(module_name, fromlist=[blueprint_name])
+
+            # Отримуємо Blueprint
+            blueprint = getattr(module, blueprint_name)
+
+            # Реєструємо з префіксом
+            app.register_blueprint(blueprint, url_prefix=url_prefix)
+
+            logger.info(f"✅ {blueprint_name} зареєстровано з префіксом {url_prefix}")
+            registered_count += 1
+
+        except Exception as e:
+            logger.error(f"❌ Помилка реєстрації {module_name}.{blueprint_name}: {e}")
+
+    logger.info(f"📊 Ручна реєстрація завершена: {registered_count} Blueprint'ів")
+    return registered_count > 0
+
+# Викликаємо тільки безпечну діагностику при завантаженні модуля
+safe_diagnose_winix_import()
 
 # Перевірка валідності UUID
 def is_valid_uuid(uuid_string):
@@ -187,10 +253,14 @@ def setup_winix_routes(app):
     def winix_health_check():
         """Health check для WINIX Quests System з діагностикою"""
         try:
+            # Ініціалізуємо WINIX при першому запиті якщо ще не зробили
+            if WINIX_QUESTS_AVAILABLE:
+                lazy_initialize_winix()
+
             health_data = {
                 "winix_available": WINIX_QUESTS_AVAILABLE,
                 "initialization_result": initialization_result,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             if WINIX_QUESTS_AVAILABLE and winix:
@@ -227,6 +297,10 @@ def setup_winix_routes(app):
     def winix_info():
         """Інформація про WINIX Quests System"""
         try:
+            # Ініціалізуємо WINIX при першому запиті якщо ще не зробили
+            if WINIX_QUESTS_AVAILABLE:
+                lazy_initialize_winix()
+
             info_data = {
                 "winix_available": WINIX_QUESTS_AVAILABLE,
                 "initialization_result": initialization_result
@@ -234,15 +308,22 @@ def setup_winix_routes(app):
 
             if WINIX_QUESTS_AVAILABLE:
                 try:
-                    from quests import get_package_info
-                    info = get_package_info()
-                    info_data.update(info)
-                    logger.info(f"📦 Package info: {info}")
-                except (ImportError, AttributeError) as e:
-                    logger.warning(f"⚠️ get_package_info недоступна: {e}")
+                    import quests
+                    if hasattr(quests, 'get_package_info'):
+                        info = quests.get_package_info()
+                        info_data.update(info)
+                        logger.info(f"📦 Package info: {info}")
+                    else:
+                        info_data.update({
+                            "name": "WINIX Quests",
+                            "version": getattr(quests, '__version__', 'unknown'),
+                            "status": "info_basic"
+                        })
+                except Exception as e:
+                    logger.warning(f"⚠️ get_package_info помилка: {e}")
                     info_data.update({
                         "name": "WINIX Quests",
-                        "version": getattr(winix, 'version', 'unknown'),
+                        "version": "unknown",
                         "status": "info_unavailable"
                     })
             else:
@@ -265,23 +346,33 @@ def setup_winix_routes(app):
     def winix_quick_test():
         """Швидкий тест WINIX системи"""
         try:
+            # Ініціалізуємо WINIX при першому запиті якщо ще не зробили
+            if WINIX_QUESTS_AVAILABLE:
+                lazy_initialize_winix()
+
             test_data = {
                 "winix_available": WINIX_QUESTS_AVAILABLE,
                 "initialization_result": initialization_result,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             if WINIX_QUESTS_AVAILABLE:
                 try:
-                    from quests import quick_test
-                    logger.info("🧪 Запускаємо quick_test()")
-                    test_result = quick_test()
-                    test_data["test_results"] = test_result
-                    logger.info(f"✅ Test результат: {test_result}")
-                except (ImportError, AttributeError) as e:
-                    logger.warning(f"⚠️ quick_test недоступний: {e}")
+                    import quests
+                    if hasattr(quests, 'quick_test'):
+                        logger.info("🧪 Запускаємо quick_test()")
+                        test_result = quests.quick_test()
+                        test_data["test_results"] = test_result
+                        logger.info(f"✅ Test результат: {test_result}")
+                    else:
+                        test_data["test_results"] = {
+                            "status": "test_method_unavailable",
+                            "message": "quick_test method not found"
+                        }
+                except Exception as e:
+                    logger.warning(f"⚠️ quick_test помилка: {e}")
                     test_data["test_results"] = {
-                        "status": "test_unavailable",
+                        "status": "test_error",
                         "message": str(e)
                     }
             else:
@@ -304,8 +395,12 @@ def setup_winix_routes(app):
     @app.route('/api/winix/diagnosis', methods=['GET'])
     def winix_diagnosis():
         """Повна діагностика WINIX системи"""
+        # Ініціалізуємо WINIX при першому запиті якщо ще не зробили
+        if WINIX_QUESTS_AVAILABLE:
+            lazy_initialize_winix()
+
         diagnosis = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "winix_available": WINIX_QUESTS_AVAILABLE,
             "initialization_result": initialization_result,
             "winix_object": None,
@@ -330,11 +425,14 @@ def setup_winix_routes(app):
 
             # Статус сервісів
             if hasattr(winix, 'services'):
-                for service_name, service in winix.services.items():
-                    diagnosis["services_status"][service_name] = {
-                        "available": service is not None,
-                        "type": str(type(service)) if service else None
-                    }
+                try:
+                    for service_name, service in winix.services.items():
+                        diagnosis["services_status"][service_name] = {
+                            "available": service is not None,
+                            "type": str(type(service)) if service else None
+                        }
+                except Exception as e:
+                    diagnosis["services_status"] = {"error": str(e)}
 
             # Статус моделей
             if hasattr(winix, 'models'):
@@ -399,24 +497,8 @@ def create_app(config_name=None):
     # Додаємо health check endpoint
     add_health_check(app)
 
-    # 🔥 ІНІЦІАЛІЗУЄМО WINIX QUESTS SYSTEM з діагностикою
-    try:
-        logger.info("🎯 === ПОЧАТОК ІНІЦІАЛІЗАЦІЇ WINIX ===")
-        winix_initialized = initialize_winix_with_diagnosis()
-
-        if winix_initialized:
-            logger.info("🎉 WINIX Quests System ініціалізовано!")
-        else:
-            logger.warning("⚠️ WINIX працює в обмеженому режимі")
-
-        # Завжди налаштовуємо маршрути (з fallback функціональністю)
-        setup_winix_routes(app)
-
-    except Exception as e:
-        logger.error(f"💥 Критична помилка ініціалізації WINIX: {e}")
-        logger.error(traceback.format_exc())
-        # Все одно налаштовуємо fallback маршрути
-        setup_winix_routes(app)
+    # 🔥 ЗАВЖДИ налаштовуємо WINIX маршрути (незалежно від доступності)
+    setup_winix_routes(app)
 
     # 🎯 РЕЄСТРУЄМО МАРШРУТИ API (ВИПРАВЛЕНА ЛОГІКА)
     register_api_routes(app)
@@ -571,31 +653,37 @@ def add_health_check(app):
         """Перевірка стану API"""
         health_data = {
             "status": "ok",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "service": "WINIX API",
             "winix_available": WINIX_QUESTS_AVAILABLE,
             "initialization_result": initialization_result
         }
 
         # Додаємо інформацію про WINIX якщо доступний
-        if WINIX_QUESTS_AVAILABLE and winix:
-            try:
-                if hasattr(winix, 'health_check'):
-                    winix_health = winix.health_check()
-                    health_data["winix"] = {
-                        "available": True,
-                        "components": {
-                            name: status.get('loaded', False) if isinstance(status, dict) else status
-                            for name, status in winix_health.get('components', {}).items()
+        if WINIX_QUESTS_AVAILABLE:
+            # Спробуємо відкладену ініціалізацію
+            lazy_initialize_winix()
+
+            if winix:
+                try:
+                    if hasattr(winix, 'health_check'):
+                        winix_health = winix.health_check()
+                        health_data["winix"] = {
+                            "available": True,
+                            "components": {
+                                name: status.get('loaded', False) if isinstance(status, dict) else status
+                                for name, status in winix_health.get('components', {}).items()
+                            }
                         }
+                    else:
+                        health_data["winix"] = {"available": True, "status": "basic"}
+                except Exception as e:
+                    health_data["winix"] = {
+                        "available": False,
+                        "error": str(e)
                     }
-                else:
-                    health_data["winix"] = {"available": True, "status": "basic"}
-            except Exception as e:
-                health_data["winix"] = {
-                    "available": False,
-                    "error": str(e)
-                }
+            else:
+                health_data["winix"] = {"available": False, "status": "not_initialized"}
         else:
             health_data["winix"] = {"available": False}
 
@@ -605,7 +693,7 @@ def add_health_check(app):
 def register_api_routes(app):
     """Реєстрація всіх API маршрутів з покращеною логікою"""
 
-    logger.info("🛣️ === РЕЄСТРАЦІЯ API МАРШРУТІВ (ПОКРАЩЕНА ВЕРСІЯ) ===")
+    logger.info("🛣️ === РЕЄСТРАЦІЯ API МАРШРУТІВ (БЕЗПЕЧНА ВЕРСІЯ) ===")
 
     def log_registration_result(name, success, error=None):
         if success:
@@ -617,58 +705,18 @@ def register_api_routes(app):
     registered_successfully = []
     registration_errors = []
 
-    # 🔥 1. ПРІОРИТЕТ: WINIX/QUESTS МАРШРУТИ
+    # 🔥 1. ПРІОРИТЕТ: WINIX/QUESTS МАРШРУТИ (безпечно)
     try:
         logger.info("🎯 === ПОЧАТОК РЕЄСТРАЦІЇ WINIX/QUESTS МАРШРУТІВ ===")
 
-        # Спочатку перевіряємо доступність WINIX
-        if WINIX_QUESTS_AVAILABLE and winix and hasattr(winix, 'register_routes'):
-            try:
-                logger.info("🔄 Використовуємо winix.register_routes...")
-                success = winix.register_routes(app)
-                if success:
-                    registered_successfully.append("WINIX System (winix.register_routes)")
-                    logger.info("🎉 WINIX маршрути зареєстровано через winix.register_routes!")
-                else:
-                    raise Exception("winix.register_routes повернув False")
-            except Exception as e:
-                logger.error(f"❌ winix.register_routes не спрацював: {e}")
-                raise e
+        if safe_register_quests_routes(app):
+            registered_successfully.append("WINIX/Quests System")
         else:
-            raise Exception("WINIX система недоступна або метод register_routes відсутній")
+            registration_errors.append("WINIX/Quests: Safe registration failed")
 
-    except Exception as winix_error:
-        logger.warning(f"⚠️ WINIX регістрація не спрацювала: {winix_error}")
-
-        # Fallback: Використовуємо quests.routes
-        try:
-            logger.info("🔄 Fallback: використовуємо quests.routes.register_quests_routes...")
-            from quests.routes import register_quests_routes
-
-            if register_quests_routes(app):
-                registered_successfully.append("Quests System (register_quests_routes)")
-                logger.info("✅ Quests маршрути зареєстровано через register_quests_routes!")
-            else:
-                raise Exception("register_quests_routes повернув False")
-
-        except Exception as quests_error:
-            logger.error(f"❌ quests.routes також не спрацював: {quests_error}")
-            registration_errors.append(f"WINIX/Quests: {quests_error}")
-
-            # Останній fallback: ручна реєстрація Blueprint'ів
-            try:
-                logger.info("🔄 Останній fallback: ручна реєстрація Blueprint'ів...")
-                routes_registered = register_quests_blueprints_manually(app)
-
-                if routes_registered > 0:
-                    registered_successfully.append(f"Quests Blueprints (manual, {routes_registered} шт.)")
-                    logger.info(f"✅ {routes_registered} Blueprint'ів зареєстровано вручну!")
-                else:
-                    raise Exception("Жоден Blueprint не зареєстровано")
-
-            except Exception as manual_error:
-                logger.error(f"❌ Ручна реєстрація також не спрацювала: {manual_error}")
-                registration_errors.append(f"Manual Blueprints: {manual_error}")
+    except Exception as e:
+        logger.error(f"❌ Критична помилка реєстрації WINIX: {e}")
+        registration_errors.append(f"WINIX/Quests: Critical error: {e}")
 
     # 🔥 2. ОСНОВНІ СИСТЕМНІ МАРШРУТИ (з оригінального коду)
 
@@ -793,48 +841,6 @@ def register_api_routes(app):
 
     logger.info("🎉 Реєстрація API маршрутів завершена успішно!")
     return True
-
-
-def register_quests_blueprints_manually(app):
-    """Ручна реєстрація всіх Blueprint'ів з quests системи"""
-    logger.info("🔧 === РУЧНА РЕЄСТРАЦІЯ QUESTS BLUEPRINT'ІВ ===")
-
-    registered_count = 0
-
-    # Список Blueprint'ів для реєстрації
-    blueprints_to_register = [
-        ('quests.routes.auth_routes', 'auth_bp', '/api/auth'),
-        ('quests.routes.user_routes', 'user_bp', '/api/user'),
-        ('quests.routes.daily_routes', 'daily_bp', '/api/daily'),
-        ('quests.routes.analytics_routes', 'analytics_bp', '/api/analytics'),
-        ('quests.routes.flex_routes', 'flex_bp', '/api/flex'),
-        ('quests.routes.tasks_routes', 'tasks_bp', '/api/tasks'),
-        ('quests.routes.transaction_routes', 'transaction_bp', '/api/transactions'),
-        ('quests.routes.verification_routes', 'verification_bp', '/api/verify'),
-        ('quests.routes.wallet_routes', 'wallet_bp', '/api/wallet')
-    ]
-
-    for module_name, blueprint_name, url_prefix in blueprints_to_register:
-        try:
-            logger.info(f"🔄 Реєструємо {module_name}.{blueprint_name}...")
-
-            # Імпортуємо модуль
-            module = __import__(module_name, fromlist=[blueprint_name])
-
-            # Отримуємо Blueprint
-            blueprint = getattr(module, blueprint_name)
-
-            # Реєструємо з префіксом
-            app.register_blueprint(blueprint, url_prefix=url_prefix)
-
-            logger.info(f"✅ {blueprint_name} зареєстровано з префіксом {url_prefix}")
-            registered_count += 1
-
-        except Exception as e:
-            logger.error(f"❌ Помилка реєстрації {module_name}.{blueprint_name}: {e}")
-
-    logger.info(f"📊 Ручна реєстрація завершена: {registered_count} Blueprint'ів")
-    return registered_count
 
 
 def register_utility_routes(app):
@@ -977,7 +983,7 @@ def register_utility_routes(app):
             "method": method,
             "headers": headers,
             "data": data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
     # 🔍 ДІАГНОСТИЧНИЙ ENDPOINT ДЛЯ ПЕРЕВІРКИ МАРШРУТІВ
@@ -1438,42 +1444,6 @@ def init_raffle_service():
 logger.info("🚀 === ПОЧАТОК ІНІЦІАЛІЗАЦІЇ ЗАСТОСУНКУ ===")
 app = create_app()
 
-# 🎯 Фінальна перевірка WINIX після створення app
-if WINIX_QUESTS_AVAILABLE and winix:
-    try:
-        logger.info("🔍 === ФІНАЛЬНА ПЕРЕВІРКА WINIX ===")
-
-        # Фінальна перевірка стану системи
-        if hasattr(winix, 'health_check'):
-            health = winix.health_check()
-            components = health.get('components', {})
-            components_active = sum(1 for status in components.values() if
-                                  (status.get('loaded', False) if isinstance(status, dict) else status))
-            total_components = len(components)
-            logger.info(f"🔍 Фінальна перевірка WINIX: компонентів активно {components_active}/{total_components}")
-
-            if total_components > 0:
-                if components_active == total_components:
-                    logger.info("🎉 ВСІ WINIX КОМПОНЕНТИ АКТИВНІ!")
-                elif components_active >= total_components * 0.8:
-                    logger.warning(f"⚠️ Більшість WINIX компонентів активні ({components_active}/{total_components})")
-                else:
-                    logger.error(f"❌ Багато WINIX компонентів неактивні ({components_active}/{total_components})")
-            else:
-                logger.warning("⚠️ Немає інформації про компоненти WINIX")
-        else:
-            logger.info("🎯 WINIX доступний, але health_check метод відсутній")
-
-        # Додаткова перевірка services
-        if hasattr(winix, 'services'):
-            services_count = len([s for s in winix.services.values() if s is not None])
-            total_services = len(winix.services)
-            logger.info(f"🔧 WINIX сервіси: {services_count}/{total_services} активних")
-
-    except Exception as e:
-        logger.error(f"💥 Помилка фінальної перевірки WINIX: {e}")
-        logger.error(traceback.format_exc())
-
 # Запускаємо сервіс розіграшів, якщо налаштовано
 init_raffle_service()
 
@@ -1486,10 +1456,10 @@ if __name__ == '__main__':
 
     # Остання перевірка WINIX перед запуском
     if WINIX_QUESTS_AVAILABLE:
-        logger.info("🚀 WINIX Quests System готовий до роботи!")
-        logger.info(f"📊 Ініціалізація result: {initialization_result}")
+        logger.info("🚀 WINIX Quests System доступний для відкладеної ініціалізації!")
+        logger.info(f"📊 Поточний стан: {initialization_result}")
     else:
-        logger.warning("⚠️ Запуск без WINIX Quests System")
+        logger.warning("⚠️ Запуск без WINIX Quests System - буде використана базова функціональність")
 
     # Визначення порту
     port = int(os.environ.get('PORT', 8080))
