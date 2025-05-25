@@ -8,21 +8,130 @@ window.TasksServices = (function() {
 
     console.log('🛠️ [TasksServices] ===== ІНІЦІАЛІЗАЦІЯ СЕРВІСНОГО МОДУЛЯ (PRODUCTION) =====');
 
+    // Стан сервісів
+    const servicesState = {
+        initialized: false,
+        dependencies: {
+            telegramValidator: false,
+            tasksAPI: false,
+            tasksStore: false,
+            tasksConstants: false
+        },
+        apiAvailable: false,
+        lastHealthCheck: 0
+    };
+
+    /**
+     * Перевірка готовності залежностей
+     */
+    function checkDependencies() {
+        console.log('🔍 [TasksServices] Перевірка залежностей...');
+
+        servicesState.dependencies.telegramValidator = !!(window.TelegramValidator && typeof window.TelegramValidator.validateTelegramAuth === 'function');
+        servicesState.dependencies.tasksAPI = !!(window.TasksAPI && typeof window.TasksAPI.auth === 'object');
+        servicesState.dependencies.tasksStore = !!(window.TasksStore && typeof window.TasksStore.actions === 'object');
+        servicesState.dependencies.tasksConstants = !!(window.TasksConstants && typeof window.TasksConstants.API_ENDPOINTS === 'object');
+
+        const allReady = Object.values(servicesState.dependencies).every(ready => ready);
+
+        console.log('📊 [TasksServices] Стан залежностей:', servicesState.dependencies);
+        console.log(`${allReady ? '✅' : '❌'} [TasksServices] Всі залежності готові:`, allReady);
+
+        return allReady;
+    }
+
+    /**
+     * Перевірка здоров'я API
+     */
+    async function checkApiHealth() {
+        console.log('🏥 [TasksServices] Перевірка здоров\'я API...');
+
+        const now = Date.now();
+        // Кешуємо результат на 30 секунд
+        if (servicesState.apiAvailable && (now - servicesState.lastHealthCheck) < 30000) {
+            console.log('✅ [TasksServices] API здоровий (кеш)');
+            return true;
+        }
+
+        try {
+            const response = await fetch('/api/ping', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 5000
+            });
+
+            servicesState.apiAvailable = response.ok;
+            servicesState.lastHealthCheck = now;
+
+            console.log(`${servicesState.apiAvailable ? '✅' : '❌'} [TasksServices] API статус:`, response.status);
+            return servicesState.apiAvailable;
+
+        } catch (error) {
+            console.error('❌ [TasksServices] API недоступний:', error.message);
+            servicesState.apiAvailable = false;
+            servicesState.lastHealthCheck = now;
+            return false;
+        }
+    }
+
     /**
      * Сервіс авторизації
      */
     const AuthService = {
+        isInitializing: false,
+        retryCount: 0,
+        maxRetries: 3,
+
         /**
          * Ініціалізація користувача
          */
         async initUser() {
             console.log('👤 [AuthService] === ІНІЦІАЛІЗАЦІЯ КОРИСТУВАЧА ===');
 
+            // Запобігаємо множинним викликам
+            if (this.isInitializing) {
+                console.log('⏸️ [AuthService] Ініціалізація вже виконується');
+
+                // Чекаємо завершення поточної ініціалізації
+                while (this.isInitializing) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                // Повертаємо дані з Store якщо є
+                const userId = window.TasksStore?.selectors?.getUserId();
+                if (userId) {
+                    return window.TasksStore.getState().user;
+                }
+            }
+
+            this.isInitializing = true;
+
             try {
-                // Тільки реальна валідація
+                // Перевіряємо залежності
+                if (!checkDependencies()) {
+                    console.error('❌ [AuthService] Не всі залежності готові');
+                    throw new Error('Система ініціалізується. Зачекайте...');
+                }
+
+                // Перевіряємо доступність API
+                const apiHealthy = await checkApiHealth();
+                if (!apiHealthy) {
+                    this.retryCount++;
+
+                    if (this.retryCount >= this.maxRetries) {
+                        console.error('❌ [AuthService] API недоступний після максимальної кількості спроб');
+                        throw new Error('Сервер тимчасово недоступний. Оновіть сторінку або спробуйте пізніше');
+                    } else {
+                        throw new Error(`Сервер недоступний. Спроба ${this.retryCount}/${this.maxRetries}`);
+                    }
+                }
+
+                // Валідація через TelegramValidator
+                console.log('🔄 [AuthService] Запуск валідації Telegram...');
                 const validation = await window.TelegramValidator.validateTelegramAuth();
 
                 if (!validation.valid) {
+                    console.error('❌ [AuthService] Telegram валідація провалена:', validation.error);
                     throw new Error('Telegram authentication failed: ' + validation.error);
                 }
 
@@ -35,10 +144,16 @@ window.TasksServices = (function() {
                 });
 
                 // Завантажуємо профіль з бекенду
+                console.log('🔄 [AuthService] Завантаження профілю з бекенду...');
                 const profile = await window.TasksAPI.user.getProfile(telegramUser.telegram_id || telegramUser.id);
                 console.log('✅ [AuthService] Профіль завантажено:', profile);
 
+                if (!profile || !profile.data) {
+                    throw new Error('Не вдалося завантажити профіль користувача');
+                }
+
                 // Оновлюємо стор
+                console.log('📝 [AuthService] Оновлення Store...');
                 window.TasksStore.actions.setUser({
                     id: profile.data.id,
                     telegramId: telegramUser.telegram_id || telegramUser.id,
@@ -51,19 +166,31 @@ window.TasksServices = (function() {
                 // Оновлюємо UI
                 this.updateUserUI(profile.data);
 
+                // Скидаємо лічильник помилок
+                this.retryCount = 0;
+
+                console.log('✅ [AuthService] Ініціалізація користувача завершена');
                 return profile.data;
 
             } catch (error) {
                 console.error('❌ [AuthService] Помилка ініціалізації користувача:', error);
 
-                // Показуємо повідомлення користувачу
-                window.TasksUtils.showToast(
-                    'Помилка авторизації. Перевірте підключення до інтернету та оновіть сторінку',
-                    'error'
-                );
+                // Показуємо помилку користувачу
+                if (window.TasksUtils?.showToast) {
+                    // Показуємо різні повідомлення в залежності від типу помилки
+                    if (error.message.includes('Система ініціалізується')) {
+                        window.TasksUtils.showToast('Система ініціалізується. Зачекайте...', 'info');
+                    } else if (error.message.includes('недоступний')) {
+                        window.TasksUtils.showToast('Сервер тимчасово недоступний', 'error');
+                    } else {
+                        window.TasksUtils.showToast('Помилка авторизації. Оновіть сторінку', 'error');
+                    }
+                }
 
-                // Не робимо fallback - викидаємо помилку
                 throw error;
+
+            } finally {
+                this.isInitializing = false;
             }
         },
 
@@ -73,28 +200,35 @@ window.TasksServices = (function() {
         updateUserUI(user) {
             console.log('🔄 [AuthService] Оновлення UI користувача');
 
-            // Оновлюємо ID
-            const userIdElement = document.getElementById('header-user-id');
-            if (userIdElement) {
-                userIdElement.textContent = user.telegram_id || user.id || '';
-            }
+            try {
+                // Оновлюємо ID
+                const userIdElement = document.getElementById('header-user-id');
+                if (userIdElement) {
+                    userIdElement.textContent = user.telegram_id || user.id || '';
+                }
 
-            // Оновлюємо аватар
-            const avatarElement = document.querySelector('.profile-avatar');
-            if (avatarElement && user.username) {
-                avatarElement.textContent = user.username.charAt(0).toUpperCase();
-            }
+                // Оновлюємо аватар
+                const avatarElement = document.querySelector('.profile-avatar');
+                if (avatarElement && user.username) {
+                    avatarElement.textContent = user.username.charAt(0).toUpperCase();
+                }
 
-            // Оновлюємо баланси
-            const winixElement = document.getElementById('user-winix');
-            const ticketsElement = document.getElementById('user-tickets');
+                // Оновлюємо баланси
+                const winixElement = document.getElementById('user-winix');
+                const ticketsElement = document.getElementById('user-tickets');
 
-            if (winixElement) {
-                winixElement.textContent = user.balance?.winix || 0;
-            }
+                if (winixElement) {
+                    winixElement.textContent = user.balance?.winix || 0;
+                }
 
-            if (ticketsElement) {
-                ticketsElement.textContent = user.balance?.tickets || 0;
+                if (ticketsElement) {
+                    ticketsElement.textContent = user.balance?.tickets || 0;
+                }
+
+                console.log('✅ [AuthService] UI оновлено');
+
+            } catch (error) {
+                console.error('❌ [AuthService] Помилка оновлення UI:', error);
             }
         },
 
@@ -104,57 +238,73 @@ window.TasksServices = (function() {
         async checkSession() {
             console.log('🔐 [AuthService] Перевірка сесії');
 
-            const isAuth = window.TelegramValidator.isAuthenticated();
+            try {
+                // Перевіряємо залежності
+                if (!window.TelegramValidator) {
+                    console.warn('⚠️ [AuthService] TelegramValidator не готовий');
+                    return false;
+                }
 
-            if (!isAuth) {
-                console.warn('⚠️ [AuthService] Користувач не авторизований');
+                const isAuth = window.TelegramValidator.isAuthenticated();
 
-                // Показуємо помилку і пропонуємо оновити
-                window.TasksUtils.showToast(
-                    'Сесія закінчилася. Оновіть сторінку',
-                    'error'
-                );
+                if (!isAuth) {
+                    console.warn('⚠️ [AuthService] Користувач не авторизований');
 
-                // Автоматичне оновлення через 3 секунди
-                setTimeout(() => {
-                    window.location.reload();
-                }, 3000);
-
-                return false;
-            }
-
-            // Спробуємо оновити токен якщо потрібно
-            const token = window.TelegramValidator.getAuthToken();
-            if (token) {
-                try {
-                    const payload = JSON.parse(atob(token.split('.')[1]));
-                    const exp = payload.exp * 1000;
-                    const now = Date.now();
-
-                    if (exp - now < 5 * 60 * 1000) { // Менше 5 хвилин
-                        console.log('🔄 [AuthService] Оновлення токену');
-                        await window.TelegramValidator.refreshToken();
+                    // Показуємо помилку і пропонуємо оновити
+                    if (window.TasksUtils?.showToast) {
+                        window.TasksUtils.showToast('Сесія закінчилася. Оновіть сторінку', 'error');
                     }
-                } catch (error) {
-                    console.error('❌ [AuthService] Помилка перевірки токену:', error);
 
-                    // Очищаємо недійсний токен
-                    window.TelegramValidator.clearAuthToken();
-
-                    window.TasksUtils.showToast(
-                        'Помилка авторизації. Оновіть сторінку',
-                        'error'
-                    );
-
+                    // Автоматичне оновлення через 3 секунди
                     setTimeout(() => {
                         window.location.reload();
-                    }, 2000);
+                    }, 3000);
 
                     return false;
                 }
-            }
 
-            return true;
+                // Перевіряємо доступність API для оновлення токену
+                if (!servicesState.apiAvailable) {
+                    console.warn('⚠️ [AuthService] API недоступний для перевірки сесії');
+                    return false;
+                }
+
+                // Спробуємо оновити токен якщо потрібно
+                const token = window.TelegramValidator.getAuthToken();
+                if (token) {
+                    try {
+                        const payload = JSON.parse(atob(token.split('.')[1]));
+                        const exp = payload.exp * 1000;
+                        const now = Date.now();
+
+                        if (exp - now < 5 * 60 * 1000) { // Менше 5 хвилин
+                            console.log('🔄 [AuthService] Оновлення токену');
+                            await window.TelegramValidator.refreshToken();
+                        }
+                    } catch (error) {
+                        console.error('❌ [AuthService] Помилка перевірки токену:', error);
+
+                        // Очищаємо недійсний токен
+                        window.TelegramValidator.clearAuthToken();
+
+                        if (window.TasksUtils?.showToast) {
+                            window.TasksUtils.showToast('Помилка авторизації. Оновіть сторінку', 'error');
+                        }
+
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+
+                        return false;
+                    }
+                }
+
+                return true;
+
+            } catch (error) {
+                console.error('❌ [AuthService] Помилка перевірки сесії:', error);
+                return false;
+            }
         }
     };
 
@@ -178,10 +328,15 @@ window.TasksServices = (function() {
             }
 
             // Синхронізація кожні 5 хвилин
-            const SYNC_INTERVAL = window.TasksConstants.TIMERS.AUTO_CHECK_INTERVAL;
+            const SYNC_INTERVAL = window.TasksConstants?.TIMERS?.AUTO_CHECK_INTERVAL || 5 * 60 * 1000;
 
             this.syncInterval = setInterval(() => {
-                this.syncData();
+                // Перевіряємо доступність API перед синхронізацією
+                if (servicesState.apiAvailable) {
+                    this.syncData();
+                } else {
+                    console.log('⏸️ [SyncService] Пропуск синхронізації - API недоступний');
+                }
             }, SYNC_INTERVAL);
 
             console.log(`✅ [SyncService] Автосинхронізація запущена (кожні ${SYNC_INTERVAL/1000/60} хв)`);
@@ -197,6 +352,12 @@ window.TasksServices = (function() {
             // Перевіряємо чи вже йде синхронізація
             if (this.isSyncing) {
                 console.log('⏸️ [SyncService] Синхронізація вже виконується');
+                return;
+            }
+
+            // Перевіряємо залежності
+            if (!checkDependencies()) {
+                console.log('⏸️ [SyncService] Залежності не готові');
                 return;
             }
 
@@ -220,7 +381,7 @@ window.TasksServices = (function() {
                     return;
                 }
 
-                const userId = window.TasksStore.selectors.getUserId();
+                const userId = window.TasksStore?.selectors?.getUserId();
                 if (!userId) {
                     console.warn('⚠️ [SyncService] User ID не знайдено');
                     throw new Error('User ID відсутній');
@@ -228,10 +389,10 @@ window.TasksServices = (function() {
 
                 // Паралельно завантажуємо всі дані
                 const promises = [
-                    this.syncBalance(userId),
-                    this.syncFlexStatus(userId),
-                    this.syncDailyBonus(userId),
-                    this.syncTasks(userId)
+                    this.syncBalance(userId).catch(err => ({ error: err, type: 'balance' })),
+                    this.syncFlexStatus(userId).catch(err => ({ error: err, type: 'flex' })),
+                    this.syncDailyBonus(userId).catch(err => ({ error: err, type: 'daily' })),
+                    this.syncTasks(userId).catch(err => ({ error: err, type: 'tasks' }))
                 ];
 
                 const results = await Promise.allSettled(promises);
@@ -239,10 +400,11 @@ window.TasksServices = (function() {
                 // Логуємо результати
                 results.forEach((result, index) => {
                     const syncType = ['Balance', 'Flex', 'Daily', 'Tasks'][index];
-                    if (result.status === 'fulfilled') {
+                    if (result.status === 'fulfilled' && !result.value.error) {
                         console.log(`✅ [SyncService] ${syncType} синхронізовано`);
                     } else {
-                        console.error(`❌ [SyncService] Помилка синхронізації ${syncType}:`, result.reason);
+                        const error = result.status === 'rejected' ? result.reason : result.value.error;
+                        console.error(`❌ [SyncService] Помилка синхронізації ${syncType}:`, error.message);
                     }
                 });
 
@@ -253,10 +415,9 @@ window.TasksServices = (function() {
 
                 // Критичні помилки
                 if (error.message.includes('User ID') || error.message.includes('авторизації')) {
-                    window.TasksUtils.showToast(
-                        'Помилка авторизації. Оновлюємо сторінку...',
-                        'error'
-                    );
+                    if (window.TasksUtils?.showToast) {
+                        window.TasksUtils.showToast('Помилка авторизації. Оновлюємо сторінку...', 'error');
+                    }
 
                     setTimeout(() => {
                         window.location.reload();
@@ -295,7 +456,7 @@ window.TasksServices = (function() {
         async syncFlexStatus(userId) {
             console.log('💎 [SyncService] Синхронізація Flex статусу...');
 
-            const wallet = window.TasksStore.selectors.getWalletAddress();
+            const wallet = window.TasksStore?.selectors?.getWalletAddress();
             if (!wallet) {
                 console.log('⏸️ [SyncService] Гаманець не підключено');
                 return { skipped: true, reason: 'wallet_not_connected' };
@@ -362,7 +523,9 @@ window.TasksServices = (function() {
          */
         showSuccess(message, duration = 3000) {
             console.log('✅ [NotificationService] Успіх:', message);
-            window.TasksUtils.showToast(message, 'success', duration);
+            if (window.TasksUtils?.showToast) {
+                window.TasksUtils.showToast(message, 'success', duration);
+            }
 
             // Вібрація на мобільних
             this.vibrate([50]);
@@ -373,7 +536,9 @@ window.TasksServices = (function() {
          */
         showError(message, duration = 5000) {
             console.log('❌ [NotificationService] Помилка:', message);
-            window.TasksUtils.showToast(message, 'error', duration);
+            if (window.TasksUtils?.showToast) {
+                window.TasksUtils.showToast(message, 'error', duration);
+            }
 
             // Довша вібрація для помилок
             this.vibrate([100, 50, 100]);
@@ -384,7 +549,9 @@ window.TasksServices = (function() {
          */
         showWarning(message, duration = 4000) {
             console.log('⚠️ [NotificationService] Попередження:', message);
-            window.TasksUtils.showToast(message, 'warning', duration);
+            if (window.TasksUtils?.showToast) {
+                window.TasksUtils.showToast(message, 'warning', duration);
+            }
 
             this.vibrate([75]);
         },
@@ -394,7 +561,9 @@ window.TasksServices = (function() {
          */
         showInfo(message, duration = 3000) {
             console.log('ℹ️ [NotificationService] Інформація:', message);
-            window.TasksUtils.showToast(message, 'info', duration);
+            if (window.TasksUtils?.showToast) {
+                window.TasksUtils.showToast(message, 'info', duration);
+            }
         },
 
         /**
@@ -495,8 +664,8 @@ window.TasksServices = (function() {
                 }
             }
 
-            // Відправка на бекенд
-            if (window.TasksAPI) {
+            // Відправка на бекенд тільки якщо API доступний
+            if (servicesState.apiAvailable && window.TasksAPI) {
                 window.TasksAPI.call('/analytics/event', {
                     method: 'POST',
                     body: {
@@ -530,7 +699,7 @@ window.TasksServices = (function() {
             const errorData = {
                 name: error.name || 'UnknownError',
                 message: error.message || 'Unknown error',
-                stack: error.stack ? error.stack.substring(0, 500) : null, // Обмежуємо розмір
+                stack: error.stack ? error.stack.substring(0, 500) : null,
                 context: context
             };
 
@@ -547,94 +716,6 @@ window.TasksServices = (function() {
                 time: time + 'ms'
             });
             this.trackEvent('Timing', category, variable, time);
-        }
-    };
-
-    /**
-     * Сервіс кешування
-     */
-    const CacheService = {
-        cache: new Map(),
-        maxSize: 100,
-
-        /**
-         * Отримати з кешу
-         */
-        get(key) {
-            const item = this.cache.get(key);
-            if (!item) return null;
-
-            // Перевіряємо термін дії
-            if (item.expires && item.expires < Date.now()) {
-                this.cache.delete(key);
-                return null;
-            }
-
-            console.log(`📦 [CacheService] Отримано з кешу: ${key}`);
-            return item.value;
-        },
-
-        /**
-         * Зберегти в кеш
-         */
-        set(key, value, ttl = 300000) { // 5 хвилин за замовчуванням
-            console.log(`💾 [CacheService] Збережено в кеш: ${key}`);
-
-            this.cache.set(key, {
-                value,
-                expires: ttl ? Date.now() + ttl : null,
-                timestamp: Date.now()
-            });
-
-            // Обмежуємо розмір кешу
-            if (this.cache.size > this.maxSize) {
-                const firstKey = this.cache.keys().next().value;
-                this.cache.delete(firstKey);
-                console.log(`🗑️ [CacheService] Видалено старий запис: ${firstKey}`);
-            }
-        },
-
-        /**
-         * Видалити з кешу
-         */
-        delete(key) {
-            console.log(`🗑️ [CacheService] Видалено з кешу: ${key}`);
-            this.cache.delete(key);
-        },
-
-        /**
-         * Очистити весь кеш
-         */
-        clear() {
-            console.log('🧹 [CacheService] Кеш очищено');
-            this.cache.clear();
-        },
-
-        /**
-         * Отримати статистику кешу
-         */
-        getStats() {
-            let totalSize = 0;
-            let expiredCount = 0;
-            const now = Date.now();
-
-            this.cache.forEach((item, key) => {
-                if (item.expires && item.expires < now) {
-                    expiredCount++;
-                }
-                try {
-                    totalSize += JSON.stringify(item.value).length;
-                } catch (e) {
-                    // Ігноруємо помилки серіалізації
-                }
-            });
-
-            return {
-                entries: this.cache.size,
-                expired: expiredCount,
-                sizeKB: (totalSize / 1024).toFixed(2),
-                maxSize: this.maxSize
-            };
         }
     };
 
@@ -726,17 +807,40 @@ window.TasksServices = (function() {
     /**
      * Ініціалізація сервісів
      */
-    function init() {
+    async function init() {
         console.log('🚀 [TasksServices] Ініціалізація сервісів (Production)');
 
         try {
+            // Чекаємо готовність залежностей з таймаутом
+            const maxWaitTime = 10000; // 10 секунд
+            const startTime = Date.now();
+
+            while (!checkDependencies() && (Date.now() - startTime) < maxWaitTime) {
+                console.log('⏳ [TasksServices] Очікування готовності залежностей...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            if (!checkDependencies()) {
+                console.error('❌ [TasksServices] Залежності не готові після очікування');
+                throw new Error('Не вдалося ініціалізувати залежності');
+            }
+
             // Ініціалізуємо аналітику
             AnalyticsService.init();
 
-            // Запускаємо автосинхронізацію
-            SyncService.startAutoSync();
+            // Перевіряємо здоров'я API
+            await checkApiHealth();
 
-            // Відстежуємо початок роботи
+            // Запускаємо автосинхронізацію тільки якщо API доступний
+            if (servicesState.apiAvailable) {
+                SyncService.startAutoSync();
+            } else {
+                console.warn('⚠️ [TasksServices] API недоступний, автосинхронізація відкладена');
+            }
+
+            servicesState.initialized = true;
+
+            // Відстежуємо успішну ініціалізацію
             AnalyticsService.trackEvent('System', 'init', 'services_production');
 
             console.log('✅ [TasksServices] Сервіси ініціалізовано (Production)');
@@ -751,9 +855,6 @@ window.TasksServices = (function() {
         }
     }
 
-    // Автоматична ініціалізація з затримкою
-    setTimeout(init, 100);
-
     console.log('✅ [TasksServices] Сервісний модуль готовий (Production)');
 
     // Публічний API
@@ -762,8 +863,11 @@ window.TasksServices = (function() {
         Sync: SyncService,
         Notification: NotificationService,
         Analytics: AnalyticsService,
-        Cache: CacheService,
-        Validation: ValidationService
+        Validation: ValidationService,
+        init,
+        checkDependencies,
+        checkApiHealth,
+        getState: () => servicesState
     };
 
 })();

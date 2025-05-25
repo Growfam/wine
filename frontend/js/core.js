@@ -1,13 +1,13 @@
 /**
- * core.js - Базова функціональність WINIX
- * Версія без заглушок - тільки реальні дані з бекенду
- * @version 3.0.0
+ * core.js - Базова функціональність WINIX (Fixed Version)
+ * Виправлена версія з перевіркою готовності API та кращою обробкою помилок
+ * @version 3.1.0
  */
 
 (function() {
     'use strict';
 
-    console.log("🔄 Core: Ініціалізація ядра WINIX");
+    console.log("🔄 Core: Ініціалізація ядра WINIX (Fixed Version)");
 
     // ======== ПРИВАТНІ ЗМІННІ ========
 
@@ -17,31 +17,160 @@
     // Стан модуля
     const _state = {
         initialized: false,
+        apiReady: false,
+        serverHealthy: false,
         refreshInterval: null,
         requestInProgress: false,
         lastRequestTime: 0,
         errorCounter: 0,
-        maxErrorsBeforeReset: 5,
+        maxErrorsBeforeReset: 3, // Зменшено для швидшої реакції
         apiStats: {
             totalRequests: 0,
             successfulRequests: 0,
-            failedRequests: 0
-        }
+            failedRequests: 0,
+            lastHealthCheck: 0
+        },
+        healthCheckInterval: null
     };
 
     // Конфігурація
     const _config = {
-        minRequestInterval: 5000,
-        autoRefreshInterval: 300000, // 5 хвилин
-        requestTimeout: 15000,
-        maxRetries: 3,
-        retryInterval: 2000
+        minRequestInterval: 3000, // Зменшено для швидшої перевірки
+        autoRefreshInterval: 180000, // 3 хвилини
+        requestTimeout: 10000,
+        maxRetries: 2, // Зменшено кількість спроб
+        retryInterval: 1500,
+        healthCheckInterval: 30000, // Перевірка здоров'я кожні 30 секунд
+        healthCheckTimeout: 5000
     };
+
+    // ======== API HEALTH CHECK ========
+
+    /**
+     * Перевірка здоров'я API сервера
+     */
+    async function checkApiHealth() {
+        console.log('🏥 Core: Перевірка здоров\'я API сервера');
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), _config.healthCheckTimeout);
+
+            // Простий запит до базового API
+            const response = await fetch('/api/health', {
+                method: 'GET',
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            clearTimeout(timeoutId);
+
+            const isHealthy = response.ok;
+            _state.serverHealthy = isHealthy;
+            _state.apiStats.lastHealthCheck = Date.now();
+
+            if (isHealthy) {
+                console.log('✅ Core: API сервер доступний');
+                _state.errorCounter = Math.max(0, _state.errorCounter - 1); // Зменшуємо лічильник помилок
+            } else {
+                console.warn(`⚠️ Core: API сервер повернув статус ${response.status}`);
+                _state.errorCounter++;
+            }
+
+            return isHealthy;
+
+        } catch (error) {
+            console.error('❌ Core: API сервер недоступний:', error.message);
+            _state.serverHealthy = false;
+            _state.errorCounter++;
+
+            // Показуємо користувачу стан сервера
+            updateServerStatusUI(false);
+
+            return false;
+        }
+    }
+
+    /**
+     * Запуск періодичної перевірки здоров'я
+     */
+    function startHealthCheck() {
+        console.log('🏥 Core: Запуск періодичної перевірки здоров\'я API');
+
+        // Перша перевірка одразу
+        checkApiHealth();
+
+        // Періодичні перевірки
+        _state.healthCheckInterval = setInterval(() => {
+            checkApiHealth();
+        }, _config.healthCheckInterval);
+
+        console.log(`✅ Core: Health check запущено (кожні ${_config.healthCheckInterval/1000} сек)`);
+    }
+
+    /**
+     * Оновлення UI статусу сервера
+     */
+    function updateServerStatusUI(isHealthy) {
+        const statusElement = document.querySelector('.server-status');
+
+        if (!statusElement) {
+            // Створюємо елемент статусу якщо його немає
+            createServerStatusElement(isHealthy);
+            return;
+        }
+
+        if (isHealthy) {
+            statusElement.style.display = 'none';
+        } else {
+            statusElement.style.display = 'block';
+            statusElement.innerHTML = `
+                <div class="server-offline-notice">
+                    <h3>⚠️ Сервер тимчасово недоступний</h3>
+                    <p>Перевіряємо підключення... Будь ласка, зачекайте.</p>
+                    <div class="retry-countdown" id="retry-countdown"></div>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Створення елемента статусу сервера
+     */
+    function createServerStatusElement(isHealthy) {
+        if (isHealthy) return;
+
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'server-status';
+        statusDiv.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            z-index: 9999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        `;
+
+        statusDiv.innerHTML = `
+            <div class="server-offline-notice">
+                <h3 style="margin: 0 0 10px 0;">⚠️ Сервер тимчасово недоступний</h3>
+                <p style="margin: 0;">Перевіряємо підключення... Будь ласка, зачекайте.</p>
+            </div>
+        `;
+
+        document.body.insertBefore(statusDiv, document.body.firstChild);
+    }
 
     // ======== УТИЛІТИ ========
 
     /**
-     * Отримання елемента DOM
+     * Отримання елемента DOM з перевіркою
      */
     function getElement(selector, multiple = false) {
         try {
@@ -53,7 +182,7 @@
             }
             return document.querySelector(selector);
         } catch (e) {
-            console.warn('⚠️ Помилка отримання елемента DOM:', e);
+            console.warn('⚠️ Core: Помилка отримання елемента DOM:', e);
             return null;
         }
     }
@@ -78,10 +207,17 @@
      */
     function hasApiModule() {
         try {
-            return window.WinixAPI &&
+            const hasModule = window.WinixAPI &&
                    typeof window.WinixAPI.apiRequest === 'function';
+
+            if (hasModule) {
+                _state.apiReady = true;
+            }
+
+            return hasModule;
         } catch (e) {
             console.warn("⚠️ Core: Помилка перевірки API модуля:", e);
+            _state.apiReady = false;
             return false;
         }
     }
@@ -128,17 +264,13 @@
             return;
         }
 
-        if (type === 'error') {
-            alert(message);
-        } else {
-            console.log(`${type.toUpperCase()}: ${message}`);
-        }
+        console.log(`${type.toUpperCase()}: ${message}`);
     }
 
     // ======== API ФУНКЦІЇ ========
 
     /**
-     * Виконання API-запиту з повторними спробами
+     * Виконання API-запиту з повторними спробами та перевіркою здоров'я
      */
     async function executeApiRequest(endpoint, method = 'GET', data = null, options = {}) {
         if (!endpoint) {
@@ -146,11 +278,27 @@
             throw new Error('Невалідний endpoint');
         }
 
+        // Перевіряємо здоров'я сервера перед запитом
+        if (!_state.serverHealthy) {
+            console.warn("⚠️ Core: Сервер недоступний, перевіряємо статус...");
+
+            const isHealthy = await checkApiHealth();
+            if (!isHealthy) {
+                throw new Error('Сервер тимчасово недоступний. Спробуйте пізніше.');
+            }
+        }
+
         // Перевіряємо наявність Telegram ID
         const telegramId = getTelegramUserId();
         if (!telegramId) {
             console.error("❌ Core: Немає Telegram ID для запиту");
             throw new Error('No Telegram ID');
+        }
+
+        // Перевіряємо API модуль
+        if (!hasApiModule()) {
+            console.error("❌ Core: API модуль недоступний");
+            throw new Error('API module not available');
         }
 
         const defaultOptions = {
@@ -172,12 +320,8 @@
             try {
                 if (attempt > 1) {
                     const delay = requestOptions.retryInterval * Math.pow(1.5, attempt - 1);
+                    console.log(`⏳ Core: Затримка ${delay}мс перед спробою ${attempt}`);
                     await new Promise(resolve => setTimeout(resolve, delay));
-                }
-
-                // Перевіряємо наявність API модуля
-                if (!hasApiModule()) {
-                    throw new Error('API module not available');
                 }
 
                 // Виконуємо запит через WinixAPI
@@ -191,25 +335,34 @@
                 }
 
                 _state.apiStats.successfulRequests++;
-                _state.errorCounter = 0;
+                _state.errorCounter = Math.max(0, _state.errorCounter - 1);
 
                 return apiResult;
+
             } catch (error) {
                 lastError = error;
                 _state.apiStats.failedRequests++;
                 console.error(`❌ Core: Помилка при виконанні ${method} ${endpoint} (спроба ${attempt}/${requestOptions.retries}):`, error);
+
+                // Перевіряємо тип помилки
+                if (error.message.includes('500') || error.message.includes('сервер')) {
+                    // Серверна помилка - перевіряємо здоров'я
+                    _state.serverHealthy = false;
+                    await checkApiHealth();
+                }
             }
         }
 
         _state.errorCounter++;
 
+        // Перевіряємо критичну кількість помилок
         if (_state.errorCounter >= _state.maxErrorsBeforeReset && !options.preventReset) {
-            console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), перезавантаження...`);
-            showErrorMessage('Виникли проблеми з підключенням. Перезавантаження...', 'warning');
+            console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), показуємо повідомлення...`);
 
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
+            showErrorMessage('Виникли проблеми з підключенням до сервера. Перевіряємо стан...', 'error');
+
+            // Запускаємо перевірку здоров'я
+            await checkApiHealth();
         }
 
         if (requestOptions.suppressErrors) {
@@ -226,11 +379,21 @@
     // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
 
     /**
-     * Отримання даних користувача
+     * Отримання даних користувача з перевіркою готовності
      */
     async function getUserData(forceRefresh = false) {
         try {
             console.log("🔄 Core: Запит даних користувача");
+
+            // Перевіряємо готовність системи
+            if (!_state.serverHealthy && !forceRefresh) {
+                console.warn("⚠️ Core: Сервер недоступний, спробуємо перевірити...");
+                const isHealthy = await checkApiHealth();
+                if (!isHealthy) {
+                    console.error("❌ Core: Сервер все ще недоступний");
+                    return {};
+                }
+            }
 
             // Перевіряємо Telegram ID
             const telegramId = getTelegramUserId();
@@ -276,6 +439,12 @@
         } catch (error) {
             console.error("❌ Core: Критична помилка в getUserData:", error);
             _state.requestInProgress = false;
+
+            // Показуємо інформативне повідомлення
+            if (error.message.includes('недоступний') || error.message.includes('500')) {
+                showErrorMessage('Сервер тимчасово недоступний. Намагаємося відновити підключення...', 'warning');
+            }
+
             return {};
         }
     }
@@ -304,7 +473,7 @@
             // Оновлюємо аватар
             updateUserAvatar(username);
         } catch (e) {
-            console.warn('⚠️ Помилка оновлення відображення користувача:', e);
+            console.warn('⚠️ Core: Помилка оновлення відображення користувача:', e);
         }
     }
 
@@ -322,7 +491,7 @@
             avatarElement.innerHTML = '';
             avatarElement.textContent = username[0].toUpperCase();
         } catch (e) {
-            console.warn('⚠️ Помилка оновлення аватара:', e);
+            console.warn('⚠️ Core: Помилка оновлення аватара:', e);
         }
     }
 
@@ -368,7 +537,7 @@
                 }
             }
         } catch (e) {
-            console.warn('⚠️ Помилка оновлення відображення балансу:', e);
+            console.warn('⚠️ Core: Помилка оновлення відображення балансу:', e);
         }
     }
 
@@ -377,7 +546,7 @@
      */
     function updateLocalBalance(newBalance, source = 'unknown', animate = true) {
         if (typeof newBalance !== 'number' || isNaN(newBalance) || newBalance < 0) {
-            console.warn('⚠️ Спроба встановити некоректний баланс:', newBalance);
+            console.warn('⚠️ Core: Спроба встановити некоректний баланс:', newBalance);
             return false;
         }
 
@@ -423,7 +592,7 @@
 
             return true;
         } catch (e) {
-            console.warn('⚠️ Помилка оновлення локального балансу:', e);
+            console.warn('⚠️ Core: Помилка оновлення локального балансу:', e);
             return false;
         }
     }
@@ -433,6 +602,15 @@
      */
     async function refreshBalance(forceRefresh = false) {
         console.log("🔄 Core: Запит оновлення балансу");
+
+        // Перевіряємо готовність сервера
+        if (!_state.serverHealthy && !forceRefresh) {
+            console.warn("⚠️ Core: Сервер недоступний для оновлення балансу");
+            return {
+                success: false,
+                message: 'Сервер тимчасово недоступний'
+            };
+        }
 
         // Перевіряємо Telegram ID
         const telegramId = getTelegramUserId();
@@ -476,7 +654,7 @@
             const endpoint = `user/${telegramId}/balance?t=${Date.now()}`;
             const response = await executeApiRequest(endpoint, 'GET', null, {
                 suppressErrors: true,
-                timeout: 10000
+                timeout: _config.requestTimeout
             });
 
             _state.requestInProgress = false;
@@ -492,7 +670,7 @@
                     _userData.coins = newBalance;
                 }
 
-                _state.errorCounter = 0;
+                _state.errorCounter = Math.max(0, _state.errorCounter - 1);
 
                 return {
                     success: true,
@@ -509,13 +687,11 @@
             _state.requestInProgress = false;
             _state.errorCounter++;
 
-            if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
-                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок, перезавантаження...`);
-                showErrorMessage('Виникли проблеми з підключенням. Перезавантаження...', 'warning');
-
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
+            // Показуємо відповідне повідомлення
+            if (error.message.includes('недоступний') || error.message.includes('500')) {
+                showErrorMessage('Сервер тимчасово недоступний', 'warning');
+            } else if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
+                showErrorMessage('Виникли проблеми з підключенням', 'error');
             }
 
             return {
@@ -565,7 +741,7 @@
                 }
             });
         } catch (e) {
-            console.warn('⚠️ Помилка ініціалізації навігації:', e);
+            console.warn('⚠️ Core: Помилка ініціалізації навігації:', e);
         }
     }
 
@@ -577,6 +753,16 @@
     async function syncUserData(forceRefresh = false) {
         try {
             console.log('🔄 Core: Початок синхронізації даних користувача...');
+
+            // Перевіряємо готовність сервера
+            if (!_state.serverHealthy && !forceRefresh) {
+                console.warn('⚠️ Core: Сервер недоступний для синхронізації');
+                return {
+                    success: false,
+                    message: 'Сервер тимчасово недоступний',
+                    data: _userData || {}
+                };
+            }
 
             // Оновлюємо дані користувача
             const userData = await getUserData(forceRefresh);
@@ -598,7 +784,13 @@
         } catch (error) {
             console.error('❌ Core: Помилка синхронізації даних користувача:', error);
 
-            showErrorMessage('Не вдалося синхронізувати дані', 'warning');
+            const isServerError = error.message.includes('недоступний') || error.message.includes('500');
+
+            if (isServerError) {
+                showErrorMessage('Сервер тимчасово недоступний. Намагаємося відновити підключення...', 'warning');
+            } else {
+                showErrorMessage('Не вдалося синхронізувати дані', 'warning');
+            }
 
             return {
                 success: false,
@@ -611,7 +803,7 @@
     /**
      * Запуск періодичної синхронізації даних
      */
-    function startAutoSync(interval = 300000) { // 5 хвилин
+    function startAutoSync(interval = 180000) { // 3 хвилини
         if (_state.refreshInterval) {
             clearInterval(_state.refreshInterval);
             _state.refreshInterval = null;
@@ -619,7 +811,8 @@
 
         _state.refreshInterval = setInterval(async () => {
             try {
-                if (Date.now() - _state.lastRequestTime >= _config.minRequestInterval && !_state.requestInProgress) {
+                // Синхронізуємо тільки якщо сервер здоровий
+                if (_state.serverHealthy && Date.now() - _state.lastRequestTime >= _config.minRequestInterval && !_state.requestInProgress) {
                     await syncUserData();
                 }
             } catch (e) {
@@ -638,6 +831,12 @@
             clearInterval(_state.refreshInterval);
             _state.refreshInterval = null;
             console.log("⏹️ Core: Періодичне оновлення зупинено");
+        }
+
+        if (_state.healthCheckInterval) {
+            clearInterval(_state.healthCheckInterval);
+            _state.healthCheckInterval = null;
+            console.log("⏹️ Core: Health check зупинено");
         }
     }
 
@@ -658,10 +857,30 @@
             // Оновлюємо конфігурацію
             Object.assign(_config, options);
 
+            // Запускаємо перевірку здоров'я API
+            startHealthCheck();
+
+            // Чекаємо готовності API
+            let apiWaitAttempts = 0;
+            const maxApiWaitAttempts = 10;
+
+            while (!hasApiModule() && apiWaitAttempts < maxApiWaitAttempts) {
+                console.log(`⏳ Core: Чекаємо завантаження API модуля... (${apiWaitAttempts + 1}/${maxApiWaitAttempts})`);
+                await new Promise(resolve => setTimeout(resolve, 500));
+                apiWaitAttempts++;
+            }
+
+            if (!hasApiModule()) {
+                console.error("❌ Core: API модуль не завантажився");
+                showErrorMessage('Помилка завантаження системи. Оновіть сторінку.', 'error');
+                return false;
+            }
+
             // Перевіряємо Telegram ID
             const telegramId = getTelegramUserId();
             if (!telegramId) {
                 console.error("❌ Core: Немає Telegram ID, блокуємо ініціалізацію");
+                showErrorMessage('Додаток повинен бути відкритий через Telegram', 'error');
                 return false;
             }
 
@@ -676,9 +895,20 @@
                 }
             }
 
-            // Отримуємо дані користувача
-            await getUserData();
-            console.log("✅ Core: Дані користувача отримано");
+            // Чекаємо готовності сервера
+            if (!_state.serverHealthy) {
+                console.log("⏳ Core: Чекаємо готовності сервера...");
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Даємо час на перевірку
+            }
+
+            // Отримуємо дані користувача (можемо працювати і без сервера на початку)
+            try {
+                await getUserData();
+                console.log("✅ Core: Дані користувача отримано");
+            } catch (error) {
+                console.warn("⚠️ Core: Не вдалося отримати дані користувача:", error);
+                // Продовжуємо ініціалізацію навіть без даних
+            }
 
             // Оновлюємо відображення
             updateUserDisplay();
@@ -702,6 +932,8 @@
         } catch (error) {
             console.error('❌ Core: Помилка ініціалізації ядра WINIX:', error);
 
+            showErrorMessage('Помилка ініціалізації системи', 'error');
+
             document.dispatchEvent(new CustomEvent('winix-initialization-error', { detail: error }));
 
             return false;
@@ -713,6 +945,20 @@
      */
     function isInitialized() {
         return _state.initialized;
+    }
+
+    /**
+     * Отримати стан системи
+     */
+    function getSystemStatus() {
+        return {
+            initialized: _state.initialized,
+            apiReady: _state.apiReady,
+            serverHealthy: _state.serverHealthy,
+            errorCounter: _state.errorCounter,
+            lastHealthCheck: _state.apiStats.lastHealthCheck,
+            stats: { ..._state.apiStats }
+        };
     }
 
     // ======== ОБРОБНИКИ ПОДІЙ ========
@@ -760,18 +1006,34 @@
         }
     });
 
+    // Обробник online/offline
+    window.addEventListener('online', () => {
+        console.log('🌐 Core: З\'єднання відновлено');
+        checkApiHealth(); // Перевіряємо сервер при відновленні з'єднання
+    });
+
+    window.addEventListener('offline', () => {
+        console.log('📵 Core: З\'єднання втрачено');
+        _state.serverHealthy = false;
+        updateServerStatusUI(false);
+    });
+
     // ======== ПУБЛІЧНИЙ API ========
 
     window.WinixCore = {
         // Метадані
-        version: '3.0.0',
+        version: '3.1.0',
         isInitialized: isInitialized,
+        getSystemStatus: getSystemStatus,
 
         // Утиліти
         getElement,
         formatCurrency,
         executeApiRequest,
         showErrorMessage,
+
+        // API Health
+        checkApiHealth,
 
         // Функції користувача
         getUserData,
@@ -798,5 +1060,5 @@
         getState: () => ({ ..._state })
     };
 
-    console.log("✅ Core: Модуль успішно завантажено");
+    console.log("✅ Core: Модуль успішно завантажено (Fixed Version)");
 })();

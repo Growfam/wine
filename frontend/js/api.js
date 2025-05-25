@@ -1,27 +1,30 @@
 /**
  * tasks-api.js - Єдиний модуль для всіх API-запитів WINIX
- * Оптимізована версія: централізоване управління запитами та кешуванням
- * з виправленням проблем конкуруючих запитів та обробки помилок
- * @version 1.2.5
+ * Виправлена версія з health check та кращою обробкою помилок
+ * @version 1.3.0
  */
 
 (function() {
     'use strict';
     let endpoint = ""; // Оголошення глобальної змінної
-    console.log("🔌 API: Ініціалізація єдиного API модуля");
+    console.log("🔌 API: Ініціалізація єдиного API модуля з health check");
 
     // ======== API-ШЛЯХИ ========
 
     // Константи API-шляхів для централізованого управління
     const API_PATHS = {
+        // Health check
+        HEALTH: 'health',
+        PING: 'ping',
+
         // Завдання
        TASKS: {
             ALL: 'quests/tasks',
             BY_TYPE: (type) => `quests/tasks/${type}`,
             SOCIAL: 'quests/tasks/social',
             LIMITED: 'quests/tasks/limited',
-            PARTNER: 'quests/tasks/partner',  // ВИПРАВЛЕНО: без s на кінці
-            REFERRAL: 'quests/tasks/referral',  // ДОДАНО: реферальні завдання
+            PARTNER: 'quests/tasks/partner',
+            REFERRAL: 'quests/tasks/referral',
             DETAILS: (taskId) => `quests/tasks/${taskId}/details`,
             START: (taskId) => `quests/tasks/${taskId}/start`,
             VERIFY: (taskId) => `quests/tasks/${taskId}/verify`,
@@ -30,7 +33,7 @@
 
         // Користувацькі шляхи
         USER: {
-            DATA: (userId) => `user/${userId}`,  // Видалено початковий слеш
+            DATA: (userId) => `user/${userId}`,
             BALANCE: (userId) => `user/${userId}/balance`,
             TASKS: (userId) => `user/${userId}/tasks`,
             PROGRESS: (userId) => `user/${userId}/progress`,
@@ -89,8 +92,18 @@
         }
     })();
 
+    // Стан API
+    let _apiState = {
+        isHealthy: false,
+        lastHealthCheck: 0,
+        healthCheckInterval: null,
+        healthCheckInProgress: false,
+        consecutiveFailures: 0,
+        maxFailures: 3
+    };
+
     // Режим відлагодження
-    let _debugMode = true; // ВИПРАВЛЕНО: Включено режим відлагодження
+    let _debugMode = false; // Вимкнено для продакшену
 
     // Кешовані дані користувача
     let _userCache = null;
@@ -116,7 +129,7 @@
         '/staking': 10000,
         '/balance': 6000,
         '/transactions': 15000,
-        '/participate-raffle': 5000, // Для участі в розіграшах
+        '/participate-raffle': 5000,
         'default': 5000
     };
 
@@ -140,14 +153,159 @@
     let _authToken = null;
     let _authTokenExpiry = 0;
 
-    // Дані для емуляції - використовувати тільки для тестування
-    const DUMMY_USER_DATA = {
-        telegram_id: "7066583465",
-        username: "WINIX User",
-        balance: 100,
-        coins: 5,
-        notifications_enabled: true
-    };
+    // ======== HEALTH CHECK ФУНКЦІЇ ========
+
+    /**
+     * Перевірка здоров'я API
+     */
+    async function checkApiHealth() {
+        if (_apiState.healthCheckInProgress) {
+            console.log("🔌 API: Health check вже виконується");
+            return _apiState.isHealthy;
+        }
+
+        _apiState.healthCheckInProgress = true;
+        console.log("🏥 API: Перевірка здоров'я API...");
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд таймаут
+
+            const response = await fetch(`${API_BASE_URL}/api/${API_PATHS.HEALTH}`, {
+                method: 'GET',
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
+                const data = await response.json().catch(() => ({ status: 'ok' }));
+
+                _apiState.isHealthy = true;
+                _apiState.lastHealthCheck = Date.now();
+                _apiState.consecutiveFailures = 0;
+                _connectionState.isConnected = true;
+                _connectionState.lastSuccessTime = Date.now();
+
+                console.log("✅ API: Сервер здоровий", data);
+                return true;
+            } else {
+                throw new Error(`Health check failed: ${response.status}`);
+            }
+
+        } catch (error) {
+            console.error("❌ API: Health check провалений:", error.message);
+
+            _apiState.isHealthy = false;
+            _apiState.consecutiveFailures++;
+            _connectionState.isConnected = false;
+
+            // Показуємо повідомлення користувачу
+            if (_apiState.consecutiveFailures >= _apiState.maxFailures) {
+                showServerUnavailableMessage();
+            }
+
+            return false;
+        } finally {
+            _apiState.healthCheckInProgress = false;
+        }
+    }
+
+    /**
+     * Показати повідомлення про недоступність сервера
+     */
+    function showServerUnavailableMessage() {
+        console.warn("⚠️ API: Показуємо повідомлення про недоступність сервера");
+
+        // Показуємо banner користувачу
+        let banner = document.getElementById('server-unavailable-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'server-unavailable-banner';
+            banner.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: #e74c3c;
+                color: white;
+                text-align: center;
+                padding: 15px;
+                z-index: 10000;
+                font-size: 14px;
+                font-weight: 500;
+                border-bottom: 3px solid #c0392b;
+            `;
+            banner.innerHTML = `
+                <div>⚠️ Сервер тимчасово недоступний. Спробуйте пізніше.</div>
+                <div style="font-size: 12px; margin-top: 5px; opacity: 0.9;">
+                    Ми працюємо над вирішенням проблеми
+                </div>
+            `;
+            document.body.insertBefore(banner, document.body.firstChild);
+        }
+
+        // Вібрація якщо доступна
+        if (navigator.vibrate) {
+            navigator.vibrate([200, 100, 200]);
+        }
+    }
+
+    /**
+     * Приховати повідомлення про недоступність сервера
+     */
+    function hideServerUnavailableMessage() {
+        const banner = document.getElementById('server-unavailable-banner');
+        if (banner) {
+            banner.remove();
+            console.log("✅ API: Повідомлення про недоступність приховано");
+        }
+    }
+
+    /**
+     * Запуск періодичної перевірки здоров'я
+     */
+    function startHealthCheck() {
+        console.log("🏥 API: Запуск періодичної перевірки здоров'я");
+
+        // Очищаємо попередній інтервал
+        if (_apiState.healthCheckInterval) {
+            clearInterval(_apiState.healthCheckInterval);
+        }
+
+        // Початкова перевірка
+        checkApiHealth();
+
+        // Періодична перевірка кожні 30 секунд
+        _apiState.healthCheckInterval = setInterval(async () => {
+            const isHealthy = await checkApiHealth();
+
+            if (isHealthy && _apiState.consecutiveFailures === 0) {
+                hideServerUnavailableMessage();
+            }
+        }, 30000);
+    }
+
+    /**
+     * Перевірка готовності API перед запитом
+     */
+    async function ensureApiReady() {
+        // Якщо health check застарілий (більше 1 хвилини)
+        const healthCheckAge = Date.now() - _apiState.lastHealthCheck;
+        if (healthCheckAge > 60000 || !_apiState.isHealthy) {
+            console.log("🔍 API: Перевіряємо готовність API...");
+            const isHealthy = await checkApiHealth();
+
+            if (!isHealthy) {
+                throw new Error("Сервер недоступний. Спробуйте пізніше.");
+            }
+        }
+
+        return true;
+    }
 
     // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З ID КОРИСТУВАЧА ========
 
@@ -230,17 +388,6 @@
                 }
             } catch (e) {
                 console.warn("🔌 API: Помилка отримання ID з URL:", e);
-            }
-
-            // 5. Якщо не знайдено і це сторінка налаштувань - використовуємо тестовий ID
-            const isSettingsPage = window.location.pathname.includes('general.html');
-            if (isSettingsPage) {
-                const testId = "7066583465";
-                try {
-                    localStorage.setItem('telegram_user_id', testId);
-                } catch (e) {}
-
-                return testId;
             }
 
             // ID не знайдено
@@ -410,6 +557,14 @@
      * @returns {Promise<string|null>} Новий токен або null
      */
     async function refreshToken() {
+        // Перевіряємо готовність API
+        try {
+            await ensureApiReady();
+        } catch (error) {
+            console.error("🔌 API: Сервер недоступний для оновлення токену:", error);
+            throw error;
+        }
+
         // Перевіряємо, чи вже відбувається оновлення
         if (_pendingRequests['refresh-token']) {
             return _pendingRequests['refresh-token'];
@@ -440,6 +595,12 @@
                 });
 
                 if (!response.ok) {
+                    // Спеціальна обробка 400/401 помилок при оновленні токену
+                    if (response.status === 400 || response.status === 401) {
+                        console.warn("⚠️ API: Токен недійсний, очищаємо");
+                        clearAuthToken();
+                        throw new Error("Токен недійсний. Потрібна повторна авторизація");
+                    }
                     throw new Error(`Помилка HTTP: ${response.status}`);
                 }
 
@@ -502,6 +663,31 @@
         _pendingRequests['refresh-token'] = refreshPromise;
 
         return refreshPromise;
+    }
+
+    /**
+     * Очистити токен авторизації
+     */
+    function clearAuthToken() {
+        console.log("🗑️ API: Очищення токену авторизації");
+
+        _authToken = null;
+        _authTokenExpiry = 0;
+
+        try {
+            if (window.StorageUtils) {
+                window.StorageUtils.removeItem('auth_token');
+                window.StorageUtils.removeItem('auth_token_expiry');
+            } else {
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('auth_token_expiry');
+            }
+        } catch (e) {
+            console.warn("🔌 API: Помилка очищення токену:", e);
+        }
+
+        // Відправляємо подію про очищення токену
+        document.dispatchEvent(new CustomEvent('token-cleared'));
     }
 
     // ======== ФУНКЦІЇ API-ЗАПИТУ ========
@@ -642,6 +828,15 @@
                 throw new Error(`Занадто багато запитів. Спробуйте через ${retryAfter} секунд.`);
             }
 
+            // Обробка 500+ помилок
+            if (response.status >= 500) {
+                _connectionState.isConnected = false;
+                _apiState.isHealthy = false;
+                _apiState.consecutiveFailures++;
+
+                throw new Error(`Сервер тимчасово недоступний (${response.status}). Спробуйте пізніше.`);
+            }
+
             // Перевіряємо статус відповіді
             if (!response.ok) {
                 throw new Error(`Помилка сервера: ${response.status}`);
@@ -750,6 +945,24 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
             });
         }
 
+        // Перевірка готовності API перед запитом (тільки для важливих запитів)
+        if (!options.skipHealthCheck) {
+            try {
+                await ensureApiReady();
+            } catch (error) {
+                console.error("🔌 API: Сервер недоступний:", error);
+
+                // Для критичних запитів показуємо помилку
+                if (!options.suppressErrors) {
+                    return Promise.reject({
+                        status: 'error',
+                        message: error.message,
+                        code: 'server_unavailable'
+                    });
+                }
+            }
+        }
+
         // Логування при відлагодженні
         if (_debugMode) {
             console.log(`🔌 API: Початок запиту ${method} до ${endpoint}`);
@@ -772,20 +985,6 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
                 });
             }
         }
-
-        // На початку функції apiRequest перевіряємо доступність API
-if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
-    console.warn(`API: API недоступний, використовуємо fallback режим для ${endpoint}`);
-
-    // Для критичних ендпоінтів повертаємо альтернативні дані
-    if (safeIncludes(endpoint, 'daily-bonus')) {
-        return {
-            status: 'success',
-            data: {/* Ваші fallback дані */},
-            source: 'fallback'
-        };
-    }
-}
 
         // Перевірка невалідних ID розіграшів у URL
         if (safeIncludes(endpoint, 'raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
@@ -905,13 +1104,6 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             requestOptions.body = JSON.stringify(data);
         }
 
-        // ВИПРАВЛЕНО: Додаємо кілька спроб для тестування доступності API перед запитом
-        // Це допоможе виявити проблеми з API до запиту
-        if (safeIncludes(url, '/api/ping') || safeIncludes(url, '/daily-bonus')) {
-            // Додатковий вивід діагностики для проблемних ендпоінтів
-            console.log(`🔍 API: Тестування доступності для ендпоінту: ${url}`);
-        }
-
         // НОВЕ: Перевірка паралельних запитів для критичних ендпоінтів
         if (!options.allowParallel && safeIncludes(endpoint, 'participate-raffle')) {
             // Якщо ендпоінт вже активний, відхиляємо запит
@@ -939,11 +1131,6 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             // Відображаємо індикатор завантаження
             if (!options.hideLoader && typeof window.showLoading === 'function') {
                 window.showLoading();
-            }
-
-            // ВИПРАВЛЕНО: Виводимо більше інформації для відлагодження
-            if (_debugMode || safeIncludes(url, '/api/ping') || safeIncludes(url, '/daily-bonus')) {
-                console.log(`📡 API: Запит [${method}] ${url}`);
             }
 
             // Виконуємо запит з контролем таймаута
@@ -989,8 +1176,23 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
                         return apiRequest(endpoint, method, data, options, retries - 1);
                     } catch (tokenError) {
                         console.error("🔌 API: Не вдалося оновити токен:", tokenError);
+                        clearAuthToken(); // Очищаємо недійсний токен
                     }
                 }
+            }
+
+            // Обробка 500+ помилок
+            if (fetchResponse.status >= 500) {
+                _connectionState.isConnected = false;
+                _apiState.isHealthy = false;
+                _apiState.consecutiveFailures++;
+
+                // Показуємо banner про недоступність сервера
+                if (_apiState.consecutiveFailures >= _apiState.maxFailures) {
+                    showServerUnavailableMessage();
+                }
+
+                throw new Error(`Сервер тимчасово недоступний (${fetchResponse.status}). Спробуйте пізніше.`);
             }
 
             // ВИПРАВЛЕНО: Покращена обробка 404 помилок
@@ -999,20 +1201,13 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
                 if (safeIncludes(url, 'daily-bonus')) {
                     console.warn(`⚠️ API: Ендпоінт щоденного бонусу недоступний: ${url}`);
 
-                    // ДОДАНО: Повернення симульованих даних для щоденного бонусу
-                    if (safeIncludes(endpoint, 'status') || safeIncludes(endpoint, 'claim')) {
-                        return {
-                            status: "success",
-                            data: {
-                                day: 1,
-                                canClaim: true,
-                                nextBonus: 25,
-                                streakDays: 1,
-                                lastClaimed: new Date().toISOString()
-                            },
-                            source: "simulated_404_fallback"
-                        };
-                    }
+                    // Повертаємо помилку без fallback даних
+                    return Promise.reject({
+                        status: "error",
+                        message: "Щоденні бонуси тимчасово недоступні",
+                        httpStatus: 404,
+                        endpoint: endpoint
+                    });
                 }
 
                 // Спеціальна обробка для API ping
@@ -1091,10 +1286,16 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             if (_connectionState.failedAttempts > 0) {
                 _connectionState.failedAttempts = 0;
                 _connectionState.lastSuccessTime = Date.now();
+                _connectionState.isConnected = true;
+                _apiState.isHealthy = true;
+                _apiState.consecutiveFailures = 0;
+
+                // Приховуємо banner про недоступність
+                hideServerUnavailableMessage();
             }
 
         } catch (error) {
-            // Інкрементуємо лічильник помилок
+            // Інкрементуємо лічільник помилок
             _requestCounter.errors++;
 
             // Приховуємо індикатор завантаження
@@ -1137,45 +1338,19 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             // Видаляємо ендпоінт зі списку активних
             _activeEndpoints.delete(endpoint);
 
-            // Зменшуємо лічильник поточних запитів
+            // Зменшуємо лічільник поточних запитів
             _requestCounter.current = Math.max(0, _requestCounter.current - 1);
         }
 
         // Якщо запит успішний, повертаємо відповідь
         return response;
     } catch (error) {
-        // Збільшуємо лічильник помилок
+        // Збільшуємо лічільник помилок
         _requestCounter.errors++;
 
         // Приховуємо індикатор завантаження
         if (!options.hideLoader && typeof window.hideLoading === 'function') {
             window.hideLoading();
-        }
-
-        // НОВИЙ КОД: Аналізуємо помилку на "raffle_not_found"
-        if (error.message && safeIncludes(error.message, 'raffle_not_found') ||
-            (error.response && error.response.code === 'raffle_not_found')) {
-
-            console.error(`❌ API: Помилка розіграшу не знайдено:`, error.message);
-
-            // Зберігаємо ID невалідного розіграшу, якщо можемо його витягти з URL
-            const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
-            if (raffleIdMatch && raffleIdMatch[1]) {
-                const raffleId = raffleIdMatch[1];
-                console.error(`❌ API: Додаємо невалідний ID розіграшу: ${raffleId}`);
-
-                // Додаємо до глобального списку невалідних ID
-                if (window.WinixRaffles && window.WinixRaffles.participation) {
-                    window.WinixRaffles.participation.addInvalidRaffleId(raffleId);
-                }
-
-                // Також очищаємо кеш розіграшів
-                try {
-                    localStorage.removeItem('winix_active_raffles');
-                } catch (e) {
-                    console.warn("⚠️ Не вдалося очистити кеш розіграшів:", e);
-                }
-            }
         }
 
         console.error(`❌ API: Помилка запиту ${endpoint}:`, error.message);
@@ -1236,36 +1411,12 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
      * @returns {Promise<Object>} Дані користувача
      */
     async function getUserData(forceRefresh = false) {
-        const isSettingsPage = window.location.pathname.includes('general.html');
-
-        // Перевірка чи пристрій онлайн
-        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !forceRefresh) {
-            console.warn("🔌 API: Пристрій офлайн, використовуємо кешовані дані");
-
-            // Якщо є кешовані дані, повертаємо їх
-            if (_userCache) {
-                return {status: 'success', data: _userCache, source: 'cache_offline'};
-            }
-
-            // В офлайн режимі на сторінці налаштувань повертаємо симульовані дані
-            if (isSettingsPage) {
-                return {
-                    status: 'success',
-                    data: DUMMY_USER_DATA,
-                    source: 'simulated_offline'
-                };
-            }
-
-            // Створюємо базові дані з localStorage
-            return {
-                status: 'success',
-                data: {
-                    telegram_id: getUserId() || 'unknown',
-                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                    coins: parseInt(localStorage.getItem('userCoins') || '0')
-                },
-                source: 'local_storage_offline'
-            };
+        // Перевіряємо готовність API
+        try {
+            await ensureApiReady();
+        } catch (error) {
+            console.error("🔌 API: Сервер недоступний для отримання даних користувача:", error);
+            throw error;
         }
 
         // Використовуємо кеш, якщо можливо
@@ -1275,21 +1426,13 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
 
         const id = getUserId();
         if (!id) {
-            if (isSettingsPage) {
-                // На сторінці налаштувань повертаємо симульовані дані
-                return {
-                    status: 'success',
-                    data: DUMMY_USER_DATA,
-                    source: 'simulated'
-                };
-            }
             throw new Error("ID користувача не знайдено");
         }
 
         try {
             const result = await apiRequest(API_PATHS.USER.DATA(id), 'GET', null, {
-                timeout: 5000, // Зменшуємо таймаут для прискорення
-                suppressErrors: isSettingsPage // На сторінці налаштувань не показуємо помилки
+                timeout: 15000,
+                suppressErrors: false
             });
 
             // Оновлюємо кеш
@@ -1321,37 +1464,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             return result;
         } catch (error) {
             console.error("🔌 API: Помилка отримання даних користувача:", error);
-
-            // На сторінці налаштувань повертаємо симульовані дані при помилці
-            if (isSettingsPage) {
-                if (_userCache) {
-                    return {status: 'success', data: _userCache, source: 'cache_after_error'};
-                }
-
-                return {
-                    status: 'success',
-                    data: DUMMY_USER_DATA,
-                    source: 'simulated'
-                };
-            }
-
-            // Якщо є кешовані дані, повертаємо їх
-            if (_userCache) {
-                return {status: 'success', data: _userCache, source: 'cache_after_error'};
-            }
-
-            // Створюємо базові дані з localStorage
-            const localData = {
-                telegram_id: id,
-                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                coins: parseInt(localStorage.getItem('userCoins') || '0')
-            };
-
-            return {
-                status: 'success',
-                data: localData,
-                source: 'local_storage_fallback'
-            };
+            throw error;
         }
     }
 
@@ -1364,111 +1477,29 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             throw new Error("ID користувача не знайдено");
         }
 
-        // Перевірка чи пристрій онлайн
-        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
-            console.warn("🔌 API: Пристрій офлайн, використовуємо кешовані дані балансу");
-
-            // Повертаємо дані з localStorage
-            return {
-                status: 'success',
-                data: {
-                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                    coins: parseInt(localStorage.getItem('userCoins') || '0')
-                },
-                source: 'local_storage_offline'
-            };
+        try {
+            await ensureApiReady();
+        } catch (error) {
+            console.error("🔌 API: Сервер недоступний для отримання балансу:", error);
+            throw error;
         }
 
         try {
-            // Перевіряємо наявність запису про останню транзакцію
-            const lastTxData = localStorage.getItem('winix_last_transaction');
-            let lastTx = null;
-
-            if (lastTxData) {
-                try {
-                    lastTx = JSON.parse(lastTxData);
-                    const txAge = Date.now() - lastTx.timestamp;
-
-                    // Логуємо інформацію про недавню транзакцію
-                    if (txAge < 120000 && lastTx.confirmed && lastTx.type === 'participation') {
-                        console.log(`🔌 API: Знайдено недавню транзакцію участі, вік: ${Math.round(txAge/1000)}с, баланс: ${lastTx.newBalance}`);
-                    }
-                } catch (e) {
-                    console.warn("🔌 API: Помилка парсингу даних транзакції:", e);
-                }
-            }
-
             // Додаємо параметр для запобігання кешуванню
             const nocache = Date.now();
             const endpoint = API_PATHS.USER.BALANCE(userId) + `?nocache=${nocache}`;
 
             // Робимо запит до сервера
             const response = await apiRequest(endpoint, 'GET', null, {
-                suppressErrors: true,
-                timeout: 5000
+                suppressErrors: false,
+                timeout: 10000
             });
 
-            // Перевіряємо успішність відповіді
-            if (response.status === 'success' && response.data) {
-                const serverBalance = response.data.coins;
+            return response;
 
-                // ДОДАНО: Перевірка на конфлікт з недавньою транзакцією
-                if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
-                    const txAge = Date.now() - lastTx.timestamp;
-
-                    // Якщо транзакція відбулась нещодавно (менше 1 хвилини) і баланси не співпадають
-                    if (txAge < 60000 && serverBalance !== lastTx.newBalance) {
-                        console.warn(`🔌 API: Виявлено потенційний конфлікт балансів:
-                            - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance}
-                            - Сервер повернув: ${serverBalance}`);
-
-                        // Для дуже нових транзакцій (менше 30 секунд) використовуємо локальний баланс
-                        if (txAge < 30000) {
-                            console.log("🔌 API: Використовуємо локальний баланс замість серверного");
-
-                            // Зберігаємо мітку часу останнього серверного балансу
-                            localStorage.setItem('winix_server_balance_ts', Date.now().toString());
-                            localStorage.setItem('winix_server_balance', serverBalance.toString());
-
-                            // Повертаємо локальний баланс
-                            return {
-                                status: 'success',
-                                data: {
-                                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                                    coins: lastTx.newBalance
-                                },
-                                source: 'local_transaction_override',
-                                serverBalance: serverBalance // Додаємо реальний баланс з сервера для діагностики
-                            };
-                        }
-                    }
-                }
-
-                // Якщо немає конфлікту, повертаємо серверний баланс
-                return response;
-            }
-
-            // Якщо відповідь з помилкою, повертаємо локальний баланс
-            return {
-                status: 'success',
-                data: {
-                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                    coins: parseInt(localStorage.getItem('userCoins') || '0')
-                },
-                source: 'local_storage_fallback_after_error'
-            };
         } catch (error) {
             console.error("🔌 API: Помилка отримання балансу:", error);
-
-            // Повертаємо дані з localStorage при помилці
-            return {
-                status: 'success',
-                data: {
-                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                    coins: parseInt(localStorage.getItem('userCoins') || '0')
-                },
-                source: 'local_storage_fallback'
-            };
+            throw error;
         }
     }
 
@@ -1481,6 +1512,14 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         const userId = getUserId();
         if (!userId) {
             throw new Error("ID користувача не знайдено");
+        }
+
+        // Перевіряємо готовність API
+        try {
+            await ensureApiReady();
+        } catch (error) {
+            console.error("🔌 API: Сервер недоступний для стейкінгу:", error);
+            throw error;
         }
 
         // Використовуємо кеш, якщо можливо
@@ -1500,6 +1539,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             throw new Error("ID користувача не знайдено");
         }
 
+        await ensureApiReady();
         return apiRequest(API_PATHS.STAKING.HISTORY(userId));
     }
 
@@ -1513,6 +1553,8 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         if (!userId) {
             throw new Error("ID користувача не знайдено");
         }
+
+        await ensureApiReady();
 
         // Перевіряємо коректність параметрів
         if (isNaN(amount) || amount <= 0) {
@@ -1539,6 +1581,8 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         if (!userId) {
             throw new Error("ID користувача не знайдено");
         }
+
+        await ensureApiReady();
 
         // Перевіряємо коректність параметрів
         if (isNaN(amount) || amount <= 0) {
@@ -1573,6 +1617,8 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         if (!userId) {
             throw new Error("ID користувача не знайдено");
         }
+
+        await ensureApiReady();
 
         // Отримуємо ID стейкінгу, якщо не передано
         let targetStakingId = stakingId;
@@ -1663,6 +1709,8 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             };
         }
 
+        await ensureApiReady();
+
         // Виконуємо запит до серверу
         try {
             return await apiRequest(`${API_PATHS.TRANSACTIONS(userId)}?limit=${limit}`, 'GET', null, {
@@ -1689,22 +1737,13 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             throw new Error("ID користувача не знайдено");
         }
 
+        await ensureApiReady();
+
         try {
             return await apiRequest(API_PATHS.USER.SETTINGS(userId), 'POST', settings);
         } catch (error) {
             console.error("🔌 API: Помилка оновлення налаштувань:", error);
-
-            // Зберігаємо в localStorage навіть якщо API не спрацював
-            if (settings.notifications_enabled !== undefined) {
-                localStorage.setItem('notifications_enabled', settings.notifications_enabled.toString());
-            }
-
-            // Імітуємо успішну відповідь
-            return {
-                status: 'success',
-                message: 'Налаштування збережено локально',
-                source: 'local'
-            };
+            throw error;
         }
     }
 
@@ -1735,39 +1774,51 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
      * Відновлення з'єднання з сервером
      */
     async function reconnect() {
-        if (_connectionState.failedAttempts > _connectionState.maxRetries) {
-            console.error("❌ API: Досягнуто максимальної кількості спроб відновлення");
-            return false;
-        }
-
         console.log("🔄 API: Спроба відновлення з'єднання...");
 
         // Очищаємо стан запитів
         forceCleanupRequests();
 
-        // Спроба оновити токен
-        try {
-            await refreshToken();
-        } catch (error) {
-            console.warn("⚠️ API: Не вдалося оновити токен:", error);
-        }
+        // Скидаємо стан здоров'я
+        _apiState.isHealthy = false;
+        _apiState.consecutiveFailures = 0;
 
-        // Спроба отримати дані користувача
-        try {
-            await getUserData(true);
+        // Перевіряємо здоров'я API
+        const isHealthy = await checkApiHealth();
 
-            // Успішне відновлення
-            _connectionState.isConnected = true;
-            _connectionState.lastSuccessTime = Date.now();
-            _connectionState.failedAttempts = 0;
+        if (isHealthy) {
+            // Спроба оновити токен якщо потрібно
+            try {
+                await refreshToken();
+            } catch (error) {
+                console.warn("⚠️ API: Не вдалося оновити токен:", error);
+            }
 
-            console.log("✅ API: З'єднання успішно відновлено");
-            return true;
-        } catch (error) {
-            console.error("❌ API: Помилка відновлення з'єднання:", error);
+            // Спроба отримати дані користувача
+            try {
+                await getUserData(true);
+
+                // Успішне відновлення
+                _connectionState.isConnected = true;
+                _connectionState.lastSuccessTime = Date.now();
+                _connectionState.failedAttempts = 0;
+
+                console.log("✅ API: З'єднання успішно відновлено");
+                return true;
+            } catch (error) {
+                console.error("❌ API: Помилка відновлення з'єднання:", error);
+                return false;
+            }
+        } else {
+            console.error("❌ API: Сервер все ще недоступний");
             return false;
         }
     }
+
+    // ======== ІНІЦІАЛІЗАЦІЯ ========
+
+    // Запускаємо health check при завантаженні
+    startHealthCheck();
 
     // ======== ЕКСПОРТ API ========
 
@@ -1779,7 +1830,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.2.5',
+            version: '1.3.0',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
@@ -1789,10 +1840,16 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             return this;
         },
 
+        // Health check
+        checkApiHealth,
+        ensureApiReady,
+        isApiHealthy: () => _apiState.isHealthy,
+
         // Базові функції
         apiRequest,
         getUserId,
         getAuthToken,
+        clearAuthToken,
         refreshToken,
         clearCache,
         forceCleanupRequests,
@@ -1827,6 +1884,9 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             getConnectionState: function() {
                 return {..._connectionState};
             },
+            getApiState: function() {
+                return {..._apiState};
+            },
             getActiveEndpoints: function() {
                 return Array.from(_activeEndpoints);
             },
@@ -1853,6 +1913,8 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
                 }
                 _blockedEndpoints = {};
                 _connectionState.failedAttempts = 0;
+                _apiState.consecutiveFailures = 0;
+                _apiState.isHealthy = false;
                 return true;
             }
         }
@@ -1878,5 +1940,5 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         reconnect();
     });
 
-    console.log(`✅ API: Модуль успішно ініціалізовано (URL: ${API_BASE_URL})`);
+    console.log(`✅ API: Модуль успішно ініціалізовано з health check (URL: ${API_BASE_URL})`);
 })();
