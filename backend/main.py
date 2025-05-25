@@ -1468,6 +1468,9 @@ if __name__ == '__main__':
         logger.critical("❌ Додаток не ініціалізовано!")
         exit(1)
 
+        for rule in app.url_map.iter_rules():
+            print(f"{rule.methods} {rule.rule} -> {rule.endpoint}")
+
     # Остання перевірка WINIX перед запуском
     if WINIX_QUESTS_AVAILABLE:
         logger.info("🚀 WINIX Quests System готовий до роботи!")
