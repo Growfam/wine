@@ -1,0 +1,9 @@
+
+[MESSAGES CONTROL]
+disable=no-member,unresolved-import
+
+[TYPECHECK]
+ignored-modules=supabase
+ignored-classes=BaseFilterRequestBuilder,BaseSelectRequestBuilder
+generated-members=execute,eq,select,insert,update,delete,order,limit
+ignored-classes=SyncClient,Client

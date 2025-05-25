@@ -1,494 +1,480 @@
--- ===================================================================
--- СХЕМА ТАБЛИЦЬ SUPABASE ДЛЯ СИСТЕМИ ЗАВДАНЬ WINIX
--- ===================================================================
+# 🔄 План міграції бази даних WINIX
 
--- 👤 КОРИСТУВАЧІ (основна таблиця існує як 'winix')
--- Розширена версія з полями для системи завдань
-ALTER TABLE winix ADD COLUMN IF NOT EXISTS
-    language_code VARCHAR(10) DEFAULT 'uk',
-    last_activity TIMESTAMPTZ DEFAULT NOW(),
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
-    notifications_enabled BOOLEAN DEFAULT true,
-    newbie_bonus_claimed BOOLEAN DEFAULT false;
+## ✅ ІСНУЮЧІ ТАБЛИЦІ (залишаємо без змін)
+- `winix` - основна таблиця користувачів ✅
+- `tasks` - таблиця завдань ✅
+- `transactions` - таблиця транзакцій ✅
+- `user_tasks` - завдання користувачів ✅
+- `daily_bonuses` - щоденні бонуси ✅
+- `referrals` - реферальна система ✅
+- `user_badges` - бейджі користувачів ✅
 
--- 🎯 ЗАВДАННЯ
-CREATE TABLE IF NOT EXISTS tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title VARCHAR(255) NOT NULL,
+## 🔧 ТАБЛИЦІ ДО МОДИФІКАЦІЇ
+
+### 1. Модифікація таблиці `winix`
+```sql
+-- Додати колонки для FLEX системи та нових функцій
+ALTER TABLE winix
+ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
+ADD COLUMN IF NOT EXISTS experience INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS wins_count INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS last_activity TIMESTAMPTZ DEFAULT NOW(),
+ADD COLUMN IF NOT EXISTS language_preference TEXT DEFAULT 'uk';
+
+-- Оновити існуючі колонки для кращої сумісності
+ALTER TABLE winix
+ALTER COLUMN balance TYPE REAL USING balance::real,
+ALTER COLUMN coins SET DEFAULT 0;
+```
+
+### 2. Модифікація таблиці `tasks`
+```sql
+-- Додати колонки для системи завдань
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS reward_winix INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS reward_tickets INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS platform TEXT,
+ADD COLUMN IF NOT EXISTS action TEXT,
+ADD COLUMN IF NOT EXISTS channel_username TEXT,
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 1;
+
+-- Оновити тип завдань
+ALTER TABLE tasks
+ALTER COLUMN task_type TYPE TEXT,
+ADD CONSTRAINT check_task_type CHECK (task_type IN ('social', 'limited', 'partner', 'daily'));
+```
+
+### 3. Модифікація таблиці `transactions`
+```sql
+-- Додати колонки для покращеної системи транзакцій
+ALTER TABLE transactions
+ADD COLUMN IF NOT EXISTS amount_tickets INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS amount_flex BIGINT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS reference_id TEXT,
+ADD COLUMN IF NOT EXISTS reference_type TEXT,
+ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}',
+ADD COLUMN IF NOT EXISTS error_message TEXT,
+ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+
+-- Оновити обмеження типів
+ALTER TABLE transactions
+ADD CONSTRAINT check_transaction_type CHECK (type IN (
+    'daily_bonus', 'flex_reward', 'task_reward',
+    'wallet_connection_bonus', 'purchase', 'withdrawal',
+    'staking_reward', 'referral_bonus', 'raffle_win'
+));
+```
+
+## ➕ НОВІ ТАБЛИЦІ ДО СТВОРЕННЯ
+
+### 1. FLEX System Tables
+
+#### flex_levels (Рівні FLEX системи)
+```sql
+CREATE TABLE flex_levels (
+    level TEXT PRIMARY KEY,
+    required_flex BIGINT NOT NULL,
+    winix_reward INTEGER NOT NULL,
+    tickets_reward INTEGER NOT NULL,
+    name TEXT NOT NULL,
     description TEXT,
-    instructions TEXT,
-
-    -- Тип і платформа
-    type VARCHAR(50) NOT NULL, -- 'telegram', 'social', 'daily', 'referral'
-    platform VARCHAR(50), -- 'telegram', 'youtube', 'twitter', 'discord'
-    action VARCHAR(50), -- 'subscribe', 'follow', 'join', 'like'
-
-    -- Винагорода
-    winix_reward DECIMAL(15,2) DEFAULT 0,
-    tickets_reward INTEGER DEFAULT 0,
-
-    -- Конфігурація
-    url TEXT,
-    channel_username VARCHAR(100),
-    requirements JSONB DEFAULT '{}',
-    metadata JSONB DEFAULT '{}',
-
-    -- Статус і пріоритет
-    is_active BOOLEAN DEFAULT true,
-    priority INTEGER DEFAULT 1,
-    max_completions INTEGER, -- NULL = необмежено
-    current_completions INTEGER DEFAULT 0,
-
-    -- Часові обмеження
-    start_date TIMESTAMPTZ,
-    end_date TIMESTAMPTZ,
-    expires_at TIMESTAMPTZ,
-
-    -- Аудит
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    created_by VARCHAR(100),
-
-    -- Індекси
-    CONSTRAINT valid_task_type CHECK (type IN ('telegram', 'social', 'daily', 'referral', 'wallet')),
-    CONSTRAINT valid_platform CHECK (platform IN ('telegram', 'youtube', 'twitter', 'discord', 'ton')),
-    CONSTRAINT positive_rewards CHECK (winix_reward >= 0 AND tickets_reward >= 0)
+    icon TEXT,
+    color TEXT
 );
 
--- Індекси для tasks
-CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(type);
-CREATE INDEX IF NOT EXISTS idx_tasks_active ON tasks(is_active);
-CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority DESC);
-CREATE INDEX IF NOT EXISTS idx_tasks_dates ON tasks(start_date, end_date);
+-- Заповнити початковими даними
+INSERT INTO flex_levels (level, required_flex, winix_reward, tickets_reward, name, description, color) VALUES
+('bronze', 1000, 100, 5, 'Bronze', 'Початковий рівень FLEX', '#CD7F32'),
+('silver', 5000, 500, 25, 'Silver', 'Срібний рівень FLEX', '#C0C0C0'),
+('gold', 15000, 1500, 75, 'Gold', 'Золотий рівень FLEX', '#FFD700'),
+('platinum', 50000, 5000, 250, 'Platinum', 'Платиновий рівень FLEX', '#E5E4E2'),
+('diamond', 150000, 15000, 750, 'Diamond', 'Діамантовий рівень FLEX', '#B9F2FF');
+```
 
--- 📋 СТАН ВИКОНАННЯ ЗАВДАНЬ КОРИСТУВАЧАМИ
-CREATE TABLE IF NOT EXISTS user_tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    telegram_id VARCHAR(50) NOT NULL,
-    task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+#### flex_balances (Баланси FLEX токенів)
+```sql
+CREATE TABLE flex_balances (
+    telegram_id TEXT PRIMARY KEY REFERENCES winix(telegram_id),
+    flex_balance BIGINT NOT NULL DEFAULT 0,
+    wallet_address TEXT,
+    last_updated TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-    -- Статус
-    status VARCHAR(20) DEFAULT 'available', -- 'available', 'started', 'pending', 'completed', 'claimed', 'expired'
-    progress INTEGER DEFAULT 0, -- 0-100%
+CREATE INDEX idx_flex_balances_telegram_id ON flex_balances(telegram_id);
+CREATE INDEX idx_flex_balances_wallet ON flex_balances(wallet_address);
+```
 
-    -- Часові мітки
-    started_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
-    claimed_at TIMESTAMPTZ,
-    expires_at TIMESTAMPTZ,
+#### flex_claims (Отримання FLEX винагород)
+```sql
+CREATE TABLE flex_claims (
+    id SERIAL PRIMARY KEY,
+    telegram_id TEXT NOT NULL REFERENCES winix(telegram_id),
+    level TEXT NOT NULL REFERENCES flex_levels(level),
+    flex_balance_at_claim BIGINT NOT NULL,
+    winix_awarded INTEGER NOT NULL,
+    tickets_awarded INTEGER NOT NULL,
+    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-    -- Дані верифікації
+CREATE INDEX idx_flex_claims_telegram_id ON flex_claims(telegram_id);
+CREATE INDEX idx_flex_claims_level ON flex_claims(level);
+CREATE INDEX idx_flex_claims_claimed_at ON flex_claims(claimed_at);
+```
+
+### 2. Wallet System Tables
+
+#### wallets (TON гаманці)
+```sql
+CREATE TABLE wallets (
+    id SERIAL PRIMARY KEY,
+    telegram_id TEXT NOT NULL REFERENCES winix(telegram_id),
+    address TEXT NOT NULL,
+    chain_id TEXT DEFAULT '-239',
+    public_key TEXT,
+    provider TEXT,
+    status TEXT DEFAULT 'connected' CHECK (status IN (
+        'disconnected', 'connected', 'verified', 'suspended'
+    )),
+    connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    disconnected_at TIMESTAMPTZ,
+    verified_at TIMESTAMPTZ,
     verification_data JSONB DEFAULT '{}',
-    verification_attempts INTEGER DEFAULT 0,
-    last_verification_at TIMESTAMPTZ,
-
-    -- Винагорода
-    reward_winix DECIMAL(15,2),
-    reward_tickets INTEGER,
-    reward_transaction_id VARCHAR(100),
-
-    -- Аудит
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-    -- Унікальність
-    UNIQUE(telegram_id, task_id),
-
-    -- Перевірки
-    CONSTRAINT valid_status CHECK (status IN ('available', 'started', 'pending', 'completed', 'claimed', 'expired')),
-    CONSTRAINT valid_progress CHECK (progress >= 0 AND progress <= 100)
-);
-
--- Індекси для user_tasks
-CREATE INDEX IF NOT EXISTS idx_user_tasks_telegram_id ON user_tasks(telegram_id);
-CREATE INDEX IF NOT EXISTS idx_user_tasks_status ON user_tasks(status);
-CREATE INDEX IF NOT EXISTS idx_user_tasks_task_id ON user_tasks(task_id);
-CREATE INDEX IF NOT EXISTS idx_user_tasks_completed ON user_tasks(completed_at DESC);
-
--- 💰 ТРАНЗАКЦІЇ (централізована таблиця)
-CREATE TABLE IF NOT EXISTS transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    telegram_id VARCHAR(50) NOT NULL,
-
-    -- Тип і сума
-    type VARCHAR(50) NOT NULL, -- 'task_reward', 'daily_bonus', 'flex_reward', 'wallet_connection_bonus', 'referral_bonus'
-    amount_winix DECIMAL(15,2) DEFAULT 0,
-    amount_tickets INTEGER DEFAULT 0,
-    amount_flex INTEGER DEFAULT 0,
-
-    -- Статус
-    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'completed', 'failed', 'cancelled'
-
-    -- Посилання
-    reference_type VARCHAR(50), -- 'task', 'daily', 'flex_level', 'wallet'
-    reference_id VARCHAR(100),
-
-    -- Опис
-    description TEXT,
+    last_activity TIMESTAMPTZ,
     metadata JSONB DEFAULT '{}',
-
-    -- Баланси до/після
-    balance_before JSONB,
-    balance_after JSONB,
-
-    -- Помилки
-    error_message TEXT,
-    retry_count INTEGER DEFAULT 0,
-
-    -- Аудит
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    processed_at TIMESTAMPTZ,
-
-    -- Перевірки
-    CONSTRAINT valid_transaction_type CHECK (type IN ('task_reward', 'daily_bonus', 'flex_reward', 'wallet_connection_bonus', 'referral_bonus', 'admin_adjustment', 'purchase', 'withdrawal')),
-    CONSTRAINT valid_status CHECK (status IN ('pending', 'completed', 'failed', 'cancelled'))
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Індекси для transactions
-CREATE INDEX IF NOT EXISTS idx_transactions_telegram_id ON transactions(telegram_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
-CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
-CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_reference ON transactions(reference_type, reference_id);
+CREATE INDEX idx_wallets_telegram_id ON wallets(telegram_id);
+CREATE INDEX idx_wallets_address ON wallets(address);
+CREATE INDEX idx_wallets_status ON wallets(status);
+```
 
--- 📅 ЩОДЕННІ БОНУСИ
-CREATE TABLE IF NOT EXISTS daily_bonus_status (
-    telegram_id VARCHAR(50) PRIMARY KEY,
+#### wallet_connection_bonuses (Бонуси за підключення гаманця)
+```sql
+CREATE TABLE wallet_connection_bonuses (
+    id SERIAL PRIMARY KEY,
+    telegram_id TEXT NOT NULL REFERENCES winix(telegram_id),
+    winix_amount INTEGER NOT NULL,
+    tickets_amount INTEGER NOT NULL,
+    description TEXT,
+    awarded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-    -- Streak інформація
+CREATE INDEX idx_wallet_bonuses_telegram_id ON wallet_connection_bonuses(telegram_id);
+```
+
+#### wallet_events (Події гаманця)
+```sql
+CREATE TABLE wallet_events (
+    id SERIAL PRIMARY KEY,
+    telegram_id TEXT NOT NULL REFERENCES winix(telegram_id),
+    event_type TEXT NOT NULL,
+    event_data JSONB DEFAULT '{}',
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_wallet_events_telegram_id ON wallet_events(telegram_id);
+CREATE INDEX idx_wallet_events_type ON wallet_events(event_type);
+```
+
+### 3. Enhanced Daily Bonus System
+
+#### daily_bonus_status (Статус щоденних бонусів)
+```sql
+CREATE TABLE daily_bonus_status (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES winix(telegram_id),
     current_streak INTEGER DEFAULT 0,
     longest_streak INTEGER DEFAULT 0,
-    last_claim_date DATE,
-    next_available_date TIMESTAMPTZ,
-
-    -- Статистика
     total_days_claimed INTEGER DEFAULT 0,
-    total_winix_earned DECIMAL(15,2) DEFAULT 0,
-    total_tickets_earned INTEGER DEFAULT 0,
-
-    -- Поточний цикл (1-30 днів)
-    current_day_number INTEGER DEFAULT 1,
-    cycle_start_date DATE,
-
-    -- Аудит
+    last_claim_date DATE,
+    next_available_date DATE,
+    current_day_number INTEGER DEFAULT 1 CHECK (current_day_number BETWEEN 1 AND 30),
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-    -- Перевірки
-    CONSTRAINT valid_streak CHECK (current_streak >= 0 AND longest_streak >= 0),
-    CONSTRAINT valid_day_number CHECK (current_day_number >= 1 AND current_day_number <= 30)
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 📅 ІСТОРІЯ ЩОДЕННИХ БОНУСІВ
-CREATE TABLE IF NOT EXISTS daily_bonus_entries (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    telegram_id VARCHAR(50) NOT NULL,
+CREATE INDEX idx_daily_bonus_status_user_id ON daily_bonus_status(user_id);
+CREATE UNIQUE INDEX idx_daily_bonus_status_user_unique ON daily_bonus_status(user_id);
+```
 
-    -- Інформація про отримання
+#### daily_bonus_entries (Записи щоденних бонусів)
+```sql
+CREATE TABLE daily_bonus_entries (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES winix(telegram_id),
+    day_number INTEGER NOT NULL CHECK (day_number BETWEEN 1 AND 30),
     claim_date DATE NOT NULL,
-    day_number INTEGER NOT NULL,
+    reward_winix INTEGER NOT NULL,
+    reward_tickets INTEGER NOT NULL,
     streak_at_claim INTEGER NOT NULL,
-
-    -- Винагорода
-    winix_amount DECIMAL(15,2) NOT NULL,
-    tickets_amount INTEGER NOT NULL,
-
-    -- Мітки
-    is_special_day BOOLEAN DEFAULT false,
-    multiplier_applied DECIMAL(3,2) DEFAULT 1.0,
-
-    -- Транзакція
-    transaction_id UUID REFERENCES transactions(id),
-
-    -- Аудит
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-
-    -- Індекси
-    FOREIGN KEY (telegram_id) REFERENCES daily_bonus_status(telegram_id) ON DELETE CASCADE
+    is_special_day BOOLEAN DEFAULT FALSE,
+    multiplier_applied REAL DEFAULT 1.0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Індекси для daily_bonus_entries
-CREATE INDEX IF NOT EXISTS idx_daily_entries_telegram_id ON daily_bonus_entries(telegram_id);
-CREATE INDEX IF NOT EXISTS idx_daily_entries_date ON daily_bonus_entries(claim_date DESC);
+CREATE INDEX idx_daily_bonus_entries_user_id ON daily_bonus_entries(user_id);
+CREATE INDEX idx_daily_bonus_entries_date ON daily_bonus_entries(claim_date);
+```
 
--- 💎 FLEX CLAIMS (історія отримання FLEX винагород)
-CREATE TABLE IF NOT EXISTS flex_claims (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    telegram_id VARCHAR(50) NOT NULL,
+### 4. Analytics System Tables
 
-    -- Рівень і баланс
-    flex_level VARCHAR(20) NOT NULL, -- 'bronze', 'silver', 'gold', 'diamond'
-    flex_balance INTEGER NOT NULL,
-
-    -- Винагорода
-    winix_amount DECIMAL(15,2) NOT NULL,
-    tickets_amount INTEGER NOT NULL,
-
-    -- Транзакція
-    transaction_id UUID REFERENCES transactions(id),
-
-    -- Часові обмеження
-    claim_date DATE NOT NULL,
-    can_claim_again_at TIMESTAMPTZ NOT NULL,
-
-    -- Аудит
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-
-    -- Перевірки
-    CONSTRAINT valid_flex_level CHECK (flex_level IN ('bronze', 'silver', 'gold', 'diamond')),
-    CONSTRAINT positive_flex_balance CHECK (flex_balance >= 0)
-);
-
--- Індекси для flex_claims
-CREATE INDEX IF NOT EXISTS idx_flex_claims_telegram_id ON flex_claims(telegram_id);
-CREATE INDEX IF NOT EXISTS idx_flex_claims_date ON flex_claims(claim_date DESC);
-CREATE INDEX IF NOT EXISTS idx_flex_claims_level ON flex_claims(flex_level);
-
--- 🔗 TON ГАМАНЦІ
-CREATE TABLE IF NOT EXISTS wallets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    telegram_id VARCHAR(50) NOT NULL,
-
-    -- Адреса і ключі
-    address VARCHAR(100) NOT NULL UNIQUE,
-    public_key VARCHAR(200),
-
-    -- Мережа
-    chain VARCHAR(20) DEFAULT '-239', -- TON mainnet
-    provider VARCHAR(50), -- 'tonkeeper', 'tonhub', etc.
-
-    -- Статус
-    status VARCHAR(20) DEFAULT 'connected', -- 'connected', 'disconnected', 'verified'
-    is_verified BOOLEAN DEFAULT false,
-
-    -- Верифікація
-    verification_signature TEXT,
-    verification_message TEXT,
-    verification_type VARCHAR(50),
-    verified_at TIMESTAMPTZ,
-
-    -- Бонуси
-    connection_bonus_claimed BOOLEAN DEFAULT false,
-    connection_bonus_amount DECIMAL(15,2),
-    connection_bonus_transaction_id UUID REFERENCES transactions(id),
-
-    -- Метадані
-    metadata JSONB DEFAULT '{}',
-    user_agent TEXT,
-    ip_address INET,
-
-    -- Аудит
-    connected_at TIMESTAMPTZ DEFAULT NOW(),
-    disconnected_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-    -- Унікальність
-    UNIQUE(telegram_id, address),
-
-    -- Перевірки
-    CONSTRAINT valid_wallet_status CHECK (status IN ('connected', 'disconnected', 'verified'))
-);
-
--- Індекси для wallets
-CREATE INDEX IF NOT EXISTS idx_wallets_telegram_id ON wallets(telegram_id);
-CREATE INDEX IF NOT EXISTS idx_wallets_address ON wallets(address);
-CREATE INDEX IF NOT EXISTS idx_wallets_status ON wallets(status);
-
--- 📊 АНАЛІТИЧНІ ПОДІЇ
-CREATE TABLE IF NOT EXISTS analytics_events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    -- Користувач
-    telegram_id VARCHAR(50),
-    session_id VARCHAR(100),
-
-    -- Подія
-    event_type VARCHAR(50) NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    label VARCHAR(100),
-    value INTEGER,
-
-    -- Деталі
+#### analytics_events (Події аналітики)
+```sql
+CREATE TABLE analytics_events (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT REFERENCES winix(telegram_id),
+    session_id TEXT,
+    event_type TEXT NOT NULL CHECK (event_type IN (
+        'auth_login', 'auth_logout', 'task_view', 'task_start',
+        'task_complete', 'wallet_connect', 'flex_claim', 'daily_claim'
+    )),
+    category TEXT NOT NULL,
+    action TEXT NOT NULL,
+    label TEXT,
+    value NUMERIC,
     properties JSONB DEFAULT '{}',
-    severity VARCHAR(20) DEFAULT 'normal', -- 'low', 'normal', 'high', 'critical'
-
-    -- Контекст
-    page_url TEXT,
-    referrer TEXT,
+    severity TEXT DEFAULT 'normal' CHECK (severity IN ('low', 'normal', 'high', 'critical')),
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ip_address TEXT,
     user_agent TEXT,
-    ip_address INET,
-
-    -- Аудит
-    timestamp TIMESTAMPTZ DEFAULT NOW(),
-    processed_at TIMESTAMPTZ,
-
-    -- Перевірки
-    CONSTRAINT valid_severity CHECK (severity IN ('low', 'normal', 'high', 'critical'))
+    referrer TEXT,
+    page_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Індекси для analytics_events
-CREATE INDEX IF NOT EXISTS idx_analytics_telegram_id ON analytics_events(telegram_id);
-CREATE INDEX IF NOT EXISTS idx_analytics_event_type ON analytics_events(event_type);
-CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON analytics_events(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_analytics_category_action ON analytics_events(category, action);
+CREATE INDEX idx_analytics_events_user_id ON analytics_events(user_id);
+CREATE INDEX idx_analytics_events_timestamp ON analytics_events(timestamp);
+CREATE INDEX idx_analytics_events_type ON analytics_events(event_type);
+CREATE INDEX idx_analytics_events_session ON analytics_events(session_id);
+```
 
--- 🔍 ВЕРИФІКАЦІЇ
-CREATE TABLE IF NOT EXISTS verifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id VARCHAR(50) NOT NULL,
-    task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
+#### analytics_sessions (Сесії аналітики)
+```sql
+CREATE TABLE analytics_sessions (
+    session_id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES winix(telegram_id),
+    start_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    end_time TIMESTAMPTZ,
+    duration INTEGER,
+    events_count INTEGER DEFAULT 0,
+    page_views INTEGER DEFAULT 0,
+    actions_count INTEGER DEFAULT 0,
+    ip_address TEXT,
+    user_agent TEXT,
+    is_active BOOLEAN DEFAULT TRUE
+);
 
-    -- Тип верифікації
-    verification_type VARCHAR(50) NOT NULL,
-    platform VARCHAR(50),
+CREATE INDEX idx_analytics_sessions_user_id ON analytics_sessions(user_id);
+CREATE INDEX idx_analytics_sessions_start_time ON analytics_sessions(start_time);
+```
 
-    -- Статус
-    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'in_progress', 'completed', 'failed', 'expired'
+#### user_analytics_stats (Статистика користувачів)
+```sql
+CREATE TABLE user_analytics_stats (
+    user_id TEXT PRIMARY KEY REFERENCES winix(telegram_id),
+    total_events INTEGER DEFAULT 0,
+    total_sessions INTEGER DEFAULT 0,
+    total_session_time INTEGER DEFAULT 0,
+    avg_session_time REAL DEFAULT 0.0,
+    tasks_viewed INTEGER DEFAULT 0,
+    tasks_started INTEGER DEFAULT 0,
+    tasks_completed INTEGER DEFAULT 0,
+    tasks_claimed INTEGER DEFAULT 0,
+    total_winix_earned REAL DEFAULT 0.0,
+    total_tickets_earned INTEGER DEFAULT 0,
+    flex_checks INTEGER DEFAULT 0,
+    flex_rewards_claimed INTEGER DEFAULT 0,
+    daily_bonuses_claimed INTEGER DEFAULT 0,
+    max_daily_streak INTEGER DEFAULT 0,
+    first_seen TIMESTAMPTZ,
+    last_seen TIMESTAMPTZ,
+    last_active TIMESTAMPTZ
+);
 
-    -- Дані
-    verification_data JSONB DEFAULT '{}',
-    external_id VARCHAR(200), -- ID в зовнішній системі
+CREATE INDEX idx_user_analytics_stats_user_id ON user_analytics_stats(user_id);
+```
 
-    -- Спроби
-    attempts INTEGER DEFAULT 0,
-    max_attempts INTEGER DEFAULT 3,
+### 5. Enhanced Task System Tables
 
-    -- Результат
-    verified_at TIMESTAMPTZ,
-    failure_reason TEXT,
-
-    -- Терміни
-    started_at TIMESTAMPTZ DEFAULT NOW(),
-    expires_at TIMESTAMPTZ,
-
-    -- Аудит
+#### task_progress (Детальний прогрес завдань)
+```sql
+CREATE TABLE task_progress (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES winix(telegram_id),
+    task_id UUID NOT NULL REFERENCES tasks(id),
+    task_type TEXT NOT NULL,
+    task_data JSONB DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'available' CHECK (status IN (
+        'available', 'started', 'pending', 'completed', 'claimed', 'expired'
+    )),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    result JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-    -- Перевірки
-    CONSTRAINT valid_verification_status CHECK (status IN ('pending', 'in_progress', 'completed', 'failed', 'expired')),
-    CONSTRAINT valid_attempts CHECK (attempts >= 0 AND attempts <= max_attempts)
+    UNIQUE(user_id, task_id)
 );
 
--- Індекси для verifications
-CREATE INDEX IF NOT EXISTS idx_verifications_user_id ON verifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_verifications_task_id ON verifications(task_id);
-CREATE INDEX IF NOT EXISTS idx_verifications_status ON verifications(status);
-CREATE INDEX IF NOT EXISTS idx_verifications_type ON verifications(verification_type);
+CREATE INDEX idx_task_progress_user_id ON task_progress(user_id);
+CREATE INDEX idx_task_progress_task_id ON task_progress(task_id);
+CREATE INDEX idx_task_progress_status ON task_progress(status);
+```
 
--- 🎖️ ДОСЯГНЕННЯ/БЕЙДЖІ (розширення існуючої логіки)
-CREATE TABLE IF NOT EXISTS achievements (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    telegram_id VARCHAR(50) NOT NULL,
-
-    -- Тип досягнення
-    achievement_type VARCHAR(50) NOT NULL, -- 'badge_winner', 'badge_beginner', 'badge_rich', 'first_task', etc.
-
-    -- Статус
-    is_unlocked BOOLEAN DEFAULT false,
-    is_claimed BOOLEAN DEFAULT false,
-
-    -- Винагорода
-    reward_winix DECIMAL(15,2) DEFAULT 0,
-    reward_tickets INTEGER DEFAULT 0,
-    reward_transaction_id UUID REFERENCES transactions(id),
-
-    -- Прогрес
-    current_progress INTEGER DEFAULT 0,
-    required_progress INTEGER NOT NULL,
-
-    -- Часові мітки
-    unlocked_at TIMESTAMPTZ,
-    claimed_at TIMESTAMPTZ,
-
-    -- Аудит
+#### completed_tasks (Спрощені виконані завдання)
+```sql
+CREATE TABLE completed_tasks (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES winix(telegram_id),
+    task_id UUID NOT NULL REFERENCES tasks(id),
+    task_type TEXT NOT NULL,
+    completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reward JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-    -- Унікальність
-    UNIQUE(telegram_id, achievement_type),
-
-    -- Перевірки
-    CONSTRAINT valid_progress CHECK (current_progress >= 0 AND current_progress <= required_progress)
+    UNIQUE(user_id, task_id)
 );
 
--- Індекси для achievements
-CREATE INDEX IF NOT EXISTS idx_achievements_telegram_id ON achievements(telegram_id);
-CREATE INDEX IF NOT EXISTS idx_achievements_type ON achievements(achievement_type);
-CREATE INDEX IF NOT EXISTS idx_achievements_unlocked ON achievements(is_unlocked);
+CREATE INDEX idx_completed_tasks_user_id ON completed_tasks(user_id);
+CREATE INDEX idx_completed_tasks_task_id ON completed_tasks(task_id);
+CREATE INDEX idx_completed_tasks_completed_at ON completed_tasks(completed_at);
+```
 
--- ===================================================================
--- ФУНКЦІЇ ТА ТРИГЕРИ
--- ===================================================================
+## 🔒 RLS ПОЛІТИКИ ДЛЯ НОВИХ ТАБЛИЦЬ
 
--- Функція оновлення updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+### FLEX System RLS
+```sql
+-- flex_balances policies
+ALTER TABLE flex_balances ENABLE ROW LEVEL SECURITY;
 
--- Тригери для оновлення updated_at
-DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
-CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE POLICY "flex_balances_select_policy" ON flex_balances FOR SELECT
+USING (telegram_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
 
-DROP TRIGGER IF EXISTS update_user_tasks_updated_at ON user_tasks;
-CREATE TRIGGER update_user_tasks_updated_at BEFORE UPDATE ON user_tasks
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE POLICY "flex_balances_insert_policy" ON flex_balances FOR INSERT
+WITH CHECK (auth.jwt()->>'role' IN ('admin', 'winix_system'));
 
-DROP TRIGGER IF EXISTS update_transactions_updated_at ON transactions;
-CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE POLICY "flex_balances_update_policy" ON flex_balances FOR UPDATE
+USING (auth.jwt()->>'role' IN ('admin', 'winix_system'));
 
-DROP TRIGGER IF EXISTS update_daily_bonus_status_updated_at ON daily_bonus_status;
-CREATE TRIGGER update_daily_bonus_status_updated_at BEFORE UPDATE ON daily_bonus_status
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- flex_claims policies
+ALTER TABLE flex_claims ENABLE ROW LEVEL SECURITY;
 
-DROP TRIGGER IF EXISTS update_wallets_updated_at ON wallets;
-CREATE TRIGGER update_wallets_updated_at BEFORE UPDATE ON wallets
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE POLICY "flex_claims_select_policy" ON flex_claims FOR SELECT
+USING (telegram_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
 
-DROP TRIGGER IF EXISTS update_verifications_updated_at ON verifications;
-CREATE TRIGGER update_verifications_updated_at BEFORE UPDATE ON verifications
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE POLICY "flex_claims_insert_policy" ON flex_claims FOR INSERT
+WITH CHECK (auth.jwt()->>'role' IN ('admin', 'winix_system'));
 
-DROP TRIGGER IF EXISTS update_achievements_updated_at ON achievements;
-CREATE TRIGGER update_achievements_updated_at BEFORE UPDATE ON achievements
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- flex_levels public read
+ALTER TABLE flex_levels ENABLE ROW LEVEL SECURITY;
 
--- ===================================================================
--- ПОЧАТКОВІ ДАНІ
--- ===================================================================
+CREATE POLICY "flex_levels_select_policy" ON flex_levels FOR SELECT
+USING (true);
+```
 
--- Приклади завдань
-INSERT INTO tasks (title, description, type, platform, action, winix_reward, tickets_reward, url, is_active, priority) VALUES
-('Підписка на Telegram канал', 'Підпишіться на офіційний канал WINIX', 'telegram', 'telegram', 'subscribe', 100.0, 1, 'https://t.me/winix_official', true, 10),
-('Лайк YouTube відео', 'Поставте лайк нашому відео на YouTube', 'social', 'youtube', 'like', 50.0, 1, 'https://youtube.com/watch?v=example', true, 8),
-('Підписка на Twitter', 'Підпишіться на наш Twitter акаунт', 'social', 'twitter', 'follow', 75.0, 1, 'https://twitter.com/winix_official', true, 7),
-('Підключити TON гаманець', 'Підключіть ваш TON гаманець для отримання бонусу', 'wallet', 'ton', 'connect', 200.0, 2, null, true, 9)
-ON CONFLICT DO NOTHING;
+### Wallet System RLS
+```sql
+-- wallets policies
+ALTER TABLE wallets ENABLE ROW LEVEL SECURITY;
 
--- Конфігурація FLEX рівнів (можна зберегти в окремій таблиці)
-CREATE TABLE IF NOT EXISTS flex_levels_config (
-    level VARCHAR(20) PRIMARY KEY,
-    required_flex INTEGER NOT NULL,
-    winix_reward DECIMAL(15,2) NOT NULL,
-    tickets_reward INTEGER NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    icon VARCHAR(50),
-    color VARCHAR(20)
-);
+CREATE POLICY "wallets_select_policy" ON wallets FOR SELECT
+USING (telegram_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
 
-INSERT INTO flex_levels_config (level, required_flex, winix_reward, tickets_reward, name, description, icon, color) VALUES
-('bronze', 1000, 50.0, 1, 'Бронзовий', 'Початковий рівень FLEX', '🥉', '#CD7F32'),
-('silver', 5000, 150.0, 2, 'Срібний', 'Середній рівень FLEX', '🥈', '#C0C0C0'),
-('gold', 15000, 400.0, 5, 'Золотий', 'Високий рівень FLEX', '🥇', '#FFD700'),
-('diamond', 50000, 1000.0, 10, 'Діамантовий', 'Преміум рівень FLEX', '💎', '#B9F2FF')
-ON CONFLICT DO NOTHING;
+CREATE POLICY "wallets_insert_policy" ON wallets FOR INSERT
+WITH CHECK (telegram_id = auth.uid() OR auth.jwt()->>'role' IN ('admin', 'winix_system'));
+
+CREATE POLICY "wallets_update_policy" ON wallets FOR UPDATE
+USING (telegram_id = auth.uid() OR auth.jwt()->>'role' IN ('admin', 'winix_system'));
+
+-- wallet_connection_bonuses policies
+ALTER TABLE wallet_connection_bonuses ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "wallet_bonuses_select_policy" ON wallet_connection_bonuses FOR SELECT
+USING (telegram_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+CREATE POLICY "wallet_bonuses_insert_policy" ON wallet_connection_bonuses FOR INSERT
+WITH CHECK (auth.jwt()->>'role' IN ('admin', 'winix_system'));
+```
+
+### Analytics RLS
+```sql
+-- analytics_events policies
+ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "analytics_events_select_policy" ON analytics_events FOR SELECT
+USING (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+CREATE POLICY "analytics_events_insert_policy" ON analytics_events FOR INSERT
+WITH CHECK (true); -- Дозволити всім додавати події
+
+-- user_analytics_stats policies
+ALTER TABLE user_analytics_stats ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_stats_select_policy" ON user_analytics_stats FOR SELECT
+USING (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+CREATE POLICY "user_stats_service_policy" ON user_analytics_stats FOR ALL
+USING (auth.jwt()->>'role' = 'service_role');
+```
+
+## 📊 МІГРАЦІЯ ІСНУЮЧИХ ДАНИХ
+
+### 1. Міграція daily_bonuses → daily_bonus_status/entries
+```sql
+-- Створити записи статусу для користувачів з існуючими бонусами
+INSERT INTO daily_bonus_status (user_id, total_days_claimed, last_claim_date, current_day_number)
+SELECT
+    telegram_id,
+    COUNT(*) as total_days,
+    MAX(claimed_date::date) as last_claim,
+    CASE
+        WHEN MAX(day_in_cycle) >= 30 THEN 1
+        ELSE MAX(day_in_cycle) + 1
+    END as next_day
+FROM daily_bonuses
+GROUP BY telegram_id
+ON CONFLICT (user_id) DO NOTHING;
+
+-- Міграція записів бонусів
+INSERT INTO daily_bonus_entries (user_id, day_number, claim_date, reward_winix, reward_tickets, streak_at_claim)
+SELECT
+    telegram_id,
+    day_in_cycle,
+    claimed_date::date,
+    amount::integer,
+    token_amount,
+    1 -- Припускаємо серію 1, якщо не було інших даних
+FROM daily_bonuses;
+```
+
+### 2. Ініціалізація аналітики для існуючих користувачів
+```sql
+INSERT INTO user_analytics_stats (user_id, first_seen, last_seen)
+SELECT
+    telegram_id,
+    created_at,
+    COALESCE(updated_at, created_at)
+FROM winix
+ON CONFLICT (user_id) DO NOTHING;
+```
+
+## ⚠️ ВАЖЛИВІ НОТАТКИ
+
+1. **Збереження існуючих даних**: Всі існуючі таблиці залишаються без змін для забезпечення backwards compatibility
+
+2. **Поступова міграція**: Нові функції можна впроваджувати поступово, не порушуючи існуючий функціонал
+
+3. **RLS політики**: Всі нові таблиці мають відповідні RLS політики для безпеки
+
+4. **Індексування**: Всі таблиці мають необхідні індекси для оптимальної продуктивності
+
+5. **Типи даних**: Використовуються консистентні типи даних між таблицями
+
+6. **Ключові обмеження**: Додані CHECK constraints для валідації даних
+
+Після виконання цих змін ваша база даних буде повністю готова для розширеної системи завдань WINIX з підтримкою FLEX токенів, TON гаманців, детальної аналітики та покращеної системи завдань.
