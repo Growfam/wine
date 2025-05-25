@@ -1142,10 +1142,8 @@ init_raffle_service()
 
 # Запуск застосунку
 if __name__ == '__main__':
-    # Додайте перевірку на None
-    if app is None:
-        logger.critical("❌ Додаток не ініціалізовано!")
-        exit(1)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False)
 
     # Остання перевірка WINIX перед запуском
     if WINIX_QUESTS_AVAILABLE:
