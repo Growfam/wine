@@ -47,9 +47,21 @@ if BACKEND_DIR not in sys.path:
 
 # 🎯 WINIX Quests System Integration з відкладеною ініціалізацією
 WINIX_QUESTS_AVAILABLE = False
+QUESTS_DIAGNOSTICS_AVAILABLE = False
 winix = None
 initialization_result = {"success_rate": 0, "message": "Not initialized"}
 _winix_initialization_attempted = False
+
+# Імпорт діагностичних функцій
+try:
+    from quests.routes import register_quests_routes, diagnose_quests_routes
+    QUESTS_DIAGNOSTICS_AVAILABLE = True
+    logger.info("✅ Діагностичні функції quests маршрутів завантажено")
+except ImportError as e:
+    logger.warning(f"⚠️ Діагностичні функції недоступні: {e}")
+    register_quests_routes = None
+    diagnose_quests_routes = None
+    QUESTS_DIAGNOSTICS_AVAILABLE = False
 
 def safe_diagnose_winix_import():
     """Безпечна діагностика WINIX імпорту без асинхронних операцій"""
@@ -148,7 +160,7 @@ def lazy_initialize_winix():
         return False
 
 def safe_register_quests_routes(app):
-    """Безпечна реєстрація quests маршрутів з fallback"""
+    """Безпечна реєстрація quests маршрутів з покращеною діагностикою"""
     logger.info("🎯 === БЕЗПЕЧНА РЕЄСТРАЦІЯ QUESTS МАРШРУТІВ ===")
 
     if not WINIX_QUESTS_AVAILABLE:
@@ -158,35 +170,83 @@ def safe_register_quests_routes(app):
     # Ініціалізуємо WINIX якщо ще не зробили
     lazy_initialize_winix()
 
-    registration_methods = [
-        ("winix.register_routes", lambda: winix.register_routes(app) if winix and hasattr(winix, 'register_routes') else False),
-        ("register_quests_routes", lambda: register_quests_routes_fallback(app)),
-        ("manual_blueprints", lambda: register_quests_blueprints_manually(app))
-    ]
-
-    for method_name, method_func in registration_methods:
+    # Спочатку пробуємо через winix.register_routes
+    if winix and hasattr(winix, 'register_routes'):
         try:
-            logger.info(f"🔄 Спроба {method_name}...")
-            result = method_func()
-
+            logger.info("🔄 Спроба winix.register_routes...")
+            result = winix.register_routes(app)
             if result:
-                logger.info(f"✅ {method_name} успішно!")
+                logger.info("✅ winix.register_routes успішно!")
+
+                # Додаємо діагностику після успішної реєстрації
+                if QUESTS_DIAGNOSTICS_AVAILABLE and diagnose_quests_routes:
+                    try:
+                        diagnosis = diagnose_quests_routes(app)
+                        logger.info(f"📊 Діагностика: {diagnosis['quests_routes']} маршрутів системи завдань")
+
+                        if diagnosis.get('recommendations'):
+                            logger.warning("⚠️ Рекомендації діагностики:")
+                            for rec in diagnosis['recommendations']:
+                                logger.warning(f"   • {rec}")
+                    except Exception as diag_e:
+                        logger.warning(f"⚠️ Помилка діагностики: {diag_e}")
+
                 return True
             else:
-                logger.warning(f"⚠️ {method_name} повернув False")
-
+                logger.warning("⚠️ winix.register_routes повернув False")
         except Exception as e:
-            logger.error(f"❌ {method_name} помилка: {e}")
-            continue
+            logger.error(f"❌ winix.register_routes помилка: {e}")
 
-    logger.error("💥 Всі методи реєстрації quests маршрутів провалилися")
-    return False
+            # Детальна діагностика помилки
+            error_msg = str(e).lower()
+            if "already registered" in error_msg:
+                logger.error("🔴 ВИЯВЛЕНО КОНФЛІКТ BLUEPRINT!")
+                if "auth" in error_msg:
+                    logger.error("💡 Рішення: змініть назву Blueprint в auth_routes.py на 'quests_auth'")
+                logger.error(f"📋 Повний текст помилки: {e}")
+
+    # Fallback через пряму реєстрацію
+    if register_quests_routes:
+        try:
+            logger.info("🔄 Спроба register_quests_routes...")
+            result = register_quests_routes(app)
+
+            if result:
+                logger.info("✅ register_quests_routes успішно!")
+
+                # Діагностика після fallback реєстрації
+                if QUESTS_DIAGNOSTICS_AVAILABLE and diagnose_quests_routes:
+                    try:
+                        diagnosis = diagnose_quests_routes(app)
+                        logger.info(f"📊 Fallback діагностика: {diagnosis['quests_routes']} маршрутів")
+
+                        if diagnosis.get('duplicate_endpoints'):
+                            logger.warning(f"⚠️ Знайдено {len(diagnosis['duplicate_endpoints'])} дублікатів endpoint'ів")
+
+                        if diagnosis.get('blueprint_conflicts'):
+                            logger.error(f"🔴 Конфлікти Blueprint'ів: {diagnosis['blueprint_conflicts']}")
+                    except Exception as diag_e:
+                        logger.warning(f"⚠️ Помилка fallback діагностики: {diag_e}")
+
+                return True
+            else:
+                logger.error("❌ register_quests_routes повернув False")
+        except Exception as e:
+            logger.error(f"❌ register_quests_routes помилка: {e}")
+            logger.error(f"📋 Тип помилки: {type(e).__name__}")
+
+    # Останній fallback - ручна реєстрація
+    logger.info("🔄 Спроба ручної реєстрації Blueprint'ів...")
+    return register_quests_blueprints_manually(app)
 
 def register_quests_routes_fallback(app):
     """Fallback реєстрація через quests.routes"""
     try:
-        from quests.routes import register_quests_routes
-        return register_quests_routes(app)
+        if register_quests_routes:
+            return register_quests_routes(app)
+        else:
+            logger.warning("⚠️ register_quests_routes функція недоступна")
+            return False
     except Exception as e:
         logger.error(f"Fallback register_quests_routes помилка: {e}")
         return False
@@ -228,6 +288,8 @@ def register_quests_blueprints_manually(app):
 
         except Exception as e:
             logger.error(f"❌ Помилка реєстрації {module_name}.{blueprint_name}: {e}")
+            if "already registered" in str(e).lower():
+                logger.error(f"🔴 Blueprint конфлікт: {blueprint_name}")
 
     logger.info(f"📊 Ручна реєстрація завершена: {registered_count} Blueprint'ів")
     return registered_count > 0
@@ -442,6 +504,43 @@ def setup_winix_routes(app):
 
         return jsonify(diagnosis)
 
+    @app.route('/api/winix/routes-diagnosis', methods=['GET'])
+    def winix_routes_diagnosis():
+        """Детальна діагностика маршрутів системи завдань"""
+        try:
+            if not QUESTS_DIAGNOSTICS_AVAILABLE:
+                return jsonify({
+                    "status": "error",
+                    "message": "Діагностика маршрутів недоступна",
+                    "quests_available": WINIX_QUESTS_AVAILABLE,
+                    "diagnostics_available": QUESTS_DIAGNOSTICS_AVAILABLE
+                }), 503
+
+            # Виконуємо діагностику
+            diagnosis = diagnose_quests_routes(app)
+
+            # Додаємо додаткову інформацію
+            diagnosis.update({
+                "winix_available": WINIX_QUESTS_AVAILABLE,
+                "diagnostics_available": QUESTS_DIAGNOSTICS_AVAILABLE,
+                "initialization_result": initialization_result,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+
+            return jsonify({
+                "status": "success",
+                "diagnosis": diagnosis
+            }), 200
+
+        except Exception as e:
+            logger.error(f"💥 Помилка діагностики маршрутів: {e}")
+            return jsonify({
+                "status": "error",
+                "message": str(e),
+                "error_type": type(e).__name__,
+                "diagnostics_available": QUESTS_DIAGNOSTICS_AVAILABLE
+            }), 500
+
     logger.info("✅ WINIX маршрути налаштовано")
 
 def create_app(config_name=None):
@@ -562,6 +661,31 @@ def create_app(config_name=None):
             response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 година
 
         return response
+
+    # === ФІНАЛЬНА ДІАГНОСТИКА СИСТЕМИ ===
+    if QUESTS_DIAGNOSTICS_AVAILABLE and diagnose_quests_routes:
+        try:
+            diagnosis = diagnose_quests_routes(app)
+            logger.info(f"🎯 Фінальна діагностика QUESTS: {diagnosis['quests_routes']} маршрутів зареєстровано")
+
+            if diagnosis.get('duplicate_endpoints'):
+                logger.warning(f"⚠️ Знайдено {len(diagnosis['duplicate_endpoints'])} дублікатів endpoint'ів")
+                for dup in diagnosis['duplicate_endpoints'][:3]:  # Показуємо перші 3
+                    logger.warning(f"   🔄 {dup['endpoint']} ({dup['count']} разів)")
+
+            if diagnosis.get('blueprint_conflicts'):
+                logger.error(f"🔴 Конфлікти Blueprint'ів: {diagnosis['blueprint_conflicts']}")
+
+            if diagnosis.get('missing_endpoints'):
+                logger.warning(f"⚠️ Відсутні {len(diagnosis['missing_endpoints'])} критичних endpoint'ів")
+
+            if diagnosis.get('recommendations'):
+                logger.info("💡 Рекомендації системи:")
+                for rec in diagnosis['recommendations']:
+                    logger.info(f"   • {rec}")
+
+        except Exception as e:
+            logger.error(f"Помилка фінальної діагностики: {e}")
 
     logger.info("🏁 Flask застосунок готовий")
     return app  # КРИТИЧНО ВАЖЛИВО - повертаємо створений app
@@ -912,6 +1036,7 @@ def register_utility_routes(app):
         return jsonify({
             "status": "running",
             "winix_available": WINIX_QUESTS_AVAILABLE,
+            "diagnostics_available": QUESTS_DIAGNOSTICS_AVAILABLE,
             "initialization_result": initialization_result,
             "environment": {
                 "base_dir": BASE_DIR,
@@ -1011,6 +1136,61 @@ def register_utility_routes(app):
             "all_api_routes": api_routes,
             "sample_routes": routes[:20]  # Загальна вибірка
         })
+
+    @app.route('/debug/quests-routes')
+    def debug_quests_routes():
+        """Діагностичний ендпоінт для перевірки quests маршрутів"""
+        try:
+            routes_analysis = {
+                "winix_available": WINIX_QUESTS_AVAILABLE,
+                "diagnostics_available": QUESTS_DIAGNOSTICS_AVAILABLE,
+                "total_routes": len(list(app.url_map.iter_rules())),
+                "quests_routes": 0,
+                "routes_by_prefix": {},
+                "blueprint_conflicts": [],
+                "critical_endpoints": {}
+            }
+
+            # Аналізуємо маршрути
+            quests_prefixes = ['/api/auth/', '/api/user/', '/api/daily/', '/api/analytics/',
+                              '/api/flex/', '/api/tasks/', '/api/transactions/', '/api/verify/', '/api/wallet/']
+
+            for rule in app.url_map.iter_rules():
+                rule_str = str(rule.rule)
+
+                for prefix in quests_prefixes:
+                    if prefix in rule_str:
+                        routes_analysis["quests_routes"] += 1
+                        prefix_name = prefix.replace('/api/', '').replace('/', '')
+
+                        if prefix_name not in routes_analysis["routes_by_prefix"]:
+                            routes_analysis["routes_by_prefix"][prefix_name] = 0
+                        routes_analysis["routes_by_prefix"][prefix_name] += 1
+                        break
+
+            # Перевіряємо критичні endpoint'и
+            critical_checks = {
+                "auth_validate": any('/api/auth/validate-telegram' in str(rule.rule) for rule in app.url_map.iter_rules()),
+                "user_profile": any('/api/user/profile/' in str(rule.rule) for rule in app.url_map.iter_rules()),
+                "daily_status": any('/api/daily/status/' in str(rule.rule) for rule in app.url_map.iter_rules()),
+                "winix_health": any('/api/winix/health' in str(rule.rule) for rule in app.url_map.iter_rules())
+            }
+            routes_analysis["critical_endpoints"] = critical_checks
+
+            # Якщо діагностика доступна, додаємо детальну інформацію
+            if QUESTS_DIAGNOSTICS_AVAILABLE and diagnose_quests_routes:
+                detailed_diagnosis = diagnose_quests_routes(app)
+                routes_analysis["detailed_diagnosis"] = detailed_diagnosis
+
+            return jsonify(routes_analysis)
+
+        except Exception as e:
+            logger.error(f"Помилка debug quests routes: {str(e)}")
+            return jsonify({
+                "error": str(e),
+                "winix_available": WINIX_QUESTS_AVAILABLE,
+                "diagnostics_available": QUESTS_DIAGNOSTICS_AVAILABLE
+            }), 500
 
 
 # Решта функцій залишається без змін
@@ -1468,12 +1648,14 @@ if __name__ == '__main__':
     debug = getattr(app.config, 'DEBUG', True) if hasattr(app, 'config') else True
 
     logger.info(f"🌟 Запуск WINIX застосунку на порту {port}, режим налагодження: {debug}")
-    logger.info("🎯 === ДОДАТКОВІ ДІАГНОСТИЧНІ ENDPOINT'И ===")
+    logger.info("🎯 === ДІАГНОСТИЧНІ ENDPOINT'И ===")
     logger.info("📋 /api/winix/diagnosis - повна діагностика WINIX")
     logger.info("🔍 /api/winix/health - статус здоров'я WINIX")
     logger.info("📊 /api/winix/info - інформація про WINIX")
     logger.info("🧪 /api/winix/test - швидкий тест WINIX")
+    logger.info("🧪 /api/winix/routes-diagnosis - діагностика quests маршрутів")
     logger.info("🔍 /debug/routes - перевірка всіх маршрутів")
+    logger.info("🔍 /debug/quests-routes - аналіз quests маршрутів")
 
     # Запуск сервера
     app.run(host='0.0.0.0', port=port, debug=debug)
