@@ -24,7 +24,7 @@ from ..utils.decorators import (
 logger = logging.getLogger(__name__)
 
 # Створюємо Blueprint для daily маршрутів
-daily_bp = Blueprint('daily', __name__, url_prefix='/api/daily')
+daily_bp = Blueprint('winix_daily', __name__, url_prefix='/api/daily')
 
 
 @daily_bp.route('/status/<telegram_id>', methods=['GET'])

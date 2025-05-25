@@ -77,7 +77,7 @@ except ImportError as e:
         verification_functions[func_name] = create_unavailable_handler(func_name)
 
 # Створення Blueprint для верифікації
-verification_bp = Blueprint('verification', __name__)
+verification_bp = Blueprint('winix_verification', __name__)
 
 
 def register_verification_routes(app):

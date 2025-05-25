@@ -65,7 +65,7 @@ except ImportError:
             return {"status": "error", "message": "Контролер недоступний"}, 503
 
 # Створення Blueprint для маршрутів гаманця
-wallet_bp = Blueprint('wallet', __name__)
+wallet_bp = Blueprint('winix_wallet', __name__)
 
 
 @wallet_bp.route('/status/<telegram_id>', methods=['GET'])

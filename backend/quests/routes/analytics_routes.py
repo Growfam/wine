@@ -11,7 +11,7 @@ from ..controllers.analytics_controller import AnalyticsController
 logger = logging.getLogger(__name__)
 
 # Створюємо Blueprint для аналітики
-analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
+analytics_bp = Blueprint('winix_analytics', __name__, url_prefix='/api/analytics')
 
 
 # === ОСНОВНІ ENDPOINTS ===

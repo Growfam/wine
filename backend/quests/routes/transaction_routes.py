@@ -25,7 +25,7 @@ except ImportError:
 
 
 # Створюємо Blueprint
-transaction_bp = Blueprint('quests_transaction', __name__, url_prefix='/api/transactions')
+transaction_bp = Blueprint('winix_transaction', __name__, url_prefix='/api/transactions')
 
 
 @transaction_bp.route('/user/<telegram_id>/history', methods=['GET'])
@@ -497,12 +497,35 @@ def get_transaction_service_health():
             "error": str(e)
         }), 500
 
-
 # Функції для реєстрації маршрутів
 def register_transaction_routes(app):
     """Реєстрація маршрутів транзакцій в додатку Flask"""
-    logger.info("Реєстрація маршрутів транзакцій")
-    app.register_blueprint(transaction_bp)
+    try:
+        logger.info("Реєстрація маршрутів транзакцій")
+
+        # Перевіряємо доступність сервісу
+        if not transaction_service:
+            logger.error("❌ Transaction service недоступний")
+            return False
+
+        # Реєструємо blueprint
+        app.register_blueprint(transaction_bp)
+
+        logger.info("✅ Маршрути транзакцій успішно зареєстровано")
+        logger.info("📋 Зареєстровано маршрути транзакцій:")
+        logger.info("   GET /api/transactions/user/<telegram_id>/history")
+        logger.info("   GET /api/transactions/user/<telegram_id>/balance-history")
+        logger.info("   GET /api/transactions/<transaction_id>")
+        logger.info("   GET /api/transactions/statistics")
+        logger.info("   GET /api/transactions/user/<telegram_id>/summary")
+        logger.info("   GET /api/transactions/health")
+
+        # КРИТИЧНО ВАЖЛИВО: повертаємо True!
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Помилка реєстрації маршрутів транзакцій: {e}")
+        return False
 
 
 # Експорт

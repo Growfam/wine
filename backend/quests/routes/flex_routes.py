@@ -70,7 +70,7 @@ except ImportError:
             return {"status": "error", "message": "Контролер недоступний"}, 503
 
 # Створення Blueprint для маршрутів FLEX
-flex_bp = Blueprint('flex', __name__)
+flex_bp = Blueprint('winix_flex', __name__)
 
 
 @flex_bp.route('/balance/<telegram_id>', methods=['GET'])
