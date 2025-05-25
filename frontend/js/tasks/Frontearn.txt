@@ -1,0 +1,838 @@
+frontend/
+├── earn.html                    # Головна сторінка системи завдань
+├── js/
+│   ├── api.js                  # Загальний API клієнт (з основного проекту)
+│   ├── auth.js                 # Авторизація (з основного проекту)  
+│   ├── core.js                 # Базовий функціонал (з основного проекту)
+│   └── tasks/                  # Модулі системи завдань
+│       ├── constants.js        # Константи та конфігурація
+│       ├── utils.js           # Утилітарні функції
+│       ├── store.js           # Redux-подібний стор
+│       ├── telegramValidator.js # Валідація Telegram
+│       ├── api.js             # Спеціалізований API для завдань
+│       ├── services.js        # Координаційні сервіси
+│       ├── flexEarn.js        # Flex завдання
+│       ├── dailyBonus.js      # Щоденні бонуси
+│       ├── taskVerification.js # Верифікація завдань
+│       ├── tasksManager.js    # Менеджер завдань
+│       ├── walletChecker.js   # Перевірка TON гаманця
+│       └── integration.js     # Головний інтегратор
+└── css/ # Стилі (не розглядаються детально)
+
+<!-- Критичні залежності завантажуються першими -->
+<script src="./js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+
+<!-- Базові модулі -->
+<script src="./js/api.js"></script>
+<script src="./js/auth.js"></script>
+<script src="./js/core.js"></script>
+
+<!-- Модулі завдань у правильній послідовності -->
+<script src="js/tasks/constants.js"></script>
+<script src="js/tasks/utils.js"></script>
+<script src="js/tasks/store.js"></script>
+<script src="js/tasks/telegramValidator.js"></script>
+<script src="js/tasks/api.js"></script>
+<script src="js/tasks/services.js"></script>
+<script src="js/tasks/flexEarn.js"></script>
+<script src="js/tasks/dailyBonus.js"></script>
+<script src="js/tasks/taskVerification.js"></script>
+<script src="js/tasks/tasksManager.js"></script>
+<script src="js/tasks/walletChecker.js"></script>
+<script src="js/tasks/integration.js"></script>
+
+ Автоматична ініціалізація
+javascript// integration.js - головний координатор
+document.addEventListener('DOMContentLoaded', async function() {
+    window.tasksIntegration = await window.TasksIntegration.init();
+});
+
+📋 Максимально детальний опис фронтенду системи завдань WINIX
+🏗️ Загальна архітектура
+Структура проекту
+frontend/
+├── earn.html                    # Головна сторінка системи завдань
+├── js/
+│   ├── api.js                  # Загальний API клієнт (з основного проекту)
+│   ├── auth.js                 # Авторизація (з основного проекту)
+│   ├── core.js                 # Базовий функціонал (з основного проекту)
+│   └── tasks/                  # Модулі системи завдань
+│       ├── constants.js        # Константи та конфігурація
+│       ├── utils.js           # Утилітарні функції
+│       ├── store.js           # Redux-подібний стор
+│       ├── telegramValidator.js # Валідація Telegram
+│       ├── api.js             # Спеціалізований API для завдань
+│       ├── services.js        # Координаційні сервіси
+│       ├── flexEarn.js        # Flex завдання
+│       ├── dailyBonus.js      # Щоденні бонуси
+│       ├── taskVerification.js # Верифікація завдань
+│       ├── tasksManager.js    # Менеджер завдань
+│       ├── walletChecker.js   # Перевірка TON гаманця
+│       └── integration.js     # Головний інтегратор
+└── css/ # Стилі (не розглядаються детально)
+
+🔄 Послідовність ініціалізації системи
+1. Завантаження DOM (earn.html)
+html<!-- Критичні залежності завантажуються першими -->
+<script src="./js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+
+<!-- Базові модулі -->
+<script src="./js/api.js"></script>
+<script src="./js/auth.js"></script>
+<script src="./js/core.js"></script>
+
+<!-- Модулі завдань у правильній послідовності -->
+<script src="js/tasks/constants.js"></script>
+<script src="js/tasks/utils.js"></script>
+<script src="js/tasks/store.js"></script>
+<script src="js/tasks/telegramValidator.js"></script>
+<script src="js/tasks/api.js"></script>
+<script src="js/tasks/services.js"></script>
+<script src="js/tasks/flexEarn.js"></script>
+<script src="js/tasks/dailyBonus.js"></script>
+<script src="js/tasks/taskVerification.js"></script>
+<script src="js/tasks/tasksManager.js"></script>
+<script src="js/tasks/walletChecker.js"></script>
+<script src="js/tasks/integration.js"></script>
+2. Автоматична ініціалізація
+javascript// integration.js - головний координатор
+document.addEventListener('DOMContentLoaded', async function() {
+    window.tasksIntegration = await window.TasksIntegration.init();
+});
+
+🧩 Детальний опис модулів та їх взаємодії
+📋 1. constants.js - Константи системи
+Призначення: Централізоване сховище всіх констант
+Залежності: Немає (базовий модуль)
+Експортує: window.TasksConstants
+Ключові константи:
+javascriptconst API_ENDPOINTS = {
+    BASE_URL: '/api',
+    USER_PROFILE: '/user/profile',
+    WALLET_STATUS: '/wallet/status',
+    FLEX_BALANCE: '/flex/balance',
+    DAILY_STATUS: '/daily/status',
+    TASKS_LIST: '/tasks/list'
+    // ... інші ендпоінти
+};
+
+const FLEX_LEVELS = {
+    BRONZE: { required: 10000, rewards: { winix: 25, tickets: 1 } },
+    SILVER: { required: 50000, rewards: { winix: 75, tickets: 2 } },
+    // ... інші рівні
+};
+
+const TIMERS = {
+    AUTO_CHECK_INTERVAL: 5 * 60 * 1000,  // 5 хвилин
+    SESSION_REFRESH: 30 * 60 * 1000      // 30 хвилин
+};
+
+🛠️ 2. utils.js - Утилітарні функції
+Призначення: Допоміжні функції для всіх модулів
+Залежності: Немає
+Експортує: window.TasksUtils
+Ключові функції:
+javascript// Форматування чисел
+formatNumber(1234567) // → "1,234,567"
+
+// Робота з локальним сховищем
+storage.set('key', value, isSecure)  // sessionStorage для чутливих даних
+storage.get('key', defaultValue)
+
+// Валідація
+validate.isPositiveNumber(value)
+validate.isWalletAddress(address)
+
+// Toast повідомлення
+showToast(message, type, duration)
+
+🏪 3. store.js - Управління станом
+Призначення: Redux-подібне сховище стану додатку
+Залежності: TasksUtils (для deepClone)
+Експортує: window.TasksStore
+Структура стану:
+javascriptconst state = {
+    user: {
+        id: null,
+        telegramId: null,
+        username: null,
+        balance: { winix: 0, tickets: 0, flex: 0 }
+    },
+    wallet: {
+        connected: false,
+        address: null,
+        chainId: null,
+        checking: false
+    },
+    flexEarn: {
+        levels: { BRONZE: {claimed: false}, /* ... */ },
+        flexBalance: 0,
+        checking: false
+    },
+    dailyBonus: {
+        currentStreak: 0,
+        claimedDays: [],
+        claiming: false
+    },
+    tasks: {
+        social: {},
+        limited: {},
+        partner: {}
+    },
+    ui: {
+        currentTab: 'flex',
+        loading: false
+    }
+};
+API сторі:
+javascript// Підписка на зміни
+TasksStore.subscribe((newState, prevState, action) => {
+    // Реагування на зміни
+});
+
+// Dispatch дій
+TasksStore.actions.setUser(userData);
+TasksStore.actions.updateBalance(newBalance);
+TasksStore.actions.setWalletConnected(true);
+
+// Селектори
+TasksStore.selectors.getUserId();
+TasksStore.selectors.isWalletConnected();
+
+🔐 4. telegramValidator.js - Валідація Telegram
+Призначення: Строга валідація Telegram WebApp даних
+Залежності: TasksConstants, TasksAPI
+Експортує: window.TelegramValidator
+Процес валідації:
+javascriptasync function validateTelegramAuth() {
+    // 1. Отримання даних з Telegram WebApp
+    const telegramData = getTelegramData();
+
+    // 2. Локальна валідація
+    validateUserLocally(telegramData.user);
+
+    // 3. Серверна валідація
+    const serverValidation = await validateOnServer(telegramData);
+
+    // 4. Збереження токену
+    if (serverValidation.valid) {
+        sessionStorage.setItem('winix_auth_token', serverValidation.token);
+        return serverValidation;
+    }
+}
+Відправляє на бекенд:
+javascript// POST /api/auth/validate-telegram
+{
+    initData: "query_id=AAH...",  // Повні дані з Telegram
+    timestamp: 1640995200000
+}
+Отримує з бекенду:
+javascript{
+    valid: true,
+    user: {
+        id: "123456789",
+        username: "user123",
+        balance: { winix: 100, tickets: 5 }
+    },
+    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+
+🌐 5. api.js (tasks/) - Спеціалізований API
+Призначення: API клієнт для системи завдань
+Залежності: TasksConstants, TelegramValidator
+Експортує: window.TasksAPI
+Структура API:
+javascriptwindow.TasksAPI = {
+    auth: {
+        validateTelegram: async (initData) => { /* ... */ },
+        refreshToken: async () => { /* ... */ }
+    },
+    user: {
+        getProfile: async (userId) => { /* ... */ },
+        getBalance: async (userId) => { /* ... */ }
+    },
+    wallet: {
+        checkStatus: async (userId) => { /* ... */ },
+        connect: async (userId, walletData) => { /* ... */ }
+    },
+    flex: {
+        getBalance: async (userId, walletAddress) => { /* ... */ },
+        claimReward: async (userId, level) => { /* ... */ }
+    },
+    daily: {
+        getStatus: async (userId) => { /* ... */ },
+        claim: async (userId) => { /* ... */ }
+    },
+    tasks: {
+        getList: async (userId, type) => { /* ... */ },
+        verify: async (userId, taskId, data) => { /* ... */ }
+    }
+};
+Функції безпеки:
+
+Rate limiting (максимум 50 запитів за хвилину)
+Автоматичне додавання JWT токену
+Retry логіка з експоненційним backoff
+Валідація UUID для розіграшів
+
+
+🛠️ 6. services.js - Координаційні сервіси
+Призначення: Координація між модулями
+Залежності: TasksAPI, TasksStore, TelegramValidator
+Експортує: window.TasksServices
+AuthService:
+javascriptconst AuthService = {
+    async initUser() {
+        // 1. Валідація через TelegramValidator
+        const validation = await TelegramValidator.validateTelegramAuth();
+
+        // 2. Завантаження профілю з бекенду
+        const profile = await TasksAPI.user.getProfile(userId);
+
+        // 3. Оновлення Store
+        TasksStore.actions.setUser(profile.data);
+
+        return profile.data;
+    }
+};
+SyncService (автоматична синхронізація кожні 5 хвилин):
+javascriptconst SyncService = {
+    async syncData() {
+        // Паралельно завантажуємо всі дані
+        const promises = [
+            this.syncBalance(userId),
+            this.syncFlexStatus(userId),
+            this.syncDailyBonus(userId),
+            this.syncTasks(userId)
+        ];
+
+        const results = await Promise.allSettled(promises);
+    }
+};
+
+💎 7. flexEarn.js - Flex завдання
+Призначення: Управління завданнями з FLEX токенами
+Залежності: TasksAPI, TasksStore, WalletChecker
+Експортує: window.FlexEarnManager
+Процес роботи:
+javascriptasync function init(userId) {
+    // 1. Перевірка підключення гаманця
+    await checkWalletConnection();
+
+    // 2. Якщо підключено - перевірка балансу FLEX
+    if (walletConnected) {
+        await checkFlexBalance();
+        await checkAvailableRewards();
+        showFlexTasks();
+    } else {
+        showWalletConnect();
+    }
+}
+Відправляє на бекенд:
+javascript// GET /api/wallet/status/{userId}
+// GET /api/flex/balance/{userId} (headers: X-Wallet-Address)
+// POST /api/flex/claim/{userId}
+{
+    level: "bronze",
+    timestamp: 1640995200000
+}
+Отримує з бекенду:
+javascript// Статус гаманця
+{
+    connected: true,
+    address: "EQD...",
+    flexBalance: 25000
+}
+
+// Винагорода
+{
+    success: true,
+    reward: { winix: 25, tickets: 1 },
+    newBalance: { winix: 125, tickets: 6 }
+}
+Автоматичні процеси:
+
+Перевірка балансу кожні 5 хвилин
+Скидання щоденних винагород о 00:00 UTC
+Оновлення прогрес-барів у реальному часі
+
+
+🎁 8. dailyBonus.js - Щоденні бонуси
+Призначення: Управління щоденними винагородами
+Залежності: TasksAPI, TasksStore
+Експортує: window.DailyBonusManager
+Структура UI:
+
+Прогрес-бар місяця (30 днів)
+Останні 5 днів
+Календар нагород
+Кнопка отримання з таймером
+
+Процес отримання бонусу:
+javascriptasync function claimDailyBonus() {
+    // 1. Перевірка можливості отримання
+    if (!state.canClaim) return;
+
+    // 2. Відправка запиту
+    const response = await TasksAPI.daily.claim(userId);
+
+    // 3. Оновлення локального стану
+    state.canClaim = false;
+    state.currentDay = response.currentDay;
+
+    // 4. Оновлення балансів
+    TasksStore.actions.updateBalance(newBalance);
+
+    // 5. Показ анімації
+    showClaimAnimation(response.reward);
+}
+Відправляє на бекенд:
+javascript// GET /api/daily/status/{userId}
+// POST /api/daily/claim/{userId}
+{
+    timestamp: 1640995200000
+}
+Отримує з бекенду:
+javascript// Статус
+{
+    currentDay: 5,
+    currentStreak: 5,
+    canClaim: true,
+    nextClaimTime: "2024-01-02T00:00:00Z",
+    todayReward: { winix: 50, tickets: 0 }
+}
+
+// Винагорода
+{
+    success: true,
+    currentDay: 6,
+    currentStreak: 6,
+    reward: { winix: 50, tickets: 0 },
+    nextClaimTime: "2024-01-03T00:00:00Z"
+}
+
+✅ 9. taskVerification.js - Верифікація завдань
+Призначення: Автоматична перевірка виконання завдань
+Залежності: TasksAPI, TasksStore, TasksUtils
+Експортує: window.TaskVerification
+Типи верифікації:
+1. Telegram завдання (миттєва):
+javascriptasync function verifyTelegramTask(verification) {
+    // 1. Перевірка запуску бота
+    const botStarted = await checkBotStarted(userId);
+
+    // 2. Верифікація підписки
+    const response = await TasksAPI.verify.telegram(userId, channelUsername);
+
+    // 3. Нарахування винагороди
+    if (response.verified) {
+        await claimReward(taskId, response.reward);
+    }
+}
+2. Соціальні завдання (з таймером 15 секунд):
+javascriptasync function verifySocialTask(verification) {
+    // 1. Встановлення timestamp початку
+    const startTimestamp = Date.now();
+    taskTimestamps.set(taskId, startTimestamp);
+
+    // 2. Відкриття посилання
+    window.open(verification.data.url, '_blank');
+
+    // 3. Показ таймера
+    showVerificationTimer(taskId, 15000);
+
+    // 4. Після закінчення таймера - верифікація
+    const response = await TasksAPI.tasks.complete(userId, taskId);
+}
+Відправляє на бекенд:
+javascript// POST /api/verify/telegram/{userId}
+{
+    channelUsername: "@winix_channel"
+}
+
+// POST /api/tasks/start/{userId}/{taskId}
+{
+    timestamp: 1640995200000
+}
+
+// POST /api/tasks/complete/{userId}/{taskId}
+{
+    timestamp: 1640995200000
+}
+
+📋 10. tasksManager.js - Менеджер завдань
+Призначення: Управління всіма типами завдань
+Залежності: TasksAPI, TasksStore, TaskVerification
+Експортує: window.TasksManager
+Процес завантаження завдань:
+javascriptasync function loadAllTasks() {
+    // 1. Запит до API
+    const response = await TasksAPI.tasks.getList(userId, 'all');
+
+    // 2. Обробка та валідація
+    processTasks(response.tasks);
+
+    // 3. Розподіл по типах
+    const tasksByType = { social: [], limited: [], partner: [] };
+
+    // 4. Оновлення Store
+    Object.entries(tasksByType).forEach(([type, tasks]) => {
+        TasksStore.actions.setTasks(type, tasks);
+    });
+}
+Створення UI карток:
+javascriptfunction createTaskCard(task, type) {
+    // 1. Створення DOM елементу
+    const card = document.createElement('div');
+
+    // 2. Додавання атрибутів для верифікації
+    card.setAttribute('data-task-id', task.id);
+    card.setAttribute('data-platform', task.platform);
+    card.setAttribute('data-url', task.url);
+
+    // 3. Формування контенту
+    card.innerHTML = `
+        <div class="task-header">...</div>
+        <div class="task-rewards">...</div>
+        <button class="task-button">Виконати</button>
+    `;
+
+    return card;
+}
+Відправляє на бекенд:
+javascript// GET /api/tasks/list/{userId}?type=all
+// POST /api/tasks/claim/{userId}/{taskId}
+
+👛 11. walletChecker.js - Перевірка TON гаманця
+Призначення: Інтеграція з TON Connect
+Залежності: TasksAPI, TasksStore, TON_CONNECT_UI
+Експортує: window.WalletChecker
+Ініціалізація TON Connect:
+javascriptasync function initializeTonConnect() {
+    tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+        manifestUrl: '/tonconnect-manifest.json',
+        buttonRootId: 'ton-connect-button'
+    });
+
+    // Підписка на зміни статусу
+    tonConnectUI.onStatusChange(wallet => {
+        handleWalletStatusChange(wallet);
+    });
+}
+Процес підключення гаманця:
+javascriptasync function handleWalletStatusChange(wallet) {
+    if (wallet) {
+        // 1. Верифікація на бекенді
+        await verifyWalletOnBackend(wallet);
+
+        // 2. Оновлення Store
+        TasksStore.actions.setWalletConnected(true);
+        TasksStore.actions.setWalletAddress({
+            address: wallet.account.address,
+            chainId: wallet.account.chain
+        });
+
+        // 3. Перевірка балансу FLEX
+        await checkFlexBalance(wallet.account.address);
+    }
+}
+Відправляє на бекенд:
+javascript// GET /api/wallet/status/{userId}
+// POST /api/wallet/connect/{userId}
+{
+    address: "EQD...",
+    chain: "-239",
+    publicKey: "...",
+    provider: "Tonkeeper",
+    timestamp: 1640995200000
+}
+
+// POST /api/wallet/verify/{userId}
+{
+    address: "EQD...",
+    timestamp: 1640995200000
+}
+
+🔄 12. integration.js - Головний координатор
+Призначення: Координація всіх модулів
+Залежності: Всі попередні модулі
+Експортує: window.TasksIntegration
+Послідовність ініціалізації:
+javascriptasync function init() {
+    // 1. Перевірка залежностей
+    checkRequiredServices();
+
+    // 2. Авторизація користувача
+    await authenticateUser();
+
+    // 3. Ініціалізація менеджерів
+    await initializeManagers();
+
+    // 4. Налаштування обробників подій
+    setupEventHandlers();
+
+    // 5. Початкова синхронізація
+    await initialSync();
+}
+Менеджери ініціалізуються у порядку:
+javascriptasync function initializeManagers() {
+    // 1. WalletChecker (незалежний)
+    if (window.WalletChecker) {
+        await WalletChecker.init();
+    }
+
+    // 2. FlexEarnManager (залежить від WalletChecker)
+    if (window.FlexEarnManager) {
+        FlexEarnManager.init(userId);
+    }
+
+    // 3. DailyBonusManager (незалежний)
+    if (window.DailyBonusManager) {
+        await DailyBonusManager.init(userId);
+    }
+
+    // 4. TasksManager (незалежний)
+    if (window.TasksManager) {
+        await TasksManager.init(userId);
+    }
+
+    // 5. TaskVerification (залежить від TasksManager)
+    if (window.TaskVerification) {
+        TaskVerification.init();
+    }
+}
+
+📡 Взаємодія з бекендом
+🔐 Авторизація та безпека
+1. Початкова авторизація:
+javascript// Відправка initData з Telegram WebApp
+POST /api/auth/validate-telegram
+Content-Type: application/json
+{
+    "initData": "query_id=AAH9Rl...",
+    "timestamp": 1640995200000
+}
+
+// Відповідь з JWT токеном
+{
+    "valid": true,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+        "id": "123456789",
+        "username": "user123",
+        "balance": { "winix": 100, "tickets": 5 }
+    }
+}
+2. Подальші запити:
+javascript// Всі запити містять JWT токен
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+X-Telegram-User-Id: 123456789
+Content-Type: application/json
+📊 Основні API ендпоінти
+User Management:
+javascriptGET  /api/user/profile/{userId}           # Профіль користувача
+GET  /api/user/balance/{userId}           # Баланси
+POST /api/user/update-balance/{userId}    # Оновлення балансу (внутрішній)
+Wallet Management:
+javascriptGET  /api/wallet/status/{userId}          # Статус підключення
+POST /api/wallet/connect/{userId}         # Підключення гаманця
+POST /api/wallet/disconnect/{userId}      # Відключення
+POST /api/wallet/verify/{userId}          # Верифікація
+Flex Earn:
+javascriptGET  /api/flex/balance/{userId}           # Баланс FLEX (header: X-Wallet-Address)
+POST /api/flex/claim/{userId}             # Отримання винагороди
+GET  /api/flex/history/{userId}           # Історія
+POST /api/flex/check-levels/{userId}      # Перевірка рівнів
+Daily Bonus:
+javascriptGET  /api/daily/status/{userId}           # Статус бонусу
+POST /api/daily/claim/{userId}            # Отримання бонусу
+GET  /api/daily/history/{userId}          # Історія
+POST /api/daily/calculate-reward/{userId} # Розрахунок винагороди
+Tasks:
+javascriptGET  /api/tasks/list/{userId}?type=all    # Список завдань
+POST /api/tasks/start/{userId}/{taskId}   # Початок виконання
+POST /api/tasks/verify/{userId}/{taskId}  # Верифікація
+POST /api/tasks/complete/{userId}/{taskId} # Завершення
+POST /api/tasks/claim/{userId}/{taskId}   # Отримання винагороди
+Verification:
+javascriptPOST /api/verify/telegram/{userId}        # Верифікація Telegram
+GET  /api/verify/check-bot/{userId}       # Перевірка бота
+POST /api/verify/social/{userId}/{platform} # Соціальні мережі
+
+⏰ Автоматичні процеси
+1. Періодичні перевірки (кожні 5 хвилин)
+javascript// FlexEarnManager
+setInterval(() => {
+    if (walletConnected) {
+        checkFlexBalance();
+    }
+}, 300000);
+
+// WalletChecker
+setInterval(() => {
+    checkWalletConnection();
+}, 300000);
+
+// SyncService
+setInterval(() => {
+    syncData(); // Синхронізація всіх даних
+}, 300000);
+2. Автозбереження (кожні 30 секунд)
+javascript// integration.js
+setInterval(() => {
+    saveState(); // Збереження стану в sessionStorage
+}, 30000);
+3. Оновлення токенів (кожні 30 хвилин)
+javascript// telegramValidator.js
+setInterval(async () => {
+    const token = getAuthToken();
+    if (token && tokenExpiresInMinutes < 5) {
+        await refreshToken();
+    }
+}, 1800000);
+4. Скидання щоденних даних (о 00:00 UTC)
+javascript// flexEarn.js, dailyBonus.js
+function checkDailyReset() {
+    const now = new Date();
+    const today = now.toDateString();
+    const lastResetDate = localStorage.getItem('lastReset');
+
+    if (lastResetDate !== today) {
+        resetDailyData();
+        localStorage.setItem('lastReset', today);
+    }
+}
+
+🔄 Управління станом та подіями
+Store підписки
+javascriptTasksStore.subscribe((newState, prevState, action) => {
+    // Wallet connection changes
+    if (newState.wallet.connected !== prevState.wallet.connected) {
+        if (newState.wallet.connected) {
+            FlexEarnManager.checkFlexBalance();
+        } else {
+            FlexEarnManager.showWalletConnect();
+        }
+    }
+
+    // Tab changes
+    if (newState.ui.currentTab !== prevState.ui.currentTab) {
+        TasksIntegration.onTabSwitch(newState.ui.currentTab);
+    }
+});
+Custom Events
+javascript// Відправлення подій
+document.dispatchEvent(new CustomEvent('task-completed', {
+    detail: { taskId, reward }
+}));
+
+document.dispatchEvent(new CustomEvent('balance-updated', {
+    detail: { oldBalance, newBalance, source }
+}));
+
+// Слухання подій
+document.addEventListener('task-completed', (e) => {
+    const { taskId, reward } = e.detail;
+    updateTaskUI(taskId, 'completed');
+    showRewardAnimation(reward);
+});
+
+🚨 Обробка помилок та fallback
+1. Мережеві помилки
+javascript// api.js
+async function apiCall(endpoint, options, retries = 3) {
+    try {
+        const response = await fetch(url, options);
+        return await response.json();
+    } catch (error) {
+        if (retries > 0 && isNetworkError(error)) {
+            await delay(1000 * (4 - retries)); // Exponential backoff
+            return apiCall(endpoint, options, retries - 1);
+        }
+        throw error;
+    }
+}
+2. Rate limiting
+javascript// api.js
+if (response.status === 429) {
+    const retryAfter = response.headers.get('Retry-After') || 30;
+    handleRateLimiting(endpoint, retryAfter);
+    throw new Error(`Занадто багато запитів. Спробуйте через ${retryAfter} секунд.`);
+}
+3. Fallback для офлайн режиму
+javascript// services.js
+window.addEventListener('offline', () => {
+    TasksStore.actions.setOnline(false);
+    showToast('З\'єднання втрачено. Деякі функції недоступні', 'warning');
+});
+
+window.addEventListener('online', () => {
+    TasksStore.actions.setOnline(true);
+    SyncService.syncData(); // Синхронізація при відновленні
+});
+4. Кешування для офлайн роботи
+javascript// utils.js
+const storage = {
+    set(key, value, isSecure = false) {
+        // sessionStorage для токенів, localStorage для даних
+        const targetStorage = isSecure ? sessionStorage : localStorage;
+        targetStorage.setItem(key, JSON.stringify(value));
+    },
+
+    get(key, defaultValue = null) {
+        // Спочатку sessionStorage, потім localStorage
+        let item = sessionStorage.getItem(key) || localStorage.getItem(key);
+        return item ? JSON.parse(item) : defaultValue;
+    }
+};
+
+🔒 Безпека
+1. Валідація даних
+javascript// На клієнті - базова валідація
+function validateTask(task) {
+    if (!task.id || !task.type || !task.reward) {
+        return { valid: false, errors: ['Неповні дані завдання'] };
+    }
+    return { valid: true };
+}
+
+// На сервері - повна валідація з HMAC перевіркою
+2. Захист токенів
+javascript// Токени тільки в sessionStorage
+sessionStorage.setItem('winix_auth_token', token);
+
+// Автоматичне видалення при закритті браузера
+window.addEventListener('beforeunload', () => {
+    // sessionStorage автоматично очищається
+});
+3. Rate limiting
+javascriptconst REQUEST_THROTTLE = {
+    '/user/': 8000,        // 8 секунд між запитами
+    '/flex': 10000,        // 10 секунд
+    'default': 5000        // 5 секунд
+};
+
+📈 Аналітика та моніторинг
+Відстеження подій
+javascript// services.js - AnalyticsService
+trackEvent('Tasks', 'completed', taskId, reward.winix);
+trackEvent('Flex', 'reward_claimed', level, reward.winix);
+trackEvent('Daily', 'bonus_claimed', day, reward.winix);
+trackError(error, 'task_verification');
+Статистика використання
+javascript// Зберігання статистики
+const stats = {
+    totalRequests: 0,
+    successfulRequests: 0,
+    failedRequests: 0,
+    avgResponseTime: 0,
+    userActions: {
+        tasksCompleted: 0,
+        flexRewardsClaimed: 0,
+        dailyBonusesClaimed: 0
+    }
+};
+
+Цей фронтенд являє собою складну модульну систему з чіткою архітектурою, надійною обробкою помилок та безпечною взаємодією з бекендом. Кожен модуль має свою відповідальність, але всі вони тісно інтегровані через центральний Store та координуються через integration.js.

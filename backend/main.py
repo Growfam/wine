@@ -418,7 +418,7 @@ def create_app(config_name=None):
         # Все одно налаштовуємо fallback маршрути
         setup_winix_routes(app)
 
-    # Реєструємо маршрути API
+    # 🎯 РЕЄСТРУЄМО МАРШРУТИ API (ВИПРАВЛЕНА ЛОГІКА)
     register_api_routes(app)
 
     # Реєструємо діагностичні маршрути
@@ -603,222 +603,238 @@ def add_health_check(app):
 
 
 def register_api_routes(app):
-    """Реєстрація всіх API маршрутів з детальним логуванням"""
-    # Функція для логування результату реєстрації маршрутів
+    """Реєстрація всіх API маршрутів з покращеною логікою"""
+
+    logger.info("🛣️ === РЕЄСТРАЦІЯ API МАРШРУТІВ (ПОКРАЩЕНА ВЕРСІЯ) ===")
+
     def log_registration_result(name, success, error=None):
         if success:
             logger.info(f"✅ Маршрути {name} успішно зареєстровано")
         else:
             logger.error(f"❌ Помилка реєстрації маршрутів {name}: {error}")
-            if error:
-                logger.error(traceback.format_exc())
 
-    logger.info("🛣️ === РЕЄСТРАЦІЯ API МАРШРУТІВ ===")
+    # Збираємо всі успішні реєстрації
+    registered_successfully = []
+    registration_errors = []
 
-    # 🔥 ВИПРАВЛЕННЯ РЕЄСТРАЦІЇ WINIX/QUESTS МАРШРУТІВ
+    # 🔥 1. ПРІОРИТЕТ: WINIX/QUESTS МАРШРУТИ
     try:
-        logger.info("🎯 === ПОЧАТОК РЕЄСТРАЦІЇ API МАРШРУТІВ ===")
+        logger.info("🎯 === ПОЧАТОК РЕЄСТРАЦІЇ WINIX/QUESTS МАРШРУТІВ ===")
 
-        # Спочатку намагаємося WINIX
-        winix_registered = False
-        if WINIX_QUESTS_AVAILABLE and winix:
+        # Спочатку перевіряємо доступність WINIX
+        if WINIX_QUESTS_AVAILABLE and winix and hasattr(winix, 'register_routes'):
             try:
-                logger.info("🔄 Спроба реєстрації через winix.register_routes...")
-                if hasattr(winix, 'register_routes'):
-                    success = winix.register_routes(app)
-                    logger.info(f"📊 winix.register_routes результат: {success}")
-                    if success:
-                        winix_registered = True
-                        logger.info("✅ WINIX маршрути зареєстровано через winix.register_routes")
-                    else:
-                        logger.warning("⚠️ winix.register_routes повернув False")
+                logger.info("🔄 Використовуємо winix.register_routes...")
+                success = winix.register_routes(app)
+                if success:
+                    registered_successfully.append("WINIX System (winix.register_routes)")
+                    logger.info("🎉 WINIX маршрути зареєстровано через winix.register_routes!")
                 else:
-                    logger.warning("⚠️ winix.register_routes метод відсутній")
-                    logger.info(f"📋 winix доступні методи: {[m for m in dir(winix) if not m.startswith('_')]}")
+                    raise Exception("winix.register_routes повернув False")
             except Exception as e:
-                logger.error(f"❌ Помилка winix.register_routes: {e}")
-                logger.error(traceback.format_exc())
+                logger.error(f"❌ winix.register_routes не спрацював: {e}")
+                raise e
+        else:
+            raise Exception("WINIX система недоступна або метод register_routes відсутній")
 
-        # Якщо WINIX не спрацював - використовуємо quests.routes
-        if not winix_registered:
-            logger.info("🔄 Fallback: використовуємо quests.routes...")
+    except Exception as winix_error:
+        logger.warning(f"⚠️ WINIX регістрація не спрацювала: {winix_error}")
+
+        # Fallback: Використовуємо quests.routes
+        try:
+            logger.info("🔄 Fallback: використовуємо quests.routes.register_quests_routes...")
+            from quests.routes import register_quests_routes
+
+            if register_quests_routes(app):
+                registered_successfully.append("Quests System (register_quests_routes)")
+                logger.info("✅ Quests маршрути зареєстровано через register_quests_routes!")
+            else:
+                raise Exception("register_quests_routes повернув False")
+
+        except Exception as quests_error:
+            logger.error(f"❌ quests.routes також не спрацював: {quests_error}")
+            registration_errors.append(f"WINIX/Quests: {quests_error}")
+
+            # Останній fallback: ручна реєстрація Blueprint'ів
             try:
-                from quests.routes import register_quests_routes
-                quests_success = register_quests_routes(app)
-                if quests_success:
-                    logger.info("✅ Quests маршрути зареєстровано через register_quests_routes")
-                    log_registration_result("WINIX/Quests (fallback)", True)
+                logger.info("🔄 Останній fallback: ручна реєстрація Blueprint'ів...")
+                routes_registered = register_quests_blueprints_manually(app)
+
+                if routes_registered > 0:
+                    registered_successfully.append(f"Quests Blueprints (manual, {routes_registered} шт.)")
+                    logger.info(f"✅ {routes_registered} Blueprint'ів зареєстровано вручну!")
                 else:
-                    logger.error("❌ register_quests_routes повернув False")
-                    log_registration_result("WINIX/Quests (fallback)", False, "register_quests_routes returned False")
-            except ImportError as e:
-                logger.error(f"❌ Не знайдено quests.routes: {e}")
+                    raise Exception("Жоден Blueprint не зареєстровано")
 
-                # Останній fallback - реєструємо маршрути вручну
-                logger.info("🔄 Останній fallback: ручна реєстрація...")
-                try:
-                    # Реєструємо кожен тип маршрутів окремо
-                    from quests.routes.auth_routes import register_auth_routes
-                    from quests.routes.user_routes import register_user_routes
-                    from quests.routes.daily_routes import register_daily_routes
-                    from quests.routes.flex_routes import register_flex_routes
-                    from quests.routes.tasks_routes import register_tasks_routes
-                    from quests.routes.transaction_routes import register_transaction_routes
-                    from quests.routes.verification_routes import register_verification_routes
-                    from quests.routes.wallet_routes import register_wallet_routes
+            except Exception as manual_error:
+                logger.error(f"❌ Ручна реєстрація також не спрацювала: {manual_error}")
+                registration_errors.append(f"Manual Blueprints: {manual_error}")
 
-                    # Реєструємо по черзі
-                    manual_results = []
-                    route_modules = [
-                        ("Auth", register_auth_routes),
-                        ("User", register_user_routes),
-                        ("Daily", register_daily_routes),
-                        ("Flex", register_flex_routes),
-                        ("Tasks", register_tasks_routes),
-                        ("Transactions", register_transaction_routes),
-                        ("Verification", register_verification_routes),
-                        ("Wallet", register_wallet_routes)
-                    ]
+    # 🔥 2. ОСНОВНІ СИСТЕМНІ МАРШРУТИ (з оригінального коду)
 
-                    for module_name, register_func in route_modules:
-                        try:
-                            result = register_func(app)
-                            manual_results.append(f"{module_name}: {'✅' if result else '❌'}")
-                            logger.info(f"{'✅' if result else '❌'} {module_name} маршрути: {result}")
-                        except Exception as e:
-                            manual_results.append(f"{module_name}: ❌ {str(e)}")
-                            logger.error(f"❌ {module_name} маршрути помилка: {e}")
-
-                    logger.info(f"📊 Ручна реєстрація результат: {' | '.join(manual_results)}")
-                    log_registration_result("WINIX/Quests (manual)", True, f"Manual registration: {len([r for r in manual_results if '✅' in r])}/{len(manual_results)} success")
-
-                except ImportError as e2:
-                    logger.error(f"❌ Критична помилка: не знайдено модулі routes: {e2}")
-                    log_registration_result("WINIX/Quests", False, f"No routes modules found: {e2}")
-            except Exception as e:
-                logger.error(f"❌ Помилка register_quests_routes: {e}")
-                logger.error(traceback.format_exc())
-                log_registration_result("WINIX/Quests (fallback)", False, str(e))
-
-        # Логуємо кількість зареєстрованих маршрутів
-        api_routes_count = 0
-        for rule in app.url_map.iter_rules():
-            if rule.rule.startswith('/api/'):
-                api_routes_count += 1
-
-        logger.info(f"📊 Загальна кількість API маршрутів: {api_routes_count}")
-
-        # Логуємо ключові маршрути для діагностики
-        key_routes = ['/api/auth/validate-telegram', '/api/user/', '/api/daily/', '/api/flex/', '/api/tasks/']
-        found_routes = []
-        for rule in app.url_map.iter_rules():
-            for key_route in key_routes:
-                if key_route in rule.rule:
-                    found_routes.append(f"{rule.rule} {list(rule.methods - {'HEAD', 'OPTIONS'})}")
-                    break
-
-        logger.info(f"🔍 Знайдені ключові API маршрути ({len(found_routes)}):")
-        for route in found_routes[:10]:  # Перші 10 для прикладу
-            logger.info(f"  📍 {route}")
-
-        if api_routes_count == 0:
-            logger.error("💥 КРИТИЧНА ПОМИЛКА: НІ ОДНОГО API МАРШРУТУ НЕ ЗАРЕЄСТРОВАНО!")
-
-    except Exception as e:
-        logger.error(f"💥 Критична помилка реєстрації маршрутів: {e}")
-        logger.error(traceback.format_exc())
-        log_registration_result("WINIX/Quests", False, f"Critical error: {e}")
-
-    # Решта маршрутів...
     # Реєстрація маршрутів розіграшів
     try:
         from raffles.routes import register_raffles_routes
-        success = register_raffles_routes(app)
-        log_registration_result("розіграшів", success)
+        if register_raffles_routes(app):
+            registered_successfully.append("Raffles")
+        else:
+            registration_errors.append("Raffles: returned False")
     except Exception as e:
-        log_registration_result("розіграшів", False, str(e))
+        registration_errors.append(f"Raffles: {e}")
 
-    # Реєстрація маршрутів авторизації
+    # Реєстрація маршрутів авторизації (оригінальних)
     try:
         from auth.routes import register_auth_routes
         register_auth_routes(app)
-        log_registration_result("авторизації", True)
+        registered_successfully.append("Auth (original)")
     except Exception as e:
-        log_registration_result("авторизації", False, str(e))
+        registration_errors.append(f"Auth (original): {e}")
 
-    # Реєстрація маршрутів користувачів
+    # Реєстрація маршрутів користувачів (оригінальних)
     try:
         from users.routes import register_user_routes
         register_user_routes(app)
-        log_registration_result("користувачів", True)
+        registered_successfully.append("Users (original)")
     except Exception as e:
-        log_registration_result("користувачів", False, str(e))
+        registration_errors.append(f"Users (original): {e}")
 
-    # Реєстрація маршрутів гаманця
+    # Реєстрація маршрутів гаманця (оригінальних)
     try:
         from wallet.routes import register_wallet_routes
         register_wallet_routes(app)
-        log_registration_result("гаманця", True)
+        registered_successfully.append("Wallet (original)")
     except Exception as e:
-        log_registration_result("гаманця", False, str(e))
+        registration_errors.append(f"Wallet (original): {e}")
 
     # Реєстрація маршрутів транзакцій
     try:
         from transactions.routes import register_transactions_routes
         register_transactions_routes(app)
-        log_registration_result("транзакцій", True)
+        registered_successfully.append("Transactions")
     except Exception as e:
-        log_registration_result("транзакцій", False, str(e))
+        registration_errors.append(f"Transactions: {e}")
 
     # Реєстрація маршрутів рефералів
     try:
         from referrals.routes import referrals_bp
         app.register_blueprint(referrals_bp, url_prefix='/api/referrals')
-        log_registration_result("рефералів", True)
+        registered_successfully.append("Referrals")
     except Exception as e:
-        log_registration_result("рефералів", False, str(e))
+        registration_errors.append(f"Referrals: {e}")
 
     # Реєстрація маршрутів бейджів та завдань
     try:
         from badges.routes import badges_bp
         app.register_blueprint(badges_bp, url_prefix='/api')
-        log_registration_result("бейджів та завдань", True)
+        registered_successfully.append("Badges")
     except Exception as e:
-        log_registration_result("бейджів та завдань", False, str(e))
+        registration_errors.append(f"Badges: {e}")
 
     # Реєстрація маршрутів адміністратора
     try:
         from admin.routes import register_admin_routes
         register_admin_routes(app)
-        log_registration_result("адміністратора", True)
+        registered_successfully.append("Admin")
     except Exception as e:
-        log_registration_result("адміністратора", False, str(e))
+        registration_errors.append(f"Admin: {e}")
 
     # Реєстрація маршрутів статистики
     try:
         from stats.routes import register_stats_routes
         register_stats_routes(app)
-        log_registration_result("статистики", True)
+        registered_successfully.append("Stats")
     except Exception as e:
-        log_registration_result("статистики", False, str(e))
-
-    logger.info("✅ Реєстрація API маршрутів завершена")
+        registration_errors.append(f"Stats: {e}")
 
     # Реєстрація маршрутів Telegram webhook
     try:
         from telegram_webhook import register_telegram_routes
         register_telegram_routes(app)
-        log_registration_result("Telegram webhook", True)
+        registered_successfully.append("Telegram Webhook")
     except Exception as e:
-        log_registration_result("Telegram webhook", False, str(e))
+        registration_errors.append(f"Telegram Webhook: {e}")
 
     # Реєстрація маршрутів Telegram API
     try:
         from telegram_api import register_telegram_api_routes
         register_telegram_api_routes(app)
-        log_registration_result("Telegram API", True)
+        registered_successfully.append("Telegram API")
     except Exception as e:
-        log_registration_result("Telegram API", False, str(e))
+        registration_errors.append(f"Telegram API: {e}")
+
+    # 📊 ПІДСУМОК РЕЄСТРАЦІЇ
+    logger.info("📊 === ПІДСУМОК РЕЄСТРАЦІЇ МАРШРУТІВ ===")
+    logger.info(f"✅ Успішно зареєстровано ({len(registered_successfully)}):")
+    for system in registered_successfully:
+        logger.info(f"   🟢 {system}")
+
+    if registration_errors:
+        logger.warning(f"❌ Помилки реєстрації ({len(registration_errors)}):")
+        for error in registration_errors:
+            logger.warning(f"   🔴 {error}")
+
+    # Рахуємо загальну кількість маршрутів
+    total_routes = len(list(app.url_map.iter_rules()))
+    api_routes = len([r for r in app.url_map.iter_rules() if r.rule.startswith('/api/')])
+
+    logger.info(f"📋 Загальна статистика маршрутів:")
+    logger.info(f"   📍 Всього маршрутів: {total_routes}")
+    logger.info(f"   🔗 API маршрутів: {api_routes}")
+    logger.info(f"   🎯 Системи зареєстровано: {len(registered_successfully)}/{len(registered_successfully) + len(registration_errors)}")
+
+    # Критична перевірка
+    if api_routes == 0:
+        logger.error("💥 КРИТИЧНА ПОМИЛКА: НІ ОДНОГО API МАРШРУТУ НЕ ЗАРЕЄСТРОВАНО!")
+        return False
+
+    if len(registered_successfully) == 0:
+        logger.error("💥 КРИТИЧНА ПОМИЛКА: НІ ОДНОЇ СИСТЕМИ НЕ ЗАРЕЄСТРОВАНО!")
+        return False
+
+    logger.info("🎉 Реєстрація API маршрутів завершена успішно!")
+    return True
+
+
+def register_quests_blueprints_manually(app):
+    """Ручна реєстрація всіх Blueprint'ів з quests системи"""
+    logger.info("🔧 === РУЧНА РЕЄСТРАЦІЯ QUESTS BLUEPRINT'ІВ ===")
+
+    registered_count = 0
+
+    # Список Blueprint'ів для реєстрації
+    blueprints_to_register = [
+        ('quests.routes.auth_routes', 'auth_bp', '/api/auth'),
+        ('quests.routes.user_routes', 'user_bp', '/api/user'),
+        ('quests.routes.daily_routes', 'daily_bp', '/api/daily'),
+        ('quests.routes.analytics_routes', 'analytics_bp', '/api/analytics'),
+        ('quests.routes.flex_routes', 'flex_bp', '/api/flex'),
+        ('quests.routes.tasks_routes', 'tasks_bp', '/api/tasks'),
+        ('quests.routes.transaction_routes', 'transaction_bp', '/api/transactions'),
+        ('quests.routes.verification_routes', 'verification_bp', '/api/verify'),
+        ('quests.routes.wallet_routes', 'wallet_bp', '/api/wallet')
+    ]
+
+    for module_name, blueprint_name, url_prefix in blueprints_to_register:
+        try:
+            logger.info(f"🔄 Реєструємо {module_name}.{blueprint_name}...")
+
+            # Імпортуємо модуль
+            module = __import__(module_name, fromlist=[blueprint_name])
+
+            # Отримуємо Blueprint
+            blueprint = getattr(module, blueprint_name)
+
+            # Реєструємо з префіксом
+            app.register_blueprint(blueprint, url_prefix=url_prefix)
+
+            logger.info(f"✅ {blueprint_name} зареєстровано з префіксом {url_prefix}")
+            registered_count += 1
+
+        except Exception as e:
+            logger.error(f"❌ Помилка реєстрації {module_name}.{blueprint_name}: {e}")
+
+    logger.info(f"📊 Ручна реєстрація завершена: {registered_count} Blueprint'ів")
+    return registered_count
 
 
 def register_utility_routes(app):
@@ -1467,9 +1483,6 @@ if __name__ == '__main__':
     if app is None:
         logger.critical("❌ Додаток не ініціалізовано!")
         exit(1)
-
-        for rule in app.url_map.iter_rules():
-            print(f"{rule.methods} {rule.rule} -> {rule.endpoint}")
 
     # Остання перевірка WINIX перед запуском
     if WINIX_QUESTS_AVAILABLE:
