@@ -1637,7 +1637,7 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
 
     # Безпечне отримання DEBUG
-    debug = getattr(app.config, 'DEBUG', True) if hasattr(app, 'config') else True
+    debug = False
 
 
     logger.info(f"🌟 Запуск WINIX застосунку на порту {port}, режим налагодження: {debug}")
