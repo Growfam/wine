@@ -367,6 +367,9 @@ def register_quests_blueprints_manually(app):
 # Викликаємо тільки безпечну діагностику при завантаженні модуля
 safe_diagnose_winix_import()
 
+# Збереження часу запуску для uptime
+start_time = time.time()
+
 # Перевірка валідності UUID
 def is_valid_uuid(uuid_string):
     """Перевіряє, чи є рядок валідним UUID"""
@@ -644,7 +647,12 @@ def create_app(config_name=None):
     @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
     @app.route('/<path:path>', methods=['OPTIONS'])
     def handle_options(path):
-        return '', 200
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Telegram-User-Id, Origin, Accept'
+        response.headers['Access-Control-Max-Age'] = '86400'
+        return response
 
     # Додаємо after_request обробник для JS файлів і CORS заголовків
     @app.after_request
@@ -653,10 +661,25 @@ def create_app(config_name=None):
         if request.path.endswith('.js'):
             response.headers['Content-Type'] = 'application/javascript'
 
-        # Налаштування заголовків CORS для всіх відповідей
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        # ВИПРАВЛЕНО: Налаштування заголовків CORS для всіх відповідей
+        origin = request.headers.get('Origin')
+        if origin:
+            # Дозволяємо запити з Telegram WebApp та інших довірених джерел
+            allowed_origins = [
+                'https://web.telegram.org',
+                'https://winixbot.com',
+                'https://www.winixbot.com'
+            ]
+
+            if any(origin.startswith(allowed) for allowed in allowed_origins) or 'localhost' in origin:
+                response.headers['Access-Control-Allow-Origin'] = origin
+            else:
+                response.headers['Access-Control-Allow-Origin'] = '*'
+        else:
+            response.headers['Access-Control-Allow-Origin'] = '*'
+
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Telegram-User-Id'
+        response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Telegram-User-Id, X-Telegram-Init-Data'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Max-Age'] = '86400'  # 24 години кешування preflight запитів
 
@@ -664,11 +687,17 @@ def create_app(config_name=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-XSS-Protection'] = '1; mode=block'
 
-        # ПОВНІСТЮ ВИДАЛЯЄМО X-Frame-Options для підтримки Telegram WebApp
-        # НЕ встановлюємо жодних X-Frame-Options заголовків
-
-        # Замість X-Frame-Options використовуємо Content-Security-Policy
-        response.headers['Content-Security-Policy'] = "frame-ancestors 'self' https://web.telegram.org https://telegram.org *"
+        # ВИПРАВЛЕНО: CSP заголовки тільки для HTML сторінок, не для API
+        if request.path.startswith('/api/'):
+            # Для API запитів не встановлюємо обмежувальні заголовки
+            pass
+        else:
+            # М'який CSP для Telegram WebApp
+            response.headers['Content-Security-Policy'] = (
+                "default-src 'self' 'unsafe-inline' 'unsafe-eval' *; "
+                "frame-ancestors 'self' https://web.telegram.org https://telegram.org *; "
+                "connect-src 'self' https: wss: *"
+            )
 
         # Налаштування кешування
         if request.path.startswith('/api/'):
@@ -712,15 +741,38 @@ def create_app(config_name=None):
 
 
 def setup_cors(app):
-    """Налаштування CORS для API"""
-    # Оновлена конфігурація CORS для кращої сумісності з реферальною системою
+    """ВИПРАВЛЕНО: Налаштування CORS для продакшн з підтримкою Telegram WebApp"""
+
+    # Дозволені origins для продакшн
+    allowed_origins = [
+        "https://web.telegram.org",  # Telegram WebApp
+        "https://winixbot.com",
+        "https://www.winixbot.com",
+        "https://localhost:*",
+        "http://localhost:*"
+    ]
+
+    # Для розробки додаємо wildcard
+    if os.environ.get('FLASK_ENV') == 'development':
+        allowed_origins.append("*")
+
     CORS(app,
-         resources={r"/*": {"origins": "*"}},
+         resources={r"/api/*": {"origins": allowed_origins}},
          supports_credentials=True,
          expose_headers=["Content-Type", "X-CSRFToken", "Authorization"],
-         allow_headers=["Content-Type", "X-Requested-With", "Authorization",
-                        "X-Telegram-User-Id", "Accept", "Origin", "Cache-Control"])
-    logger.info("✅ CORS налаштовано")
+         allow_headers=[
+             "Content-Type",
+             "X-Requested-With",
+             "Authorization",
+             "X-Telegram-User-Id",
+             "Accept",
+             "Origin",
+             "Cache-Control",
+             "X-Telegram-Bot-Api-Secret-Token",  # Для Telegram
+             "X-Telegram-Init-Data"  # Для Telegram WebApp
+         ])
+
+    logger.info("✅ CORS налаштовано з підтримкою Telegram WebApp для продакшн")
 
 
 def setup_request_handlers(app):
@@ -730,7 +782,10 @@ def setup_request_handlers(app):
     def log_request_info():
         # Зберігаємо час початку запиту
         g.start_time = time.time()
-        logger.info(f"📨 Отримано запит: {request.method} {request.path}")
+
+        # Логуємо тільки важливі запити, не всі
+        if request.path.startswith('/api/'):
+            logger.info(f"📨 API запит: {request.method} {request.path}")
 
         # 🎯 WINIX Analytics Middleware (безпечна версія)
         if WINIX_QUESTS_AVAILABLE and request.path.startswith('/api/'):
@@ -783,55 +838,106 @@ def setup_request_handlers(app):
 
     @app.after_request
     def log_response_info(response):
-        # Логуємо час виконання запиту
-        if hasattr(g, 'start_time'):
+        # Логуємо час виконання запиту тільки для API
+        if hasattr(g, 'start_time') and request.path.startswith('/api/'):
             execution_time = time.time() - g.start_time
-            logger.info(f"📤 Відповідь: {response.status_code} (час: {execution_time:.4f}s)")
+            if execution_time > 1.0:  # Логуємо тільки повільні запити
+                logger.warning(f"📤 Повільний запит: {response.status_code} {request.path} (час: {execution_time:.4f}s)")
         return response
 
 
 def add_health_check(app):
-    """Додає endpoint для перевірки стану API"""
+    """ВИПРАВЛЕНО: Додає endpoint для перевірки стану API з покращеною логікою"""
+
     @app.route('/api/health', methods=['GET'])
     def health_check():
-        """Перевірка стану API"""
-        health_data = {
+        """Покращений health check для продакшн"""
+        try:
+            health_data = {
+                "status": "ok",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "service": "WINIX API",
+                "version": "1.0.0",
+                "uptime": int(time.time() - start_time),
+                "winix_available": WINIX_QUESTS_AVAILABLE,
+                "initialization_result": initialization_result
+            }
+
+            # Додаємо інформацію про WINIX якщо доступний
+            if WINIX_QUESTS_AVAILABLE:
+                # Спробуємо відкладену ініціалізацію
+                lazy_initialize_winix()
+
+                if winix:
+                    try:
+                        if hasattr(winix, 'health_check'):
+                            winix_health = winix.health_check()
+                            health_data["winix"] = {
+                                "available": True,
+                                "components": {
+                                    name: status.get('loaded', False) if isinstance(status, dict) else status
+                                    for name, status in winix_health.get('components', {}).items()
+                                }
+                            }
+                        else:
+                            health_data["winix"] = {"available": True, "status": "basic"}
+                    except Exception as e:
+                        health_data["winix"] = {
+                            "available": False,
+                            "error": str(e)
+                        }
+                else:
+                    health_data["winix"] = {"available": False, "status": "not_initialized"}
+            else:
+                health_data["winix"] = {"available": False}
+
+            return jsonify(health_data)
+
+        except Exception as e:
+            logger.error(f"Health check error: {e}")
+            return jsonify({
+                "status": "error",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "service": "WINIX API",
+                "error": str(e)
+            }), 500
+
+    # Додаємо простий ping endpoint
+    @app.route('/api/ping', methods=['GET'])
+    def api_ping():
+        """Простий ping endpoint"""
+        return jsonify({
+            "status": "pong",
+            "timestamp": int(time.time()),
+            "server_time": datetime.now(timezone.utc).isoformat()
+        })
+
+    # Додаємо ultra-simple ping
+    @app.route('/ping', methods=['GET'])
+    def ultra_simple_ping():
+        """Ультра простий ping без JSON"""
+        return "pong"
+
+    # Додаємо CORS тест endpoint
+    @app.route('/api/cors-test', methods=['GET', 'OPTIONS'])
+    def cors_test():
+        """Тестовий endpoint для перевірки CORS"""
+        response_data = {
             "status": "ok",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "service": "WINIX API",
-            "winix_available": WINIX_QUESTS_AVAILABLE,
-            "initialization_result": initialization_result
+            "message": "CORS працює",
+            "origin": request.headers.get('Origin', 'no-origin'),
+            "user_agent": request.headers.get('User-Agent', 'no-user-agent')[:100],
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
-        # Додаємо інформацію про WINIX якщо доступний
-        if WINIX_QUESTS_AVAILABLE:
-            # Спробуємо відкладену ініціалізацію
-            lazy_initialize_winix()
+        response = jsonify(response_data)
 
-            if winix:
-                try:
-                    if hasattr(winix, 'health_check'):
-                        winix_health = winix.health_check()
-                        health_data["winix"] = {
-                            "available": True,
-                            "components": {
-                                name: status.get('loaded', False) if isinstance(status, dict) else status
-                                for name, status in winix_health.get('components', {}).items()
-                            }
-                        }
-                    else:
-                        health_data["winix"] = {"available": True, "status": "basic"}
-                except Exception as e:
-                    health_data["winix"] = {
-                        "available": False,
-                        "error": str(e)
-                    }
-            else:
-                health_data["winix"] = {"available": False, "status": "not_initialized"}
-        else:
-            health_data["winix"] = {"available": False}
+        # Додаємо CORS заголовки вручну
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Telegram-User-Id'
 
-        return jsonify(health_data)
+        return response
 
 
 def register_api_routes(app):
@@ -997,11 +1103,6 @@ def register_utility_routes(app):
         test_winix_integration = lambda: {"status": "error", "message": "Функція недоступна"}
         supabase = None
 
-    @app.route('/api/ping')
-    def ping():
-        """Найпростіший маршрут для перевірки стану додатка"""
-        return "pong"
-
     @app.route('/debug')
     def debug():
         """Діагностичний маршрут для перевірки конфігурації"""
@@ -1148,14 +1249,14 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
 
     # Безпечне отримання DEBUG
-    debug = getattr(app.config, 'DEBUG', True) if hasattr(app, 'config') else True
+    debug = getattr(app.config, 'DEBUG', False) if hasattr(app, 'config') else False
 
     logger.info(f"🌟 Запуск WINIX застосунку на порту {port}, режим налагодження: {debug}")
     logger.info("🎯 === ДІАГНОСТИЧНІ ENDPOINT'И ===")
-    logger.info("📋 /api/winix/diagnosis - повна діагностика WINIX")
-    logger.info("🔍 /api/winix/health - статус здоров'я WINIX")
-    logger.info("📊 /api/winix/info - інформація про WINIX")
-    logger.info("🧪 /api/winix/test - швидкий тест WINIX")
+    logger.info("📋 /api/health - головний health check")
+    logger.info("🔍 /api/ping - простий ping")
+    logger.info("🧪 /api/cors-test - тест CORS")
+    logger.info("📊 /api/winix/health - WINIX health check")
     logger.info("🔍 /debug - загальна діагностика системи")
 
     # Запуск сервера
