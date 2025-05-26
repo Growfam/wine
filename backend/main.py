@@ -644,11 +644,12 @@ def create_app(config_name=None):
         # Перевіряємо origin
         if origin in allowed_origins:
             response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
         else:
             # Для розробки можна дозволити всі origins, але БЕЗ credentials
             response.headers['Access-Control-Allow-Origin'] = '*'
-            # Видаляємо credentials для wildcard origin
-            response.headers.pop('Access-Control-Allow-Credentials', None)
+            # НЕ встановлюємо credentials для wildcard origin
+            # (просто не додаємо цей заголовок)
 
         # CORS заголовки
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
