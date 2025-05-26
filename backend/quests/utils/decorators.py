@@ -1,7 +1,7 @@
 """
 Декоратори для системи завдань WINIX
 JWT авторизація, валідація, rate limiting, безпека та інші утиліти
-Повна версія з покращеною безпекою та моніторингом
+Інтегровано з основною системою авторизації
 """
 
 import os
@@ -12,15 +12,15 @@ import functools
 import secrets
 import re
 import ipaddress
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, Callable, TypeVar
-from flask import request, jsonify, g
+from flask import request, jsonify, g, Response, make_response
 from collections import defaultdict, deque
 
 logger = logging.getLogger(__name__)
 
 # JWT налаштування
-JWT_SECRET = os.getenv('JWT_SECRET', 'winix-secure-jwt-secret-key-2025')
+JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key')
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION = int(os.getenv('JWT_EXPIRATION', '86400'))  # 24 години
 
@@ -232,22 +232,26 @@ def validate_csrf_token(token: str, session_token: str) -> bool:
 def generate_jwt_token(user_data: Dict[str, Any], expires_in: Optional[int] = None) -> str:
     """Генерація JWT токену з покращеною безпекою"""
     try:
-        from datetime import datetime, timezone, timedelta
-
-        now = datetime.now(timezone.utc)  # ✅ Сучасний спосіб
+        now = datetime.now(timezone.utc)
         exp_time = expires_in or JWT_EXPIRATION
 
         payload = {
-            'user_id': user_data.get('telegram_id'),
-            'username': user_data.get('username'),
+            'user_id': str(user_data.get('telegram_id', user_data.get('id'))),
+            'username': user_data.get('username', ''),
+            'first_name': user_data.get('first_name', ''),
+            'last_name': user_data.get('last_name', ''),
             'exp': now + timedelta(seconds=exp_time),
             'iat': now,
             'nbf': now,
-            # ...
+            'jti': secrets.token_urlsafe(16),  # JWT ID
+            'iss': 'winix-api',
+            'aud': 'winix-client',
+            'scope': user_data.get('scope', 'user'),
+            'ip': get_real_ip()
         }
 
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-        logger.info(f"Generated JWT token for user {user_data.get('telegram_id')}")
+        logger.info(f"Generated JWT token for user {payload['user_id']}")
         return token
     except Exception as e:
         logger.error(f"Error generating JWT token: {e}")
@@ -260,15 +264,15 @@ def decode_jwt_token(token: str, validate_ip: bool = True) -> Dict[str, Any]:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
         # Додаткові перевірки безпеки
-        if validate_ip and payload.get('ip') != get_real_ip():
+        if validate_ip and payload.get('ip') and payload.get('ip') != get_real_ip():
             logger.warning(f"JWT token IP mismatch: {payload.get('ip')} vs {get_real_ip()}")
-            raise AuthError("Токен використовується з іншого IP", 401)
+            # М'яка перевірка - тільки логуємо, не блокуємо
 
         if payload.get('aud') != 'winix-client':
-            raise AuthError("Невірний audience токену", 401)
+            logger.warning("Invalid audience in token")
 
         if payload.get('iss') != 'winix-api':
-            raise AuthError("Невірний issuer токену", 401)
+            logger.warning("Invalid issuer in token")
 
         return payload
     except jwt.ExpiredSignatureError:
@@ -284,16 +288,19 @@ def decode_jwt_token(token: str, validate_ip: bool = True) -> Dict[str, Any]:
 
 def get_auth_token_from_request() -> Optional[str]:
     """Отримання токену з запиту"""
+    # Authorization header
     auth_header = request.headers.get('Authorization')
     if auth_header and auth_header.startswith('Bearer '):
         token = auth_header[7:]
         if len(token) > 10 and '.' in token:
             return token
 
+    # X-Auth-Token header
     token = request.headers.get('X-Auth-Token')
     if token and len(token) > 10:
         return token
 
+    # Query parameter (тільки для development)
     if os.getenv('ENVIRONMENT') == 'development':
         token = request.args.get('token')
         if token and len(token) > 10:
@@ -306,12 +313,15 @@ def get_auth_token_from_request() -> Optional[str]:
 
 def security_headers(f: F) -> F:
     """Декоратор для додавання заголовків безпеки"""
-
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         response = f(*args, **kwargs)
 
-        if SECURITY_HEADERS_ENABLED and hasattr(response, 'headers'):
+        # Переконуємось що маємо Response об'єкт
+        if not isinstance(response, Response):
+            response = make_response(response)
+
+        if SECURITY_HEADERS_ENABLED:
             response.headers['X-Content-Type-Options'] = 'nosniff'
             response.headers['X-XSS-Protection'] = '1; mode=block'
             response.headers['X-Frame-Options'] = 'DENY'
@@ -322,44 +332,52 @@ def security_headers(f: F) -> F:
                 response.headers['Content-Security-Policy'] = "default-src 'none'; frame-ancestors 'none'"
 
         return response
-
     return decorated_function
 
 
 def block_suspicious_requests(f: F) -> F:
     """Декоратор для блокування підозрілих запитів"""
-
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         client_ip = get_real_ip()
         if not check_ip_reputation(client_ip):
             logger.warning(f"Blocked request from suspicious IP: {client_ip}")
-            raise SecurityError("Ваш IP заблоковано", 403, "ip_blocked")
+            return jsonify({
+                "status": "error",
+                "message": "Ваш IP заблоковано",
+                "code": "ip_blocked"
+            }), 403
 
         origin = request.headers.get('Origin')
         if origin and not validate_origin(origin):
             logger.warning(f"Blocked request with invalid origin: {origin}")
-            raise SecurityError("Невірний origin", 403, "invalid_origin")
+            return jsonify({
+                "status": "error",
+                "message": "Невірний origin",
+                "code": "invalid_origin"
+            }), 403
 
         user_agent = request.headers.get('User-Agent', '')
         if not user_agent or len(user_agent) < 10:
             logger.warning(f"Blocked request with suspicious User-Agent: {user_agent}")
-            raise SecurityError("Підозрілий User-Agent", 403, "suspicious_user_agent")
+            return jsonify({
+                "status": "error",
+                "message": "Підозрілий User-Agent",
+                "code": "suspicious_user_agent"
+            }), 403
 
         return f(*args, **kwargs)
-
     return decorated_function
 
 
 def validate_input_data(f: F) -> F:
     """Декоратор для валідації вхідних даних"""
-
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         if not INPUT_VALIDATION_ENABLED:
             return f(*args, **kwargs)
 
-        # Перевіряємо JSON тільки для методів, які можуть мати body
+        # Перевіряємо JSON тільки для методів з body
         if request.method in ['POST', 'PUT', 'PATCH'] and request.is_json:
             try:
                 data = request.get_json()
@@ -367,16 +385,23 @@ def validate_input_data(f: F) -> F:
                     _validate_json_data(data)
             except Exception as e:
                 logger.warning(f"Input validation failed: {str(e)}")
-                raise ValidationError("Невірні вхідні дані", 400)
+                return jsonify({
+                    "status": "error",
+                    "message": "Невірні вхідні дані",
+                    "code": "invalid_input"
+                }), 400
 
-        # Валідація параметрів запиту для всіх методів
+        # Валідація параметрів запиту
         for key, value in request.args.items():
             if detect_sql_injection(value) or detect_xss_attempt(value):
                 logger.warning(f"Malicious input detected in parameter {key}: {value}")
-                raise SecurityError("Виявлено підозрілі дані", 400, "malicious_input")
+                return jsonify({
+                    "status": "error",
+                    "message": "Виявлено підозрілі дані",
+                    "code": "malicious_input"
+                }), 400
 
         return f(*args, **kwargs)
-
     return decorated_function
 
 
@@ -399,9 +424,8 @@ def _validate_json_data(data: Any, path: str = ""):
 
 # === ДЕКОРАТОРИ АВТОРИЗАЦІЇ ===
 
-def require_auth(validate_ip: bool = True, require_fresh_token: bool = False):
+def require_auth(validate_ip: bool = False, require_fresh_token: bool = False):
     """Декоратор для обов'язкової авторизації"""
-
     def decorator(f: F) -> F:
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
@@ -417,6 +441,7 @@ def require_auth(validate_ip: bool = True, require_fresh_token: bool = False):
 
                 payload = decode_jwt_token(token, validate_ip=validate_ip)
 
+                # Перевірка свіжості токена
                 if require_fresh_token:
                     token_age = datetime.now(timezone.utc).timestamp() - payload.get('iat', 0)
                     if token_age > 300:  # 5 хвилин
@@ -427,9 +452,12 @@ def require_auth(validate_ip: bool = True, require_fresh_token: bool = False):
                             "code": "token_not_fresh"
                         }), 401
 
+                # Зберігаємо дані користувача
                 g.current_user = {
                     'telegram_id': payload.get('user_id'),
-                    'username': payload.get('username'),
+                    'username': payload.get('username', ''),
+                    'first_name': payload.get('first_name', ''),
+                    'last_name': payload.get('last_name', ''),
                     'token_exp': payload.get('exp'),
                     'token_iat': payload.get('iat'),
                     'token_jti': payload.get('jti'),
@@ -437,13 +465,20 @@ def require_auth(validate_ip: bool = True, require_fresh_token: bool = False):
                     'ip': payload.get('ip')
                 }
 
+                # Для сумісності зі старим кодом
+                request.telegram_user_id = g.current_user['telegram_id']
+                request.telegram_username = g.current_user['username']
+                request.telegram_user = g.current_user
+                request.current_user = g.current_user
+
+                # CSRF токен
                 if not hasattr(g, 'csrf_token'):
                     g.csrf_token = generate_csrf_token()
 
                 logger.debug(f"Authenticated user: {g.current_user['telegram_id']}")
                 return f(*args, **kwargs)
 
-            except (AuthError, SecurityError) as e:
+            except AuthError as e:
                 return jsonify({
                     "status": "error",
                     "message": e.message,
@@ -458,13 +493,17 @@ def require_auth(validate_ip: bool = True, require_fresh_token: bool = False):
                 }), 401
 
         return decorated_function
-
     return decorator
+
+
+# Аліаси для сумісності
+telegram_auth_required = require_auth
+auth_required = require_auth
+require_telegram_auth = require_auth
 
 
 def optional_auth(f: F) -> F:
     """Декоратор для опціональної авторизації"""
-
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         try:
@@ -474,11 +513,20 @@ def optional_auth(f: F) -> F:
                     payload = decode_jwt_token(token, validate_ip=False)
                     g.current_user = {
                         'telegram_id': payload.get('user_id'),
-                        'username': payload.get('username'),
+                        'username': payload.get('username', ''),
+                        'first_name': payload.get('first_name', ''),
+                        'last_name': payload.get('last_name', ''),
                         'token_exp': payload.get('exp'),
                         'token_iat': payload.get('iat'),
                         'scope': payload.get('scope', 'user')
                     }
+
+                    # Для сумісності
+                    request.telegram_user_id = g.current_user['telegram_id']
+                    request.telegram_username = g.current_user['username']
+                    request.telegram_user = g.current_user
+                    request.current_user = g.current_user
+
                     logger.debug(f"Optional auth: authenticated user {g.current_user['telegram_id']}")
                 except (AuthError, SecurityError):
                     g.current_user = None
@@ -497,7 +545,6 @@ def optional_auth(f: F) -> F:
 
 def validate_user_access(f: F) -> F:
     """Декоратор для перевірки доступу до ресурсу користувача"""
-
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         try:
@@ -508,6 +555,7 @@ def validate_user_access(f: F) -> F:
                     "code": "auth_required"
                 }), 401
 
+            # Отримуємо ID користувача з різних джерел
             user_id = kwargs.get('user_id') or kwargs.get('telegram_id')
             if not user_id:
                 user_id = request.view_args.get('user_id') or request.view_args.get('telegram_id')
@@ -522,9 +570,11 @@ def validate_user_access(f: F) -> F:
             current_user_id = str(g.current_user['telegram_id'])
             target_user_id = str(user_id)
 
+            # Адміни мають доступ до всього
             if g.current_user.get('scope') == 'admin':
                 return f(*args, **kwargs)
 
+            # Перевірка доступу
             if current_user_id != target_user_id:
                 logger.warning(f"User {current_user_id} tried to access {target_user_id}'s resource")
                 return jsonify({
@@ -550,7 +600,6 @@ def validate_user_access(f: F) -> F:
 
 def rate_limit(max_requests: int = 10, window_seconds: int = 60):
     """Декоратор для rate limiting"""
-
     def decorator(f: F) -> F:
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
@@ -558,6 +607,7 @@ def rate_limit(max_requests: int = 10, window_seconds: int = 60):
                 return f(*args, **kwargs)
 
             try:
+                # Визначаємо ключ для rate limiting
                 if hasattr(g, 'current_user') and g.current_user:
                     key = f"user_{g.current_user['telegram_id']}"
                 else:
@@ -566,10 +616,14 @@ def rate_limit(max_requests: int = 10, window_seconds: int = 60):
                 current_time = time.time()
                 window_start = current_time - window_seconds
 
+                # Отримуємо історію запитів
                 user_requests = rate_limit_storage[key]
+
+                # Видаляємо старі запити
                 while user_requests and user_requests[0] < window_start:
                     user_requests.popleft()
 
+                # Перевіряємо ліміт
                 if len(user_requests) >= max_requests:
                     retry_after = int(window_seconds - (current_time - user_requests[0]))
 
@@ -585,6 +639,7 @@ def rate_limit(max_requests: int = 10, window_seconds: int = 60):
                     response.headers['Retry-After'] = str(retry_after)
                     return response
 
+                # Додаємо поточний запит
                 user_requests.append(current_time)
                 return f(*args, **kwargs)
 
@@ -593,7 +648,6 @@ def rate_limit(max_requests: int = 10, window_seconds: int = 60):
                 return f(*args, **kwargs)
 
         return decorated_function
-
     return decorator
 
 
@@ -601,7 +655,6 @@ def rate_limit(max_requests: int = 10, window_seconds: int = 60):
 
 def validate_json(required_fields: list = None, optional_fields: list = None):
     """Декоратор для валідації JSON"""
-
     def decorator(f: F) -> F:
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
@@ -643,13 +696,11 @@ def validate_json(required_fields: list = None, optional_fields: list = None):
                 }), 400
 
         return decorated_function
-
     return decorator
 
 
 def validate_telegram_id(f: F) -> F:
     """Декоратор для валідації Telegram ID в URL"""
-
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         try:
@@ -697,7 +748,6 @@ def validate_telegram_id(f: F) -> F:
 
 def handle_errors(f: F) -> F:
     """Декоратор для обробки помилок"""
-
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         try:
@@ -737,7 +787,6 @@ def handle_errors(f: F) -> F:
 
 def log_requests(f: F) -> F:
     """Декоратор для логування запитів"""
-
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         start_time = time.time()
@@ -758,14 +807,14 @@ def log_requests(f: F) -> F:
                 status = f"status_{result.status_code}"
 
             logger.info(f"Request completed: {request.method} {request.path} "
-                        f"by {user_info} in {duration:.2f}ms [{status}]")
+                       f"by {user_info} in {duration:.2f}ms [{status}]")
 
             return result
         except Exception as e:
             end_time = time.time()
             duration = (end_time - start_time) * 1000
             logger.error(f"Request failed: {request.method} {request.path} "
-                         f"by {user_info} in {duration:.2f}ms [error: {str(e)}]")
+                        f"by {user_info} in {duration:.2f}ms [error: {str(e)}]")
             raise
 
     return decorated_function
@@ -776,7 +825,6 @@ def log_requests(f: F) -> F:
 def secure_endpoint(max_requests: int = 10, window_seconds: int = 60,
                    require_fresh_token: bool = False):
     """Комбінований декоратор для захищених endpoints"""
-
     def decorator(f: F) -> F:
         decorated = f
         decorated = handle_errors(decorated)
@@ -789,13 +837,11 @@ def secure_endpoint(max_requests: int = 10, window_seconds: int = 60,
         decorated = validate_telegram_id(decorated)
         decorated = validate_user_access(decorated)
         return decorated
-
     return decorator
 
 
 def public_endpoint(max_requests: int = 20, window_seconds: int = 60):
     """Комбінований декоратор для публічних endpoints"""
-
     def decorator(f: F) -> F:
         decorated = f
         decorated = handle_errors(decorated)
@@ -806,7 +852,6 @@ def public_endpoint(max_requests: int = 20, window_seconds: int = 60):
         decorated = rate_limit(max_requests, window_seconds)(decorated)
         decorated = optional_auth(decorated)
         return decorated
-
     return decorator
 
 
@@ -815,6 +860,17 @@ def public_endpoint(max_requests: int = 20, window_seconds: int = 60):
 def get_current_user() -> Optional[Dict[str, Any]]:
     """Отримання поточного користувача"""
     return getattr(g, 'current_user', None)
+
+
+def get_current_user_id() -> Optional[str]:
+    """Отримує ID поточного користувача"""
+    user = get_current_user()
+    return user.get('telegram_id') if user else None
+
+
+def extract_telegram_user():
+    """Допоміжна функція для отримання даних користувача з request"""
+    return getattr(request, 'telegram_user', getattr(g, 'current_user', None))
 
 
 def get_json_data() -> Optional[Dict[str, Any]]:
@@ -830,25 +886,53 @@ def clear_rate_limit_storage():
 
 # Експорт
 __all__ = [
+    # Основні декоратори авторизації
     'require_auth',
     'optional_auth',
+    'telegram_auth_required',  # для сумісності
+    'auth_required',           # для сумісності
+    'require_telegram_auth',   # для сумісності
+
+    # Декоратори безпеки та валідації
     'validate_user_access',
     'rate_limit',
     'validate_json',
     'validate_telegram_id',
     'handle_errors',
     'log_requests',
+    'security_headers',
+    'block_suspicious_requests',
+    'validate_input_data',
+
+    # Комбіновані декоратори
     'secure_endpoint',
     'public_endpoint',
+
+    # JWT функції
     'generate_jwt_token',
     'decode_jwt_token',
+
+    # Утиліти
     'get_current_user',
+    'get_current_user_id',
+    'extract_telegram_user',
     'get_json_data',
+    'get_auth_token_from_request',
+    'clear_rate_limit_storage',
+
+    # Функції безпеки
+    'sanitize_input',
+    'detect_sql_injection',
+    'detect_xss_attempt',
+    'get_real_ip',
+    'check_ip_reputation',
+    'validate_origin',
+    'generate_csrf_token',
+    'validate_csrf_token',
+
+    # Винятки
     'AuthError',
     'ValidationError',
     'SecurityError',
-    'clear_rate_limit_storage',
-    'security_headers',
-    'block_suspicious_requests',
-    'validate_input_data'
+    'RateLimitError'
 ]
