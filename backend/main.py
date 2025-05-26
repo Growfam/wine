@@ -97,20 +97,58 @@ def setup_request_handlers(app):
 
 
 def add_health_check(app):
-    """Додає endpoint для перевірки стану API"""
+    """Додає endpoint для перевірки стану API та Railway health check"""
+
+    @app.route('/health', methods=['GET', 'HEAD'])
+    def railway_health_check():
+        """Health check для Railway (корневий /health)"""
+        return "OK", 200
+
+    @app.route('/healthz', methods=['GET', 'HEAD'])
+    def kubernetes_health_check():
+        """Health check для Kubernetes"""
+        return "OK", 200
+
+    @app.route('/', methods=['GET'])
+    def root_health_check():
+        """Health check для кореневого шляху"""
+        try:
+            return jsonify({
+                "status": "ok",
+                "service": "WINIX API",
+                "version": "2.0.0",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "uptime": int(time.time() - start_time)
+            }), 200
+        except Exception:
+            return "OK", 200
 
     @app.route('/api/health', methods=['GET'])
-    def health_check():
-        """Health check для продакшн"""
+    def api_health_check():
+        """Health check для API"""
         try:
+            # Перевіряємо підключення до Supabase
+            try:
+                from supabase_client import supabase
+                # Простий запит для перевірки з'єднання
+                response = supabase.table("winix").select("telegram_id").limit(1).execute()
+                db_status = "ok" if response else "error"
+            except Exception as e:
+                logger.warning(f"DB health check failed: {e}")
+                db_status = "error"
+
             health_data = {
                 "status": "ok",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "service": "WINIX API",
                 "version": "2.0.0",
-                "uptime": int(time.time() - start_time)
+                "uptime": int(time.time() - start_time),
+                "components": {
+                    "database": db_status,
+                    "api": "ok"
+                }
             }
-            return jsonify(health_data)
+            return jsonify(health_data), 200
         except Exception as e:
             logger.error(f"Health check error: {e}")
             return jsonify({
@@ -127,12 +165,17 @@ def add_health_check(app):
             "status": "pong",
             "timestamp": int(time.time()),
             "server_time": datetime.now(timezone.utc).isoformat()
-        })
+        }), 200
 
     @app.route('/ping', methods=['GET'])
     def ultra_simple_ping():
         """Ультра простий ping без JSON"""
-        return "pong"
+        return "pong", 200
+
+    @app.route('/status', methods=['GET'])
+    def status_check():
+        """Статус сервера"""
+        return "RUNNING", 200
 
 
 def register_core_routes(app):
@@ -371,18 +414,40 @@ def register_error_handlers(app):
 def register_static_routes(app):
     """Реєстрація маршрутів для статичних файлів"""
 
-    @app.route('/')
-    def index():
-        """Головна сторінка"""
+    # Кореневий маршрут вже додано в add_health_check
+    # Тут додаємо інші статичні маршрути
+
+    @app.route('/favicon.ico')
+    def favicon():
+        """Favicon"""
         try:
-            return render_template('index.html')
-        except Exception as e:
-            logger.warning(f"Не вдалося завантажити index.html: {e}")
-            return jsonify({
-                "message": "WINIX Backend API працює",
-                "version": "2.0.0",
-                "endpoints": ["/api/health", "/api/ping", "/debug"]
-            })
+            return app.send_static_file('favicon.ico')
+        except Exception:
+            return '', 204
+
+    @app.route('/robots.txt')
+    def robots_txt():
+        """Robots.txt"""
+        return '''User-agent: *
+Disallow: /api/
+Allow: /''', 200, {'Content-Type': 'text/plain'}
+
+    # Статичні HTML файли
+    static_pages = ['index.html', 'earn.html', 'wallet.html', 'referrals.html',
+                   'staking.html', 'transactions.html', 'raffles.html']
+
+    for page in static_pages:
+        @app.route(f'/{page}')
+        def serve_static_page(page=page):
+            try:
+                return render_template(page)
+            except Exception as e:
+                logger.warning(f"Не вдалося завантажити {page}: {e}")
+                return jsonify({
+                    "message": f"WINIX - {page} не знайдено",
+                    "service": "WINIX Backend API",
+                    "version": "2.0.0"
+                }), 404
 
 
 def create_app():
@@ -529,19 +594,30 @@ if __name__ == '__main__':
         logger.critical("❌ Додаток не ініціалізовано!")
         exit(1)
 
-    # Визначення порту
+    # Визначення порту для Railway
     port = int(os.environ.get('PORT', 8080))
+    host = os.environ.get('HOST', '0.0.0.0')
 
     # Безпечне отримання DEBUG
     debug = getattr(app.config, 'DEBUG', False) if hasattr(app, 'config') else False
 
-    logger.info(f"🌟 Запуск WINIX застосунку на порту {port}, режим налагодження: {debug}")
+    # Для Railway вимкнемо debug в продакшн
+    if os.environ.get('RAILWAY_ENVIRONMENT'):
+        debug = False
+        logger.info("🚂 Railway environment detected, debug mode disabled")
+
+    logger.info(f"🌟 Запуск WINIX застосунку на {host}:{port}, режим налагодження: {debug}")
     logger.info("🎯 === ОСНОВНІ ENDPOINT'И ===")
-    logger.info("📋 /api/health - головний health check")
+    logger.info("📋 /health - Railway health check")
+    logger.info("📋 /api/health - детальний health check")
     logger.info("🔍 /api/ping - простий ping")
     logger.info("🔐 /api/auth - авторизація користувача")
     logger.info("👤 /api/user/<id> - дані користувача")
     logger.info("🔍 /debug - загальна діагностика системи")
 
-    # Запуск сервера
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    try:
+        # Запуск сервера з обробкою помилок
+        app.run(host=host, port=port, debug=debug, threaded=True)
+    except Exception as e:
+        logger.critical(f"💥 Критична помилка запуску сервера: {e}")
+        exit(1)
