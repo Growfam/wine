@@ -652,9 +652,10 @@
     </div>
 
     <!-- Завантаження скриптів у правильному порядку -->
-    <script src="./js/api.js"></script>
-    <script src="./js/auth.js"></script>
-    <script src="./js/core.js"></script>
+    <script src="./js/core/state.js"></script>
+    <script src="./js/core/api.js"></script>
+    <script src="./js/core/auth.js"></script>
+
 
     <!-- 1. Базові утиліти та константи (не мають залежностей) -->
     <script src="js/tasks/constants.js"></script>
@@ -705,6 +706,7 @@
         });
     </script>
     <script src="js/tasks/telegramValidator.js"></script>
+    <script src="./js/components/balance.js"></script>
 
     <!-- 4. API модуль (залежить від всіх попередніх) -->
     <script src="js/tasks/api.js"></script>
@@ -721,6 +723,7 @@
 
     <!-- 7. Фінальна інтеграція -->
     <script src="js/tasks/integration.js"></script>
+    <script src="js/app.js"></script>
 
     <!-- Базова ініціалізація -->
     <script>
