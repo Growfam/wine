@@ -692,9 +692,12 @@ def create_app(config_name=None):
             # Для API запитів не встановлюємо обмежувальні заголовки
             pass
         else:
-            # М'який CSP для Telegram WebApp
+            # ВИПРАВЛЕНО: М'який CSP для Telegram WebApp з підтримкою data: URL
             response.headers['Content-Security-Policy'] = (
                 "default-src 'self' 'unsafe-inline' 'unsafe-eval' *; "
+                "img-src 'self' data: https: http: *; "
+                "style-src 'self' 'unsafe-inline' *; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' *; "
                 "frame-ancestors 'self' https://web.telegram.org https://telegram.org *; "
                 "connect-src 'self' https: wss: *"
             )
