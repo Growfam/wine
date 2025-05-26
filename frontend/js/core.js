@@ -1,42 +1,47 @@
 /**
  * core.js - Базова функціональність WINIX
- * ВИПРАВЛЕНА ВЕРСІЯ БЕЗ undefined проблем та fallback плутанини
- * @version 5.0.0
+ * Версія без заглушок - тільки реальні дані з бекенду
+ * @version 3.0.0
  */
 
 (function() {
     'use strict';
 
-    console.log("🔄 Core: Ініціалізація ВИПРАВЛЕНОГО ядра WINIX");
+    console.log("🔄 Core: Ініціалізація ядра WINIX");
 
     // ======== ПРИВАТНІ ЗМІННІ ========
 
     // Дані користувача
     let _userData = null;
-    let _lastDataUpdate = 0;
 
     // Стан модуля
     const _state = {
         initialized: false,
-        apiReady: false,
-        authReady: false,
         refreshInterval: null,
         requestInProgress: false,
         lastRequestTime: 0,
-        errorCounter: 0
+        errorCounter: 0,
+        maxErrorsBeforeReset: 5,
+        apiStats: {
+            totalRequests: 0,
+            successfulRequests: 0,
+            failedRequests: 0
+        }
     };
 
     // Конфігурація
     const _config = {
-        minRequestInterval: 5000, // 5 секунд
+        minRequestInterval: 5000,
         autoRefreshInterval: 300000, // 5 хвилин
-        requestTimeout: 10000 // 10 секунд
+        requestTimeout: 15000,
+        maxRetries: 3,
+        retryInterval: 2000
     };
 
     // ======== УТИЛІТИ ========
 
     /**
-     * Отримання елемента DOM з перевіркою
+     * Отримання елемента DOM
      */
     function getElement(selector, multiple = false) {
         try {
@@ -48,7 +53,7 @@
             }
             return document.querySelector(selector);
         } catch (e) {
-            console.warn('⚠️ Core: Помилка отримання елемента DOM:', e);
+            console.warn('⚠️ Помилка отримання елемента DOM:', e);
             return null;
         }
     }
@@ -73,39 +78,10 @@
      */
     function hasApiModule() {
         try {
-            const hasModule = window.WinixAPI &&
-                   typeof window.WinixAPI.apiRequest === 'function' &&
-                   typeof window.WinixAPI.getUserId === 'function';
-
-            if (hasModule) {
-                _state.apiReady = true;
-            }
-
-            return hasModule;
+            return window.WinixAPI &&
+                   typeof window.WinixAPI.apiRequest === 'function';
         } catch (e) {
             console.warn("⚠️ Core: Помилка перевірки API модуля:", e);
-            _state.apiReady = false;
-            return false;
-        }
-    }
-
-    /**
-     * Перевірка наявності Auth модуля
-     */
-    function hasAuthModule() {
-        try {
-            const hasModule = window.WinixAuth &&
-                   typeof window.WinixAuth.getUserData === 'function' &&
-                   typeof window.WinixAuth.getTelegramUserId === 'function';
-
-            if (hasModule) {
-                _state.authReady = true;
-            }
-
-            return hasModule;
-        } catch (e) {
-            console.warn("⚠️ Core: Помилка перевірки Auth модуля:", e);
-            _state.authReady = false;
             return false;
         }
     }
@@ -114,17 +90,12 @@
      * Отримання Telegram User ID
      */
     function getTelegramUserId() {
-        // Використовуємо функцію з auth.js (пріоритет)
-        if (hasAuthModule() && window.WinixAuth.currentUserId) {
-            return window.WinixAuth.currentUserId;
+        // Використовуємо функцію з auth.js
+        if (window.WinixAuth && typeof window.WinixAuth.getTelegramUserId === 'function') {
+            return window.WinixAuth.getTelegramUserId();
         }
 
-        // Fallback до API модуля
-        if (hasApiModule() && typeof window.WinixAPI.getUserId === 'function') {
-            return window.WinixAPI.getUserId();
-        }
-
-        // Останній fallback - пряме звернення до Telegram
+        // Якщо auth.js ще не завантажений, пробуємо отримати напряму
         try {
             if (window.Telegram &&
                 window.Telegram.WebApp &&
@@ -135,14 +106,14 @@
                 return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
             }
         } catch (e) {
-            console.warn("⚠️ Core: Помилка отримання Telegram ID:", e);
+            console.error("⚠️ Core: Помилка отримання Telegram ID:", e);
         }
 
         return null;
     }
 
     /**
-     * Показати повідомлення про помилку
+     * Відображення повідомлення про помилку користувачу
      */
     function showErrorMessage(errorMessage, type = 'error') {
         const message = typeof errorMessage === 'string' ? errorMessage : 'Сталася помилка';
@@ -152,13 +123,22 @@
             return;
         }
 
-        console.log(`${type.toUpperCase()}: ${message}`);
+        if (window.DailyBonus && typeof window.DailyBonus.showNotification === 'function') {
+            window.DailyBonus.showNotification(message, type);
+            return;
+        }
+
+        if (type === 'error') {
+            alert(message);
+        } else {
+            console.log(`${type.toUpperCase()}: ${message}`);
+        }
     }
 
     // ======== API ФУНКЦІЇ ========
 
     /**
-     * ВИПРАВЛЕНЕ виконання API-запиту
+     * Виконання API-запиту з повторними спробами
      */
     async function executeApiRequest(endpoint, method = 'GET', data = null, options = {}) {
         if (!endpoint) {
@@ -170,99 +150,133 @@
         const telegramId = getTelegramUserId();
         if (!telegramId) {
             console.error("❌ Core: Немає Telegram ID для запиту");
-            throw new Error("Telegram ID не знайдено");
-        }
-
-        // Перевіряємо API модуль
-        if (!hasApiModule()) {
-            console.error("❌ Core: API модуль недоступний");
-            throw new Error("API модуль недоступний");
+            throw new Error('No Telegram ID');
         }
 
         const defaultOptions = {
             timeout: _config.requestTimeout,
-            ...options
+            retries: _config.maxRetries,
+            retryInterval: _config.retryInterval,
+            suppressErrors: false
         };
 
-        try {
-            console.log(`🔄 Core: Виконання запиту ${method} ${endpoint}`);
+        const requestOptions = { ...defaultOptions, ...options };
+        _state.apiStats.totalRequests++;
 
-            // Виконуємо запит через WinixAPI
-            const apiResult = await window.WinixAPI.apiRequest(endpoint, method, data, defaultOptions);
+        let lastError = null;
+        let attempt = 0;
 
-            if (!apiResult || apiResult.status === 'error') {
-                throw new Error(apiResult?.message || 'API request failed');
+        while (attempt < requestOptions.retries) {
+            attempt++;
+
+            try {
+                if (attempt > 1) {
+                    const delay = requestOptions.retryInterval * Math.pow(1.5, attempt - 1);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+
+                // Перевіряємо наявність API модуля
+                if (!hasApiModule()) {
+                    throw new Error('API module not available');
+                }
+
+                // Виконуємо запит через WinixAPI
+                const apiResult = await window.WinixAPI.apiRequest(endpoint, method, data, {
+                    timeout: requestOptions.timeout,
+                    suppressErrors: requestOptions.suppressErrors
+                });
+
+                if (apiResult.error) {
+                    throw new Error(apiResult.message || apiResult.error);
+                }
+
+                _state.apiStats.successfulRequests++;
+                _state.errorCounter = 0;
+
+                return apiResult;
+            } catch (error) {
+                lastError = error;
+                _state.apiStats.failedRequests++;
+                console.error(`❌ Core: Помилка при виконанні ${method} ${endpoint} (спроба ${attempt}/${requestOptions.retries}):`, error);
             }
-
-            console.log(`✅ Core: Запит ${method} ${endpoint} успішний`);
-            return apiResult;
-
-        } catch (error) {
-            console.error(`❌ Core: Помилка при виконанні ${method} ${endpoint}:`, error.message);
-            throw error;
         }
+
+        _state.errorCounter++;
+
+        if (_state.errorCounter >= _state.maxErrorsBeforeReset && !options.preventReset) {
+            console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), перезавантаження...`);
+            showErrorMessage('Виникли проблеми з підключенням. Перезавантаження...', 'warning');
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
+
+        if (requestOptions.suppressErrors) {
+            return {
+                status: 'error',
+                message: lastError?.message || 'Невідома помилка',
+                error: lastError
+            };
+        }
+
+        throw lastError;
     }
 
     // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
 
     /**
-     * ВИПРАВЛЕНЕ отримання даних користувача
+     * Отримання даних користувача
      */
     async function getUserData(forceRefresh = false) {
         try {
             console.log("🔄 Core: Запит даних користувача");
 
-            // Перевіряємо Auth модуль
-            if (!hasAuthModule()) {
-                console.error("❌ Core: Auth модуль недоступний");
-                throw new Error("Auth модуль недоступний");
-            }
-
             // Перевіряємо Telegram ID
             const telegramId = getTelegramUserId();
             if (!telegramId) {
                 console.error("❌ Core: Немає Telegram ID");
-                throw new Error("Telegram ID не знайдено");
+                return {};
             }
 
             const now = Date.now();
             if (!forceRefresh && (now - _state.lastRequestTime < _config.minRequestInterval)) {
-                console.log("⏳ Core: Частий запит даних користувача, використовуємо кеш");
-                return _userData || { telegram_id: telegramId, username: `User_${telegramId.slice(-4)}`, balance: 0, coins: 0 };
+                console.log("⏳ Core: Занадто частий запит даних користувача");
+                return _userData || {};
             }
 
             if (_state.requestInProgress && !forceRefresh) {
                 console.log("⏳ Core: Запит даних користувача вже виконується");
-                return _userData || { telegram_id: telegramId, username: `User_${telegramId.slice(-4)}`, balance: 0, coins: 0 };
+                return _userData || {};
             }
 
             _state.lastRequestTime = now;
             _state.requestInProgress = true;
 
-            // Отримуємо дані через Auth модуль
-            const userData = await window.WinixAuth.getUserData(forceRefresh);
+            const response = await executeApiRequest(`user/${telegramId}`, 'GET', null, {
+                suppressErrors: true
+            });
 
             _state.requestInProgress = false;
 
-            if (userData) {
-                _userData = userData;
-                _lastDataUpdate = now;
+            if (response && response.status === 'success' && response.data) {
+                _userData = response.data;
 
                 // Генеруємо подію оновлення
                 document.dispatchEvent(new CustomEvent('user-data-updated', {
-                    detail: { userData: _userData }
+                    detail: { userData: _userData },
+                    source: 'core.js'
                 }));
 
-                console.log("✅ Core: Дані користувача успішно отримано");
                 return _userData;
             } else {
-                throw new Error("Не вдалося отримати дані користувача");
+                console.error("❌ Core: Помилка отримання даних користувача", response);
+                return {};
             }
-
         } catch (error) {
-            console.error("❌ Core: Помилка в getUserData:", error);
+            console.error("❌ Core: Критична помилка в getUserData:", error);
             _state.requestInProgress = false;
-            throw error;
+            return {};
         }
     }
 
@@ -288,9 +302,9 @@
             }
 
             // Оновлюємо аватар
-            updateUserAvatar(userData.username || 'User');
+            updateUserAvatar(username);
         } catch (e) {
-            console.warn('⚠️ Core: Помилка оновлення відображення користувача:', e);
+            console.warn('⚠️ Помилка оновлення відображення користувача:', e);
         }
     }
 
@@ -303,10 +317,12 @@
             if (!avatarElement) return;
 
             username = username || _userData?.username || 'User';
+
+            // Показуємо першу літеру імені
             avatarElement.innerHTML = '';
             avatarElement.textContent = username[0].toUpperCase();
         } catch (e) {
-            console.warn('⚠️ Core: Помилка оновлення аватара:', e);
+            console.warn('⚠️ Помилка оновлення аватара:', e);
         }
     }
 
@@ -352,16 +368,16 @@
                 }
             }
         } catch (e) {
-            console.warn('⚠️ Core: Помилка оновлення відображення балансу:', e);
+            console.warn('⚠️ Помилка оновлення відображення балансу:', e);
         }
     }
 
     /**
-     * Оновлення локального балансу
+     * Оновлення локального балансу (тільки візуально, без збереження)
      */
     function updateLocalBalance(newBalance, source = 'unknown', animate = true) {
         if (typeof newBalance !== 'number' || isNaN(newBalance) || newBalance < 0) {
-            console.warn('⚠️ Core: Спроба встановити некоректний баланс:', newBalance);
+            console.warn('⚠️ Спроба встановити некоректний баланс:', newBalance);
             return false;
         }
 
@@ -400,20 +416,20 @@
                 detail: {
                     oldBalance: oldBalance,
                     newBalance: newBalance,
-                    source: source,
+                    source: source || 'core.js',
                     timestamp: Date.now()
                 }
             }));
 
             return true;
         } catch (e) {
-            console.warn('⚠️ Core: Помилка оновлення локального балансу:', e);
+            console.warn('⚠️ Помилка оновлення локального балансу:', e);
             return false;
         }
     }
 
     /**
-     * ВИПРАВЛЕНЕ оновлення балансу з сервера
+     * Оновлення балансу з сервера
      */
     async function refreshBalance(forceRefresh = false) {
         console.log("🔄 Core: Запит оновлення балансу");
@@ -422,16 +438,21 @@
         const telegramId = getTelegramUserId();
         if (!telegramId) {
             console.error("❌ Core: Немає Telegram ID для оновлення балансу");
-            throw new Error("Telegram ID не знайдено");
+            return {
+                success: false,
+                message: 'No Telegram ID'
+            };
         }
 
         // Перевірка на частоту запитів
         if (!forceRefresh && (Date.now() - _state.lastRequestTime < _config.minRequestInterval)) {
-            console.log("⏳ Core: Частий запит балансу");
+            console.log("⏳ Core: Занадто частий запит балансу");
             return {
                 success: true,
                 cached: true,
-                data: { coins: getCoins() }
+                data: {
+                    coins: getCoins()
+                }
             };
         }
 
@@ -440,7 +461,9 @@
             return {
                 success: true,
                 inProgress: true,
-                data: { coins: getCoins() }
+                data: {
+                    coins: getCoins()
+                }
             };
         }
 
@@ -450,8 +473,11 @@
         const oldBalance = getCoins();
 
         try {
-            // Використовуємо API модуль для отримання балансу
-            const response = await window.WinixAPI.getBalance();
+            const endpoint = `user/${telegramId}/balance?t=${Date.now()}`;
+            const response = await executeApiRequest(endpoint, 'GET', null, {
+                suppressErrors: true,
+                timeout: 10000
+            });
 
             _state.requestInProgress = false;
 
@@ -466,6 +492,8 @@
                     _userData.coins = newBalance;
                 }
 
+                _state.errorCounter = 0;
+
                 return {
                     success: true,
                     data: {
@@ -474,12 +502,26 @@
                     }
                 };
             } else {
-                throw new Error("Не вдалося отримати баланс");
+                throw new Error(response?.message || 'Не вдалося отримати баланс');
             }
         } catch (error) {
             console.error('❌ Core: Помилка оновлення балансу:', error);
             _state.requestInProgress = false;
-            throw error;
+            _state.errorCounter++;
+
+            if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
+                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок, перезавантаження...`);
+                showErrorMessage('Виникли проблеми з підключенням. Перезавантаження...', 'warning');
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+
+            return {
+                success: false,
+                message: error.message || 'Не вдалося оновити баланс'
+            };
         }
     }
 
@@ -523,14 +565,14 @@
                 }
             });
         } catch (e) {
-            console.warn('⚠️ Core: Помилка ініціалізації навігації:', e);
+            console.warn('⚠️ Помилка ініціалізації навігації:', e);
         }
     }
 
     // ======== СИНХРОНІЗАЦІЯ ДАНИХ ========
 
     /**
-     * ВИПРАВЛЕНА синхронізація даних користувача з сервером
+     * Синхронізація даних користувача з сервером
      */
     async function syncUserData(forceRefresh = false) {
         try {
@@ -544,13 +586,10 @@
             updateBalanceDisplay();
 
             // Генеруємо подію оновлення даних користувача
-            if (userData) {
-                document.dispatchEvent(new CustomEvent('user-data-updated', {
-                    detail: { userData }
-                }));
-            }
-
-            console.log('✅ Core: Синхронізація даних користувача завершена');
+            document.dispatchEvent(new CustomEvent('user-data-updated', {
+                detail: { userData },
+                source: 'core.js'
+            }));
 
             return {
                 success: true,
@@ -558,7 +597,14 @@
             };
         } catch (error) {
             console.error('❌ Core: Помилка синхронізації даних користувача:', error);
-            throw error;
+
+            showErrorMessage('Не вдалося синхронізувати дані', 'warning');
+
+            return {
+                success: false,
+                message: error.message || 'Не вдалося синхронізувати дані користувача',
+                error: error
+            };
         }
     }
 
@@ -573,9 +619,7 @@
 
         _state.refreshInterval = setInterval(async () => {
             try {
-                // Синхронізуємо тільки якщо немає активних запитів
-                if (Date.now() - _state.lastRequestTime >= _config.minRequestInterval &&
-                    !_state.requestInProgress) {
+                if (Date.now() - _state.lastRequestTime >= _config.minRequestInterval && !_state.requestInProgress) {
                     await syncUserData();
                 }
             } catch (e) {
@@ -600,7 +644,7 @@
     // ======== ІНІЦІАЛІЗАЦІЯ ========
 
     /**
-     * ВИПРАВЛЕНА ініціалізація ядра WINIX
+     * Ініціалізація ядра WINIX
      */
     async function init(options = {}) {
         try {
@@ -609,59 +653,32 @@
                 return true;
             }
 
-            console.log("🔄 Core: Початок ВИПРАВЛЕНОЇ ініціалізації ядра WINIX");
+            console.log("🔄 Core: Початок ініціалізації ядра WINIX");
 
             // Оновлюємо конфігурацію
             Object.assign(_config, options);
 
-            // Чекаємо готовності Auth модуля
-            let authWaitAttempts = 0;
-            const maxAuthWaitAttempts = 20; // 10 секунд
-
-            while (!hasAuthModule() && authWaitAttempts < maxAuthWaitAttempts) {
-                console.log(`⏳ Core: Чекаємо завантаження Auth модуля... (${authWaitAttempts + 1}/${maxAuthWaitAttempts})`);
-                await new Promise(resolve => setTimeout(resolve, 500));
-                authWaitAttempts++;
-            }
-
-            if (!hasAuthModule()) {
-                throw new Error("Auth модуль не завантажився");
-            }
-
-            console.log("✅ Core: Auth модуль готовий");
-
-            // Чекаємо готовності API модуля
-            let apiWaitAttempts = 0;
-            const maxApiWaitAttempts = 20; // 10 секунд
-
-            while (!hasApiModule() && apiWaitAttempts < maxApiWaitAttempts) {
-                console.log(`⏳ Core: Чекаємо завантаження API модуля... (${apiWaitAttempts + 1}/${maxApiWaitAttempts})`);
-                await new Promise(resolve => setTimeout(resolve, 500));
-                apiWaitAttempts++;
-            }
-
-            if (!hasApiModule()) {
-                throw new Error("API модуль не завантажився");
-            }
-
-            console.log("✅ Core: API модуль готовий");
-
             // Перевіряємо Telegram ID
             const telegramId = getTelegramUserId();
             if (!telegramId) {
-                throw new Error("Немає Telegram ID");
+                console.error("❌ Core: Немає Telegram ID, блокуємо ініціалізацію");
+                return false;
             }
 
-            console.log(`✅ Core: Telegram ID: ${telegramId}`);
+            // Ініціалізуємо Telegram WebApp
+            if (window.Telegram && window.Telegram.WebApp) {
+                try {
+                    window.Telegram.WebApp.ready();
+                    window.Telegram.WebApp.expand();
+                    console.log("✅ Core: Telegram WebApp успішно ініціалізовано");
+                } catch (e) {
+                    console.warn("⚠️ Core: Помилка ініціалізації Telegram WebApp:", e);
+                }
+            }
 
             // Отримуємо дані користувача
-            try {
-                await getUserData();
-                console.log("✅ Core: Дані користувача отримано");
-            } catch (error) {
-                console.warn("⚠️ Core: Не вдалося отримати дані користувача:", error);
-                // Продовжуємо ініціалізацію
-            }
+            await getUserData();
+            console.log("✅ Core: Дані користувача отримано");
 
             // Оновлюємо відображення
             updateUserDisplay();
@@ -676,7 +693,7 @@
             // Позначаємо, що ядро ініціалізовано
             _state.initialized = true;
 
-            console.log("✅ Core: ВИПРАВЛЕНЕ ядро WINIX успішно ініціалізовано");
+            console.log("✅ Core: Ядро WINIX успішно ініціалізовано");
 
             // Викликаємо подію ініціалізації
             document.dispatchEvent(new CustomEvent('winix-initialized'));
@@ -684,7 +701,10 @@
             return true;
         } catch (error) {
             console.error('❌ Core: Помилка ініціалізації ядра WINIX:', error);
-            throw error;
+
+            document.dispatchEvent(new CustomEvent('winix-initialization-error', { detail: error }));
+
+            return false;
         }
     }
 
@@ -695,27 +715,13 @@
         return _state.initialized;
     }
 
-    /**
-     * Отримати стан системи
-     */
-    function getSystemStatus() {
-        return {
-            initialized: _state.initialized,
-            apiReady: _state.apiReady,
-            authReady: _state.authReady,
-            errorCounter: _state.errorCounter,
-            lastDataUpdate: _lastDataUpdate
-        };
-    }
-
     // ======== ОБРОБНИКИ ПОДІЙ ========
 
     // Обробник події оновлення даних користувача
     document.addEventListener('user-data-updated', function(event) {
-        if (event.detail && event.detail.userData) {
+        if (event.detail && event.detail.userData && event.source !== 'core.js') {
             console.log("🔄 Core: Отримано подію оновлення даних користувача");
             _userData = event.detail.userData;
-            _lastDataUpdate = Date.now();
             updateUserDisplay();
             updateBalanceDisplay();
         }
@@ -723,22 +729,33 @@
 
     // Обробник події оновлення балансу
     document.addEventListener('balance-updated', function(event) {
-        if (event.detail && event.detail.newBalance !== undefined) {
+        if (event.detail && event.source !== 'core.js') {
             console.log("🔄 Core: Отримано подію оновлення балансу");
 
             if (!_userData) _userData = {};
-            _userData.coins = event.detail.newBalance;
+
+            if (event.detail.newBalance !== undefined) {
+                _userData.coins = event.detail.newBalance;
+            }
 
             updateBalanceDisplay();
         }
     });
 
-    // Обробник події готовності Auth
-    document.addEventListener('winix-auth-ready', function() {
-        console.log("🔄 Core: Auth модуль готовий, запускаємо ініціалізацію");
+    // Обробник події завантаження сторінки
+    window.addEventListener('load', function() {
         if (!_state.initialized) {
             init().catch(e => {
-                console.error("❌ Core: Помилка ініціалізації після Auth ready:", e);
+                console.error("❌ Core: Помилка ініціалізації:", e);
+            });
+        }
+    });
+
+    // Обробник події DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!_state.initialized) {
+            init().catch(e => {
+                console.error("❌ Core: Помилка ініціалізації:", e);
             });
         }
     });
@@ -747,9 +764,8 @@
 
     window.WinixCore = {
         // Метадані
-        version: '5.0.0',
+        version: '3.0.0',
         isInitialized: isInitialized,
-        getSystemStatus: getSystemStatus,
 
         // Утиліти
         getElement,
@@ -782,5 +798,5 @@
         getState: () => ({ ..._state })
     };
 
-    console.log("✅ Core: ВИПРАВЛЕНИЙ модуль успішно завантажено");
+    console.log("✅ Core: Модуль успішно завантажено");
 })();
