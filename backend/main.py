@@ -766,6 +766,7 @@ def setup_request_handlers(app):
 
 def add_health_check(app):
     """Додає endpoint для перевірки стану API"""
+
     @app.route('/api/health', methods=['GET'])
     def health_check():
         """Перевірка стану API"""
@@ -807,6 +808,7 @@ def add_health_check(app):
 
         return jsonify(health_data)
 
+    # Простий health check окремо
     @app.route('/health', methods=['GET'])
     def simple_health():
         return 'OK', 200
