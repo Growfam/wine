@@ -1,6 +1,6 @@
 /**
- * api-optimized.js - Швидкий і надійний API модуль для WINIX
- * Оптимізований для instant UI updates і smart caching
+ * api.js - Швидкий і надійний API модуль для WINIX
+ * ВИПРАВЛЕНА версія з усіма необхідними методами
  */
 
 class WinixAPI {
@@ -77,6 +77,96 @@ class WinixAPI {
             }
         );
     }
+
+    // ==================== ГОЛОВНІ API МЕТОДИ ====================
+
+    /**
+     * Основний метод для API запитів (потрібен для auth.js)
+     * @param {string} endpoint - API endpoint
+     * @param {string} method - HTTP метод
+     * @param {Object} data - Дані для відправки
+     * @param {Object} options - Додаткові опції
+     */
+    async apiRequest(endpoint, method = 'GET', data = null, options = {}) {
+        const config = {
+            method: method.toUpperCase(),
+            headers: { 'Content-Type': 'application/json' },
+            timeout: options.timeout || 10000,
+            cache: options.cache !== false,
+            optimistic: options.optimistic || false,
+            suppressErrors: options.suppressErrors || false,
+            ...options
+        };
+
+        // Додаємо body для POST/PUT запитів
+        if (data && ['POST', 'PUT', 'PATCH'].includes(config.method)) {
+            config.body = JSON.stringify(data);
+        }
+
+        // Очищаємо endpoint від зайвих слешів
+        const cleanEndpoint = endpoint.replace(/^\/+/, '').replace(/^api\/+/, '');
+
+        try {
+            const response = await this.request(cleanEndpoint, config);
+            return response;
+        } catch (error) {
+            if (!config.suppressErrors) {
+                console.error(`API Request Error [${method} ${endpoint}]:`, error);
+                window.WinixState?.emit('apiError', error);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Оновлення балансу (потрібен для state.js)
+     */
+    async refreshBalance() {
+        try {
+            const response = await this.getBalance();
+
+            if (response && response.status === 'success' && response.data) {
+                // Оновлюємо state
+                if (window.WinixState) {
+                    if (response.data.balance !== undefined) {
+                        window.WinixState.balance = response.data.balance;
+                    }
+                    if (response.data.coins !== undefined) {
+                        window.WinixState.coins = response.data.coins;
+                    }
+                }
+
+                // Оновлюємо localStorage
+                if (response.data.balance !== undefined) {
+                    localStorage.setItem('userTokens', response.data.balance.toString());
+                }
+                if (response.data.coins !== undefined) {
+                    localStorage.setItem('userCoins', response.data.coins.toString());
+                }
+            }
+
+            return response;
+        } catch (error) {
+            console.warn('Refresh balance failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Очищення кешу
+     */
+    clearCache() {
+        if (window.WinixState && window.WinixState.cache) {
+            window.WinixState.cache.clear();
+        }
+
+        // Очищаємо pending requests
+        this.pendingRequests.clear();
+
+        console.log('API cache cleared');
+    }
+
+    // ==================== ВНУТРІШНІ МЕТОДИ ====================
 
     // Smart request deduplication
     async request(endpoint, options = {}) {
@@ -316,24 +406,69 @@ class WinixAPI {
         return `${config.method}:${endpoint}:${JSON.stringify(config.body || {})}`;
     }
 
-    // Utility methods
-    getUserId() {
-        return window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() ||
-               localStorage.getItem('telegram_user_id');
+    // ==================== HIGH-LEVEL API МЕТОДИ ====================
+
+    /**
+     * Отримання даних користувача
+     */
+    async getUserData(forceRefresh = false) {
+        const userId = this.getUserId();
+        if (!userId) throw new Error('No user ID');
+
+        return this.apiRequest(`user/${userId}`, 'GET', null, {
+            cache: !forceRefresh,
+            cacheTTL: 300000 // 5 minutes
+        });
     }
 
-    getAuthToken() {
-        return localStorage.getItem('auth_token');
+    /**
+     * Отримання балансу
+     */
+    async getBalance() {
+        const userId = this.getUserId();
+        if (!userId) throw new Error('No user ID');
+
+        return this.apiRequest(`user/${userId}/balance`, 'GET', null, {
+            cache: true,
+            cacheTTL: 30000 // 30 seconds
+        });
     }
 
+    /**
+     * Оновлення балансу
+     */
+    async updateBalance(amount, operation = 'add') {
+        const userId = this.getUserId();
+        if (!userId) throw new Error('No user ID');
+
+        return this.apiRequest(`user/${userId}/balance`, 'POST', { amount, operation }, {
+            optimistic: true,
+            cache: false
+        });
+    }
+
+    /**
+     * Створення стейкінгу
+     */
+    async createStaking(amount, period) {
+        const userId = this.getUserId();
+        if (!userId) throw new Error('No user ID');
+
+        return this.apiRequest(`user/${userId}/staking`, 'POST', { stakingAmount: amount, period }, {
+            cache: false
+        });
+    }
+
+    /**
+     * Оновлення токена авторизації
+     */
     async refreshToken() {
         const userId = this.getUserId();
         if (!userId) throw new Error('No user ID for token refresh');
 
-        const response = await this.request('auth/refresh', {
-            method: 'POST',
-            body: { telegram_id: userId },
-            cache: false
+        const response = await this.apiRequest('auth/refresh-token', 'POST', { telegram_id: userId }, {
+            cache: false,
+            suppressErrors: true
         });
 
         if (response.status === 'success' && response.token) {
@@ -344,52 +479,31 @@ class WinixAPI {
         return response;
     }
 
+    /**
+     * Оновлення налаштувань користувача
+     */
+    async updateSettings(settings) {
+        const userId = this.getUserId();
+        if (!userId) throw new Error('No user ID');
+
+        return this.apiRequest(`user/${userId}/settings`, 'POST', settings, {
+            cache: false
+        });
+    }
+
+    // ==================== UTILITY МЕТОДИ ====================
+
+    getUserId() {
+        return window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() ||
+               localStorage.getItem('telegram_user_id');
+    }
+
+    getAuthToken() {
+        return localStorage.getItem('auth_token');
+    }
+
     async retry(config) {
         return this.executeRequest(config.endpoint, config);
-    }
-
-    // High-level API methods
-    async getUserData(forceRefresh = false) {
-        const userId = this.getUserId();
-        if (!userId) throw new Error('No user ID');
-
-        return this.request(`user/${userId}`, {
-            cache: !forceRefresh,
-            cacheTTL: 300000 // 5 minutes
-        });
-    }
-
-    async getBalance() {
-        const userId = this.getUserId();
-        if (!userId) throw new Error('No user ID');
-
-        return this.request(`user/${userId}/balance`, {
-            cache: true,
-            cacheTTL: 30000 // 30 seconds
-        });
-    }
-
-    async updateBalance(amount, operation = 'add') {
-        const userId = this.getUserId();
-        if (!userId) throw new Error('No user ID');
-
-        return this.request(`user/${userId}/balance`, {
-            method: 'POST',
-            body: { amount, operation },
-            optimistic: true,
-            cache: false
-        });
-    }
-
-    async createStaking(amount, period) {
-        const userId = this.getUserId();
-        if (!userId) throw new Error('No user ID');
-
-        return this.request(`user/${userId}/staking`, {
-            method: 'POST',
-            body: { stakingAmount: amount, period },
-            cache: false
-        });
     }
 
     // Performance monitoring
@@ -421,4 +535,4 @@ if (window.WinixState) {
     );
 }
 
-console.log('✅ WinixAPI: Оптимізований API модуль ініціалізовано');
+console.log('✅ WinixAPI: Виправлений API модуль ініціалізовано');

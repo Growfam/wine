@@ -1,7 +1,7 @@
 /**
  * app.js - Головний entry point для WINIX WebApp
- * Координує ініціалізацію всіх модулів та компонентів
- * @version 4.0.0
+ * ВИПРАВЛЕНА версія БЕЗ мок даних, тільки реальні дані з Telegram
+ * @version 4.1.0
  */
 
 class WinixApp {
@@ -41,7 +41,7 @@ class WinixApp {
             // 1. Setup error handling (найперше!)
             this.setupErrorHandling();
 
-            // 2. Initialize Telegram WebApp
+            // 2. Initialize Telegram WebApp (БЕЗ мок даних)
             await this.initTelegramWebApp();
 
             // 3. Initialize core modules (в правильному порядку)
@@ -91,7 +91,7 @@ class WinixApp {
     }
 
     /**
-     * Ініціалізація Telegram WebApp
+     * Ініціалізація Telegram WebApp (БЕЗ мок даних)
      */
     async initTelegramWebApp() {
         return new Promise((resolve) => {
@@ -119,69 +119,56 @@ class WinixApp {
 
                 console.log('✅ Telegram WebApp ініціалізовано');
 
-                // Get user data
+                // Get REAL user data (БЕЗ мок даних)
                 const userData = tg.initDataUnsafe?.user;
-                if (userData) {
+                if (userData && userData.id) {
+                    // Зберігаємо ТІЛЬКИ реальні дані
                     localStorage.setItem('telegram_user_id', userData.id.toString());
-                    localStorage.setItem('telegram_username', userData.username || 'User');
+                    if (userData.username) {
+                        localStorage.setItem('telegram_username', userData.username);
+                    }
+                    console.log(`📱 Реальний користувач Telegram: ${userData.id}`);
+                } else {
+                    console.error('❌ Відсутні дані користувача Telegram');
+                    // НЕ створюємо мок дані, блокуємо доступ
+                    this.blockAppAccess('Додаток доступний тільки через Telegram');
+                    return;
                 }
 
                 resolve();
             } else {
-                console.warn('⚠️ Telegram WebApp недоступний, використовуємо mock');
-                this.initTelegramMock();
+                console.error('❌ Telegram WebApp недоступний');
+                // БЕЗ мок даних - блокуємо доступ
+                this.blockAppAccess('Додаток не запущено через Telegram');
                 resolve();
             }
         });
     }
 
     /**
-     * Mock Telegram для development
+     * Блокування доступу до додатку
      */
-    initTelegramMock() {
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            window.Telegram = {
-                WebApp: {
-                    ready: () => console.log('📱 Mock Telegram ready'),
-                    expand: () => console.log('📱 Mock expand'),
-                    initDataUnsafe: {
-                        user: {
-                            id: 7066583465,
-                            username: 'testuser',
-                            first_name: 'Test',
-                            last_name: 'User'
-                        }
-                    },
-                    themeParams: {
-                        bg_color: '#1e2746',
-                        text_color: '#ffffff',
-                        hint_color: '#aaaaaa',
-                        link_color: '#4eb5f7',
-                        button_color: '#4eb5f7',
-                        button_text_color: '#ffffff'
-                    },
-                    MainButton: {
-                        text: '',
-                        color: '#4eb5f7',
-                        textColor: '#ffffff',
-                        isVisible: false,
-                        isActive: true,
-                        setText: function(text) { this.text = text; },
-                        onClick: function(callback) { this._callback = callback; },
-                        show: function() { this.isVisible = true; },
-                        hide: function() { this.isVisible = false; }
-                    },
-                    HapticFeedback: {
-                        impactOccurred: (style) => console.log(`📳 Haptic: ${style}`)
-                    },
-                    onEvent: (event, callback) => console.log(`📱 Event listener: ${event}`)
-                }
-            };
-
-            // Set mock user data
-            localStorage.setItem('telegram_user_id', '7066583465');
-            localStorage.setItem('telegram_username', 'testuser');
-        }
+    blockAppAccess(message) {
+        document.body.innerHTML = `
+            <div style="
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                background: #1e2746;
+                color: white;
+                text-align: center;
+                padding: 20px;
+                font-family: Arial, sans-serif;
+            ">
+                <h2>🚫 Доступ заборонено</h2>
+                <p>${message}</p>
+                <p style="margin-top: 20px; opacity: 0.7;">
+                    Будь ласка, відкрийте додаток через офіційний Telegram бот
+                </p>
+            </div>
+        `;
     }
 
     /**
@@ -223,23 +210,28 @@ class WinixApp {
         // Connect to state changes
         window.WinixState.on('stateChange', this.handleStateChange);
 
-        // Initialize with user data from Telegram
+        // Initialize with REAL user data from Telegram (БЕЗ мок даних)
         const userData = window.Telegram?.WebApp?.initDataUnsafe?.user;
-        if (userData) {
+        if (userData && userData.id) {
             window.WinixState.user = {
                 telegram_id: userData.id.toString(),
                 username: userData.username || userData.first_name || 'User',
                 first_name: userData.first_name,
                 last_name: userData.last_name
             };
+            console.log('👤 State ініціалізовано з реальними даними користувача');
+        } else {
+            console.warn('⚠️ Не вдалося отримати дані користувача для State');
         }
 
-        // Load cached data
-        const cachedCoins = localStorage.getItem('userCoins');
-        const cachedBalance = localStorage.getItem('userTokens');
+        // Load cached data ТІЛЬКИ якщо є користувач
+        if (window.WinixState.user) {
+            const cachedCoins = localStorage.getItem('userCoins');
+            const cachedBalance = localStorage.getItem('userTokens');
 
-        if (cachedCoins) window.WinixState.coins = parseInt(cachedCoins);
-        if (cachedBalance) window.WinixState.balance = parseFloat(cachedBalance);
+            if (cachedCoins) window.WinixState.coins = parseInt(cachedCoins);
+            if (cachedBalance) window.WinixState.balance = parseFloat(cachedBalance);
+        }
 
         return Promise.resolve();
     }
@@ -252,7 +244,7 @@ class WinixApp {
             throw new Error('WinixAPI не знайдено. Перевірте завантаження api.js');
         }
 
-        // Test API connectivity
+        // Test API connectivity ТІЛЬКИ з реальними даними
         try {
             const userId = window.WinixState?.user?.telegram_id;
             if (userId) {
@@ -266,11 +258,14 @@ class WinixApp {
                     if (userData.data.balance !== undefined) {
                         window.WinixState.balance = userData.data.balance;
                     }
+                    console.log('📊 Дані користувача синхронізовано з сервером');
                 }
+            } else {
+                console.warn('⚠️ Немає ID користувача для API запитів');
             }
         } catch (error) {
             console.warn('⚠️ Не вдалося завантажити початкові дані користувача:', error);
-            // Не критична помилка - працюємо з кешованими даними
+            // Не критична помилка - працюємо з локальними даними
         }
 
         return Promise.resolve();
@@ -485,8 +480,10 @@ class WinixApp {
             window.WinixRouter.init();
         }
 
-        // Setup periodic background sync
-        this.setupBackgroundSync();
+        // Setup periodic background sync (ТІЛЬКИ якщо є користувач)
+        if (window.WinixState?.user?.telegram_id) {
+            this.setupBackgroundSync();
+        }
 
         console.log('✅ Фінальні налаштування завершено');
     }
@@ -495,11 +492,11 @@ class WinixApp {
      * Налаштування фонової синхронізації
      */
     setupBackgroundSync() {
-        // Sync every 5 minutes when app is active
+        // Sync every 5 minutes when app is active (ТІЛЬКИ з реальними даними)
         setInterval(async () => {
-            if (!document.hidden && window.WinixState?.connected) {
+            if (!document.hidden && window.WinixState?.connected && window.WinixState?.user?.telegram_id) {
                 try {
-                    await window.WinixAPI?.getBalance();
+                    await window.WinixAPI?.refreshBalance();
                 } catch (error) {
                     console.warn('⚠️ Background sync failed:', error);
                 }
@@ -545,8 +542,8 @@ class WinixApp {
     }
 
     handleAppVisible() {
-        // Refresh data when app becomes visible
-        if (Date.now() - this.lastRefresh > 60000) { // 1 minute
+        // Refresh data when app becomes visible (ТІЛЬКИ якщо є користувач)
+        if (window.WinixState?.user?.telegram_id && Date.now() - this.lastRefresh > 60000) { // 1 minute
             this.refreshData();
             this.lastRefresh = Date.now();
         }
@@ -570,6 +567,9 @@ class WinixApp {
             ">
                 <h2>❌ Помилка завантаження</h2>
                 <p>Не вдалося ініціалізувати додаток</p>
+                <p style="opacity: 0.7; margin-top: 10px;">
+                    Спробуйте перезапустити додаток через Telegram
+                </p>
                 <button onclick="window.location.reload()" style="
                     margin-top: 20px;
                     padding: 12px 24px;
@@ -578,7 +578,7 @@ class WinixApp {
                     border: none;
                     border-radius: 8px;
                     cursor: pointer;
-                ">Оновити сторінку</button>
+                ">Перезавантажити</button>
             </div>
         `;
     }
@@ -631,8 +631,8 @@ class WinixApp {
 
     async refreshData() {
         try {
-            if (window.WinixAPI && window.WinixState?.connected) {
-                await window.WinixAPI.getBalance();
+            if (window.WinixAPI && window.WinixState?.connected && window.WinixState?.user?.telegram_id) {
+                await window.WinixAPI.refreshBalance();
             }
         } catch (error) {
             console.warn('⚠️ Data refresh failed:', error);
@@ -640,12 +640,12 @@ class WinixApp {
     }
 
     initSettingsPage() {
-        // Settings page specific logic
+        // Settings page specific logic (БЕЗ мок даних)
         console.log('⚙️ Settings page ініціалізовано');
     }
 
     initWalletPage() {
-        // Wallet page specific logic
+        // Wallet page specific logic (БЕЗ мок даних)
         console.log('💰 Wallet page ініціалізовано');
     }
 
@@ -694,4 +694,4 @@ if (document.readyState === 'loading') {
 // Export global
 window.WinixApp = winixApp;
 
-console.log('✅ app.js: Готовий до ініціалізації');
+console.log('✅ app.js: Готовий до ініціалізації (БЕЗ мок даних)');

@@ -1,6 +1,6 @@
 """
 Модуль контролерів для роботи з користувачами WINIX.
-ВИПРАВЛЕНА версія БЕЗ fallback плутанини та з правильною обробкою помилок.
+ВИПРАВЛЕНА версія з правильними назвами функцій для синхронізації з frontend.
 """
 
 import logging
@@ -209,6 +209,7 @@ def get_cached_user_data(key_prefix, telegram_id):
 def get_user_info(telegram_id):
     """
     Отримання базової інформації користувача БЕЗ fallback механізмів
+    ВИПРАВЛЕНА назва функції для синхронізації з auth/controllers.py
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -244,6 +245,7 @@ def get_user_info(telegram_id):
 def create_new_user(telegram_id, username, referrer_id=None):
     """
     Створення нового користувача БЕЗ fallback механізмів
+    ВИПРАВЛЕНА назва функції для синхронізації з auth/controllers.py
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -314,6 +316,7 @@ def create_new_user(telegram_id, username, referrer_id=None):
 def get_user_profile(telegram_id):
     """
     Отримання повного профілю користувача
+    ВИПРАВЛЕНА для кращої сумісності з frontend API
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -431,6 +434,7 @@ def get_user_profile(telegram_id):
 def get_user_balance(telegram_id):
     """
     Отримання балансу користувача
+    ВИПРАВЛЕНА для повернення формату, що очікується frontend API
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -496,6 +500,7 @@ def get_user_balance(telegram_id):
 def update_user_balance(telegram_id, data):
     """
     Оновлення балансу користувача
+    ВИПРАВЛЕНА для правильної обробки різних типів операцій
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -508,14 +513,46 @@ def update_user_balance(telegram_id, data):
         # Валідація вхідних даних
         telegram_id = validate_telegram_id(telegram_id)
 
-        if not isinstance(data, dict) or 'balance' not in data:
+        if not isinstance(data, dict):
             return jsonify({
                 "status": "error",
-                "message": "Відсутні дані балансу",
-                "code": "missing_balance_data"
+                "message": "Відсутні дані для оновлення",
+                "code": "missing_data"
             }), 400
 
-        new_balance = validate_balance(data['balance'])
+        # Обробляємо різні формати даних
+        if 'balance' in data:
+            # Прямий update балансу
+            new_balance = validate_balance(data['balance'])
+            operation = 'set'
+        elif 'amount' in data:
+            # Операція з сумою (add/subtract)
+            amount = validate_balance(data['amount'])
+            operation = data.get('operation', 'add')
+
+            # Отримуємо поточний баланс
+            user = get_user_info(telegram_id)
+            if not user:
+                return jsonify({
+                    "status": "error",
+                    "message": "Користувач не знайдений",
+                    "code": "user_not_found"
+                }), 404
+
+            current_balance = float(user.get("balance", 0))
+
+            if operation == 'add':
+                new_balance = current_balance + amount
+            elif operation == 'subtract':
+                new_balance = max(0, current_balance - amount)  # Не дозволяємо від'ємний баланс
+            else:
+                new_balance = amount
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Відсутні дані балансу або суми",
+                "code": "missing_balance_data"
+            }), 400
 
         # Перевіряємо існування користувача
         user = get_user_info(telegram_id)
@@ -545,7 +582,7 @@ def update_user_balance(telegram_id, data):
                     "telegram_id": telegram_id,
                     "type": "manual_update",
                     "amount": new_balance - float(user.get("balance", 0)),
-                    "description": "Ручне оновлення балансу",
+                    "description": f"Ручне оновлення балансу ({operation})",
                     "status": "completed",
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
@@ -553,7 +590,13 @@ def update_user_balance(telegram_id, data):
         except Exception as e:
             logger.warning(f"Помилка створення запису транзакції: {str(e)}")
 
-        return jsonify({"status": "success", "data": {"balance": new_balance}})
+        return jsonify({
+            "status": "success",
+            "data": {
+                "balance": new_balance,
+                "operation": operation
+            }
+        })
 
     except ValueError as e:
         logger.warning(f"Валідаційна помилка в update_user_balance: {str(e)}")
@@ -579,6 +622,113 @@ def update_user_balance(telegram_id, data):
             "code": "internal_error"
         }), 500
 
+
+# ДОДАТКОВІ ФУНКЦІЇ ДЛЯ FRONTEND API
+
+def get_user_data_for_api(telegram_id, force_refresh=False):
+    """
+    Отримання даних користувача спеціально для API запитів
+    Використовується в WinixAPI.getUserData()
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        force_refresh (bool): Примусове оновлення
+
+    Returns:
+        dict: Дані користувача в форматі для API
+    """
+    try:
+        telegram_id = validate_telegram_id(telegram_id)
+
+        # Якщо не примусове оновлення, перевіряємо кеш
+        if not force_refresh:
+            cached_data = get_cached_user_data("api_data", telegram_id)
+            if cached_data:
+                return cached_data
+
+        user = get_user_info(telegram_id)
+        if not user:
+            return None
+
+        # Формуємо дані в форматі очікуваному frontend
+        api_data = {
+            "telegram_id": user["telegram_id"],
+            "username": user.get("username", "WINIX User"),
+            "balance": float(user.get("balance", 0)),
+            "coins": int(user.get("coins", 0)),
+            "is_active": user.get("is_active", True),
+            "created_at": user.get("created_at"),
+            "last_login": user.get("last_login")
+        }
+
+        # Кешуємо результат
+        cache_user_data("api_data", telegram_id, api_data, USER_CACHE_TTL)
+
+        return api_data
+
+    except Exception as e:
+        logger.error(f"Помилка в get_user_data_for_api: {str(e)}")
+        return None
+
+
+def update_user_settings(telegram_id, settings):
+    """
+    Оновлення налаштувань користувача
+    Використовується в WinixAPI.updateSettings()
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        settings (dict): Налаштування для оновлення
+
+    Returns:
+        dict: Результат операції
+    """
+    try:
+        telegram_id = validate_telegram_id(telegram_id)
+
+        if not isinstance(settings, dict):
+            raise ValueError("Settings мають бути словником")
+
+        # Дозволені налаштування
+        allowed_settings = [
+            'notifications_enabled', 'language', 'theme',
+            'privacy_level', 'email_notifications'
+        ]
+
+        # Фільтруємо тільки дозволені налаштування
+        filtered_settings = {
+            key: value for key, value in settings.items()
+            if key in allowed_settings
+        }
+
+        if not filtered_settings:
+            raise ValueError("Немає валідних налаштувань для оновлення")
+
+        # Оновлюємо в базі даних
+        result = update_user(telegram_id, filtered_settings)
+
+        if result:
+            # Інвалідуємо кеш
+            cache_user_data("profile", telegram_id, None, 0)
+            cache_user_data("api_data", telegram_id, None, 0)
+
+            return {
+                "status": "success",
+                "message": "Налаштування оновлено",
+                "updated_settings": filtered_settings
+            }
+        else:
+            raise ConnectionError("Не вдалося оновити налаштування")
+
+    except Exception as e:
+        logger.error(f"Помилка в update_user_settings: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+# ФУНКЦІЇ ДОДАТКОВІ (залишаємо з оригіналу)
 
 def claim_badge_reward(telegram_id, data):
     """
@@ -801,6 +951,8 @@ __all__ = [
     'get_user_profile',
     'get_user_balance',
     'update_user_balance',
+    'get_user_data_for_api',
+    'update_user_settings',
     'claim_badge_reward',
     'claim_newbie_bonus',
     'validate_telegram_id',
