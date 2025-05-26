@@ -1,13 +1,16 @@
 """
 Модуль контролерів для роботи з користувачами WINIX.
-ВИПРАВЛЕНА версія з правильними назвами функцій для синхронізації з frontend.
+Покращена версія з оптимізованою структурою, обробкою помилок
+та централізованими функціями для роботи з даними користувачів.
 """
 
 import logging
 import os
 import sys
-import re
+import random
+import string
 from datetime import datetime, timezone
+import uuid
 from functools import wraps
 from flask import jsonify, request
 
@@ -23,36 +26,61 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
-# Імпорти Supabase (обов'язкові)
 try:
+    # Імпорт клієнта Supabase та утиліт
     from supabase_client import (
         get_user, create_user, update_user, update_balance, update_coins,
         check_and_update_badges, cache_get, cache_set, supabase, invalidate_cache_for_entity
     )
-    SUPABASE_AVAILABLE = True
-    logger.info("✅ Supabase client та утиліти завантажено")
 except ImportError as e:
-    logger.error(f"❌ КРИТИЧНА ПОМИЛКА: Supabase client недоступний: {e}")
-    raise ImportError("Supabase client є обов'язковим для роботи системи")
+    logger.critical(f"Критична помилка імпорту: {str(e)}")
+    raise
 
-# ====== КОНСТАНТИ ======
-
-# Regex для валідації
-USER_ID_PATTERN = re.compile(r'^\d{1,12}$')
+# ====== КЕШУВАННЯ ТА КОНСТАНТИ ======
 
 # Константи для кешування
 USER_CACHE_TTL = 300  # 5 хвилин для кешу користувача
 PROFILE_CACHE_TTL = 180  # 3 хвилини для кешу профілю
 BALANCE_CACHE_TTL = 120  # 2 хвилини для кешу балансу
 
-# ====== ВАЛІДАЦІЯ ======
+
+# ====== ДОПОМІЖНІ ФУНКЦІЇ ======
+
+def handle_exceptions(f):
+    """
+    Декоратор для уніфікованої обробки винятків у контролерах.
+    Перехоплює винятки та повертає відповідні HTTP-відповіді.
+    """
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except ValueError as e:
+            logger.warning(f"Помилка валідації даних у {f.__name__}: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": str(e),
+                "code": "validation_error"
+            }), 400
+        except Exception as e:
+            logger.error(f"Помилка у {f.__name__}: {str(e)}", exc_info=True)
+            return jsonify({
+                "status": "error",
+                "message": "Сталася помилка на сервері. Спробуйте пізніше.",
+                "code": "server_error",
+                "details": str(e) if os.getenv("DEBUG") == "true" else None
+            }), 500
+
+    return wrapper
+
 
 def validate_telegram_id(telegram_id):
     """
-    СТРОГА валідація Telegram ID користувача
+    Валідація Telegram ID користувача.
 
     Args:
-        telegram_id: Telegram ID для перевірки
+        telegram_id (str): Telegram ID для перевірки
 
     Returns:
         str: Коректний Telegram ID
@@ -60,263 +88,141 @@ def validate_telegram_id(telegram_id):
     Raises:
         ValueError: Якщо ID невалідний
     """
-    if telegram_id is None:
-        raise ValueError("Telegram ID не може бути None")
+    if not telegram_id:
+        raise ValueError("ID користувача не вказано")
 
-    # Конвертуємо в строку та очищуємо
+    # Переконуємося, що ID - це рядок
     telegram_id = str(telegram_id).strip()
 
-    if not telegram_id:
-        raise ValueError("Telegram ID не може бути порожнім")
-
-    # Перевіряємо на заборонені значення
-    forbidden_values = {'undefined', 'null', 'none', '0', ''}
-    if telegram_id.lower() in forbidden_values:
-        raise ValueError(f"Недозволене значення Telegram ID: {telegram_id}")
-
-    # Перевіряємо формат
-    if not USER_ID_PATTERN.match(telegram_id):
+    # Перевірка на валідність ID
+    if not telegram_id.isdigit() and not telegram_id.startswith("-100"):
         raise ValueError(f"Невалідний формат Telegram ID: {telegram_id}")
-
-    try:
-        telegram_id_int = int(telegram_id)
-        if telegram_id_int <= 0:
-            raise ValueError("Telegram ID має бути додатним числом")
-        if telegram_id_int > 999999999999:
-            raise ValueError("Telegram ID занадто великий")
-    except ValueError as e:
-        if "invalid literal" in str(e):
-            raise ValueError(f"Telegram ID містить недопустимі символи: {telegram_id}")
-        raise
 
     return telegram_id
 
 
-def validate_balance(balance):
-    """
-    Валідація балансу
-
-    Args:
-        balance: Значення балансу
-
-    Returns:
-        float: Валідний баланс
-
-    Raises:
-        ValueError: Якщо баланс невалідний
-    """
-    try:
-        balance_float = float(balance)
-        if balance_float < 0:
-            raise ValueError("Баланс не може бути від'ємним")
-        if balance_float > 999999999:  # Розумна межа
-            raise ValueError("Баланс занадто великий")
-        return balance_float
-    except (TypeError, ValueError) as e:
-        if "could not convert" in str(e) or "invalid literal" in str(e):
-            raise ValueError(f"Невалідне значення балансу: {balance}")
-        raise
-
-
-def validate_coins(coins):
-    """
-    Валідація кількості монет
-
-    Args:
-        coins: Кількість монет
-
-    Returns:
-        int: Валідна кількість монет
-
-    Raises:
-        ValueError: Якщо кількість невалідна
-    """
-    try:
-        coins_int = int(coins)
-        if coins_int < 0:
-            raise ValueError("Кількість монет не може бути від'ємною")
-        if coins_int > 999999999:  # Розумна межа
-            raise ValueError("Кількість монет занадто велика")
-        return coins_int
-    except (TypeError, ValueError) as e:
-        if "could not convert" in str(e) or "invalid literal" in str(e):
-            raise ValueError(f"Невалідна кількість монет: {coins}")
-        raise
-
-
-# ====== ДОПОМІЖНІ ФУНКЦІЇ ======
-
-def safe_cache_operation(operation, *args, **kwargs):
-    """
-    Безпечне виконання операції з кешем
-
-    Args:
-        operation: Функція для виконання
-        *args: Аргументи функції
-        **kwargs: Ключові аргументи функції
-
-    Returns:
-        Результат операції або None при помилці
-    """
-    try:
-        if operation and callable(operation):
-            return operation(*args, **kwargs)
-    except Exception as e:
-        logger.warning(f"Помилка операції з кешем: {str(e)}")
-    return None
-
-
 def cache_user_data(key_prefix, telegram_id, data, ttl=USER_CACHE_TTL):
     """
-    Кешування даних користувача з префіксом для різних типів даних
+    Кешування даних користувача з префіксом для різних типів даних.
 
     Args:
-        key_prefix: Префікс ключа кешу
-        telegram_id: ID користувача
-        data: Дані для кешування
-        ttl: Час життя кешу
-
-    Returns:
-        bool: True якщо успішно
+        key_prefix (str): Префікс ключа кешу
+        telegram_id (str): ID користувача
+        data (dict): Дані для кешування
+        ttl (int): Час життя кешу в секундах
     """
-    if not cache_set:
-        return False
-
     cache_key = f"{key_prefix}_{telegram_id}"
-    return safe_cache_operation(cache_set, cache_key, data, ttl)
+    cache_set(cache_key, data, ttl)
+    logger.debug(f"Дані користувача кешовано з ключем {cache_key}")
 
 
 def get_cached_user_data(key_prefix, telegram_id):
     """
-    Отримання кешованих даних користувача
+    Отримання кешованих даних користувача.
 
     Args:
-        key_prefix: Префікс ключа кешу
-        telegram_id: ID користувача
+        key_prefix (str): Префікс ключа кешу
+        telegram_id (str): ID користувача
 
     Returns:
-        Кешовані дані або None
+        dict or None: Кешовані дані або None, якщо кеш відсутній
     """
-    if not cache_get:
-        return None
-
     cache_key = f"{key_prefix}_{telegram_id}"
-    return safe_cache_operation(cache_get, cache_key)
+    return cache_get(cache_key)
 
 
 # ====== КОНТРОЛЕРИ КОРИСТУВАЧА ======
 
+@handle_exceptions
 def get_user_info(telegram_id):
     """
-    Отримання базової інформації користувача БЕЗ fallback механізмів
-    ВИПРАВЛЕНА назва функції для синхронізації з auth/controllers.py
+    Отримання базової інформації користувача.
 
     Args:
         telegram_id (str): Telegram ID користувача
 
     Returns:
-        dict: Дані користувача або None якщо не знайдено
-
-    Raises:
-        ValueError: При невалідному ID
-        ConnectionError: При проблемах з БД
+        dict: Дані користувача
     """
-    # Строга валідація
     telegram_id = validate_telegram_id(telegram_id)
+    user = get_user(telegram_id)
 
-    if not get_user:
-        raise ConnectionError("Функція get_user недоступна")
+    if not user:
+        logger.warning(f"Користувача з ID {telegram_id} не знайдено")
+        raise ValueError(f"Користувача з ID {telegram_id} не знайдено")
 
-    try:
-        user = get_user(telegram_id)
-
-        if user:
-            logger.info(f"✅ Користувач {telegram_id} знайдений")
-            return user
-        else:
-            logger.info(f"ℹ️ Користувач {telegram_id} не знайдений")
-            return None
-
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання користувача {telegram_id}: {str(e)}")
-        raise ConnectionError(f"Не вдалося отримати дані користувача: {e}")
+    return user
 
 
+@handle_exceptions
 def create_new_user(telegram_id, username, referrer_id=None):
     """
-    Створення нового користувача БЕЗ fallback механізмів
-    ВИПРАВЛЕНА назва функції для синхронізації з auth/controllers.py
+    Створення нового користувача з автоматичною реєстрацією реферального зв'язку.
 
     Args:
         telegram_id (str): Telegram ID користувача
         username (str): Ім'я користувача
-        referrer_id (str, optional): ID реферала
+        referrer_id (str, optional): ID реферала, який запросив користувача
 
     Returns:
         dict: Дані створеного користувача
-
-    Raises:
-        ValueError: При невалідних даних
-        ConnectionError: При проблемах з БД
     """
-    # Строга валідація
     telegram_id = validate_telegram_id(telegram_id)
 
-    if not username or len(str(username).strip()) == 0:
-        username = f"User_{telegram_id[-4:]}"
-
-    if referrer_id:
-        referrer_id = validate_telegram_id(referrer_id)
-        if referrer_id == telegram_id:
-            raise ValueError("Користувач не може бути рефералом самого себе")
-
     # Перевіряємо, чи вже існує користувач
-    existing_user = get_user_info(telegram_id)
+    existing_user = get_user(telegram_id)
     if existing_user:
         logger.info(f"create_new_user: Користувач з ID {telegram_id} вже існує")
-        existing_user['is_new_user'] = False
         return existing_user
 
-    if not create_user:
-        raise ConnectionError("Функція create_user недоступна")
+    # Створюємо нового користувача через функцію з supabase_client
+    # Тепер функція create_user автоматично обробляє реферальний зв'язок
+    user = create_user(telegram_id, username, referrer_id)
 
+    if not user:
+        logger.error(f"create_new_user: Помилка створення користувача з ID {telegram_id}")
+        raise ValueError(f"Не вдалося створити користувача з ID {telegram_id}")
+
+    # Перевіряємо та оновлюємо бейджі
     try:
-        # Створюємо нового користувача
-        user = create_user(telegram_id, username, referrer_id)
-
-        if not user:
-            raise ConnectionError("Порожня відповідь від create_user")
-
-        user['is_new_user'] = True
-
-        # Перевіряємо та оновлюємо бейджі (не критично)
-        try:
-            if check_and_update_badges:
-                safe_cache_operation(check_and_update_badges, telegram_id)
-        except Exception as e:
-            logger.warning(f"create_new_user: Помилка оновлення бейджів: {str(e)}")
-
-        # Інвалідуємо кеш для реферера (не критично)
-        if referrer_id:
-            logger.info(f"create_new_user: Користувач {telegram_id} створений з реферером {referrer_id}")
-            try:
-                if invalidate_cache_for_entity:
-                    safe_cache_operation(invalidate_cache_for_entity, referrer_id)
-            except Exception as e:
-                logger.warning(f"create_new_user: Помилка інвалідації кешу: {str(e)}")
-
-        logger.info(f"✅ create_new_user: Успішно створено нового користувача з ID {telegram_id}")
-        return user
-
+        check_and_update_badges(telegram_id)
     except Exception as e:
-        logger.error(f"❌ create_new_user: Помилка створення користувача {telegram_id}: {str(e)}")
-        raise ConnectionError(f"Не вдалося створити користувача: {e}")
+        logger.warning(f"create_new_user: Помилка оновлення бейджів: {str(e)}")
+
+    # Якщо є реферер, додатково логуємо це та інвалідуємо його кеш
+    if referrer_id:
+        logger.info(f"create_new_user: Користувач {telegram_id} створений з реферером {referrer_id}")
+
+        # Інвалідуємо кеш для реферера (щоб оновити його статистику)
+        try:
+            invalidate_cache_for_entity(referrer_id)
+            logger.info(f"create_new_user: Кеш реферера {referrer_id} інвалідовано")
+        except Exception as e:
+            logger.warning(f"create_new_user: Помилка інвалідації кешу: {str(e)}")
+
+        # Додатково перевіряємо, чи успішно створився реферальний зв'язок
+        try:
+            # Імпортуємо модель для перевірки
+            from models.referral import Referral
+            verification_referral = Referral.query.filter_by(referee_id=telegram_id).first()
+
+            if verification_referral:
+                logger.info(f"create_new_user: ✅ Підтверджено створення реферального зв'язку: {referrer_id} -> {telegram_id}")
+            else:
+                logger.warning(f"create_new_user: ⚠️ Реферальний зв'язок не знайдено в БД після створення")
+        except ImportError as e:
+            logger.warning(f"create_new_user: Не вдалося імпортувати модель Referral для перевірки: {str(e)}")
+        except Exception as e:
+            logger.warning(f"create_new_user: Помилка перевірки реферального зв'язку: {str(e)}")
+
+    logger.info(f"create_new_user: Успішно створено нового користувача з ID {telegram_id}")
+    return user
 
 
+@handle_exceptions
 def get_user_profile(telegram_id):
     """
-    Отримання повного профілю користувача
-    ВИПРАВЛЕНА для кращої сумісності з frontend API
+    Отримання повного профілю користувача з розширеними даними.
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -324,117 +230,204 @@ def get_user_profile(telegram_id):
     Returns:
         Response: HTTP відповідь з даними користувача
     """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    # Перевірка кешу
+    cached_profile = get_cached_user_data("profile", telegram_id)
+    if cached_profile:
+        logger.info(f"Повернення кешованих даних профілю для {telegram_id}")
+        return jsonify({"status": "success", "data": cached_profile, "source": "cache"})
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    # Отримання даних стейкінгу
+    staking_data = None
     try:
-        # Валідація вхідних даних
-        telegram_id = validate_telegram_id(telegram_id)
+        from staking import get_user_staking
+        staking_response, _ = get_user_staking(telegram_id)
+        staking_data = staking_response.json.get('data') if hasattr(staking_response, 'json') else None
+    except Exception as e:
+        logger.warning(f"Помилка отримання даних стейкінгу: {str(e)}")
 
-        # Перевірка кешу
-        cached_profile = get_cached_user_data("profile", telegram_id)
-        if cached_profile:
-            logger.info(f"Повернення кешованих даних профілю для {telegram_id}")
-            return jsonify({"status": "success", "data": cached_profile, "source": "cache"})
+    # Отримання даних реферальної системи
+    referral_data = None
+    try:
+        # Спробуємо отримати базову статистику рефералів
+        from referrals.controllers.referral_controller import ReferralController
+        from referrals.controllers.earnings_controller import EarningsController
 
-        # Отримання даних користувача
-        user = get_user_info(telegram_id)
-        if not user:
-            return jsonify({
-                "status": "error",
-                "message": "Користувач не знайдений",
-                "code": "user_not_found"
-            }), 404
-
-        # Отримання даних стейкінгу (не критично)
-        staking_data = None
-        try:
-            from staking import get_user_staking
-            staking_response, _ = get_user_staking(telegram_id)
-            staking_data = staking_response.json.get('data') if hasattr(staking_response, 'json') else None
-        except Exception as e:
-            logger.warning(f"Помилка отримання даних стейкінгу: {str(e)}")
-
-        # Отримання даних реферальної системи (не критично)
-        referral_data = None
-        try:
-            from referrals.controllers.referral_controller import ReferralController
-            from referrals.controllers.earnings_controller import EarningsController
-
-            referral_structure = ReferralController.get_referral_structure(telegram_id)
-            if referral_structure.get('success'):
-                referral_data = {
-                    'total_referrals': referral_structure['statistics']['totalReferrals'],
-                    'level1_count': referral_structure['statistics']['level1Count'],
-                    'level2_count': referral_structure['statistics']['level2Count'],
-                    'active_referrals': referral_structure['statistics']['activeReferrals']
-                }
-
-                earnings_summary = EarningsController.get_earnings_summary(telegram_id)
-                if earnings_summary.get('success'):
-                    referral_data['total_earnings'] = earnings_summary['total_earnings']['total']
-        except ImportError:
-            logger.debug("Модулі реферальної системи не доступні")
-        except Exception as e:
-            logger.warning(f"Помилка отримання даних реферальної системи: {str(e)}")
-
-        # Формування даних профілю
-        user_data = {
-            "telegram_id": user["telegram_id"],
-            "username": user.get("username", "WINIX User"),
-            "balance": float(user.get("balance", 0)),
-            "coins": int(user.get("coins", 0)),
-            "staking_data": staking_data,
-            "referral_data": referral_data,
-            "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False),
-            "participations_count": user.get("participations_count", 0),
-            "wins_count": user.get("wins_count", 0),
-            "created_at": user.get("created_at"),
-            "last_login": user.get("last_login"),
-            "page1_completed": user.get("page1_completed", False),
-
-            # Дані про бейджі
-            "badges": {
-                "winner_completed": user.get("badge_winner", False),
-                "beginner_completed": user.get("badge_beginner", False),
-                "rich_completed": user.get("badge_rich", False),
-                "winner_reward_claimed": user.get("badge_winner_reward_claimed", False),
-                "beginner_reward_claimed": user.get("badge_beginner_reward_claimed", False),
-                "rich_reward_claimed": user.get("badge_rich_reward_claimed", False)
+        # Отримуємо структуру рефералів
+        referral_structure = ReferralController.get_referral_structure(telegram_id)
+        if referral_structure.get('success'):
+            referral_data = {
+                'total_referrals': referral_structure['statistics']['totalReferrals'],
+                'level1_count': referral_structure['statistics']['level1Count'],
+                'level2_count': referral_structure['statistics']['level2Count'],
+                'active_referrals': referral_structure['statistics']['activeReferrals']
             }
+
+            # Додаємо загальні заробітки від рефералів
+            earnings_summary = EarningsController.get_earnings_summary(telegram_id)
+            if earnings_summary.get('success'):
+                referral_data['total_earnings'] = earnings_summary['total_earnings']['total']
+    except ImportError:
+        logger.debug("Модулі реферальної системи не доступні")
+    except Exception as e:
+        logger.warning(f"Помилка отримання даних реферальної системи: {str(e)}")
+
+    # Формування даних профілю
+    user_data = {
+        "telegram_id": user["telegram_id"],
+        "username": user.get("username", "WINIX User"),
+        "balance": float(user.get("balance", 0)),
+        "coins": int(user.get("coins", 0)),
+        "staking_data": staking_data,
+        "referral_data": referral_data,
+        "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False),
+        "participations_count": user.get("participations_count", 0),
+        "wins_count": user.get("wins_count", 0),
+        "created_at": user.get("created_at"),
+        "last_login": user.get("last_login"),
+        "page1_completed": user.get("page1_completed", False),
+
+        # Дані про бейджі
+        "badges": {
+            "winner_completed": user.get("badge_winner", False),
+            "beginner_completed": user.get("badge_beginner", False),
+            "rich_completed": user.get("badge_rich", False),
+            "winner_reward_claimed": user.get("badge_winner_reward_claimed", False),
+            "beginner_reward_claimed": user.get("badge_beginner_reward_claimed", False),
+            "rich_reward_claimed": user.get("badge_rich_reward_claimed", False)
+        }
+    }
+
+    # Кешування отриманих даних
+    cache_user_data("profile", telegram_id, user_data, PROFILE_CACHE_TTL)
+
+    return jsonify({"status": "success", "data": user_data})
+
+
+@handle_exceptions
+def get_user_init_data(telegram_id):
+    """
+    Отримання всіх необхідних даних користувача для початкової ініціалізації.
+    Заміняє кілька окремих запитів одним об'єднаним.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+
+    Returns:
+        Response: HTTP відповідь з даними ініціалізації
+    """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    # Перевірка кешу
+    cached_init_data = get_cached_user_data("init", telegram_id)
+    if cached_init_data:
+        logger.info(f"Повернення кешованих даних ініціалізації для {telegram_id}")
+        return jsonify({"status": "success", "data": cached_init_data, "source": "cache"})
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    # Збираємо всі необхідні дані для ініціалізації
+    init_data = {
+        "id": telegram_id,
+        "username": user.get("username", "WINIX User"),
+        "balance": float(user.get("balance", 0)),
+        "coins": int(user.get("coins", 0)),
+        "avatar_url": user.get("avatar_url", ""),
+        "notifications_enabled": user.get("notifications_enabled", True),
+        "created_at": user.get("created_at"),
+        "last_login": user.get("last_login"),
+
+        # Статистика розіграшів
+        "raffle_stats": {
+            "participations_count": user.get("participations_count", 0),
+            "wins_count": user.get("wins_count", 0)
+        },
+
+        # Дані про бейджі
+        "badges": {
+            "winner_completed": user.get("badge_winner", False),
+            "beginner_completed": user.get("badge_beginner", False),
+            "rich_completed": user.get("badge_rich", False),
+            "winner_reward_claimed": user.get("badge_winner_reward_claimed", False),
+            "beginner_reward_claimed": user.get("badge_beginner_reward_claimed", False),
+            "rich_reward_claimed": user.get("badge_rich_reward_claimed", False)
+        },
+
+        # Дані про бонуси
+        "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False),
+        "page1_completed": user.get("page1_completed", False)
+    }
+
+    # Отримуємо дані стейкінгу
+    try:
+        from staking import get_user_staking
+        staking_response, _ = get_user_staking(telegram_id)
+        staking_data = staking_response.json.get('data') if hasattr(staking_response, 'json') else None
+        init_data["staking_data"] = staking_data
+    except Exception as e:
+        logger.debug(f"Помилка отримання даних стейкінгу: {str(e)}")
+        init_data["staking_data"] = None
+
+    # Отримуємо базові дані реферальної системи
+    try:
+        from referrals.controllers.referral_controller import ReferralController
+        referral_structure = ReferralController.get_referral_structure(telegram_id)
+        if referral_structure.get('success'):
+            init_data["referral_data"] = {
+                'total_referrals': referral_structure['statistics']['totalReferrals'],
+                'level1_count': referral_structure['statistics']['level1Count'],
+                'level2_count': referral_structure['statistics']['level2Count'],
+                'active_referrals': referral_structure['statistics']['activeReferrals']
+            }
+        else:
+            init_data["referral_data"] = {
+                'total_referrals': 0,
+                'level1_count': 0,
+                'level2_count': 0,
+                'active_referrals': 0
+            }
+    except Exception as e:
+        logger.debug(f"Помилка отримання даних реферальної системи: {str(e)}")
+        init_data["referral_data"] = {
+            'total_referrals': 0,
+            'level1_count': 0,
+            'level2_count': 0,
+            'active_referrals': 0
         }
 
-        # Кешування отриманих даних
-        cache_user_data("profile", telegram_id, user_data, PROFILE_CACHE_TTL)
-
-        return jsonify({"status": "success", "data": user_data})
-
-    except ValueError as e:
-        logger.warning(f"Валідаційна помилка в get_user_profile: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-            "code": "validation_error"
-        }), 400
-
-    except ConnectionError as e:
-        logger.error(f"Помилка підключення в get_user_profile: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": "Тимчасові проблеми з сервером. Спробуйте пізніше.",
-            "code": "connection_error"
-        }), 503
-
+    # Збираємо кількість активних розіграшів (для інформації)
+    try:
+        from raffles.controllers import get_active_raffles
+        active_raffles_response = get_active_raffles()
+        active_raffles = active_raffles_response.json.get('data', []) if hasattr(active_raffles_response,
+                                                                                 'json') else []
+        init_data["active_raffles_count"] = len(active_raffles)
     except Exception as e:
-        logger.error(f"Непередбачена помилка в get_user_profile: {str(e)}", exc_info=True)
-        return jsonify({
-            "status": "error",
-            "message": "Внутрішня помилка сервера",
-            "code": "internal_error"
-        }), 500
+        logger.debug(f"Помилка отримання активних розіграшів: {str(e)}")
+        init_data["active_raffles_count"] = 0
+
+    # Кешування отриманих даних
+    cache_user_data("init", telegram_id, init_data, USER_CACHE_TTL)
+
+    logger.info(f"Успішно отримано дані ініціалізації для користувача {telegram_id}")
+    return jsonify({"status": "success", "data": init_data})
 
 
+@handle_exceptions
 def get_user_balance(telegram_id):
     """
-    Отримання балансу користувача
-    ВИПРАВЛЕНА для повернення формату, що очікується frontend API
+    Отримання балансу користувача.
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -442,65 +435,37 @@ def get_user_balance(telegram_id):
     Returns:
         Response: HTTP відповідь з балансом користувача
     """
-    try:
-        # Валідація вхідних даних
-        telegram_id = validate_telegram_id(telegram_id)
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
 
-        # Перевірка кешу
-        cached_balance = get_cached_user_data("balance", telegram_id)
-        if cached_balance:
-            logger.info(f"Повернення кешованих даних балансу для {telegram_id}")
-            return jsonify({"status": "success", "data": cached_balance, "source": "cache"})
+    # Перевірка кешу
+    cached_balance = get_cached_user_data("balance", telegram_id)
+    if cached_balance:
+        logger.info(f"Повернення кешованих даних балансу для {telegram_id}")
+        return jsonify({"status": "success", "data": cached_balance, "source": "cache"})
 
-        # Отримання даних користувача
-        user = get_user_info(telegram_id)
-        if not user:
-            return jsonify({
-                "status": "error",
-                "message": "Користувач не знайдений",
-                "code": "user_not_found"
-            }), 404
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        logger.warning(f"Користувача {telegram_id} не знайдено")
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
-        # Формування даних балансу
-        balance_data = {
-            "balance": float(user.get("balance", 0)),
-            "coins": int(user.get("coins", 0))
-        }
+    # Формування даних балансу
+    balance_data = {
+        "balance": float(user.get("balance", 0)),
+        "coins": int(user.get("coins", 0))
+    }
 
-        # Кешування отриманих даних
-        cache_user_data("balance", telegram_id, balance_data, BALANCE_CACHE_TTL)
+    # Кешування отриманих даних
+    cache_user_data("balance", telegram_id, balance_data, BALANCE_CACHE_TTL)
 
-        return jsonify({"status": "success", "data": balance_data})
-
-    except ValueError as e:
-        logger.warning(f"Валідаційна помилка в get_user_balance: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-            "code": "validation_error"
-        }), 400
-
-    except ConnectionError as e:
-        logger.error(f"Помилка підключення в get_user_balance: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": "Тимчасові проблеми з сервером. Спробуйте пізніше.",
-            "code": "connection_error"
-        }), 503
-
-    except Exception as e:
-        logger.error(f"Непередбачена помилка в get_user_balance: {str(e)}", exc_info=True)
-        return jsonify({
-            "status": "error",
-            "message": "Внутрішня помилка сервера",
-            "code": "internal_error"
-        }), 500
+    return jsonify({"status": "success", "data": balance_data})
 
 
+@handle_exceptions
 def update_user_balance(telegram_id, data):
     """
-    Оновлення балансу користувача
-    ВИПРАВЛЕНА для правильної обробки різних типів операцій
+    Оновлення балансу користувача.
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -509,294 +474,109 @@ def update_user_balance(telegram_id, data):
     Returns:
         Response: HTTP відповідь з результатом оновлення
     """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    if not data or 'balance' not in data:
+        return jsonify({"status": "error", "message": "Відсутні дані балансу"}), 400
+
     try:
-        # Валідація вхідних даних
-        telegram_id = validate_telegram_id(telegram_id)
+        new_balance = float(data['balance'])
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "message": "Невалідне значення балансу"}), 400
 
-        if not isinstance(data, dict):
-            return jsonify({
-                "status": "error",
-                "message": "Відсутні дані для оновлення",
-                "code": "missing_data"
-            }), 400
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        logger.warning(f"Користувача {telegram_id} не знайдено")
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
-        # Обробляємо різні формати даних
-        if 'balance' in data:
-            # Прямий update балансу
-            new_balance = validate_balance(data['balance'])
-            operation = 'set'
-        elif 'amount' in data:
-            # Операція з сумою (add/subtract)
-            amount = validate_balance(data['amount'])
-            operation = data.get('operation', 'add')
+    # Оновлення балансу
+    result = update_user(telegram_id, {"balance": new_balance})
+    if not result:
+        return jsonify({"status": "error", "message": "Помилка оновлення балансу"}), 500
 
-            # Отримуємо поточний баланс
-            user = get_user_info(telegram_id)
-            if not user:
-                return jsonify({
-                    "status": "error",
-                    "message": "Користувач не знайдений",
-                    "code": "user_not_found"
-                }), 404
+    # Інвалідація кешу після оновлення
+    cache_user_data("balance", telegram_id, {"balance": new_balance, "coins": int(user.get("coins", 0))}, 0)
+    cache_user_data("profile", telegram_id, None, 0)
+    cache_user_data("init", telegram_id, None, 0)
 
-            current_balance = float(user.get("balance", 0))
-
-            if operation == 'add':
-                new_balance = current_balance + amount
-            elif operation == 'subtract':
-                new_balance = max(0, current_balance - amount)  # Не дозволяємо від'ємний баланс
-            else:
-                new_balance = amount
-        else:
-            return jsonify({
-                "status": "error",
-                "message": "Відсутні дані балансу або суми",
-                "code": "missing_balance_data"
-            }), 400
-
-        # Перевіряємо існування користувача
-        user = get_user_info(telegram_id)
-        if not user:
-            return jsonify({
-                "status": "error",
-                "message": "Користувач не знайдений",
-                "code": "user_not_found"
-            }), 404
-
-        # Оновлення балансу
-        if not update_user:
-            raise ConnectionError("Функція update_user недоступна")
-
-        result = update_user(telegram_id, {"balance": new_balance})
-        if not result:
-            raise ConnectionError("Не вдалося оновити баланс")
-
-        # Інвалідація кешу після оновлення
-        cache_user_data("balance", telegram_id, None, 0)
-        cache_user_data("profile", telegram_id, None, 0)
-
-        # Запис транзакції (не критично)
-        try:
-            if supabase:
-                transaction_data = {
-                    "telegram_id": telegram_id,
-                    "type": "manual_update",
-                    "amount": new_balance - float(user.get("balance", 0)),
-                    "description": f"Ручне оновлення балансу ({operation})",
-                    "status": "completed",
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }
-                supabase.table("transactions").insert(transaction_data).execute()
-        except Exception as e:
-            logger.warning(f"Помилка створення запису транзакції: {str(e)}")
-
-        return jsonify({
-            "status": "success",
-            "data": {
-                "balance": new_balance,
-                "operation": operation
-            }
-        })
-
-    except ValueError as e:
-        logger.warning(f"Валідаційна помилка в update_user_balance: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-            "code": "validation_error"
-        }), 400
-
-    except ConnectionError as e:
-        logger.error(f"Помилка підключення в update_user_balance: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": "Тимчасові проблеми з сервером. Спробуйте пізніше.",
-            "code": "connection_error"
-        }), 503
-
-    except Exception as e:
-        logger.error(f"Непередбачена помилка в update_user_balance: {str(e)}", exc_info=True)
-        return jsonify({
-            "status": "error",
-            "message": "Внутрішня помилка сервера",
-            "code": "internal_error"
-        }), 500
-
-
-# ДОДАТКОВІ ФУНКЦІЇ ДЛЯ FRONTEND API
-
-def get_user_data_for_api(telegram_id, force_refresh=False):
-    """
-    Отримання даних користувача спеціально для API запитів
-    Використовується в WinixAPI.getUserData()
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-        force_refresh (bool): Примусове оновлення
-
-    Returns:
-        dict: Дані користувача в форматі для API
-    """
+    # Запис транзакції
     try:
-        telegram_id = validate_telegram_id(telegram_id)
-
-        # Якщо не примусове оновлення, перевіряємо кеш
-        if not force_refresh:
-            cached_data = get_cached_user_data("api_data", telegram_id)
-            if cached_data:
-                return cached_data
-
-        user = get_user_info(telegram_id)
-        if not user:
-            return None
-
-        # Формуємо дані в форматі очікуваному frontend
-        api_data = {
-            "telegram_id": user["telegram_id"],
-            "username": user.get("username", "WINIX User"),
-            "balance": float(user.get("balance", 0)),
-            "coins": int(user.get("coins", 0)),
-            "is_active": user.get("is_active", True),
-            "created_at": user.get("created_at"),
-            "last_login": user.get("last_login")
+        transaction_data = {
+            "telegram_id": telegram_id,
+            "type": "manual_update",
+            "amount": new_balance - float(user.get("balance", 0)),
+            "description": "Ручне оновлення балансу",
+            "status": "completed",
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
-
-        # Кешуємо результат
-        cache_user_data("api_data", telegram_id, api_data, USER_CACHE_TTL)
-
-        return api_data
-
+        supabase.table("transactions").insert(transaction_data).execute()
     except Exception as e:
-        logger.error(f"Помилка в get_user_data_for_api: {str(e)}")
-        return None
+        logger.warning(f"Помилка створення запису транзакції: {str(e)}")
+
+    return jsonify({"status": "success", "data": {"balance": new_balance}})
 
 
-def update_user_settings(telegram_id, settings):
-    """
-    Оновлення налаштувань користувача
-    Використовується в WinixAPI.updateSettings()
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-        settings (dict): Налаштування для оновлення
-
-    Returns:
-        dict: Результат операції
-    """
-    try:
-        telegram_id = validate_telegram_id(telegram_id)
-
-        if not isinstance(settings, dict):
-            raise ValueError("Settings мають бути словником")
-
-        # Дозволені налаштування
-        allowed_settings = [
-            'notifications_enabled', 'language', 'theme',
-            'privacy_level', 'email_notifications'
-        ]
-
-        # Фільтруємо тільки дозволені налаштування
-        filtered_settings = {
-            key: value for key, value in settings.items()
-            if key in allowed_settings
-        }
-
-        if not filtered_settings:
-            raise ValueError("Немає валідних налаштувань для оновлення")
-
-        # Оновлюємо в базі даних
-        result = update_user(telegram_id, filtered_settings)
-
-        if result:
-            # Інвалідуємо кеш
-            cache_user_data("profile", telegram_id, None, 0)
-            cache_user_data("api_data", telegram_id, None, 0)
-
-            return {
-                "status": "success",
-                "message": "Налаштування оновлено",
-                "updated_settings": filtered_settings
-            }
-        else:
-            raise ConnectionError("Не вдалося оновити налаштування")
-
-    except Exception as e:
-        logger.error(f"Помилка в update_user_settings: {str(e)}")
-        return {
-            "status": "error",
-            "message": str(e)
-        }
-
-
-# ФУНКЦІЇ ДОДАТКОВІ (залишаємо з оригіналу)
-
+@handle_exceptions
 def claim_badge_reward(telegram_id, data):
     """
-    Отримання нагороди за бейдж
+    Отримання нагороди за бейдж.
 
     Args:
         telegram_id (str): Telegram ID користувача
-        data (dict): Дані запиту з badge_id
+        data (dict): Дані з ідентифікатором бейджа
 
     Returns:
-        Response: HTTP відповідь з результатом
+        Response: HTTP відповідь з результатом отримання нагороди
     """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    if not data or 'badge_id' not in data:
+        return jsonify({"status": "error", "message": "Відсутній ідентифікатор бейджа"}), 400
+
+    badge_id = data['badge_id']
+
+    # Валідація ID бейджа
+    valid_badge_ids = ["winner", "beginner", "rich"]
+    if badge_id not in valid_badge_ids:
+        return jsonify({"status": "error", "message": "Невідомий бейдж"}), 400
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    # Перевірка чи користувач має бейдж
+    badge_field = f"badge_{badge_id}"
+    reward_field = f"badge_{badge_id}_reward_claimed"
+
+    if not user.get(badge_field, False):
+        return jsonify({"status": "error", "message": "Умови отримання бейджа не виконані"}), 400
+
+    if user.get(reward_field, False):
+        return jsonify({"status": "already_claimed", "message": "Нагороду за цей бейдж вже отримано"}), 200
+
+    # Визначення розміру нагороди
+    reward_amounts = {
+        "winner": 2500,
+        "beginner": 1000,
+        "rich": 5000
+    }
+
+    reward_amount = reward_amounts.get(badge_id, 0)
+    current_balance = float(user.get("balance", 0))
+    new_balance = current_balance + reward_amount
+
+    # Оновлення балансу та статусу нагороди
+    updates = {
+        "balance": new_balance,
+        reward_field: True
+    }
+
     try:
-        # Валідація вхідних даних
-        telegram_id = validate_telegram_id(telegram_id)
-
-        if not isinstance(data, dict) or 'badge_id' not in data:
-            return jsonify({
-                "status": "error",
-                "message": "Відсутній ідентифікатор бейджа",
-                "code": "missing_badge_id"
-            }), 400
-
-        badge_id = data['badge_id']
-        valid_badge_ids = ["winner", "beginner", "rich"]
-        if badge_id not in valid_badge_ids:
-            return jsonify({
-                "status": "error",
-                "message": "Невідомий бейдж",
-                "code": "invalid_badge_id"
-            }), 400
-
-        # Отримуємо дані користувача
-        user = get_user_info(telegram_id)
-        if not user:
-            return jsonify({
-                "status": "error",
-                "message": "Користувач не знайдений",
-                "code": "user_not_found"
-            }), 404
-
-        badge_field = f"badge_{badge_id}"
-        reward_field = f"badge_{badge_id}_reward_claimed"
-
-        if not user.get(badge_field, False):
-            return jsonify({
-                "status": "error",
-                "message": "Умови отримання бейджа не виконані",
-                "code": "badge_not_earned"
-            }), 400
-
-        if user.get(reward_field, False):
-            return jsonify({
-                "status": "already_claimed",
-                "message": "Нагороду за цей бейдж вже отримано"
-            }), 200
-
-        reward_amounts = {"winner": 2500, "beginner": 1000, "rich": 5000}
-        reward_amount = reward_amounts.get(badge_id, 0)
-        current_balance = float(user.get("balance", 0))
-        new_balance = current_balance + reward_amount
-
-        updates = {"balance": new_balance, reward_field: True}
-
         # Оновлення в базі даних
-        if not supabase:
-            raise ConnectionError("Supabase недоступний")
-
         supabase.table("winix").update(updates).eq("telegram_id", telegram_id).execute()
 
         # Запис транзакції
@@ -808,94 +588,69 @@ def claim_badge_reward(telegram_id, data):
             "status": "completed",
             "created_at": datetime.now(timezone.utc).isoformat()
         }
+
         supabase.table("transactions").insert(transaction).execute()
 
         # Інвалідація кешу після оновлення
         cache_user_data("balance", telegram_id, None, 0)
         cache_user_data("profile", telegram_id, None, 0)
-
-        return jsonify({
-            "status": "success",
-            "message": f"Нагороду в розмірі {reward_amount} WINIX за бейдж успішно отримано",
-            "data": {
-                "badge_id": badge_id,
-                "reward_amount": reward_amount,
-                "new_balance": new_balance
-            }
-        })
-
-    except ValueError as e:
-        logger.warning(f"Валідаційна помилка в claim_badge_reward: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-            "code": "validation_error"
-        }), 400
-
-    except ConnectionError as e:
-        logger.error(f"Помилка підключення в claim_badge_reward: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": "Тимчасові проблеми з сервером. Спробуйте пізніше.",
-            "code": "connection_error"
-        }), 503
+        cache_user_data("init", telegram_id, None, 0)
 
     except Exception as e:
-        logger.error(f"Непередбачена помилка в claim_badge_reward: {str(e)}", exc_info=True)
-        return jsonify({
-            "status": "error",
-            "message": "Внутрішня помилка сервера",
-            "code": "internal_error"
-        }), 500
+        logger.error(f"Помилка при оновленні бази даних: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({
+        "status": "success",
+        "message": f"Нагороду в розмірі {reward_amount} WINIX за бейдж успішно отримано",
+        "data": {
+            "badge_id": badge_id,
+            "reward_amount": reward_amount,
+            "new_balance": new_balance
+        }
+    })
 
 
+@handle_exceptions
 def claim_newbie_bonus(telegram_id):
     """
-    Отримання бонусу новачка
+    Отримання бонусу новачка.
 
     Args:
         telegram_id (str): Telegram ID користувача
 
     Returns:
-        Response: HTTP відповідь з результатом
+        Response: HTTP відповідь з результатом отримання бонусу
     """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({'status': 'error', 'message': 'Користувача не знайдено'}), 404
+
+    # Перевірка чи бонус вже отримано
+    if user.get('newbie_bonus_claimed', False):
+        return jsonify({
+            'status': 'already_claimed',
+            'message': 'Бонус новачка вже було отримано'
+        })
+
+    # Визначення розміру бонусу
+    bonus_amount = 150
+    current_balance = float(user.get('balance', 0))
+    new_balance = current_balance + bonus_amount
+
     try:
-        # Валідація вхідних даних
-        telegram_id = validate_telegram_id(telegram_id)
-
-        # Отримуємо дані користувача
-        user = get_user_info(telegram_id)
-        if not user:
-            return jsonify({
-                "status": "error",
-                "message": "Користувач не знайдений",
-                "code": "user_not_found"
-            }), 404
-
-        if user.get('newbie_bonus_claimed', False):
-            return jsonify({
-                'status': 'already_claimed',
-                'message': 'Бонус новачка вже було отримано'
-            })
-
-        bonus_amount = 150
-        current_balance = float(user.get('balance', 0))
-        new_balance = current_balance + bonus_amount
-
         # Оновлення балансу та статусу бонусу
-        if not update_user:
-            raise ConnectionError("Функція update_user недоступна")
-
         updated_user = update_user(telegram_id, {
             'balance': new_balance,
             'newbie_bonus_claimed': True
         })
 
-        if not updated_user:
-            raise ConnectionError("Не вдалося оновити дані користувача")
-
-        # Запис транзакції
-        if supabase:
+        if updated_user:
+            # Запис транзакції
             transaction = {
                 "telegram_id": telegram_id,
                 "type": "reward",
@@ -904,58 +659,393 @@ def claim_newbie_bonus(telegram_id):
                 "status": "completed",
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
+
             supabase.table("transactions").insert(transaction).execute()
 
-        # Інвалідація кешу після оновлення
-        cache_user_data("balance", telegram_id, None, 0)
-        cache_user_data("profile", telegram_id, None, 0)
+            # Інвалідація кешу після оновлення
+            cache_user_data("balance", telegram_id, None, 0)
+            cache_user_data("profile", telegram_id, None, 0)
+            cache_user_data("init", telegram_id, None, 0)
 
-        return jsonify({
-            'status': 'success',
-            'message': f'Ви отримали {bonus_amount} WINIX як бонус новачка!',
-            'data': {
-                'amount': bonus_amount,
-                'newBalance': new_balance
-            }
-        })
-
-    except ValueError as e:
-        logger.warning(f"Валідаційна помилка в claim_newbie_bonus: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-            "code": "validation_error"
-        }), 400
-
-    except ConnectionError as e:
-        logger.error(f"Помилка підключення в claim_newbie_bonus: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": "Тимчасові проблеми з сервером. Спробуйте пізніше.",
-            "code": "connection_error"
-        }), 503
-
+            return jsonify({
+                'status': 'success',
+                'message': f'Ви отримали {bonus_amount} WINIX як бонус новачка!',
+                'data': {
+                    'amount': bonus_amount,
+                    'newBalance': new_balance
+                }
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Помилка нарахування бонусу'
+            }), 500
     except Exception as e:
-        logger.error(f"Непередбачена помилка в claim_newbie_bonus: {str(e)}", exc_info=True)
+        logger.error(f"Помилка нарахування бонусу: {str(e)}")
         return jsonify({
-            "status": "error",
-            "message": "Внутрішня помилка сервера",
-            "code": "internal_error"
+            'status': 'error',
+            'message': str(e)
         }), 500
 
 
-# Експортуємо функції
-__all__ = [
-    'get_user_info',
-    'create_new_user',
-    'get_user_profile',
-    'get_user_balance',
-    'update_user_balance',
-    'get_user_data_for_api',
-    'update_user_settings',
-    'claim_badge_reward',
-    'claim_newbie_bonus',
-    'validate_telegram_id',
-    'validate_balance',
-    'validate_coins'
-]
+@handle_exceptions
+def get_user_settings(telegram_id):
+    """
+    Отримання налаштувань користувача.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+
+    Returns:
+        Response: HTTP відповідь з налаштуваннями користувача
+    """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    # Перевірка кешу
+    cached_settings = get_cached_user_data("settings", telegram_id)
+    if cached_settings:
+        logger.info(f"Повернення кешованих налаштувань для {telegram_id}")
+        return jsonify({"status": "success", "data": cached_settings, "source": "cache"})
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    # Формування даних налаштувань
+    settings = {
+        "username": user.get("username", "WINIX User"),
+        "avatar_id": user.get("avatar_id"),
+        "avatar_url": user.get("avatar_url"),
+        "language": user.get("language", "uk"),
+        "password_hash": user.get("password_hash"),
+        "notifications_enabled": user.get("notifications_enabled", True)
+    }
+
+    # Кешування отриманих даних
+    cache_user_data("settings", telegram_id, settings, USER_CACHE_TTL)
+
+    return jsonify({"status": "success", "data": settings})
+
+
+@handle_exceptions
+def update_user_settings(telegram_id, data):
+    """
+    Оновлення налаштувань користувача.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        data (dict): Дані для оновлення налаштувань
+
+    Returns:
+        Response: HTTP відповідь з результатом оновлення
+    """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    if not data:
+        return jsonify({"status": "error", "message": "Відсутні дані налаштувань"}), 400
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    # Валідація та фільтрація полів для оновлення
+    allowed_fields = ["username", "avatar_id", "avatar_url", "language", "notifications_enabled"]
+    updates = {k: v for k, v in data.items() if k in allowed_fields}
+
+    if not updates:
+        return jsonify({"status": "error", "message": "Відсутні валідні поля для оновлення"}), 400
+
+    try:
+        # Оновлення налаштувань
+        updated_user = update_user(telegram_id, updates)
+        if not updated_user:
+            return jsonify({"status": "error", "message": "Помилка оновлення налаштувань"}), 500
+
+        # Інвалідація кешу після оновлення
+        cache_user_data("settings", telegram_id, None, 0)
+        cache_user_data("profile", telegram_id, None, 0)
+        cache_user_data("init", telegram_id, None, 0)
+
+        return jsonify({"status": "success", "message": "Налаштування успішно оновлено"})
+    except Exception as e:
+        logger.error(f"Помилка оновлення налаштувань: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@handle_exceptions
+def update_user_password(telegram_id, data):
+    """
+    Оновлення пароля користувача.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        data (dict): Дані з хешем пароля
+
+    Returns:
+        Response: HTTP відповідь з результатом оновлення
+    """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    if not data or "password_hash" not in data:
+        return jsonify({"status": "error", "message": "Відсутній хеш пароля"}), 400
+
+    # Валідація хешу пароля
+    password_hash = data["password_hash"]
+    if not password_hash or len(password_hash) < 8:
+        return jsonify({"status": "error", "message": "Невалідний хеш пароля"}), 400
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    try:
+        # Оновлення пароля
+        updated_user = update_user(telegram_id, {"password_hash": password_hash})
+        if not updated_user:
+            return jsonify({"status": "error", "message": "Помилка оновлення пароля"}), 500
+
+        # Інвалідація кешу налаштувань
+        cache_user_data("settings", telegram_id, None, 0)
+
+        return jsonify({"status": "success", "message": "Пароль успішно оновлено"})
+    except Exception as e:
+        logger.error(f"Помилка оновлення пароля: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@handle_exceptions
+def get_user_seed_phrase(telegram_id):
+    """
+    Отримання seed-фрази користувача.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+
+    Returns:
+        Response: HTTP відповідь з seed-фразою користувача
+    """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    # Отримання або генерація seed-фрази
+    seed_phrase = user.get("seed_phrase")
+
+    if not seed_phrase:
+        try:
+            # Список слів для seed-фрази
+            seed_words = [
+                "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse",
+                "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
+                "solve", "notable", "quick", "pluck", "tribe", "dinosaur", "cereal", "casino", "rail", "media",
+                "final", "curve"
+            ]
+
+            # Генерація seed-фрази
+            seed_value = int(telegram_id) if telegram_id.isdigit() else hash(telegram_id)
+            random.seed(seed_value)
+            seed_phrase = " ".join(random.sample(seed_words, 12))
+
+            # Збереження seed-фрази
+            update_user(telegram_id, {"seed_phrase": seed_phrase})
+        except Exception as e:
+            logger.error(f"Помилка генерації seed-фрази: {str(e)}")
+            seed_phrase = "Seed фраза недоступна"
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "seed_phrase": seed_phrase
+        }
+    })
+
+
+# ====== ДОДАТКОВІ КОНТРОЛЕРИ ======
+
+@handle_exceptions
+def get_user_transactions(telegram_id, limit=50, offset=0):
+    """
+    Отримання історії транзакцій користувача.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        limit (int): Ліміт кількості транзакцій
+        offset (int): Зміщення для пагінації
+
+    Returns:
+        Response: HTTP відповідь з історією транзакцій
+    """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    # Валідація параметрів пагінації
+    try:
+        limit = min(int(limit), 100)  # Максимум 100 транзакцій за запит
+        offset = max(int(offset), 0)  # Мінімум 0
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "message": "Невалідні параметри пагінації"}), 400
+
+    # Перевірка кешу
+    cache_key = f"transactions_{telegram_id}_{limit}_{offset}"
+    cached_transactions = cache_get(cache_key)
+    if cached_transactions:
+        logger.info(f"Повернення кешованих транзакцій для {telegram_id}")
+        return jsonify({"status": "success", "data": cached_transactions, "source": "cache"})
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    try:
+        # Отримання транзакцій
+        response = supabase.table("transactions") \
+            .select("*") \
+            .eq("telegram_id", telegram_id) \
+            .order("created_at", desc=True) \
+            .limit(limit) \
+            .offset(offset) \
+            .execute()
+
+        # Формування даних транзакцій
+        transactions = []
+        for transaction in response.data:
+            # Форматуємо дату
+            created_at = transaction.get("created_at")
+            if created_at:
+                try:
+                    # Перетворюємо ISO формат у читабельний
+                    dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    formatted_date = dt.strftime("%d.%m.%Y %H:%M")
+                    transaction["formatted_date"] = formatted_date
+                except (ValueError, TypeError):
+                    transaction["formatted_date"] = created_at
+
+            transactions.append(transaction)
+
+        # Кешування отриманих даних
+        cache_set(cache_key, transactions, 180)  # Кешування на 3 хвилини
+
+        return jsonify({
+            "status": "success",
+            "data": transactions,
+            "pagination": {
+                "total": len(transactions),
+                "limit": limit,
+                "offset": offset
+            }
+        })
+    except Exception as e:
+        logger.error(f"Помилка отримання транзакцій: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@handle_exceptions
+def update_user_coins(telegram_id, data):
+    """
+    Оновлення кількості жетонів користувача.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        data (dict): Дані для оновлення жетонів
+
+    Returns:
+        Response: HTTP відповідь з результатом оновлення
+    """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    if not data or 'coins' not in data:
+        return jsonify({"status": "error", "message": "Відсутні дані жетонів"}), 400
+
+    try:
+        new_coins = int(data['coins'])
+        if new_coins < 0:
+            return jsonify({"status": "error", "message": "Кількість жетонів не може бути від'ємною"}), 400
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "message": "Невалідне значення жетонів"}), 400
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    # Оновлення жетонів
+    current_coins = int(user.get("coins", 0))
+    result = update_coins(telegram_id, new_coins - current_coins)
+    if not result:
+        return jsonify({"status": "error", "message": "Помилка оновлення жетонів"}), 500
+
+    # Інвалідація кешу після оновлення
+    cache_user_data("balance", telegram_id, None, 0)
+    cache_user_data("profile", telegram_id, None, 0)
+    cache_user_data("init", telegram_id, None, 0)
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "coins": new_coins,
+            "change": new_coins - current_coins
+        }
+    })
+
+
+@handle_exceptions
+def add_user_coins(telegram_id, data):
+    """
+    Додавання жетонів користувачу.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        data (dict): Дані з кількістю жетонів для додавання
+
+    Returns:
+        Response: HTTP відповідь з результатом додавання
+    """
+    # Валідація вхідних даних
+    telegram_id = validate_telegram_id(telegram_id)
+
+    if not data or 'amount' not in data:
+        return jsonify({"status": "error", "message": "Відсутня кількість жетонів для додавання"}), 400
+
+    try:
+        amount = int(data['amount'])
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "message": "Невалідне значення кількості жетонів"}), 400
+
+    # Валідація опису транзакції
+    description = data.get('description', 'Додавання жетонів')
+
+    # Отримання даних користувача
+    user = get_user(telegram_id)
+    if not user:
+        return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+    # Оновлення жетонів
+    result = update_coins(telegram_id, amount)
+    if not result:
+        return jsonify({"status": "error", "message": "Помилка додавання жетонів"}), 500
+
+    # Інвалідація кешу після оновлення
+    cache_user_data("balance", telegram_id, None, 0)
+    cache_user_data("profile", telegram_id, None, 0)
+    cache_user_data("init", telegram_id, None, 0)
+
+    return jsonify({
+        "status": "success",
+        "message": f"Додано {amount} жетонів",
+        "data": {
+            "coins": result.get("coins", 0),
+            "added": amount
+        }
+    })

@@ -1,7 +1,7 @@
 /**
  * auth.js - Модуль авторизації для Telegram Mini App
- * ВИПРАВЛЕНА версія з синхронізованими API викликами
- * @version 2.0.1
+ * Версія без заглушок - тільки реальні дані з бекенду
+ * @version 2.0.0
  */
 
 (function() {
@@ -154,11 +154,6 @@
     function showError(message) {
         console.error("❌ AUTH: " + message);
 
-        if (window.showNotification) {
-            window.showNotification(message, true);
-            return;
-        }
-
         if (window.simpleAlert) {
             window.simpleAlert(message, true);
             return;
@@ -178,11 +173,6 @@
     function showWelcomeMessage() {
         console.log("🔐 AUTH: Показ вітального повідомлення");
         const message = getLocalizedText('welcome');
-
-        if (window.showNotification) {
-            window.showNotification(message, false);
-            return;
-        }
 
         if (window.simpleAlert) {
             window.simpleAlert(message, false);
@@ -233,8 +223,7 @@
     function hasApiModule() {
         try {
             return window.WinixAPI &&
-                   typeof window.WinixAPI.apiRequest === 'function' &&
-                   typeof window.WinixAPI.getUserData === 'function';
+                   typeof window.WinixAPI.apiRequest === 'function';
         } catch (e) {
             console.error("🔐 AUTH: Помилка перевірки API модуля:", e);
             return false;
@@ -242,7 +231,7 @@
     }
 
     /**
-     * Ініціалізація системи авторизації (ВИПРАВЛЕНО)
+     * Ініціалізація системи авторизації
      * @returns {Promise<Object>} Об'єкт з даними користувача
      */
     async function init() {
@@ -280,21 +269,12 @@
         try {
             console.log('🔄 [AUTH] Спроба оновлення токену');
 
-            // ВИПРАВЛЕНО: Спочатку пробуємо оновити токен, якщо не вдається - виконуємо повну авторизацію
+            // Оновлюємо токен
             try {
                 await window.WinixAPI.refreshToken();
                 console.log('✅ [AUTH] Токен успішно оновлено');
-            } catch (refreshError) {
-                console.warn("⚠️ AUTH: Помилка оновлення токену, виконуємо повну авторизацію");
-
-                // Якщо не вдалося оновити токен, виконуємо повну авторизацію
-                const telegramData = extractTelegramUserData();
-                if (telegramData) {
-                    await authorizeUser(telegramData);
-                    console.log('✅ [AUTH] Повна авторизація успішна');
-                } else {
-                    throw new Error('Не вдалося отримати дані Telegram для авторизації');
-                }
+            } catch (e) {
+                console.warn("⚠️ AUTH: Помилка оновлення токену:", e);
             }
 
             // Отримуємо дані користувача
@@ -303,33 +283,6 @@
             console.error("❌ AUTH: Помилка ініціалізації:", error);
             showError(getLocalizedText('authError'));
             return Promise.reject(error);
-        }
-    }
-
-    /**
-     * НОВИЙ: Витягування даних користувача з Telegram WebApp
-     */
-    function extractTelegramUserData() {
-        try {
-            const tg = window.Telegram?.WebApp;
-            if (!tg || !tg.initDataUnsafe?.user) {
-                return null;
-            }
-
-            const user = tg.initDataUnsafe.user;
-            return {
-                id: user.id,
-                telegram_id: user.id.toString(),
-                username: user.username,
-                first_name: user.first_name,
-                last_name: user.last_name,
-                language_code: user.language_code,
-                initData: tg.initData,  // Додаємо initData для валідації
-                from_telegram: true
-            };
-        } catch (e) {
-            console.error("Помилка витягування даних Telegram:", e);
-            return null;
         }
     }
 
@@ -370,8 +323,8 @@
                 throw new Error("API module not available");
             }
 
-            // ВИПРАВЛЕНО: Використовуємо правильний API метод
-            const response = await window.WinixAPI.apiRequest('auth', 'POST', userData, {
+            // Виконуємо запит авторизації
+            const response = await window.WinixAPI.apiRequest('api/auth', 'POST', userData, {
                 timeout: 15000,
                 suppressErrors: false
             });
@@ -380,11 +333,6 @@
             if (spinner) spinner.classList.remove('show');
 
             if (response && response.status === 'success' && response.data) {
-                // Зберігаємо токен, якщо він є
-                if (response.token) {
-                    localStorage.setItem('auth_token', response.token);
-                }
-
                 // Зберігаємо дані користувача
                 window.WinixAuth.currentUser = response.data;
                 console.log("✅ AUTH: Користувача успішно авторизовано", response.data);
@@ -473,7 +421,7 @@
                 throw new Error("API module not available");
             }
 
-            // ВИПРАВЛЕНО: Використовуємо правильний API метод
+            // Отримуємо дані користувача
             const response = await window.WinixAPI.getUserData(forceRefresh);
 
             // Приховуємо індикатор завантаження
@@ -483,17 +431,6 @@
                 // Зберігаємо дані
                 window.WinixAuth.currentUser = response.data;
                 console.log("✅ AUTH: Дані користувача успішно отримано", response.data);
-
-                // Оновлюємо localStorage для швидкого доступу
-                if (response.data.balance !== undefined) {
-                    localStorage.setItem('userTokens', response.data.balance.toString());
-                }
-                if (response.data.coins !== undefined) {
-                    localStorage.setItem('userCoins', response.data.coins.toString());
-                }
-                if (response.data.username) {
-                    localStorage.setItem('username', response.data.username);
-                }
 
                 // Відправляємо подію оновлення даних
                 document.dispatchEvent(new CustomEvent(EVENT_USER_DATA_UPDATED, {
@@ -512,10 +449,7 @@
             const spinner = document.getElementById('loading-spinner');
             if (spinner) spinner.classList.remove('show');
 
-            // Якщо це не критична помилка, не показуємо error user
-            if (error.status !== 401 && error.status !== 403) {
-                showError(getLocalizedText('dataError'));
-            }
+            showError(getLocalizedText('dataError'));
 
             // Генеруємо подію про помилку
             document.dispatchEvent(new CustomEvent(EVENT_AUTH_ERROR, {
@@ -624,7 +558,7 @@
         stopPeriodicUpdate,
 
         // Технічна інформація
-        version: '2.0.1'
+        version: '2.0.0'
     };
 
     // ======== АВТОМАТИЧНА ІНІЦІАЛІЗАЦІЯ ========

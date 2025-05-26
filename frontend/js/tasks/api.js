@@ -1,740 +1,743 @@
 /**
- * api.js - Єдиний модуль для всіх API-запитів WINIX
- * ВИПРАВЛЕНА версія БЕЗ undefined проблем та з правильною ініціалізацією
- * @version 2.0.0
+ * API модуль для системи завдань WINIX - Production Version
+ * Централізоване управління всіма API викликами з proper dependency checking
  */
 
-(function() {
+window.TasksAPI = (function() {
     'use strict';
 
-    console.log("🔌 API: Ініціалізація ВИПРАВЛЕНОГО API модуля");
+    console.log('🌐 [TasksAPI] ===== ІНІЦІАЛІЗАЦІЯ API МОДУЛЯ (PRODUCTION) =====');
 
-    // ======== API-ШЛЯХИ ========
-
-    const API_PATHS = {
-        // Health check
-        HEALTH: 'health',
-        PING: 'ping',
-
-        // Користувацькі шляхи
-        USER: {
-            DATA: (userId) => `user/${userId}`,
-            BALANCE: (userId) => `user/${userId}/balance`,
-            SETTINGS: (userId) => `user/${userId}/settings`
-        },
-
-        // Авторизація
-        AUTH: {
-            LOGIN: 'auth',
-            REFRESH_TOKEN: 'auth/refresh-token',
-            VALIDATE: 'auth/validate'
-        }
-    };
-
-    // ======== ПРИВАТНІ ЗМІННІ ========
-
-    // Базовий URL API
-    const API_BASE_URL = (() => {
-        // Перевіряємо глобальний конфіг
-        if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
-            let url = window.WinixConfig.apiBaseUrl;
-            return url.endsWith('/api') ? url.slice(0, -4) : url;
-        }
-
-        // Визначаємо URL на основі поточного середовища
-        const hostname = window.location.hostname;
-
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            return `http://${hostname}:8080`;
-        } else if (hostname.includes('testenv') || hostname.includes('staging')) {
-            return `https://${hostname}`;
-        } else {
-            return 'https://winixbot.com';
-        }
-    })();
-
-    // Стан API
-    let _apiState = {
-        isHealthy: false,
-        lastHealthCheck: 0,
-        consecutiveFailures: 0,
-        maxFailures: 3
-    };
-
-    // Кешовані дані
-    let _userCache = null;
-    let _userCacheTime = 0;
-    const USER_CACHE_TTL = 300000; // 5 хвилин
-
-    // Управління запитами
-    let _pendingRequests = new Map();
-    let _requestCounter = {
-        total: 0,
-        errors: 0,
-        lastReset: Date.now()
-    };
-
-    // Стан з'єднання
-    let _connectionState = {
-        isConnected: true,
-        lastSuccessTime: Date.now(),
-        failedAttempts: 0
-    };
-
-    // Токен автентифікації
-    let _authToken = null;
-    let _authTokenExpiry = 0;
-
-    // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З ID КОРИСТУВАЧА ========
+    // Перевірка залежностей при ініціалізації
+    let dependenciesReady = false;
+    let initializationAttempted = false;
 
     /**
-     * ВИПРАВЛЕНА функція отримання ID користувача
-     * НАЙВАЖЛИВІША ФУНКЦІЯ - тут виправлено undefined проблему
+     * Перевірка готовності залежностей
      */
-    function getUserId() {
-        try {
-            console.log("🔍 API: getUserId - початок отримання ID");
+    function checkDependencies() {
+        console.log('🔍 [TasksAPI] Перевірка залежностей...');
 
-            // Функція перевірки валідності ID
-            function isValidId(id) {
-                if (!id) return false;
-                if (typeof id === 'function') return false;
-                if (id === 'undefined' || id === 'null') return false;
-
-                const idStr = String(id).trim();
-                if (!idStr || idStr === '' || idStr === 'undefined' || idStr === 'null') return false;
-
-                // Перевіряємо що це число
-                const idNum = parseInt(idStr);
-                if (isNaN(idNum) || idNum <= 0) return false;
-
-                console.log(`✅ API: Валідний ID знайдено: ${idStr}`);
-                return true;
-            }
-
-            // 1. ПРІОРИТЕТ: Telegram WebApp (найнадійніше джерело)
-            if (window.Telegram && window.Telegram.WebApp) {
-                console.log("🔍 API: Перевірка Telegram WebApp...");
-
-                // Чекаємо готовності WebApp
-                if (window.Telegram.WebApp.initDataUnsafe &&
-                    window.Telegram.WebApp.initDataUnsafe.user &&
-                    window.Telegram.WebApp.initDataUnsafe.user.id) {
-
-                    const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id;
-                    console.log(`🔍 API: Telegram WebApp ID: ${tgUserId}`);
-
-                    if (isValidId(tgUserId)) {
-                        const validId = String(tgUserId);
-
-                        // Зберігаємо в localStorage для майбутніх використань
-                        try {
-                            localStorage.setItem('telegram_user_id', validId);
-                            console.log(`💾 API: ID збережено в localStorage: ${validId}`);
-                        } catch (e) {
-                            console.warn("⚠️ API: Не вдалося зберегти в localStorage:", e);
-                        }
-
-                        return validId;
-                    }
-                }
-            }
-
-            // 2. localStorage (якщо Telegram недоступний)
-            console.log("🔍 API: Перевірка localStorage...");
-            try {
-                const localId = localStorage.getItem('telegram_user_id');
-                if (isValidId(localId)) {
-                    console.log(`💾 API: ID з localStorage: ${localId}`);
-                    return String(localId);
-                }
-            } catch (e) {
-                console.warn("⚠️ API: Помилка читання localStorage:", e);
-            }
-
-            // 3. DOM елемент (fallback)
-            console.log("🔍 API: Перевірка DOM елемента...");
-            try {
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement && userIdElement.textContent) {
-                    const domId = userIdElement.textContent.trim();
-                    if (isValidId(domId)) {
-                        console.log(`🏷️ API: ID з DOM: ${domId}`);
-
-                        // Зберігаємо в localStorage
-                        try {
-                            localStorage.setItem('telegram_user_id', domId);
-                        } catch (e) {}
-
-                        return String(domId);
-                    }
-                }
-            } catch (e) {
-                console.warn("⚠️ API: Помилка читання DOM:", e);
-            }
-
-            // 4. URL параметри (останній fallback)
-            console.log("🔍 API: Перевірка URL параметрів...");
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-                const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-                if (isValidId(urlId)) {
-                    console.log(`🔗 API: ID з URL: ${urlId}`);
-
-                    // Зберігаємо в localStorage
-                    try {
-                        localStorage.setItem('telegram_user_id', urlId);
-                    } catch (e) {}
-
-                    return String(urlId);
-                }
-            } catch (e) {
-                console.warn("⚠️ API: Помилка читання URL:", e);
-            }
-
-            // ID не знайдено
-            console.error("❌ API: Жодне валідне джерело ID не знайдено");
-            return null;
-
-        } catch (e) {
-            console.error("💥 API: Критична помилка отримання ID користувача:", e);
-            return null;
-        }
-    }
-
-    /**
-     * Чекання готовності Telegram WebApp
-     */
-    function waitForTelegramReady(timeout = 5000) {
-        return new Promise((resolve) => {
-            const startTime = Date.now();
-
-            function checkTelegram() {
-                if (window.Telegram &&
-                    window.Telegram.WebApp &&
-                    window.Telegram.WebApp.initDataUnsafe &&
-                    window.Telegram.WebApp.initDataUnsafe.user) {
-
-                    console.log("✅ API: Telegram WebApp готовий");
-                    resolve(true);
-                    return;
-                }
-
-                if (Date.now() - startTime > timeout) {
-                    console.warn("⚠️ API: Timeout очікування Telegram WebApp");
-                    resolve(false);
-                    return;
-                }
-
-                setTimeout(checkTelegram, 100);
-            }
-
-            checkTelegram();
-        });
-    }
-
-    /**
-     * Отримання токену авторизації
-     */
-    function getAuthToken() {
-        try {
-            const now = Date.now();
-
-            // Перевіряємо наявність токену в пам'яті
-            if (_authToken && _authTokenExpiry > now) {
-                return _authToken;
-            }
-
-            // Спробуємо отримати токен з localStorage
-            let token = null;
-            let tokenExpiry = 0;
-
-            try {
-                token = localStorage.getItem('auth_token');
-                tokenExpiry = parseInt(localStorage.getItem('auth_token_expiry') || '0');
-            } catch (e) {
-                console.warn("⚠️ API: Помилка читання токену з localStorage:", e);
-            }
-
-            if (token && typeof token === 'string' && token.length > 5) {
-                if (tokenExpiry > now) {
-                    _authToken = token;
-                    _authTokenExpiry = tokenExpiry;
-                    return token;
-                }
-            }
-
-            return null;
-        } catch (e) {
-            console.error("💥 API: Критична помилка отримання токену:", e);
-            return null;
-        }
-    }
-
-    /**
-     * Нормалізація API endpoint
-     */
-    function normalizeEndpoint(endpoint) {
-        if (!endpoint) return 'api';
-
-        // Перетворюємо endpoint на рядок
-        endpoint = String(endpoint);
-
-        // Видаляємо слеш на початку
-        let cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
-
-        // Видаляємо слеш в кінці
-        if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
-            cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
-        }
-
-        // Додаємо 'api/' на початок якщо потрібно
-        if (!cleanEndpoint.startsWith('api/')) {
-            cleanEndpoint = cleanEndpoint === 'api' ? cleanEndpoint : `api/${cleanEndpoint}`;
-        }
-
-        return cleanEndpoint;
-    }
-
-    // ======== API HEALTH CHECK ========
-
-    /**
-     * Перевірка здоров'я API
-     */
-    async function checkApiHealth() {
-        console.log('🏥 API: Перевірка здоров\'я API сервера');
-
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-            const response = await fetch(`${API_BASE_URL}/api/${API_PATHS.HEALTH}`, {
-                method: 'GET',
-                signal: controller.signal,
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-
-            clearTimeout(timeoutId);
-
-            if (response.ok) {
-                _apiState.isHealthy = true;
-                _apiState.lastHealthCheck = Date.now();
-                _apiState.consecutiveFailures = 0;
-                _connectionState.isConnected = true;
-
-                console.log('✅ API: Сервер здоровий');
-                return true;
-            } else {
-                throw new Error(`Health check failed: ${response.status}`);
-            }
-
-        } catch (error) {
-            console.warn('⚠️ API: Сервер недоступний:', error.message);
-            _apiState.isHealthy = false;
-            _apiState.consecutiveFailures++;
-            _connectionState.isConnected = false;
-
+        // Перевіряємо наявність базового API
+        if (!window.WinixAPI) {
+            console.error('❌ [TasksAPI] WinixAPI не знайдено - критична залежність відсутня');
             return false;
         }
+
+        if (typeof window.WinixAPI.apiRequest !== 'function') {
+            console.error('❌ [TasksAPI] WinixAPI.apiRequest не є функцією');
+            return false;
+        }
+
+        // Перевіряємо наявність констант
+        if (!window.TasksConstants) {
+            console.warn('⚠️ [TasksAPI] TasksConstants не знайдено, використовуємо fallback');
+        }
+
+        // Перевіряємо наявність утиліт
+        if (!window.TasksUtils) {
+            console.warn('⚠️ [TasksAPI] TasksUtils не знайдено, деякі функції можуть не працювати');
+        }
+
+        console.log('✅ [TasksAPI] Базові залежності готові');
+        return true;
     }
-
-    /**
-     * Оновлення токену авторизації
-     */
-    async function refreshToken() {
-        // Перевіряємо, чи вже відбувається оновлення
-        if (_pendingRequests.has('refresh-token')) {
-            return _pendingRequests.get('refresh-token');
-        }
-
-        const refreshPromise = new Promise(async (resolve, reject) => {
-            try {
-                const userId = getUserId();
-                if (!userId) {
-                    throw new Error("ID користувача не знайдено");
-                }
-
-                console.log("🔄 API: Початок оновлення токену");
-
-                const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Telegram-User-Id': userId
-                    },
-                    body: JSON.stringify({
-                        telegram_id: userId,
-                        token: _authToken || ''
-                    })
-                });
-
-                if (!response.ok) {
-                    if (response.status === 400 || response.status === 401) {
-                        console.warn("⚠️ API: Токен недійсний, очищаємо");
-                        clearAuthToken();
-                        throw new Error("Токен недійсний. Потрібна повторна авторизація");
-                    }
-                    throw new Error(`Помилка HTTP: ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                if (data && data.status === 'success' && data.token) {
-                    _authToken = data.token;
-
-                    if (data.expires_at) {
-                        _authTokenExpiry = new Date(data.expires_at).getTime();
-                    } else {
-                        _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
-                    }
-
-                    // Зберігаємо в localStorage
-                    try {
-                        localStorage.setItem('auth_token', _authToken);
-                        localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
-                    } catch (e) {
-                        console.warn("⚠️ API: Помилка збереження токену:", e);
-                    }
-
-                    console.log("✅ API: Токен успішно оновлено");
-
-                    // Відправляємо подію про оновлення токену
-                    document.dispatchEvent(new CustomEvent('token-refreshed', {
-                        detail: { token: _authToken, expires_at: _authTokenExpiry }
-                    }));
-
-                    resolve(_authToken);
-                } else {
-                    throw new Error(data.message || "Помилка оновлення токену");
-                }
-            } catch (error) {
-                console.error("❌ API: Помилка оновлення токену:", error);
-                reject(error);
-            } finally {
-                _pendingRequests.delete('refresh-token');
-            }
-        });
-
-        _pendingRequests.set('refresh-token', refreshPromise);
-        return refreshPromise;
-    }
-
-    /**
-     * Очистити токен авторизації
-     */
-    function clearAuthToken() {
-        console.log("🗑️ API: Очищення токену авторизації");
-
-        _authToken = null;
-        _authTokenExpiry = 0;
-
-        try {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('auth_token_expiry');
-        } catch (e) {
-            console.warn("⚠️ API: Помилка очищення токену:", e);
-        }
-
-        document.dispatchEvent(new CustomEvent('token-cleared'));
-    }
-
-    // ======== ОСНОВНІ API ФУНКЦІЇ ========
-
-    /**
-     * ВИПРАВЛЕНА універсальна функція для виконання API-запитів
-     */
-    async function apiRequest(endpoint, method = 'GET', data = null, options = {}) {
-        // КРИТИЧНО ВАЖЛИВА ПЕРЕВІРКА
-        if (!endpoint) {
-            console.error("❌ API: endpoint є undefined або null");
-            throw new Error('Не вказано endpoint для запиту');
-        }
-
-        try {
-            console.log(`🔌 API: Початок запиту ${method} до ${endpoint}`);
-
-            // Формуємо URL запиту
-            const normalizedEndpoint = normalizeEndpoint(endpoint);
-            const timestamp = Date.now();
-            const url = `${API_BASE_URL}/${normalizedEndpoint}?t=${timestamp}`;
-
-            console.log(`🔗 API: URL запиту: ${url}`);
-
-            // Заголовки запиту
-            const headers = {
-                'Content-Type': 'application/json',
-                ...(options.headers || {})
-            };
-
-            // Додаємо токен авторизації
-            if (!options.skipTokenCheck) {
-                const token = getAuthToken();
-                if (token) {
-                    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-                }
-            }
-
-            // КРИТИЧНО ВАЖЛИВО: Додаємо ID користувача
-            const userId = getUserId();
-            if (userId && !options.skipUserIdCheck) {
-                headers['X-Telegram-User-Id'] = userId;
-                console.log(`👤 API: Додано ID користувача в заголовок: ${userId}`);
-            } else if (!userId) {
-                console.warn("⚠️ API: ID користувача недоступний для запиту");
-            }
-
-            // Параметри запиту
-            const requestOptions = {
-                method: method,
-                headers: headers,
-                timeout: options.timeout || 10000
-            };
-
-            // Додаємо тіло запиту для POST/PUT/PATCH
-            if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-                requestOptions.body = JSON.stringify(data);
-            }
-
-            // Показуємо індикатор завантаження
-            if (!options.hideLoader && typeof window.showLoading === 'function') {
-                window.showLoading();
-            }
-
-            // Виконуємо запит
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), requestOptions.timeout);
-            requestOptions.signal = controller.signal;
-
-            const response = await fetch(url, requestOptions);
-            clearTimeout(timeoutId);
-
-            // Приховуємо індикатор завантаження
-            if (!options.hideLoader && typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-
-            // Обробка спеціальних статус-кодів
-            if (response.status === 401) {
-                console.warn("🔌 API: Помилка авторизації. Спроба оновлення токену...");
-
-                try {
-                    await refreshToken();
-                    // Повторюємо запит з оновленим токеном (тільки одну спробу)
-                    if (!options._retryAttempt) {
-                        options._retryAttempt = true;
-                        return apiRequest(endpoint, method, data, options);
-                    }
-                } catch (tokenError) {
-                    console.error("🔌 API: Не вдалося оновити токен:", tokenError);
-                    clearAuthToken();
-                }
-            }
-
-            if (!response.ok) {
-                throw new Error(`Помилка сервера: ${response.status}`);
-            }
-
-            // Парсимо відповідь
-            const result = await response.json();
-
-            // Інкрементуємо лічильники
-            _requestCounter.total++;
-            _connectionState.isConnected = true;
-            _connectionState.lastSuccessTime = Date.now();
-
-            return result;
-
-        } catch (error) {
-            console.error(`❌ API: Помилка запиту ${endpoint}:`, error.message);
-
-            // Приховуємо індикатор завантаження
-            if (!options.hideLoader && typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-
-            _requestCounter.errors++;
-            _connectionState.isConnected = false;
-
-            // Відправляємо подію про помилку
-            document.dispatchEvent(new CustomEvent('api-error', {
-                detail: { error, endpoint, method }
-            }));
-
-            throw error;
-        }
-    }
-
-    /**
-     * Отримання даних користувача
-     */
-    async function getUserData(forceRefresh = false) {
-        // Використовуємо кеш якщо можливо
-        if (!forceRefresh && _userCache && (Date.now() - _userCacheTime < USER_CACHE_TTL)) {
-            return {status: 'success', data: _userCache, source: 'cache'};
-        }
-
-        const id = getUserId();
-        if (!id) {
-            throw new Error("ID користувача не знайдено");
-        }
-
-        try {
-            const result = await apiRequest(API_PATHS.USER.DATA(id), 'GET', null, {
-                timeout: 15000
-            });
-
-            // Оновлюємо кеш
-            if (result.status === 'success' && result.data) {
-                _userCache = result.data;
-                _userCacheTime = Date.now();
-
-                // Зберігаємо дані в localStorage
-                try {
-                    if (_userCache.balance !== undefined) {
-                        localStorage.setItem('userTokens', _userCache.balance.toString());
-                        localStorage.setItem('winix_balance', _userCache.balance.toString());
-                    }
-
-                    if (_userCache.coins !== undefined) {
-                        localStorage.setItem('userCoins', _userCache.coins.toString());
-                        localStorage.setItem('winix_coins', _userCache.coins.toString());
-                    }
-                } catch (e) {
-                    console.warn("⚠️ API: Помилка збереження даних в localStorage:", e);
-                }
-            }
-
-            return result;
-        } catch (error) {
-            console.error("❌ API: Помилка отримання даних користувача:", error);
-            throw error;
-        }
-    }
-
-    /**
-     * Отримання балансу користувача
-     */
-    async function getBalance() {
-        const userId = getUserId();
-        if (!userId) {
-            throw new Error("ID користувача не знайдено");
-        }
-
-        try {
-            const nocache = Date.now();
-            const endpoint = API_PATHS.USER.BALANCE(userId) + `?nocache=${nocache}`;
-
-            const response = await apiRequest(endpoint, 'GET', null, {
-                timeout: 10000
-            });
-
-            return response;
-
-        } catch (error) {
-            console.error("❌ API: Помилка отримання балансу:", error);
-            throw error;
-        }
-    }
-
-    /**
-     * Очищення кешу API
-     */
-    function clearCache() {
-        _userCache = null;
-        _userCacheTime = 0;
-        console.log("🧹 API: Кеш очищено");
-    }
-
-    // ======== ІНІЦІАЛІЗАЦІЯ ========
 
     /**
      * Ініціалізація API модуля
      */
-    async function initializeAPI() {
-        console.log("🚀 API: Початок ініціалізації");
+    function initialize() {
+        if (initializationAttempted) {
+            return dependenciesReady;
+        }
 
+        initializationAttempted = true;
+        console.log('🚀 [TasksAPI] Початок ініціалізації...');
+
+        dependenciesReady = checkDependencies();
+
+        if (!dependenciesReady) {
+            console.error('❌ [TasksAPI] Ініціалізація провалена - залежності не готові');
+            return false;
+        }
+
+        console.log('✅ [TasksAPI] API модуль успішно ініціалізовано');
+        return true;
+    }
+
+    // Конфігурація з fallback значеннями
+    const config = {
+        baseURL: window.TasksConstants?.API_ENDPOINTS?.BASE_URL || '/api',
+        timeout: 15000, // Збільшено до 15 секунд
+        retryAttempts: 3,
+        retryDelay: 2000 // 2 секунди між спробами
+    };
+
+    console.log('⚙️ [TasksAPI] Конфігурація:', config);
+
+    // Стан модуля
+    const state = {
+        pendingRequests: new Map(),
+        requestStats: {
+            total: 0,
+            success: 0,
+            failed: 0,
+            avgResponseTime: 0
+        },
+        rateLimiter: {
+            requests: [],
+            window: window.TasksConstants?.SECURITY?.RATE_LIMIT?.WINDOW || 60000,
+            maxRequests: window.TasksConstants?.SECURITY?.RATE_LIMIT?.MAX_REQUESTS || 30
+        },
+        serverAvailable: true
+    };
+
+    /**
+     * Перевірка rate limit
+     */
+    function checkRateLimit() {
+        const now = Date.now();
+        const windowStart = now - state.rateLimiter.window;
+
+        // Видаляємо старі запити
+        state.rateLimiter.requests = state.rateLimiter.requests.filter(
+            timestamp => timestamp > windowStart
+        );
+
+        // Перевіряємо ліміт
+        if (state.rateLimiter.requests.length >= state.rateLimiter.maxRequests) {
+            console.warn('⚠️ [TasksAPI] Rate limit досягнуто');
+            throw new APIError('Забагато запитів. Зачекайте хвилину', 429);
+        }
+
+        // Додаємо поточний запит
+        state.rateLimiter.requests.push(now);
+    }
+
+    /**
+     * Перевірка доступності сервера
+     */
+    async function checkServerHealth() {
         try {
-            // Чекаємо готовності Telegram WebApp
-            console.log("⏳ API: Очікування готовності Telegram WebApp...");
-            await waitForTelegramReady();
-
-            // Перевіряємо здоров'я API
-            await checkApiHealth();
-
-            // Перевіряємо ID користувача
-            const userId = getUserId();
-            if (userId) {
-                console.log(`✅ API: Ініціалізація завершена. ID користувача: ${userId}`);
-            } else {
-                console.warn("⚠️ API: Ініціалізація завершена, але ID користувача не знайдено");
+            if (!window.WinixAPI?.apiRequest) {
+                console.warn('⚠️ [TasksAPI] WinixAPI недоступний для health check');
+                return false;
             }
 
+            // Простий ping запит
+            await window.WinixAPI.apiRequest('api/ping', 'GET', null, {
+                timeout: 5000,
+                suppressErrors: true
+            });
+
+            state.serverAvailable = true;
             return true;
         } catch (error) {
-            console.error("❌ API: Помилка ініціалізації:", error);
+            console.warn('⚠️ [TasksAPI] Сервер недоступний:', error.message);
+            state.serverAvailable = false;
             return false;
         }
     }
 
-    // ======== ПУБЛІЧНИЙ API ========
+    /**
+     * Базовий метод для API викликів з dependency checking
+     */
+    async function apiCall(endpoint, options = {}) {
+        console.log('📡 [TasksAPI] === API ВИКЛИК ===');
+        console.log('🔗 [TasksAPI] Endpoint:', endpoint);
 
-    // Створюємо публічний API
-    window.WinixAPI = {
-        // Конфігурація
-        config: {
-            baseUrl: API_BASE_URL,
-            version: '2.0.0'
+        // Перевіряємо готовність модуля
+        if (!dependenciesReady && !initialize()) {
+            console.error('❌ [TasksAPI] API модуль не готовий');
+            throw new APIError('API модуль не ініціалізовано', 500);
+        }
+
+        // Перевіряємо доступність базового API
+        if (!window.WinixAPI?.apiRequest) {
+            console.error('❌ [TasksAPI] Базовий API недоступний');
+            throw new APIError('Базовий API недоступний', 503);
+        }
+
+        // Перевіряємо rate limit
+        try {
+            checkRateLimit();
+        } catch (error) {
+            if (window.TasksUtils?.showToast) {
+                window.TasksUtils.showToast(error.message, 'error');
+            }
+            throw error;
+        }
+
+        // Якщо сервер був недоступний, перевіряємо його стан
+        if (!state.serverAvailable) {
+            console.log('🔍 [TasksAPI] Перевіряємо доступність сервера...');
+            const serverHealthy = await checkServerHealth();
+
+            if (!serverHealthy) {
+                throw new APIError('Сервер тимчасово недоступний', 503);
+            }
+        }
+
+        const requestId = generateRequestId();
+
+        // Зберігаємо інформацію про запит
+        state.pendingRequests.set(requestId, {
+            endpoint,
+            startTime: Date.now(),
+            status: 'pending'
+        });
+
+        try {
+            // Використовуємо базовий WinixAPI для запиту
+            console.log('📤 [TasksAPI] Виконання запиту через WinixAPI...');
+
+            const response = await window.WinixAPI.apiRequest(endpoint, options.method || 'GET', options.body || null, {
+                timeout: options.timeout || config.timeout,
+                suppressErrors: options.suppressErrors || false,
+                headers: options.headers || {}
+            });
+
+            // Оновлюємо статистику
+            updateRequestStats(requestId, true, response);
+
+            console.log('✅ [TasksAPI] Успішна відповідь:', response);
+            return response;
+
+        } catch (error) {
+            // Оновлюємо статистику
+            updateRequestStats(requestId, false, error);
+
+            console.error('❌ [TasksAPI] Помилка запиту:', error);
+
+            // Обробляємо специфічні помилки
+            if (error.message?.includes('500') || error.status === 500) {
+                state.serverAvailable = false;
+                throw new APIError('Сервер тимчасово недоступний. Спробуйте пізніше', 500);
+            }
+
+            if (error.message?.includes('400') || error.status === 400) {
+                throw new APIError('Невірні дані запиту', 400);
+            }
+
+            if (error.message?.includes('401') || error.status === 401) {
+                throw new APIError('Помилка авторизації. Оновіть сторінку', 401);
+            }
+
+            if (error.message?.includes('403') || error.status === 403) {
+                throw new APIError('Доступ заборонено', 403);
+            }
+
+            if (error.message?.includes('404') || error.status === 404) {
+                throw new APIError('Ресурс не знайдено', 404);
+            }
+
+            // Загальна помилка
+            throw new APIError(error.message || 'Помилка API запиту', error.status || 500);
+
+        } finally {
+            // Видаляємо запит зі списку активних
+            state.pendingRequests.delete(requestId);
+        }
+    }
+
+    /**
+     * API методи для User
+     */
+    const user = {
+        getProfile: async (userId) => {
+            console.log('👤 [TasksAPI] Отримання профілю:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`user/${userId}`, {
+                method: 'GET',
+                suppressErrors: true
+            });
         },
 
-        // Ініціалізація
-        initialize: initializeAPI,
+        getBalance: async (userId) => {
+            console.log('💰 [TasksAPI] Отримання балансу користувача:', userId);
 
-        // Health check
-        checkApiHealth,
-        isApiHealthy: () => _apiState.isHealthy,
-
-        // Базові функції
-        apiRequest,
-        getUserId,
-        getAuthToken,
-        clearAuthToken,
-        refreshToken,
-        clearCache,
-
-        // Функції користувача
-        getUserData,
-        getBalance,
-
-        // Константи API-шляхів
-        paths: API_PATHS,
-
-        // Функції для діагностики
-        diagnostics: {
-            getRequestStats: function() {
-                return {..._requestCounter};
-            },
-            getConnectionState: function() {
-                return {..._connectionState};
-            },
-            getApiState: function() {
-                return {..._apiState};
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
             }
+
+            return apiCall(`user/${userId}/balance`, {
+                method: 'GET',
+                suppressErrors: true
+            });
+        },
+
+        updateBalance: async (userId, balances) => {
+            console.log('💰 [TasksAPI] Оновлення балансу:', userId, balances);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            if (!balances || typeof balances !== 'object') {
+                throw new APIError('Невірні дані балансу', 400);
+            }
+
+            return apiCall(`user/${userId}/update-balance`, {
+                method: 'POST',
+                body: balances
+            });
+        },
+
+        getStats: async (userId) => {
+            console.log('📊 [TasksAPI] Отримання статистики:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`user/${userId}/stats`, {
+                method: 'GET',
+                suppressErrors: true
+            });
         }
     };
 
-    // Для зворотної сумісності
-    window.apiRequest = apiRequest;
-    window.getUserId = getUserId;
+    /**
+     * API методи для Auth
+     */
+    const auth = {
+        validateTelegram: async (initData) => {
+            console.log('🔐 [TasksAPI] Валідація Telegram даних');
 
-    // Автоматична ініціалізація при завантаженні DOM
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializeAPI);
-    } else {
-        // Документ вже завантажений
-        setTimeout(initializeAPI, 100);
+            if (!initData) {
+                throw new APIError('Telegram дані відсутні', 400);
+            }
+
+            return apiCall('auth/validate-telegram', {
+                method: 'POST',
+                body: { initData, timestamp: Date.now() }
+            });
+        },
+
+        refreshToken: async () => {
+            console.log('🔄 [TasksAPI] Оновлення токену');
+
+            return apiCall('auth/refresh-token', {
+                method: 'POST',
+                suppressErrors: true
+            });
+        }
+    };
+
+    /**
+     * API методи для Wallet
+     */
+    const wallet = {
+        checkStatus: async (userId) => {
+            console.log('🔍 [TasksAPI] Перевірка статусу гаманця:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`wallet/status/${userId}`, {
+                method: 'GET',
+                suppressErrors: true
+            });
+        },
+
+        connect: async (userId, walletData) => {
+            console.log('🔌 [TasksAPI] Підключення гаманця:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            if (!walletData || !walletData.address) {
+                throw new APIError('Дані гаманця невірні', 400);
+            }
+
+            return apiCall(`wallet/connect/${userId}`, {
+                method: 'POST',
+                body: walletData
+            });
+        },
+
+        disconnect: async (userId) => {
+            console.log('🔌 [TasksAPI] Відключення гаманця:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`wallet/disconnect/${userId}`, {
+                method: 'POST'
+            });
+        },
+
+        verify: async (userId, address) => {
+            console.log('✅ [TasksAPI] Верифікація гаманця:', userId);
+
+            if (!userId || !address) {
+                throw new APIError('Невірні параметри верифікації', 400);
+            }
+
+            return apiCall(`wallet/verify/${userId}`, {
+                method: 'POST',
+                body: { address, timestamp: Date.now() }
+            });
+        }
+    };
+
+    /**
+     * API методи для Flex
+     */
+    const flex = {
+        getBalance: async (userId, walletAddress) => {
+            console.log('💎 [TasksAPI] Отримання балансу FLEX:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            if (!walletAddress) {
+                throw new APIError('Адреса гаманця не вказана', 400);
+            }
+
+            return apiCall(`flex/balance/${userId}`, {
+                method: 'GET',
+                headers: {
+                    'X-Wallet-Address': walletAddress
+                },
+                suppressErrors: true
+            });
+        },
+
+        claimReward: async (userId, level) => {
+            console.log('🎁 [TasksAPI] Отримання винагороди FLEX:', userId, level);
+
+            if (!userId || !level) {
+                throw new APIError('Невірні параметри винагороди', 400);
+            }
+
+            return apiCall(`flex/claim/${userId}`, {
+                method: 'POST',
+                body: { level, timestamp: Date.now() }
+            });
+        },
+
+        getHistory: async (userId) => {
+            console.log('📜 [TasksAPI] Отримання історії FLEX:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`flex/history/${userId}`, {
+                method: 'GET',
+                suppressErrors: true
+            });
+        },
+
+        checkLevels: async (userId, flexBalance) => {
+            console.log('🎯 [TasksAPI] Перевірка доступних рівнів:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`flex/levels/${userId}`, {
+                method: 'GET',
+                headers: {
+                    'X-Flex-Balance': flexBalance?.toString() || '0'
+                },
+                suppressErrors: true
+            });
+        }
+    };
+
+    /**
+     * API методи для Daily Bonus
+     */
+    const daily = {
+        getStatus: async (userId) => {
+            console.log('📅 [TasksAPI] Отримання статусу щоденного бонусу:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`daily/status/${userId}`, {
+                method: 'GET',
+                suppressErrors: true
+            });
+        },
+
+        claim: async (userId) => {
+            console.log('🎁 [TasksAPI] Отримання щоденного бонусу:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`daily/claim/${userId}`, {
+                method: 'POST',
+                body: { timestamp: Date.now() }
+            });
+        },
+
+        getHistory: async (userId) => {
+            console.log('📜 [TasksAPI] Отримання історії щоденних бонусів:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`daily/history/${userId}`, {
+                method: 'GET',
+                suppressErrors: true
+            });
+        },
+
+        calculateReward: async (userId, dayNumber) => {
+            console.log('💰 [TasksAPI] Розрахунок винагороди:', userId, dayNumber);
+
+            if (!userId || typeof dayNumber !== 'number') {
+                throw new APIError('Невірні параметри розрахунку', 400);
+            }
+
+            return apiCall(`daily/calculate-reward/${userId}`, {
+                method: 'POST',
+                body: { dayNumber }
+            });
+        }
+    };
+
+    /**
+     * API методи для Tasks
+     */
+    const tasks = {
+        getList: async (userId, type = 'all') => {
+            console.log('📋 [TasksAPI] Отримання списку завдань:', userId, type);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`tasks/list/${userId}?type=${type}`, {
+                method: 'GET',
+                suppressErrors: true
+            });
+        },
+
+        start: async (userId, taskId) => {
+            console.log('▶️ [TasksAPI] Початок виконання завдання:', userId, taskId);
+
+            if (!userId || !taskId) {
+                throw new APIError('Невірні параметри завдання', 400);
+            }
+
+            return apiCall(`tasks/start/${userId}/${taskId}`, {
+                method: 'POST',
+                body: { timestamp: Date.now() }
+            });
+        },
+
+        verify: async (userId, taskId, verificationData) => {
+            console.log('🔍 [TasksAPI] Верифікація завдання:', userId, taskId);
+
+            if (!userId || !taskId) {
+                throw new APIError('Невірні параметри верифікації', 400);
+            }
+
+            return apiCall(`tasks/verify/${userId}/${taskId}`, {
+                method: 'POST',
+                body: verificationData || {}
+            });
+        },
+
+        complete: async (userId, taskId) => {
+            console.log('✅ [TasksAPI] Завершення завдання:', userId, taskId);
+
+            if (!userId || !taskId) {
+                throw new APIError('Невірні параметри завершення', 400);
+            }
+
+            return apiCall(`tasks/complete/${userId}/${taskId}`, {
+                method: 'POST',
+                body: { timestamp: Date.now() }
+            });
+        },
+
+        claim: async (userId, taskId) => {
+            console.log('💰 [TasksAPI] Отримання винагороди за завдання:', userId, taskId);
+
+            if (!userId || !taskId) {
+                throw new APIError('Невірні параметри винагороди', 400);
+            }
+
+            return apiCall(`tasks/claim/${userId}/${taskId}`, {
+                method: 'POST'
+            });
+        }
+    };
+
+    /**
+     * API методи для Verification
+     */
+    const verify = {
+        telegram: async (userId, channelUsername) => {
+            console.log('📱 [TasksAPI] Верифікація Telegram підписки:', userId);
+
+            if (!userId || !channelUsername) {
+                throw new APIError('Невірні параметри верифікації', 400);
+            }
+
+            return apiCall(`verify/telegram/${userId}`, {
+                method: 'POST',
+                body: { channelUsername }
+            });
+        },
+
+        checkBot: async (userId) => {
+            console.log('🤖 [TasksAPI] Перевірка запуску бота:', userId);
+
+            if (!userId) {
+                throw new APIError('User ID не вказано', 400);
+            }
+
+            return apiCall(`verify/check-bot/${userId}`, {
+                method: 'GET',
+                suppressErrors: true
+            });
+        },
+
+        social: async (userId, platform, data) => {
+            console.log('🌐 [TasksAPI] Верифікація соціальної мережі:', userId, platform);
+
+            if (!userId || !platform) {
+                throw new APIError('Невірні параметри верифікації', 400);
+            }
+
+            return apiCall(`verify/social/${userId}/${platform}`, {
+                method: 'POST',
+                body: data || {}
+            });
+        }
+    };
+
+    /**
+     * Допоміжні функції
+     */
+    function generateRequestId() {
+        return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 
-    console.log(`✅ API: Модуль успішно завантажено (URL: ${API_BASE_URL})`);
+    function updateRequestStats(requestId, success, data) {
+        const request = state.pendingRequests.get(requestId);
+        if (!request) return;
+
+        const responseTime = Date.now() - request.startTime;
+
+        state.requestStats.total++;
+        if (success) {
+            state.requestStats.success++;
+        } else {
+            state.requestStats.failed++;
+        }
+
+        // Оновлюємо середній час відповіді
+        const prevAvg = state.requestStats.avgResponseTime;
+        const totalRequests = state.requestStats.success + state.requestStats.failed;
+        state.requestStats.avgResponseTime = ((prevAvg * (totalRequests - 1)) + responseTime) / totalRequests;
+
+        console.log('📊 [TasksAPI] Статистика запитів:', {
+            всього: state.requestStats.total,
+            успішних: state.requestStats.success,
+            невдалих: state.requestStats.failed,
+            середнійЧас: Math.round(state.requestStats.avgResponseTime) + 'мс'
+        });
+    }
+
+    /**
+     * Кастомний клас помилки
+     */
+    class APIError extends Error {
+        constructor(message, status, data) {
+            super(message);
+            this.name = 'APIError';
+            this.status = status;
+            this.data = data;
+        }
+    }
+
+    /**
+     * Скасування всіх активних запитів
+     */
+    function cancelAllRequests() {
+        console.log('🚫 [TasksAPI] Скасування всіх активних запитів');
+        state.pendingRequests.clear();
+    }
+
+    /**
+     * Отримати статистику
+     */
+    function getStatistics() {
+        return {
+            ...state.requestStats,
+            pendingRequests: state.pendingRequests.size,
+            rateLimitRemaining: state.rateLimiter.maxRequests - state.rateLimiter.requests.length,
+            serverAvailable: state.serverAvailable,
+            dependenciesReady: dependenciesReady
+        };
+    }
+
+    /**
+     * Перевірити готовність API
+     */
+    function isReady() {
+        return dependenciesReady && state.serverAvailable;
+    }
+
+    /**
+     * Ініціалізація при створенні модуля
+     */
+    setTimeout(() => {
+        try {
+            initialize();
+        } catch (error) {
+            console.error('❌ [TasksAPI] Помилка автоініціалізації:', error);
+        }
+    }, 100);
+
+    console.log('✅ [TasksAPI] API модуль готовий до використання (Production)');
+
+    // Публічний API
+    return {
+        // Основний метод
+        call: apiCall,
+
+        // Групи методів
+        auth,
+        user,
+        wallet,
+        flex,
+        daily,
+        tasks,
+        verify,
+
+        // Утиліти
+        cancelAllRequests,
+        getStatistics,
+        isReady,
+        checkServerHealth,
+
+        // Конфігурація
+        config,
+
+        // Для сумісності
+        initialize
+    };
+
 })();
+
+console.log('✅ [TasksAPI] Модуль експортовано глобально (Production)');
