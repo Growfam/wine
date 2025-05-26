@@ -629,67 +629,59 @@ def create_app(config_name=None):
     # Додаємо after_request обробник для JS файлів і CORS заголовків
     @app.after_request
     def add_headers(response):
+        # Визначаємо дозволені origins
+        origin = request.headers.get('Origin')
+
+        # Список дозволених доменів
+        allowed_origins = [
+            'https://winixbot.com',
+            'https://web.telegram.org',
+            'http://localhost:8080',
+            'http://localhost:3000',
+            'http://127.0.0.1:8080'
+        ]
+
+        # Перевіряємо origin
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        else:
+            # Для розробки можна дозволити всі origins, але БЕЗ credentials
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            # Видаляємо credentials для wildcard origin
+            response.headers.pop('Access-Control-Allow-Credentials', None)
+
+        # CORS заголовки
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers[
+            'Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Telegram-User-Id'
+
+        # Credentials тільки для конкретних origins
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+
+        response.headers['Access-Control-Max-Age'] = '86400'
+
         # Налаштування MIME типу для JS файлів
         if request.path.endswith('.js'):
             response.headers['Content-Type'] = 'application/javascript'
-
-        # Налаштування заголовків CORS для всіх відповідей
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Telegram-User-Id'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Max-Age'] = '86400'  # 24 години кешування preflight запитів
 
         # Налаштування заголовків безпеки
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-XSS-Protection'] = '1; mode=block'
 
-        # ПОВНІСТЮ ВИДАЛЯЄМО X-Frame-Options для підтримки Telegram WebApp
-        # НЕ встановлюємо жодних X-Frame-Options заголовків
-
-        # Замість X-Frame-Options використовуємо Content-Security-Policy
-        response.headers['Content-Security-Policy'] = "frame-ancestors 'self' https://web.telegram.org https://telegram.org *"
+        # Content-Security-Policy для Telegram
+        response.headers[
+            'Content-Security-Policy'] = "frame-ancestors 'self' https://web.telegram.org https://telegram.org *"
 
         # Налаштування кешування
         if request.path.startswith('/api/'):
-            # Для API запитів відключаємо кешування
             response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
         else:
-            # Для статичних файлів дозволяємо кешування
-            response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 година
+            response.headers['Cache-Control'] = 'public, max-age=3600'
 
         return response
-
-    # === ФІНАЛЬНА ДІАГНОСТИКА СИСТЕМИ ===
-    if QUESTS_DIAGNOSTICS_AVAILABLE and diagnose_quests_routes:
-        try:
-            diagnosis = diagnose_quests_routes(app)
-            logger.info(f"🎯 Фінальна діагностика QUESTS: {diagnosis['quests_routes']} маршрутів зареєстровано")
-
-            if diagnosis.get('duplicate_endpoints'):
-                logger.warning(f"⚠️ Знайдено {len(diagnosis['duplicate_endpoints'])} дублікатів endpoint'ів")
-                for dup in diagnosis['duplicate_endpoints'][:3]:  # Показуємо перші 3
-                    logger.warning(f"   🔄 {dup['endpoint']} ({dup['count']} разів)")
-
-            if diagnosis.get('blueprint_conflicts'):
-                logger.error(f"🔴 Конфлікти Blueprint'ів: {diagnosis['blueprint_conflicts']}")
-
-            if diagnosis.get('missing_endpoints'):
-                logger.warning(f"⚠️ Відсутні {len(diagnosis['missing_endpoints'])} критичних endpoint'ів")
-
-            if diagnosis.get('recommendations'):
-                logger.info("💡 Рекомендації системи:")
-                for rec in diagnosis['recommendations']:
-                    logger.info(f"   • {rec}")
-
-        except Exception as e:
-            logger.error(f"Помилка фінальної діагностики: {e}")
-
-    logger.info("🏁 Flask застосунок готовий")
-    return app  # КРИТИЧНО ВАЖЛИВО - повертаємо створений app
-
 
 def setup_cors(app):
     """Налаштування CORS для API"""
@@ -1646,6 +1638,16 @@ if __name__ == '__main__':
 
     # Безпечне отримання DEBUG
     debug = getattr(app.config, 'DEBUG', True) if hasattr(app, 'config') else True
+
+
+    @app.after_request
+    def after_request(response):
+        # Дозволяємо CORS для health endpoint
+        if request.path == '/api/health':
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
 
     logger.info(f"🌟 Запуск WINIX застосунку на порту {port}, режим налагодження: {debug}")
     logger.info("🎯 === ДІАГНОСТИЧНІ ENDPOINT'И ===")
