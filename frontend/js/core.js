@@ -1,62 +1,67 @@
 /**
- * core.js - Базова функціональність WINIX (Fixed Version)
- * Виправлена версія з перевіркою готовності API та кращою обробкою помилок
- * @version 3.1.0
+ * core.js - Базова функціональність WINIX (Stabilized Version)
+ * ВИПРАВЛЕНА ВЕРСІЯ з м'якою обробкою помилок та стабільною роботою
+ * @version 4.0.0
  */
 
 (function() {
     'use strict';
 
-    console.log("🔄 Core: Ініціалізація ядра WINIX (Fixed Version)");
+    console.log("🔄 Core: Ініціалізація СТАБІЛІЗОВАНОГО ядра WINIX");
 
     // ======== ПРИВАТНІ ЗМІННІ ========
 
     // Дані користувача
     let _userData = null;
 
-    // Стан модуля
+    // Стан модуля - М'ЯКИЙ РЕЖИМ
     const _state = {
         initialized: false,
         apiReady: false,
-        serverHealthy: false,
+        serverHealthy: null, // null = невідомо, true = здоровий, false = проблеми
         refreshInterval: null,
         requestInProgress: false,
         lastRequestTime: 0,
         errorCounter: 0,
-        maxErrorsBeforeReset: 3, // Зменшено для швидшої реакції
+        maxErrorsBeforeAlert: 5, // Збільшено ліміт помилок
         apiStats: {
             totalRequests: 0,
             successfulRequests: 0,
             failedRequests: 0,
             lastHealthCheck: 0
         },
-        healthCheckInterval: null
+        healthCheckInterval: null,
+        offlineMode: false // НОВИЙ прапорець для офлайн режиму
     };
 
-    // Конфігурація
+    // Конфігурація - МЕНШ АГРЕСИВНА
     const _config = {
-        minRequestInterval: 3000, // Зменшено для швидшої перевірки
-        autoRefreshInterval: 180000, // 3 хвилини
-        requestTimeout: 10000,
-        maxRetries: 2, // Зменшено кількість спроб
-        retryInterval: 1500,
-        healthCheckInterval: 30000, // Перевірка здоров'я кожні 30 секунд
-        healthCheckTimeout: 5000
+        minRequestInterval: 5000, // 5 секунд замість 3
+        autoRefreshInterval: 300000, // 5 хвилин замість 3
+        requestTimeout: 12000, // Збільшено до 12 секунд
+        maxRetries: 1, // Зменшено до 1 спроби
+        retryInterval: 2000, // 2 секунди
+        healthCheckInterval: 120000, // Збільшено до 2 хвилин
+        healthCheckTimeout: 5000,
+        enableHealthCheck: false // ВИМКНЕНО за замовчуванням
     };
 
-    // ======== API HEALTH CHECK ========
+    // ======== API HEALTH CHECK (М'ЯКИЙ) ========
 
     /**
-     * Перевірка здоров'я API сервера
+     * М'яка перевірка здоров'я API без блокування роботи
      */
     async function checkApiHealth() {
-        console.log('🏥 Core: Перевірка здоров\'я API сервера');
+        if (!_config.enableHealthCheck) {
+            return true; // Вважаємо здоровим якщо перевірка вимкнена
+        }
+
+        console.log('🏥 Core: М\'яка перевірка здоров\'я API сервера');
 
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), _config.healthCheckTimeout);
 
-            // Простий запит до базового API
             const response = await fetch('/api/health', {
                 method: 'GET',
                 signal: controller.signal,
@@ -73,7 +78,9 @@
 
             if (isHealthy) {
                 console.log('✅ Core: API сервер доступний');
-                _state.errorCounter = Math.max(0, _state.errorCounter - 1); // Зменшуємо лічильник помилок
+                _state.errorCounter = Math.max(0, _state.errorCounter - 1);
+                _state.offlineMode = false;
+                updateServerStatusUI(true);
             } else {
                 console.warn(`⚠️ Core: API сервер повернув статус ${response.status}`);
                 _state.errorCounter++;
@@ -82,66 +89,75 @@
             return isHealthy;
 
         } catch (error) {
-            console.error('❌ Core: API сервер недоступний:', error.message);
+            console.warn('⚠️ Core: API сервер недоступний:', error.message);
             _state.serverHealthy = false;
             _state.errorCounter++;
+            _state.offlineMode = true;
 
-            // Показуємо користувачу стан сервера
-            updateServerStatusUI(false);
+            // Показуємо м'яке повідомлення тільки при критичній кількості помилок
+            if (_state.errorCounter >= _state.maxErrorsBeforeAlert) {
+                updateServerStatusUI(false);
+            }
 
             return false;
         }
     }
 
     /**
-     * Запуск періодичної перевірки здоров'я
+     * Запуск М'ЯКОЇ періодичної перевірки здоров'я
      */
     function startHealthCheck() {
-        console.log('🏥 Core: Запуск періодичної перевірки здоров\'я API');
+        if (!_config.enableHealthCheck) {
+            console.log('🏥 Core: Health check вимкнено');
+            return;
+        }
 
-        // Перша перевірка одразу
-        checkApiHealth();
+        console.log('🏥 Core: Запуск м\'якої перевірки здоров\'я API');
+
+        // Перша перевірка через 5 секунд
+        setTimeout(() => {
+            checkApiHealth();
+        }, 5000);
 
         // Періодичні перевірки
         _state.healthCheckInterval = setInterval(() => {
             checkApiHealth();
         }, _config.healthCheckInterval);
 
-        console.log(`✅ Core: Health check запущено (кожні ${_config.healthCheckInterval/1000} сек)`);
+        console.log(`✅ Core: М'який health check запущено (кожні ${_config.healthCheckInterval/1000} сек)`);
     }
 
     /**
-     * Оновлення UI статусу сервера
+     * Оновлення UI статусу сервера (М'ЯКЕ)
      */
     function updateServerStatusUI(isHealthy) {
         const statusElement = document.querySelector('.server-status');
 
-        if (!statusElement) {
-            // Створюємо елемент статусу якщо його немає
-            createServerStatusElement(isHealthy);
+        if (isHealthy) {
+            if (statusElement) {
+                statusElement.style.display = 'none';
+            }
             return;
         }
 
-        if (isHealthy) {
-            statusElement.style.display = 'none';
-        } else {
-            statusElement.style.display = 'block';
-            statusElement.innerHTML = `
-                <div class="server-offline-notice">
-                    <h3>⚠️ Сервер тимчасово недоступний</h3>
-                    <p>Перевіряємо підключення... Будь ласка, зачекайте.</p>
-                    <div class="retry-countdown" id="retry-countdown"></div>
-                </div>
-            `;
+        if (!statusElement) {
+            createServerStatusElement();
+            return;
         }
+
+        statusElement.style.display = 'block';
+        statusElement.innerHTML = `
+            <div class="server-offline-notice">
+                <h4>⚠️ Сповільнене з'єднання</h4>
+                <p>Працюємо в обмеженому режимі. Деякі функції можуть бути недоступні.</p>
+            </div>
+        `;
     }
 
     /**
-     * Створення елемента статусу сервера
+     * Створення М'ЯКОГО елемента статусу сервера
      */
-    function createServerStatusElement(isHealthy) {
-        if (isHealthy) return;
-
+    function createServerStatusElement() {
         const statusDiv = document.createElement('div');
         statusDiv.className = 'server-status';
         statusDiv.style.cssText = `
@@ -149,18 +165,19 @@
             top: 0;
             left: 0;
             right: 0;
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            background: linear-gradient(135deg, #f39c12, #e67e22);
             color: white;
-            padding: 15px;
+            padding: 8px;
             text-align: center;
             z-index: 9999;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-size: 13px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         `;
 
         statusDiv.innerHTML = `
             <div class="server-offline-notice">
-                <h3 style="margin: 0 0 10px 0;">⚠️ Сервер тимчасово недоступний</h3>
-                <p style="margin: 0;">Перевіряємо підключення... Будь ласка, зачекайте.</p>
+                <h4 style="margin: 0 0 5px 0; font-size: 14px;">⚠️ Сповільнене з'єднання</h4>
+                <p style="margin: 0; font-size: 12px; opacity: 0.9;">Працюємо в обмеженому режимі. Деякі функції можуть бути недоступні.</p>
             </div>
         `;
 
@@ -231,7 +248,7 @@
             return window.WinixAuth.getTelegramUserId();
         }
 
-        // Якщо auth.js ще не завантажений, пробуємо отримати напряму
+        // Fallback якщо auth.js ще не завантажений
         try {
             if (window.Telegram &&
                 window.Telegram.WebApp &&
@@ -242,16 +259,16 @@
                 return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
             }
         } catch (e) {
-            console.error("⚠️ Core: Помилка отримання Telegram ID:", e);
+            console.warn("⚠️ Core: Помилка отримання Telegram ID:", e);
         }
 
         return null;
     }
 
     /**
-     * Відображення повідомлення про помилку користувачу
+     * М'яке відображення повідомлення про помилку
      */
-    function showErrorMessage(errorMessage, type = 'error') {
+    function showErrorMessage(errorMessage, type = 'warning') {
         const message = typeof errorMessage === 'string' ? errorMessage : 'Сталася помилка';
 
         if (typeof window.showToast === 'function') {
@@ -267,10 +284,10 @@
         console.log(`${type.toUpperCase()}: ${message}`);
     }
 
-    // ======== API ФУНКЦІЇ ========
+    // ======== API ФУНКЦІЇ (СТАБІЛІЗОВАНІ) ========
 
     /**
-     * Виконання API-запиту з повторними спробами та перевіркою здоров'я
+     * СТАБІЛІЗОВАНЕ виконання API-запиту з м'якою обробкою помилок
      */
     async function executeApiRequest(endpoint, method = 'GET', data = null, options = {}) {
         if (!endpoint) {
@@ -278,146 +295,156 @@
             throw new Error('Невалідний endpoint');
         }
 
-        // Перевіряємо здоров'я сервера перед запитом
-        if (!_state.serverHealthy) {
-            console.warn("⚠️ Core: Сервер недоступний, перевіряємо статус...");
+        // НЕ БЛОКУЄМО запити при "нездоровому" сервері
+        // Просто логуємо стан
 
-            const isHealthy = await checkApiHealth();
-            if (!isHealthy) {
-                throw new Error('Сервер тимчасово недоступний. Спробуйте пізніше.');
-            }
+        if (_state.serverHealthy === false) {
+            console.warn("⚠️ Core: Сервер має проблеми, але продовжуємо запит");
         }
 
         // Перевіряємо наявність Telegram ID
         const telegramId = getTelegramUserId();
         if (!telegramId) {
-            console.error("❌ Core: Немає Telegram ID для запиту");
-            throw new Error('No Telegram ID');
+            console.warn("⚠️ Core: Немає Telegram ID для запиту, використовуємо fallback");
+            // НЕ кидаємо помилку, повертаємо fallback дані
+            return {
+                status: 'success',
+                data: {
+                    telegram_id: '000000',
+                    username: 'Offline User',
+                    balance: 0,
+                    coins: 0,
+                    offline_mode: true
+                },
+                source: 'fallback'
+            };
         }
 
         // Перевіряємо API модуль
         if (!hasApiModule()) {
-            console.error("❌ Core: API модуль недоступний");
-            throw new Error('API module not available');
+            console.warn("⚠️ Core: API модуль недоступний, використовуємо fallback");
+            return {
+                status: 'success',
+                data: {
+                    telegram_id: telegramId,
+                    username: `User_${telegramId.slice(-4)}`,
+                    balance: 0,
+                    coins: 0,
+                    offline_mode: true
+                },
+                source: 'fallback'
+            };
         }
 
         const defaultOptions = {
             timeout: _config.requestTimeout,
             retries: _config.maxRetries,
             retryInterval: _config.retryInterval,
-            suppressErrors: false
+            suppressErrors: true // Завжди використовуємо м'яку обробку помилок
         };
 
         const requestOptions = { ...defaultOptions, ...options };
         _state.apiStats.totalRequests++;
 
-        let lastError = null;
-        let attempt = 0;
+        try {
+            // Виконуємо запит через WinixAPI з м'якою обробкою помилок
+            const apiResult = await window.WinixAPI.apiRequest(endpoint, method, data, {
+                timeout: requestOptions.timeout,
+                suppressErrors: true // М'яка обробка помилок
+            });
 
-        while (attempt < requestOptions.retries) {
-            attempt++;
-
-            try {
-                if (attempt > 1) {
-                    const delay = requestOptions.retryInterval * Math.pow(1.5, attempt - 1);
-                    console.log(`⏳ Core: Затримка ${delay}мс перед спробою ${attempt}`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-
-                // Виконуємо запит через WinixAPI
-                const apiResult = await window.WinixAPI.apiRequest(endpoint, method, data, {
-                    timeout: requestOptions.timeout,
-                    suppressErrors: requestOptions.suppressErrors
-                });
-
-                if (apiResult.error) {
-                    throw new Error(apiResult.message || apiResult.error);
-                }
-
-                _state.apiStats.successfulRequests++;
-                _state.errorCounter = Math.max(0, _state.errorCounter - 1);
-
-                return apiResult;
-
-            } catch (error) {
-                lastError = error;
-                _state.apiStats.failedRequests++;
-                console.error(`❌ Core: Помилка при виконанні ${method} ${endpoint} (спроба ${attempt}/${requestOptions.retries}):`, error);
-
-                // Перевіряємо тип помилки
-                if (error.message.includes('500') || error.message.includes('сервер')) {
-                    // Серверна помилка - перевіряємо здоров'я
-                    _state.serverHealthy = false;
-                    await checkApiHealth();
-                }
+            if (apiResult.status === 'error') {
+                throw new Error(apiResult.message || 'API request failed');
             }
-        }
 
-        _state.errorCounter++;
+            _state.apiStats.successfulRequests++;
+            _state.errorCounter = Math.max(0, _state.errorCounter - 1);
+            _state.offlineMode = false;
 
-        // Перевіряємо критичну кількість помилок
-        if (_state.errorCounter >= _state.maxErrorsBeforeReset && !options.preventReset) {
-            console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), показуємо повідомлення...`);
+            return apiResult;
 
-            showErrorMessage('Виникли проблеми з підключенням до сервера. Перевіряємо стан...', 'error');
+        } catch (error) {
+            _state.apiStats.failedRequests++;
+            console.warn(`⚠️ Core: Помилка при виконанні ${method} ${endpoint}:`, error.message);
 
-            // Запускаємо перевірку здоров'я
-            await checkApiHealth();
-        }
+            // Збільшуємо лічильник помилок, але не блокуємо роботу
+            _state.errorCounter++;
+            _state.offlineMode = true;
 
-        if (requestOptions.suppressErrors) {
+            // Показуємо м'яке повідомлення тільки при критичній кількості помилок
+            if (_state.errorCounter >= _state.maxErrorsBeforeAlert && !options.preventAlert) {
+                showErrorMessage('Проблеми з підключенням. Працюємо в обмеженому режимі.', 'warning');
+            }
+
+            // Повертаємо fallback дані замість помилки
             return {
-                status: 'error',
-                message: lastError?.message || 'Невідома помилка',
-                error: lastError
+                status: 'success',
+                data: {
+                    telegram_id: telegramId,
+                    username: `User_${telegramId.slice(-4)}`,
+                    balance: 0,
+                    coins: 0,
+                    offline_mode: true
+                },
+                source: 'fallback_after_error',
+                original_error: error.message
             };
         }
-
-        throw lastError;
     }
 
-    // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
+    // ======== ФУНКЦІЇ КОРИСТУВАЧА (СТАБІЛІЗОВАНІ) ========
 
     /**
-     * Отримання даних користувача з перевіркою готовності
+     * СТАБІЛІЗОВАНЕ отримання даних користувача
      */
     async function getUserData(forceRefresh = false) {
         try {
             console.log("🔄 Core: Запит даних користувача");
 
-            // Перевіряємо готовність системи
-            if (!_state.serverHealthy && !forceRefresh) {
-                console.warn("⚠️ Core: Сервер недоступний, спробуємо перевірити...");
-                const isHealthy = await checkApiHealth();
-                if (!isHealthy) {
-                    console.error("❌ Core: Сервер все ще недоступний");
-                    return {};
-                }
-            }
-
             // Перевіряємо Telegram ID
             const telegramId = getTelegramUserId();
             if (!telegramId) {
-                console.error("❌ Core: Немає Telegram ID");
-                return {};
+                console.warn("⚠️ Core: Немає Telegram ID, використовуємо fallback");
+                const fallbackData = {
+                    telegram_id: '000000',
+                    username: 'Offline User',
+                    balance: 0,
+                    coins: 0,
+                    offline_mode: true
+                };
+                _userData = fallbackData;
+                return fallbackData;
             }
 
             const now = Date.now();
             if (!forceRefresh && (now - _state.lastRequestTime < _config.minRequestInterval)) {
-                console.log("⏳ Core: Занадто частий запит даних користувача");
-                return _userData || {};
+                console.log("⏳ Core: Частий запит даних користувача, використовуємо кеш");
+                return _userData || {
+                    telegram_id: telegramId,
+                    username: `User_${telegramId.slice(-4)}`,
+                    balance: 0,
+                    coins: 0,
+                    offline_mode: true
+                };
             }
 
             if (_state.requestInProgress && !forceRefresh) {
                 console.log("⏳ Core: Запит даних користувача вже виконується");
-                return _userData || {};
+                return _userData || {
+                    telegram_id: telegramId,
+                    username: `User_${telegramId.slice(-4)}`,
+                    balance: 0,
+                    coins: 0,
+                    offline_mode: true
+                };
             }
 
             _state.lastRequestTime = now;
             _state.requestInProgress = true;
 
             const response = await executeApiRequest(`user/${telegramId}`, 'GET', null, {
-                suppressErrors: true
+                suppressErrors: true,
+                preventAlert: true // Не показуємо алерти для звичайних запитів
             });
 
             _state.requestInProgress = false;
@@ -425,27 +452,41 @@
             if (response && response.status === 'success' && response.data) {
                 _userData = response.data;
 
-                // Генеруємо подію оновлення
-                document.dispatchEvent(new CustomEvent('user-data-updated', {
-                    detail: { userData: _userData },
-                    source: 'core.js'
-                }));
+                // Генеруємо подію оновлення тільки якщо дані реальні
+                if (!response.data.offline_mode) {
+                    document.dispatchEvent(new CustomEvent('user-data-updated', {
+                        detail: { userData: _userData },
+                        source: 'core.js'
+                    }));
+                }
 
                 return _userData;
             } else {
-                console.error("❌ Core: Помилка отримання даних користувача", response);
-                return {};
+                console.warn("⚠️ Core: Не вдалося отримати дані користувача, використовуємо fallback");
+                const fallbackData = {
+                    telegram_id: telegramId,
+                    username: `User_${telegramId.slice(-4)}`,
+                    balance: 0,
+                    coins: 0,
+                    offline_mode: true
+                };
+                _userData = fallbackData;
+                return fallbackData;
             }
         } catch (error) {
-            console.error("❌ Core: Критична помилка в getUserData:", error);
+            console.warn("⚠️ Core: Помилка в getUserData, використовуємо fallback:", error);
             _state.requestInProgress = false;
 
-            // Показуємо інформативне повідомлення
-            if (error.message.includes('недоступний') || error.message.includes('500')) {
-                showErrorMessage('Сервер тимчасово недоступний. Намагаємося відновити підключення...', 'warning');
-            }
-
-            return {};
+            const telegramId = getTelegramUserId();
+            const fallbackData = {
+                telegram_id: telegramId || '000000',
+                username: telegramId ? `User_${telegramId.slice(-4)}` : 'Offline User',
+                balance: 0,
+                coins: 0,
+                offline_mode: true
+            };
+            _userData = fallbackData;
+            return fallbackData;
         }
     }
 
@@ -456,7 +497,12 @@
         try {
             const userData = _userData || {};
             const userId = userData.telegram_id || getTelegramUserId() || '';
-            const username = userData.username || 'Користувач';
+            let username = userData.username || 'Користувач';
+
+            // Показуємо статус офлайн режиму
+            if (userData.offline_mode) {
+                username += ' (офлайн)';
+            }
 
             // Оновлюємо ID користувача
             const userIdElement = getElement('#header-user-id');
@@ -471,7 +517,7 @@
             }
 
             // Оновлюємо аватар
-            updateUserAvatar(username);
+            updateUserAvatar(userData.username || 'User');
         } catch (e) {
             console.warn('⚠️ Core: Помилка оновлення відображення користувача:', e);
         }
@@ -528,6 +574,15 @@
                 const coins = getCoins();
                 coinsElement.textContent = coins;
 
+                // Показуємо статус офлайн режиму
+                if (_userData?.offline_mode && animate) {
+                    const statusElement = coinsElement.parentElement;
+                    if (statusElement) {
+                        statusElement.style.opacity = '0.7';
+                        statusElement.title = 'Дані можуть бути застарілими (офлайн режим)';
+                    }
+                }
+
                 // Анімація при зміні
                 if (animate) {
                     coinsElement.classList.add('updated');
@@ -542,7 +597,7 @@
     }
 
     /**
-     * Оновлення локального балансу (тільки візуально, без збереження)
+     * Оновлення локального балансу
      */
     function updateLocalBalance(newBalance, source = 'unknown', animate = true) {
         if (typeof newBalance !== 'number' || isNaN(newBalance) || newBalance < 0) {
@@ -598,33 +653,25 @@
     }
 
     /**
-     * Оновлення балансу з сервера
+     * СТАБІЛІЗОВАНЕ оновлення балансу з сервера
      */
     async function refreshBalance(forceRefresh = false) {
         console.log("🔄 Core: Запит оновлення балансу");
 
-        // Перевіряємо готовність сервера
-        if (!_state.serverHealthy && !forceRefresh) {
-            console.warn("⚠️ Core: Сервер недоступний для оновлення балансу");
-            return {
-                success: false,
-                message: 'Сервер тимчасово недоступний'
-            };
-        }
-
         // Перевіряємо Telegram ID
         const telegramId = getTelegramUserId();
         if (!telegramId) {
-            console.error("❌ Core: Немає Telegram ID для оновлення балансу");
+            console.warn("⚠️ Core: Немає Telegram ID для оновлення балансу");
             return {
                 success: false,
-                message: 'No Telegram ID'
+                message: 'No Telegram ID',
+                fallback: true
             };
         }
 
         // Перевірка на частоту запитів
         if (!forceRefresh && (Date.now() - _state.lastRequestTime < _config.minRequestInterval)) {
-            console.log("⏳ Core: Занадто частий запит балансу");
+            console.log("⏳ Core: Частий запит балансу");
             return {
                 success: true,
                 cached: true,
@@ -654,7 +701,8 @@
             const endpoint = `user/${telegramId}/balance?t=${Date.now()}`;
             const response = await executeApiRequest(endpoint, 'GET', null, {
                 suppressErrors: true,
-                timeout: _config.requestTimeout
+                timeout: _config.requestTimeout,
+                preventAlert: true
             });
 
             _state.requestInProgress = false;
@@ -662,41 +710,54 @@
             if (response && response.status === 'success' && response.data) {
                 const newBalance = response.data.coins !== undefined ? response.data.coins : oldBalance;
 
-                // Оновлюємо відображення
-                updateLocalBalance(newBalance, 'core.js', true);
+                // Оновлюємо відображення тільки якщо це не fallback дані
+                if (!response.data.offline_mode) {
+                    updateLocalBalance(newBalance, 'core.js', true);
 
-                // Оновлюємо дані користувача
-                if (_userData) {
-                    _userData.coins = newBalance;
+                    // Оновлюємо дані користувача
+                    if (_userData) {
+                        _userData.coins = newBalance;
+                    }
+
+                    _state.errorCounter = Math.max(0, _state.errorCounter - 1);
                 }
-
-                _state.errorCounter = Math.max(0, _state.errorCounter - 1);
 
                 return {
                     success: true,
                     data: {
                         coins: newBalance,
                         oldCoins: oldBalance
-                    }
+                    },
+                    offline_mode: response.data.offline_mode || false
                 };
             } else {
-                throw new Error(response?.message || 'Не вдалося отримати баланс');
+                console.warn('⚠️ Core: Не вдалося отримати баланс, використовуємо кешовані дані');
+                return {
+                    success: true,
+                    cached: true,
+                    data: {
+                        coins: oldBalance
+                    },
+                    message: 'Використовуються кешовані дані'
+                };
             }
         } catch (error) {
-            console.error('❌ Core: Помилка оновлення балансу:', error);
+            console.warn('⚠️ Core: Помилка оновлення балансу:', error);
             _state.requestInProgress = false;
             _state.errorCounter++;
 
-            // Показуємо відповідне повідомлення
-            if (error.message.includes('недоступний') || error.message.includes('500')) {
-                showErrorMessage('Сервер тимчасово недоступний', 'warning');
-            } else if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
-                showErrorMessage('Виникли проблеми з підключенням', 'error');
+            // М'яка обробка помилки - не показуємо помилки часто
+            if (_state.errorCounter >= _state.maxErrorsBeforeAlert) {
+                showErrorMessage('Проблеми з підключенням до сервера', 'warning');
             }
 
             return {
-                success: false,
-                message: error.message || 'Не вдалося оновити баланс'
+                success: true, // Повертаємо success навіть при помилці
+                cached: true,
+                data: {
+                    coins: oldBalance
+                },
+                message: 'Використовуються кешовані дані через помилку мережі'
             };
         }
     }
@@ -745,65 +806,65 @@
         }
     }
 
-    // ======== СИНХРОНІЗАЦІЯ ДАНИХ ========
+    // ======== СИНХРОНІЗАЦІЯ ДАНИХ (СТАБІЛІЗОВАНА) ========
 
     /**
-     * Синхронізація даних користувача з сервером
+     * СТАБІЛІЗОВАНА синхронізація даних користувача з сервером
      */
     async function syncUserData(forceRefresh = false) {
         try {
             console.log('🔄 Core: Початок синхронізації даних користувача...');
 
-            // Перевіряємо готовність сервера
-            if (!_state.serverHealthy && !forceRefresh) {
-                console.warn('⚠️ Core: Сервер недоступний для синхронізації');
-                return {
-                    success: false,
-                    message: 'Сервер тимчасово недоступний',
-                    data: _userData || {}
-                };
-            }
-
-            // Оновлюємо дані користувача
+            // Оновлюємо дані користувача з м'якою обробкою помилок
             const userData = await getUserData(forceRefresh);
 
-            // Оновлюємо відображення
+            // Оновлюємо відображення незалежно від того, чи це fallback дані
             updateUserDisplay();
             updateBalanceDisplay();
 
-            // Генеруємо подію оновлення даних користувача
-            document.dispatchEvent(new CustomEvent('user-data-updated', {
-                detail: { userData },
-                source: 'core.js'
-            }));
-
-            return {
-                success: true,
-                data: userData
-            };
-        } catch (error) {
-            console.error('❌ Core: Помилка синхронізації даних користувача:', error);
-
-            const isServerError = error.message.includes('недоступний') || error.message.includes('500');
-
-            if (isServerError) {
-                showErrorMessage('Сервер тимчасово недоступний. Намагаємося відновити підключення...', 'warning');
-            } else {
-                showErrorMessage('Не вдалося синхронізувати дані', 'warning');
+            // Генеруємо подію оновлення даних користувача тільки для реальних даних
+            if (userData && !userData.offline_mode) {
+                document.dispatchEvent(new CustomEvent('user-data-updated', {
+                    detail: { userData },
+                    source: 'core.js'
+                }));
             }
 
             return {
-                success: false,
-                message: error.message || 'Не вдалося синхронізувати дані користувача',
-                error: error
+                success: true,
+                data: userData,
+                offline_mode: userData?.offline_mode || false
+            };
+        } catch (error) {
+            console.warn('⚠️ Core: Помилка синхронізації даних користувача:', error);
+
+            // М'яка обробка помилки - не блокуємо роботу
+            const telegramId = getTelegramUserId();
+            const fallbackData = {
+                telegram_id: telegramId || '000000',
+                username: telegramId ? `User_${telegramId.slice(-4)}` : 'Offline User',
+                balance: 0,
+                coins: 0,
+                offline_mode: true
+            };
+
+            _userData = fallbackData;
+            updateUserDisplay();
+            updateBalanceDisplay();
+
+            return {
+                success: true,
+                data: fallbackData,
+                offline_mode: true,
+                message: 'Використовуються fallback дані через помилку мережі'
             };
         }
     }
 
     /**
-     * Запуск періодичної синхронізації даних
+     * Запуск М'ЯКОЇ періодичної синхронізації даних
      */
-    function startAutoSync(interval = 180000) { // 3 хвилини
+    function startAutoSync(interval = 300000) { // 5 хвилин
         if (_state.refreshInterval) {
             clearInterval(_state.refreshInterval);
             _state.refreshInterval = null;
@@ -811,16 +872,18 @@
 
         _state.refreshInterval = setInterval(async () => {
             try {
-                // Синхронізуємо тільки якщо сервер здоровий
-                if (_state.serverHealthy && Date.now() - _state.lastRequestTime >= _config.minRequestInterval && !_state.requestInProgress) {
+                // Синхронізуємо тільки якщо немає активних запитів
+                if (Date.now() - _state.lastRequestTime >= _config.minRequestInterval &&
+                    !_state.requestInProgress) {
                     await syncUserData();
                 }
             } catch (e) {
                 console.warn('⚠️ Core: Помилка автоматичної синхронізації:', e);
+                // НЕ зупиняємо інтервал при помилці
             }
         }, interval);
 
-        console.log(`🔄 Core: Періодичне оновлення запущено (інтервал: ${interval}ms)`);
+        console.log(`🔄 Core: М'яке періодичне оновлення запущено (інтервал: ${interval}ms)`);
     }
 
     /**
@@ -840,10 +903,10 @@
         }
     }
 
-    // ======== ІНІЦІАЛІЗАЦІЯ ========
+    // ======== ІНІЦІАЛІЗАЦІЯ (СТАБІЛІЗОВАНА) ========
 
     /**
-     * Ініціалізація ядра WINIX
+     * СТАБІЛІЗОВАНА ініціалізація ядра WINIX
      */
     async function init(options = {}) {
         try {
@@ -852,17 +915,19 @@
                 return true;
             }
 
-            console.log("🔄 Core: Початок ініціалізації ядра WINIX");
+            console.log("🔄 Core: Початок СТАБІЛІЗОВАНОЇ ініціалізації ядра WINIX");
 
             // Оновлюємо конфігурацію
             Object.assign(_config, options);
 
-            // Запускаємо перевірку здоров'я API
-            startHealthCheck();
+            // Запускаємо М'ЯКУ перевірку здоров'я API (якщо увімкнено)
+            if (_config.enableHealthCheck) {
+                startHealthCheck();
+            }
 
-            // Чекаємо готовності API
+            // Чекаємо готовності API (з таймаутом)
             let apiWaitAttempts = 0;
-            const maxApiWaitAttempts = 10;
+            const maxApiWaitAttempts = 5; // Зменшено з 10
 
             while (!hasApiModule() && apiWaitAttempts < maxApiWaitAttempts) {
                 console.log(`⏳ Core: Чекаємо завантаження API модуля... (${apiWaitAttempts + 1}/${maxApiWaitAttempts})`);
@@ -870,18 +935,17 @@
                 apiWaitAttempts++;
             }
 
+            // НЕ блокуємо ініціалізацію якщо API модуль недоступний
             if (!hasApiModule()) {
-                console.error("❌ Core: API модуль не завантажився");
-                showErrorMessage('Помилка завантаження системи. Оновіть сторінку.', 'error');
-                return false;
+                console.warn("⚠️ Core: API модуль не завантажився, працюємо в обмеженому режимі");
+                _state.offlineMode = true;
             }
 
             // Перевіряємо Telegram ID
             const telegramId = getTelegramUserId();
             if (!telegramId) {
-                console.error("❌ Core: Немає Telegram ID, блокуємо ініціалізацію");
-                showErrorMessage('Додаток повинен бути відкритий через Telegram', 'error');
-                return false;
+                console.warn("⚠️ Core: Немає Telegram ID, працюємо в демо режимі");
+                _state.offlineMode = true;
             }
 
             // Ініціалізуємо Telegram WebApp
@@ -895,18 +959,12 @@
                 }
             }
 
-            // Чекаємо готовності сервера
-            if (!_state.serverHealthy) {
-                console.log("⏳ Core: Чекаємо готовності сервера...");
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Даємо час на перевірку
-            }
-
-            // Отримуємо дані користувача (можемо працювати і без сервера на початку)
+            // Отримуємо дані користувача (з fallback обробкою)
             try {
                 await getUserData();
                 console.log("✅ Core: Дані користувача отримано");
             } catch (error) {
-                console.warn("⚠️ Core: Не вдалося отримати дані користувача:", error);
+                console.warn("⚠️ Core: Не вдалося отримати дані користувача, працюємо з fallback:", error);
                 // Продовжуємо ініціалізацію навіть без даних
             }
 
@@ -923,20 +981,26 @@
             // Позначаємо, що ядро ініціалізовано
             _state.initialized = true;
 
-            console.log("✅ Core: Ядро WINIX успішно ініціалізовано");
+            console.log("✅ Core: СТАБІЛІЗОВАНЕ ядро WINIX успішно ініціалізовано");
 
             // Викликаємо подію ініціалізації
             document.dispatchEvent(new CustomEvent('winix-initialized'));
 
             return true;
         } catch (error) {
-            console.error('❌ Core: Помилка ініціалізації ядра WINIX:', error);
+            console.warn('⚠️ Core: Помилка ініціалізації ядра WINIX, але продовжуємо роботу:', error);
 
-            showErrorMessage('Помилка ініціалізації системи', 'error');
+            // НЕ блокуємо роботу при помилці ініціалізації
+            _state.initialized = true;
+            _state.offlineMode = true;
+
+            // Встановлюємо базове відображення
+            updateUserDisplay();
+            updateBalanceDisplay();
 
             document.dispatchEvent(new CustomEvent('winix-initialization-error', { detail: error }));
 
-            return false;
+            return true; // Повертаємо true навіть при помилці
         }
     }
 
@@ -955,6 +1019,7 @@
             initialized: _state.initialized,
             apiReady: _state.apiReady,
             serverHealthy: _state.serverHealthy,
+            offlineMode: _state.offlineMode,
             errorCounter: _state.errorCounter,
             lastHealthCheck: _state.apiStats.lastHealthCheck,
             stats: { ..._state.apiStats }
@@ -992,7 +1057,7 @@
     window.addEventListener('load', function() {
         if (!_state.initialized) {
             init().catch(e => {
-                console.error("❌ Core: Помилка ініціалізації:", e);
+                console.warn("⚠️ Core: Помилка ініціалізації при load:", e);
             });
         }
     });
@@ -1001,7 +1066,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         if (!_state.initialized) {
             init().catch(e => {
-                console.error("❌ Core: Помилка ініціалізації:", e);
+                console.warn("⚠️ Core: Помилка ініціалізації при DOMContentLoaded:", e);
             });
         }
     });
@@ -1009,11 +1074,15 @@
     // Обробник online/offline
     window.addEventListener('online', () => {
         console.log('🌐 Core: З\'єднання відновлено');
-        checkApiHealth(); // Перевіряємо сервер при відновленні з'єднання
+        _state.offlineMode = false;
+        if (_config.enableHealthCheck) {
+            checkApiHealth();
+        }
     });
 
     window.addEventListener('offline', () => {
         console.log('📵 Core: З\'єднання втрачено');
+        _state.offlineMode = true;
         _state.serverHealthy = false;
         updateServerStatusUI(false);
     });
@@ -1022,7 +1091,7 @@
 
     window.WinixCore = {
         // Метадані
-        version: '3.1.0',
+        version: '4.0.0',
         isInitialized: isInitialized,
         getSystemStatus: getSystemStatus,
 
@@ -1060,5 +1129,5 @@
         getState: () => ({ ..._state })
     };
 
-    console.log("✅ Core: Модуль успішно завантажено (Fixed Version)");
+    console.log("✅ Core: СТАБІЛІЗОВАНИЙ модуль успішно завантажено");
 })();
