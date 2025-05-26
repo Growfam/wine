@@ -775,6 +775,10 @@ def add_health_check(app):
             "initialization_result": initialization_result
         }
 
+        @app.route('/health', methods=['GET'])
+        def simple_health():
+            return 'OK', 200
+
         # Додаємо інформацію про WINIX якщо доступний
         if WINIX_QUESTS_AVAILABLE:
             # Спробуємо відкладену ініціалізацію
