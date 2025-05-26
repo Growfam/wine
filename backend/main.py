@@ -626,9 +626,11 @@ def create_app(config_name=None):
     def handle_options(path):
         return '', 200
 
+
     # Додаємо after_request обробник для JS файлів і CORS заголовків
     @app.after_request
     def add_headers(response):
+        """""
         # Визначаємо дозволені origins
         origin = request.headers.get('Origin')
 
@@ -644,12 +646,11 @@ def create_app(config_name=None):
         # Перевіряємо origin
         if origin in allowed_origins:
             response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
         else:
             # Для розробки можна дозволити всі origins, але БЕЗ credentials
             response.headers['Access-Control-Allow-Origin'] = '*'
-            # НЕ встановлюємо credentials для wildcard origin
-            # (просто не додаємо цей заголовок)
+            # Видаляємо credentials для wildcard origin
+            response.headers.pop('Access-Control-Allow-Credentials', None)
 
         # CORS заголовки
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
@@ -681,7 +682,7 @@ def create_app(config_name=None):
             response.headers['Expires'] = '0'
         else:
             response.headers['Cache-Control'] = 'public, max-age=3600'
-
+"""
         return response
 
 def setup_cors(app):
