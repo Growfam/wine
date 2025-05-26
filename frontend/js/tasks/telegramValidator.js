@@ -394,43 +394,47 @@ window.TelegramValidator = (function() {
      * Оновити токен
      */
     async function refreshToken() {
-        console.log('🔄 [TelegramValidator] Оновлення токену...');
+    console.log('🔄 [TelegramValidator] Оновлення токену...');
 
-        const currentToken = getAuthToken();
-        if (!currentToken) {
-            console.error('❌ [TelegramValidator] Немає токену для оновлення');
-            throw new Error('Немає токену для оновлення');
-        }
-
-        // Перевіряємо доступність API
-        const apiAvailable = await checkApiAvailability();
-        if (!apiAvailable) {
-            console.error('❌ [TelegramValidator] API недоступний для оновлення токену');
-            throw new Error('Сервер недоступний для оновлення токену');
-        }
-
-        try {
-            if (!window.TasksAPI?.auth?.refreshToken) {
-                throw new Error('API модуль не ініціалізовано');
+    const currentToken = getAuthToken();
+    if (!currentToken) {
+        console.error('❌ [TelegramValidator] Немає токену для оновлення');
+        throw new Error('Немає токену для оновлення');
+    }
+    try {
+        // Використовуємо WinixAPI замість TasksAPI якщо він доступний
+        if (window.WinixAPI?.refreshToken) {
+            const newToken = await window.WinixAPI.refreshToken();
+            if (newToken) {
+                console.log('✅ [TelegramValidator] Токен оновлено через WinixAPI');
+                return true;
             }
-
+        } else if (window.TasksAPI?.auth?.refreshToken) {
             const response = await window.TasksAPI.auth.refreshToken();
-
             if (response.token) {
                 const storageKey = window.TasksConstants?.STORAGE_KEYS?.AUTH_TOKEN || 'winix_auth_token';
                 sessionStorage.setItem(storageKey, response.token);
-                console.log('✅ [TelegramValidator] Токен оновлено');
+                console.log('✅ [TelegramValidator] Токен оновлено через TasksAPI');
                 return true;
             }
-
-            throw new Error('Сервер не повернув новий токен');
-
-        } catch (error) {
-            console.error('❌ [TelegramValidator] Помилка оновлення токену:', error);
-            clearAuthToken();
-            throw error;
+        } else {
+            throw new Error('API модуль не ініціалізовано');
         }
+
+        throw new Error('Сервер не повернув новий токен');
+
+    } catch (error) {
+        console.error('❌ [TelegramValidator] Помилка оновлення токену:', error);
+
+        // Якщо це 400/401 помилка - очищаємо токен
+        if (error.message.includes('400') || error.message.includes('401') ||
+            error.message.includes('недійсний')) {
+            clearAuthToken();
+        }
+
+        throw error;
     }
+}
 
     /**
      * Налаштувати автоматичне оновлення токену

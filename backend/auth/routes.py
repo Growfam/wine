@@ -401,6 +401,12 @@ def register_auth_routes(app):
                 # Безпечне логування без токенів
                 safe_data = {k: v for k, v in request_data.items() if k not in ['token']}
                 logger.debug(f"[{request_id}] Безпечні дані запиту: {safe_data}")
+                # Логуємо вхідні дані
+                data = request.get_json(silent=True) or {}
+                logger.info(f"[{request_id}] Refresh token запит:")
+                logger.info(f"[{request_id}] - telegram_id: {data.get('telegram_id')}")
+                logger.info(f"[{request_id}] - має token: {bool(data.get('token'))}")
+                logger.info(f"[{request_id}] - headers: {dict(request.headers)}")
 
             # Отримуємо ID користувача з валідацією
             user_id = extract_user_id_from_request()
