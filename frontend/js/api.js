@@ -557,13 +557,6 @@
      * @returns {Promise<string|null>} Новий токен або null
      */
     async function refreshToken() {
-        // Перевіряємо готовність API
-        try {
-            await ensureApiReady();
-        } catch (error) {
-            console.error("🔌 API: Сервер недоступний для оновлення токену:", error);
-            throw error;
-        }
 
         // Перевіряємо, чи вже відбувається оновлення
         if (_pendingRequests['refresh-token']) {
