@@ -242,7 +242,7 @@
     }
 
     /**
-     * Ініціалізація системи авторизації
+     * Ініціалізація системи авторизації (ВИПРАВЛЕНО)
      * @returns {Promise<Object>} Об'єкт з даними користувача
      */
     async function init() {
@@ -280,12 +280,21 @@
         try {
             console.log('🔄 [AUTH] Спроба оновлення токену');
 
-            // Оновлюємо токен
+            // ВИПРАВЛЕНО: Спочатку пробуємо оновити токен, якщо не вдається - виконуємо повну авторизацію
             try {
                 await window.WinixAPI.refreshToken();
                 console.log('✅ [AUTH] Токен успішно оновлено');
-            } catch (e) {
-                console.warn("⚠️ AUTH: Помилка оновлення токену:", e);
+            } catch (refreshError) {
+                console.warn("⚠️ AUTH: Помилка оновлення токену, виконуємо повну авторизацію");
+
+                // Якщо не вдалося оновити токен, виконуємо повну авторизацію
+                const telegramData = extractTelegramUserData();
+                if (telegramData) {
+                    await authorizeUser(telegramData);
+                    console.log('✅ [AUTH] Повна авторизація успішна');
+                } else {
+                    throw new Error('Не вдалося отримати дані Telegram для авторизації');
+                }
             }
 
             // Отримуємо дані користувача
@@ -294,6 +303,33 @@
             console.error("❌ AUTH: Помилка ініціалізації:", error);
             showError(getLocalizedText('authError'));
             return Promise.reject(error);
+        }
+    }
+
+    /**
+     * НОВИЙ: Витягування даних користувача з Telegram WebApp
+     */
+    function extractTelegramUserData() {
+        try {
+            const tg = window.Telegram?.WebApp;
+            if (!tg || !tg.initDataUnsafe?.user) {
+                return null;
+            }
+
+            const user = tg.initDataUnsafe.user;
+            return {
+                id: user.id,
+                telegram_id: user.id.toString(),
+                username: user.username,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                language_code: user.language_code,
+                initData: tg.initData,  // Додаємо initData для валідації
+                from_telegram: true
+            };
+        } catch (e) {
+            console.error("Помилка витягування даних Telegram:", e);
+            return null;
         }
     }
 

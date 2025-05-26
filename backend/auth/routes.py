@@ -422,17 +422,34 @@ def register_auth_routes(app):
             client_ip = request.remote_addr
             logger.info(f"[{request_id}] Запит оновлення токена від {client_ip}")
 
-            # ВИПРАВЛЕНО: Отримуємо ID користувача з СТРОГОЮ валідацією
-            try:
-                user_id = extract_user_id_from_request()
-            except ValueError as e:
-                logger.warning(f"[{request_id}] Валідаційна помилка: {str(e)}")
-                return handle_error(str(e), 'validation_error', 400, request_id)
+            # ВИПРАВЛЕНО: М'якша валідація для refresh token
+            user_id = None
+
+            # Спочатку пробуємо отримати з заголовка
+            header_id = request.headers.get('X-Telegram-User-Id')
+            if header_id and validate_user_id(header_id):
+                user_id = str(header_id).strip()
+                logger.info(f"[{request_id}] ID отримано з заголовка: {user_id}")
+
+            # Якщо немає в заголовку, пробуємо з тіла запиту
+            if not user_id:
+                try:
+                    data = request.get_json(silent=True) or {}
+
+                    if 'telegram_id' in data and validate_user_id(data['telegram_id']):
+                        user_id = str(data['telegram_id']).strip()
+                        logger.info(f"[{request_id}] ID отримано з тіла запиту: {user_id}")
+                    elif 'id' in data and validate_user_id(data['id']):
+                        user_id = str(data['id']).strip()
+                        logger.info(f"[{request_id}] ID отримано з поля id: {user_id}")
+
+                except Exception as e:
+                    logger.warning(f"[{request_id}] Помилка парсингу JSON: {str(e)}")
 
             if not user_id:
                 logger.warning(f"[{request_id}] ID користувача не знайдено у запиті")
                 return handle_error(
-                    "ID користувача не знайдено у запиті",
+                    "ID користувача не знайдено. Потрібна повторна авторизація.",
                     'missing_user_id',
                     400,
                     request_id
@@ -440,60 +457,69 @@ def register_auth_routes(app):
 
             logger.info(f"[{request_id}] Обробка оновлення токена для користувача {user_id}")
 
-            # Перевіримо існування користувача
+            # ВИПРАВЛЕНО: Перевіряємо існування користувача з м'якшою обробкою помилок
             try:
                 user = controllers.get_user_data(user_id)
-                if user:
-                    logger.info(f"[{request_id}] Користувач {user_id} підтверджений")
-                else:
-                    logger.warning(f"[{request_id}] Користувач {user_id} не знайдений")
+                if not user:
+                    logger.warning(f"[{request_id}] Користувач {user_id} не знайдений в БД")
                     return handle_error(
-                        "Користувач не знайдений",
+                        "Користувач не знайдений. Потрібна повторна авторизація.",
                         'user_not_found',
-                        404,
+                        400,  # 400 замість 404 для trigger повної авторизації
                         request_id
                     )
+                else:
+                    logger.info(f"[{request_id}] Користувач {user_id} підтверджений")
+
             except (ValueError, ConnectionError) as e:
                 logger.error(f"[{request_id}] Помилка перевірки користувача: {str(e)}")
                 return handle_error(
-                    'Помилка перевірки користувача',
+                    'Помилка перевірки користувача. Потрібна повторна авторизація.',
                     'user_verification_error',
-                    500,
+                    400,  # 400 для trigger повної авторизації
                     request_id
                 )
 
-            # Перевіряємо поточний токен (опціонально)
+            # ВИПРАВЛЕНО: Перевіряємо поточний токен з кращою обробкою
             current_token = extract_token_from_request()
+            token_valid = False
+
             if current_token:
                 try:
                     payload = jwt.decode(current_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
                     token_user_id = payload.get("user_id")
 
-                    if token_user_id != user_id:
-                        logger.warning(f"[{request_id}] ID в токені ({token_user_id}) не відповідає запитаному ID ({user_id})")
-                        return handle_error(
-                            "Токен не відповідає користувачу",
-                            'token_user_mismatch',
-                            400,
-                            request_id
-                        )
+                    if token_user_id == user_id:
+                        token_valid = True
+                        logger.info(f"[{request_id}] Поточний токен валідний для користувача {user_id}")
                     else:
-                        logger.info(f"[{request_id}] Токен валідний для користувача {user_id}")
+                        logger.warning(f"[{request_id}] ID в токені ({token_user_id}) не відповідає запитаному ID ({user_id})")
 
                 except jwt.ExpiredSignatureError:
                     logger.info(f"[{request_id}] Токен протерміновано для {user_id}, створюємо новий")
                 except jwt.InvalidTokenError as e:
-                    logger.info(f"[{request_id}] Невалідний токен для {user_id}: {str(e)}, створюємо новий")
+                    logger.info(f"[{request_id}] Невалідний токен для {user_id}: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"[{request_id}] Помилка декодування токену: {str(e)}")
             else:
                 logger.info(f"[{request_id}] Токен відсутній, створюємо новий для {user_id}")
 
-            # Створюємо новий токен
+            # ВИПРАВЛЕНО: Створюємо новий токен незалежно від валідності старого
             try:
                 token_result = create_jwt_token(user_id)
+
+                # Оновлюємо last_login
+                try:
+                    controllers.update_user_data(user_id, {
+                        "last_login": datetime.now(timezone.utc).isoformat()
+                    })
+                except Exception as e:
+                    logger.warning(f"[{request_id}] Не вдалося оновити last_login: {str(e)}")
+
             except ValueError as e:
                 logger.error(f"[{request_id}] Не вдалося створити токен для {user_id}: {str(e)}")
                 return handle_error(
-                    "Помилка створення токена",
+                    "Помилка створення токена. Спробуйте перезапустити додаток.",
                     'token_creation_error',
                     500,
                     request_id
@@ -507,6 +533,7 @@ def register_auth_routes(app):
                 "token": token_result["token"],
                 "expires_at": token_result["expires_at"],
                 "user_id": user_id,
+                "message": "Токен успішно оновлено",
                 "request_id": request_id
             })
 
@@ -516,7 +543,7 @@ def register_auth_routes(app):
                 logger.error(traceback.format_exc())
 
             return handle_error(
-                f"Внутрішня помилка сервера: {str(e) if DEBUG_MODE else 'Зверніться до адміністратора'}",
+                "Внутрішня помилка сервера. Спробуйте перезапустити додаток.",
                 'internal_error',
                 500,
                 request_id
