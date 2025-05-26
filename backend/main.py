@@ -259,7 +259,6 @@ def register_quests_blueprints_manually(app):
 
     # Список Blueprint'ів для реєстрації
     blueprints_to_register = [
-        ('quests.routes.auth_routes', 'auth_bp', '/api/auth'),
         ('quests.routes.user_routes', 'user_bp', '/api/user'),
         ('quests.routes.daily_routes', 'daily_bp', '/api/daily'),
         ('quests.routes.analytics_routes', 'analytics_bp', '/api/analytics'),
