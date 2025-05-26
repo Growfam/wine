@@ -568,9 +568,13 @@
             try {
                 // Отримуємо ID користувача
                 const userId = getUserId();
+                console.log("🔍 Refresh Token - userId:", userId, "type:", typeof userId);
                 if (!userId) {
                     throw new Error("ID користувача не знайдено");
                 }
+                 console.log("🔍 refreshToken - userId:", userId);
+        console.log("🔍 refreshToken - userId type:", typeof userId);
+        console.log("🔍 refreshToken - is numeric:", /^\d+$/.test(userId));
 
                 console.log("🔄 API: Початок оновлення токену");
 
@@ -586,6 +590,7 @@
                         token: _authToken || ''
                     })
                 });
+                   console.log("🔍 refreshToken - sending body:", requestBody);
 
                 if (!response.ok) {
                     // Спеціальна обробка 400/401 помилок при оновленні токену

@@ -119,11 +119,6 @@ def extract_user_id_from_request():
         if validate_user_id(user_id):
             return user_id
 
-    if 'id' in data and data['id']:
-        user_id = str(data['id'])
-        if validate_user_id(user_id):
-            return user_id
-
     return None
 
 
