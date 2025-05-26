@@ -207,15 +207,14 @@ def handle_validation_error(message, request_id=None):
 def register_auth_routes(app):
     """Реєстрація маршрутів автентифікації"""
 
+    # В backend/auth/routes.py замініть ping endpoint на:
+
     @app.route('/api/ping', methods=['GET'])
     def api_ping():
-        """Простий ping endpoint з валідацією параметрів"""
+        """Простий ping endpoint без строгої валідації"""
         try:
-            # Отримуємо і валідуємо timestamp параметр
+            # Отримуємо timestamp параметр, але не валідуємо його строго
             timestamp_param = request.args.get('t', '')
-
-            if timestamp_param and not validate_timestamp(timestamp_param):
-                return handle_validation_error("Invalid timestamp format")
 
             response_data = {
                 "status": "pong",
@@ -223,9 +222,17 @@ def register_auth_routes(app):
                 "server_time": datetime.now(timezone.utc).isoformat()
             }
 
-            # Додаємо echo timestamp якщо був переданий валідний
+            # Додаємо echo timestamp якщо був переданий
             if timestamp_param:
-                response_data["echo_timestamp"] = timestamp_param
+                try:
+                    # Конвертуємо з мілісекунд в секунди якщо потрібно
+                    ts_value = int(timestamp_param)
+                    if ts_value > 9999999999:  # Якщо це мілісекунди
+                        ts_value = ts_value // 1000
+                    response_data["echo_timestamp"] = str(ts_value)
+                except (ValueError, OverflowError):
+                    # Ігноруємо невалідні timestamp
+                    pass
 
             return jsonify(response_data)
 
