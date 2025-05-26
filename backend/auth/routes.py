@@ -276,14 +276,6 @@ def register_auth_routes(app):
 
     # ========== PING ENDPOINTS ==========
 
-    @app.route('/api/ping', methods=['GET'])
-    def api_ping():
-        """Простий ping endpoint"""
-        return jsonify({
-            "status": "pong",
-            "timestamp": int(time.time()),
-            "server_time": datetime.now(timezone.utc).isoformat()
-        })
 
     @app.route('/ping', methods=['GET'])
     def ultra_simple_ping():
