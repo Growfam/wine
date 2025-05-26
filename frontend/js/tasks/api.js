@@ -1,5 +1,5 @@
 /**
-api.js - Єдиний модуль для всіх API-запитів WINIX
+ * tasks-api.js - Єдиний модуль для всіх API-запитів WINIX
  * Виправлена версія з health check та кращою обробкою помилок для ПРОДАКШН
  * @version 1.4.0
  */
@@ -180,17 +180,77 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
         lastReset: Date.now()
     };
 
-    // Стан з'єднання
+    // Стан з'єднання та circuit breaker
     let _connectionState = {
         isConnected: true,
         lastSuccessTime: Date.now(),
         failedAttempts: 0,
-        maxRetries: 5
+        maxRetries: 5,
+        circuitBreakerOpen: false,
+        circuitBreakerOpenTime: 0,
+        circuitBreakerTimeout: 300000 // 5 хвилин
     };
 
-    // Токен автентифікації
+    // Токен автентифікації та антицикл
     let _authToken = null;
     let _authTokenExpiry = 0;
+    let _tokenRefreshInProgress = false;
+    let _tokenRefreshFailures = 0;
+    let _maxTokenRefreshFailures = 3;
+
+    // ======== CIRCUIT BREAKER ФУНКЦІЇ ========
+
+    /**
+     * Перевірка чи circuit breaker відкритий
+     */
+    function isCircuitBreakerOpen() {
+        if (!_connectionState.circuitBreakerOpen) {
+            return false;
+        }
+
+        // Перевіряємо чи минув таймаут
+        if (Date.now() - _connectionState.circuitBreakerOpenTime > _connectionState.circuitBreakerTimeout) {
+            console.log("🔄 API: Circuit breaker timeout минув, спробуємо відновити");
+            _connectionState.circuitBreakerOpen = false;
+            _connectionState.failedAttempts = 0;
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Відкриття circuit breaker при критичних помилках
+     */
+    function openCircuitBreaker(reason) {
+        console.error(`🚨 API: Відкриваємо circuit breaker: ${reason}`);
+        _connectionState.circuitBreakerOpen = true;
+        _connectionState.circuitBreakerOpenTime = Date.now();
+
+        showServerUnavailableMessage();
+
+        if (typeof window.showToast === 'function') {
+            window.showToast(`Сервер тимчасово недоступний: ${reason}`, 'error');
+        }
+    }
+
+    /**
+     * Закриття circuit breaker при успішному запиті
+     */
+    function closeCircuitBreaker() {
+        if (_connectionState.circuitBreakerOpen) {
+            console.log("✅ API: Закриваємо circuit breaker - з'єднання відновлено");
+            _connectionState.circuitBreakerOpen = false;
+            _connectionState.failedAttempts = 0;
+            _connectionState.lastSuccessTime = Date.now();
+
+            hideServerUnavailableMessage();
+
+            if (typeof window.showToast === 'function') {
+                window.showToast('З\'єднання з сервером відновлено!', 'success');
+            }
+        }
+    }
 
     // ======== HEALTH CHECK ФУНКЦІЇ ========
 
@@ -652,18 +712,48 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
     }
 
     /**
-     * ВИПРАВЛЕНО: Оновлення токену авторизації з покращеною обробкою помилок та fallback
+     * ВИПРАВЛЕНО: Оновлення токену авторизації з circuit breaker та антициклічною логікою
      * @returns {Promise<string|null>} Новий токен або null
      */
     async function refreshToken() {
-        // ВИПРАВЛЕНО: Для refresh token не робимо строгу перевірку API ready
-        // Це може створити циклічну залежність
-        console.log("🔄 API: Початок оновлення токену (пропускаємо health check)");
+        // Перевіряємо circuit breaker
+        if (isCircuitBreakerOpen()) {
+            console.warn("🚨 API: Circuit breaker відкритий, пропускаємо refresh token");
+            throw new Error("Сервіс тимчасово недоступний");
+        }
+
+        // Антициклічна перевірка
+        if (_tokenRefreshInProgress) {
+            console.warn("⚠️ API: Refresh token вже виконується, чекаємо завершення");
+
+            // Чекаємо максимум 10 секунд
+            for (let i = 0; i < 100; i++) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                if (!_tokenRefreshInProgress) {
+                    return _authToken;
+                }
+            }
+
+            throw new Error("Timeout при очікуванні завершення refresh token");
+        }
+
+        // Перевіряємо кількість невдач
+        if (_tokenRefreshFailures >= _maxTokenRefreshFailures) {
+            console.error("💥 API: Занадто багато невдач refresh token, відкриваємо circuit breaker");
+            openCircuitBreaker(`Refresh token failed ${_tokenRefreshFailures} times`);
+            throw new Error("Занадто багато невдалих спроб оновлення токену");
+        }
 
         // Перевіряємо, чи вже відбувається оновлення
         if (_pendingRequests['refresh-token']) {
+            console.log("🔄 API: Повертаємо існуючий refresh token promise");
             return _pendingRequests['refresh-token'];
         }
+
+        console.log("🔄 API: Початок оновлення токену (без health check для уникнення циклу)");
+
+        // Встановлюємо прапорець що refresh відбувається
+        _tokenRefreshInProgress = true;
 
         // Створюємо проміс для відстеження запиту
         const refreshPromise = new Promise(async (resolve, reject) => {
@@ -674,13 +764,17 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
                     throw new Error("ID користувача не знайдено");
                 }
 
-                // ВИПРАВЛЕНО: Збільшений таймаут для продакшн та fallback режим
+                // ВИПРАВЛЕНО: Збільшений таймаут та fallback режим
                 const timeout = API_BASE_URL.includes('localhost') ? 10000 : 30000; // 30 секунд для продакшн
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+                // ВИПРАВЛЕНО: Правильний URL формат
+                const refreshUrl = `${API_BASE_URL}/api/auth/refresh-token`;
+                console.log("🔗 API: Refresh URL:", refreshUrl);
+
                 try {
-                    const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
+                    const response = await fetch(refreshUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -698,20 +792,47 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
                     clearTimeout(timeoutId);
 
                     if (!response.ok) {
-                        // Спеціальна обробка 400/401 помилок при оновленні токену
-                        if (response.status === 400 || response.status === 401) {
-                            console.warn("⚠️ API: Токен недійсний, очищаємо");
+                        // Детальна обробка різних помилок
+                        const errorText = await response.text().catch(() => '');
+
+                        if (response.status === 400) {
+                            console.warn("⚠️ API: 400 помилка - можливо невалідні дані або старий токен");
+
+                            // Для 400 помилок очищаємо токен та рекомендуємо повну реавторизацію
                             clearAuthToken();
+                            _tokenRefreshFailures++;
+
+                            if (_tokenRefreshFailures >= _maxTokenRefreshFailures) {
+                                openCircuitBreaker("Повторні 400 помилки при refresh token");
+                            }
+
+                            throw new Error("Потрібна повторна авторизація через Telegram");
+                        } else if (response.status === 401) {
+                            console.warn("⚠️ API: 401 помилка - токен недійсний");
+                            clearAuthToken();
+                            _tokenRefreshFailures++;
                             throw new Error("Токен недійсний. Потрібна повторна авторизація");
-                        }
+                        } else if (response.status === 404) {
+                            console.error("❌ API: 404 помилка - endpoint refresh-token не знайдено");
+                            _tokenRefreshFailures++;
 
-                        // НОВОЕ: Для 404 помилок в продакшн показуємо більш м'яке повідомлення
-                        if (response.status === 404 && !API_BASE_URL.includes('localhost')) {
-                            console.warn("⚠️ API: Endpoint refresh-token не знайдено, можливо сервер ще не готовий");
-                            throw new Error("Сервіс автентифікації тимчасово недоступний");
-                        }
+                            if (_tokenRefreshFailures >= _maxTokenRefreshFailures) {
+                                openCircuitBreaker("Endpoint refresh-token не існує");
+                            }
 
-                        throw new Error(`Помилка HTTP: ${response.status} ${response.statusText}`);
+                            throw new Error("Сервіс автентифікації недоступний");
+                        } else if (response.status >= 500) {
+                            console.error("❌ API: Серверна помилка при refresh token");
+                            _tokenRefreshFailures++;
+
+                            if (_tokenRefreshFailures >= _maxTokenRefreshFailures) {
+                                openCircuitBreaker("Серверні помилки при refresh token");
+                            }
+
+                            throw new Error("Серверна помилка. Спробуйте пізніше");
+                        } else {
+                            throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+                        }
                     }
 
                     const data = await response.json();
@@ -749,6 +870,10 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
                             console.warn("🔌 API: Помилка збереження токену:", e);
                         }
 
+                        // Скидаємо лічильник невдач
+                        _tokenRefreshFailures = 0;
+                        closeCircuitBreaker();
+
                         console.log("✅ API: Токен успішно оновлено");
 
                         // Відправляємо подію про оновлення токену
@@ -758,17 +883,20 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
 
                         resolve(_authToken);
                     } else {
-                        throw new Error(data.message || "Помилка оновлення токену");
+                        throw new Error(data?.message || "Помилка оновлення токену - невалідна відповідь");
                     }
                 } catch (fetchError) {
                     clearTimeout(timeoutId);
 
-                    // НОВОЕ: Детальна обробка різних типів помилок
+                    // Детальна обробка різних типів помилок
                     if (fetchError.name === 'AbortError') {
-                        throw new Error("Timeout при оновленні токену - сервер занадто повільно відповідає");
+                        _tokenRefreshFailures++;
+                        throw new Error("Timeout при оновленні токену - сервер не відповідає");
                     } else if (fetchError.message && fetchError.message.includes('NetworkError')) {
+                        _tokenRefreshFailures++;
                         throw new Error("Мережева помилка при оновленні токену");
                     } else if (fetchError.message && fetchError.message.includes('CORS')) {
+                        _tokenRefreshFailures++;
                         throw new Error("CORS помилка при оновленні токену");
                     } else {
                         throw fetchError;
@@ -777,13 +905,28 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
             } catch (error) {
                 console.error("❌ API: Помилка оновлення токену:", error);
 
-                // НОВОЕ: Для продакшн не показуємо технічні деталі користувачу
+                // Інкрементуємо лічільник невдач
+                _tokenRefreshFailures++;
+
+                // Якщо багато невдач, відкриваємо circuit breaker
+                if (_tokenRefreshFailures >= _maxTokenRefreshFailures) {
+                    openCircuitBreaker(`Multiple refresh token failures: ${error.message}`);
+                }
+
+                // Для продакшн показуємо більш дружні повідомлення
                 if (!API_BASE_URL.includes('localhost') && typeof window.showToast === 'function') {
-                    window.showToast('Проблема з автентифікацією. Спробуйте перезавантажити сторінку.', 'warning');
+                    if (error.message.includes('повторна авторизація') || error.message.includes('недійсний')) {
+                        window.showToast('Потрібна повторна авторизація. Перезавантажте сторінку.', 'warning');
+                    } else {
+                        window.showToast('Проблема з автентифікацією. Перевірте з\'єднання.', 'error');
+                    }
                 }
 
                 reject(error);
             } finally {
+                // Скидаємо прапорець що refresh відбувається
+                _tokenRefreshInProgress = false;
+
                 // Видаляємо запит зі списку активних
                 delete _pendingRequests['refresh-token'];
             }
@@ -796,13 +939,15 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
     }
 
     /**
-     * Очистити токен авторизації
+     * Очистити токен авторизації та скинути лічильники
      */
     function clearAuthToken() {
-        console.log("🗑️ API: Очищення токену авторизації");
+        console.log("🗑️ API: Очищення токену авторизації та скидання лічильників");
 
         _authToken = null;
         _authTokenExpiry = 0;
+        _tokenRefreshInProgress = false;
+        _tokenRefreshFailures = 0; // Скидаємо лічільник невдач
 
         try {
             if (window.StorageUtils) {
@@ -923,6 +1068,16 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
                     status: 'error',
                     message: 'Не вказано endpoint для запиту',
                     code: 'missing_endpoint'
+                });
+            }
+
+            // Перевіряємо circuit breaker
+            if (isCircuitBreakerOpen()) {
+                console.warn("🚨 API: Circuit breaker відкритий, блокуємо запит");
+                return Promise.reject({
+                    status: 'error',
+                    message: 'Сервіс тимчасово недоступний. Спробуйте через кілька хвилин.',
+                    code: 'circuit_breaker_open'
                 });
             }
 
@@ -1105,8 +1260,8 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
                 if (fetchResponse.status === 401 && !safeIncludes(endpoint, 'refresh-token')) {
                     console.warn("🔌 API: Помилка авторизації. Спроба оновлення токену...");
 
-                    // Якщо залишились спроби, спробуємо оновити токен і повторити запит
-                    if (retries > 0) {
+                    // ВИПРАВЛЕНО: Обмежуємо кількість спроб оновлення токену для уникнення циклу
+                    if (retries > 0 && _tokenRefreshFailures < _maxTokenRefreshFailures) {
                         try {
                             await refreshToken();
 
@@ -1114,7 +1269,23 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
                             return apiRequest(endpoint, method, data, options, retries - 1);
                         } catch (tokenError) {
                             console.error("🔌 API: Не вдалося оновити токен:", tokenError);
-                            clearAuthToken(); // Очищаємо недійсний токен
+
+                            // Якщо не вдалося оновити токен, очищаємо його
+                            clearAuthToken();
+
+                            // Якщо це критична помилка, відкриваємо circuit breaker
+                            if (tokenError.message.includes('тимчасово недоступний') ||
+                                tokenError.message.includes('багато невдач')) {
+                                openCircuitBreaker('Token refresh failed critically');
+                            }
+                        }
+                    } else {
+                        console.warn("🚨 API: Досягнуто максимум спроб оновлення токену або retries");
+                        clearAuthToken();
+
+                        // Відкриваємо circuit breaker при критичних проблемах з токеном
+                        if (_tokenRefreshFailures >= _maxTokenRefreshFailures) {
+                            openCircuitBreaker('Too many token refresh failures');
                         }
                     }
                 }
@@ -1170,6 +1341,9 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
                     _connectionState.isConnected = true;
                     _apiState.isHealthy = true;
                     _apiState.consecutiveFailures = 0;
+
+                    // Закриваємо circuit breaker при успішному запиті
+                    closeCircuitBreaker();
 
                     // Приховуємо banner про недоступність
                     hideServerUnavailableMessage();
@@ -1638,7 +1812,58 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
         _lastRequestsByEndpoint = {};
         _activeEndpoints.clear();
         _pendingRequests = {};
+        _tokenRefreshInProgress = false; // Додаємо скидання refresh стану
         console.log("🔌 API: Примусово очищено відстеження запитів");
+        return true;
+    }
+
+    /**
+     * НОВОЕ: Повний скид стану системи (emergency reset)
+     */
+    function emergencyReset() {
+        console.warn("🚨 API: EMERGENCY RESET - повний скид стану системи");
+
+        // Скидаємо всі стани
+        _apiState = {
+            isHealthy: false,
+            lastHealthCheck: 0,
+            healthCheckInterval: null,
+            healthCheckInProgress: false,
+            consecutiveFailures: 0,
+            maxFailures: 3
+        };
+
+        _connectionState = {
+            isConnected: true,
+            lastSuccessTime: Date.now(),
+            failedAttempts: 0,
+            maxRetries: 5,
+            circuitBreakerOpen: false,
+            circuitBreakerOpenTime: 0,
+            circuitBreakerTimeout: 300000
+        };
+
+        // Скидаємо токени
+        clearAuthToken();
+
+        // Очищаємо всі активні запити
+        forceCleanupRequests();
+
+        // Очищаємо кеш
+        clearCache();
+
+        // Приховуємо повідомлення
+        hideServerUnavailableMessage();
+
+        // Перезапускаємо health check
+        startHealthCheck();
+
+        console.log("✅ API: Emergency reset завершено");
+
+        if (typeof window.showToast === 'function') {
+            window.showToast('Система скинута. Спробуйте ще раз.', 'info');
+        }
+
         return true;
     }
 
@@ -1899,9 +2124,15 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
         refreshToken,
         clearCache,
         forceCleanupRequests,
+        emergencyReset, // НОВОЕ: Повний скид стану
         reconnect,
         isValidUUID,
         safeIncludes,
+
+        // Circuit breaker функції
+        isCircuitBreakerOpen,
+        openCircuitBreaker,
+        closeCircuitBreaker,
 
         // Функції користувача
         getUserData,
@@ -1996,10 +2227,12 @@ api.js - Єдиний модуль для всіх API-запитів WINIX
         }
     });
 
-    // НОВОЕ: Глобальна діагностична функція для консолі
+    // НОВОЕ: Глобальні діагностичні функції для консолі
     window.WinixDiagnose = diagnoseProdConnection;
+    window.WinixEmergencyReset = emergencyReset;
 
     console.log(`✅ API: Модуль успішно ініціалізовано для ПРОДАКШН (URL: ${API_BASE_URL})`);
     console.log(`🔧 API: Режим відлагодження: ${_debugMode ? 'увімкнено' : 'вимкнено'}`);
     console.log(`🩺 API: Запустіть WinixDiagnose() в консолі для діагностики підключення`);
+    console.log(`🚨 API: Запустіть WinixEmergencyReset() для повного скидання при критичних помилках`);
 })();
