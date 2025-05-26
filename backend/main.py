@@ -1640,15 +1640,6 @@ if __name__ == '__main__':
     debug = getattr(app.config, 'DEBUG', True) if hasattr(app, 'config') else True
 
 
-    @app.after_request
-    def after_request(response):
-        # Дозволяємо CORS для health endpoint
-        if request.path == '/api/health':
-            response.headers['Access-Control-Allow-Origin'] = '*'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        return response
-
     logger.info(f"🌟 Запуск WINIX застосунку на порту {port}, режим налагодження: {debug}")
     logger.info("🎯 === ДІАГНОСТИЧНІ ENDPOINT'И ===")
     logger.info("📋 /api/winix/diagnosis - повна діагностика WINIX")
