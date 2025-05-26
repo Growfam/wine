@@ -65,14 +65,33 @@ class WinixAPI {
         this.addResponseInterceptor(
             (response) => response,
             async (error) => {
-                if (error.status === 401) {
+                // ВИПРАВЛЕНО: Кращя обробка помилок авторизації
+                if (error.status === 401 || (error.status === 400 && error.config?.url?.includes('refresh-token'))) {
+                    console.warn('🔄 API: Токен недійсний, спроба повної авторизації...');
+
                     try {
-                        await this.refreshToken();
-                        return this.retry(error.config);
-                    } catch (refreshError) {
-                        window.WinixState?.emit('authError', refreshError);
+                        // Очищаємо недійсний токен
+                        localStorage.removeItem('auth_token');
+
+                        // Спробуємо повну авторизацію
+                        const newTokenResponse = await this.performFullAuth();
+
+                        if (newTokenResponse && newTokenResponse.token) {
+                            // Повторюємо оригінальний запит з новим токеном
+                            if (error.config && !error.config.url?.includes('refresh-token')) {
+                                error.config.headers = error.config.headers || {};
+                                error.config.headers['Authorization'] = `Bearer ${newTokenResponse.token}`;
+                                return this.retry(error.config);
+                            }
+
+                            return newTokenResponse;
+                        }
+                    } catch (authError) {
+                        console.error('❌ API: Повна авторизація не вдалася:', authError);
+                        window.WinixState?.emit('authError', authError);
                     }
                 }
+
                 return Promise.reject(error);
             }
         );
@@ -460,23 +479,113 @@ class WinixAPI {
     }
 
     /**
-     * Оновлення токена авторизації
+     * Оновлення токена авторизації (ВИПРАВЛЕНО)
      */
     async refreshToken() {
         const userId = this.getUserId();
-        if (!userId) throw new Error('No user ID for token refresh');
-
-        const response = await this.apiRequest('auth/refresh-token', 'POST', { telegram_id: userId }, {
-            cache: false,
-            suppressErrors: true
-        });
-
-        if (response.status === 'success' && response.token) {
-            localStorage.setItem('auth_token', response.token);
-            window.WinixState?.emit('tokenRefreshed', response.token);
+        if (!userId) {
+            throw new Error('No user ID for token refresh');
         }
 
-        return response;
+        try {
+            // ВИПРАВЛЕНО: Використовуємо правильний формат запиту
+            const config = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Telegram-User-Id': userId  // Додаємо заголовок
+                },
+                timeout: 10000,
+                cache: false,
+                suppressErrors: false  // Дозволяємо обробку помилок
+            };
+
+            // Відправляємо запит з telegram_id в тілі + заголовку
+            const response = await this.executeRequest('auth/refresh-token', {
+                ...config,
+                body: JSON.stringify({ telegram_id: userId })
+            });
+
+            if (response && response.status === 'success' && response.token) {
+                localStorage.setItem('auth_token', response.token);
+                window.WinixState?.emit('tokenRefreshed', response.token);
+                console.log('✅ Токен успішно оновлено');
+                return response;
+            } else {
+                throw new Error(response?.message || 'Невдала відповідь сервера');
+            }
+
+        } catch (error) {
+            console.warn('⚠️ Помилка оновлення токену:', error);
+
+            // Якщо токен недійсний, очищаємо його і потребуємо повторної авторизації
+            if (error.status === 400 || error.status === 401) {
+                localStorage.removeItem('auth_token');
+                window.WinixState?.emit('authRequired');
+
+                // Спробуємо створити новий через повну авторизацію
+                return this.performFullAuth();
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * НОВИЙ: Повна авторизація коли токен недійсний
+     */
+    async performFullAuth() {
+        try {
+            const userId = this.getUserId();
+            if (!userId) {
+                throw new Error('No user ID for full auth');
+            }
+
+            // Отримуємо дані користувача з Telegram
+            const telegramData = this.extractTelegramData();
+
+            console.log('🔄 Виконання повної авторизації...');
+
+            const response = await this.apiRequest('auth', 'POST', telegramData, {
+                cache: false,
+                suppressErrors: false
+            });
+
+            if (response && response.status === 'success' && response.token) {
+                localStorage.setItem('auth_token', response.token);
+                window.WinixState?.emit('tokenRefreshed', response.token);
+                console.log('✅ Повна авторизація успішна');
+                return response;
+            } else {
+                throw new Error('Повна авторизація не вдалася');
+            }
+
+        } catch (error) {
+            console.error('❌ Повна авторизація не вдалася:', error);
+            throw new Error('Не вдалося авторизуватися. Перезапустіть додаток через Telegram.');
+        }
+    }
+
+    /**
+     * НОВИЙ: Витягування даних з Telegram WebApp
+     */
+    extractTelegramData() {
+        const tg = window.Telegram?.WebApp;
+        if (!tg || !tg.initDataUnsafe?.user) {
+            throw new Error('Telegram WebApp data not available');
+        }
+
+        const user = tg.initDataUnsafe.user;
+        return {
+            id: user.id,
+            telegram_id: user.id.toString(),
+            username: user.username,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            language_code: user.language_code,
+            initData: tg.initData,  // Додаємо initData для валідації
+            from_telegram: true
+        };
     }
 
     /**

@@ -210,6 +210,9 @@ class WinixApp {
         // Connect to state changes
         window.WinixState.on('stateChange', this.handleStateChange);
 
+        // НОВИЙ: Обробка події потреби в авторизації
+        window.WinixState.on('authRequired', this.handleAuthRequired.bind(this));
+
         // Initialize with REAL user data from Telegram (БЕЗ мок даних)
         const userData = window.Telegram?.WebApp?.initDataUnsafe?.user;
         if (userData && userData.id) {
@@ -234,6 +237,35 @@ class WinixApp {
         }
 
         return Promise.resolve();
+    }
+
+    /**
+     * НОВИЙ: Обробка події потреби в авторизації
+     */
+    handleAuthRequired() {
+        console.log('🔐 WinixApp: Потрібна повторна авторизація');
+
+        // Показуємо повідомлення користувачу
+        if (window.showNotification) {
+            window.showNotification('Виконується повторна авторизація...', false);
+        }
+
+        // Запускаємо повну авторизацію через Auth модуль
+        if (window.WinixAuth && window.WinixAuth.init) {
+            window.WinixAuth.init()
+                .then(() => {
+                    console.log('✅ Повторна авторизація успішна');
+                    if (window.showNotification) {
+                        window.showNotification('Авторизація успішна', false);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Повторна авторизація не вдалася:', error);
+                    if (window.showNotification) {
+                        window.showNotification('Помилка авторизації. Перезапустіть додаток.', true);
+                    }
+                });
+        }
     }
 
     /**
