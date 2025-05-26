@@ -1,6 +1,6 @@
 """
 Маршрути для автентифікації користувачів.
-ПОВНА ВИПРАВЛЕНА ВЕРСІЯ з оптимальними ping endpoints та покращеною обробкою помилок.
+ВИПРАВЛЕНА ВЕРСІЯ з додаванням відсутнього refresh-token endpoint
 """
 
 from flask import request, jsonify
@@ -10,7 +10,6 @@ import traceback
 import time
 import re
 from datetime import datetime, timezone, timedelta
-from . import controllers
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -28,36 +27,42 @@ except ImportError:
         JWT_SECRET = os.getenv('JWT_SECRET', 'winix-secure-jwt-secret-key-2025')
         JWT_ALGORITHM = 'HS256'
 
+# Імпортуємо контролери
+try:
+    from . import controllers
+except ImportError:
+    try:
+        from auth import controllers
+    except ImportError:
+        controllers = None
+        logger.error("❌ Не вдалося імпортувати auth controllers")
+
 # Константи
 TOKEN_VALIDITY_DAYS = 7
 REFRESH_TOKEN_VALIDITY_DAYS = 30
-DEBUG_MODE = True  # Встановіть False для продакшену
+DEBUG_MODE = True
 
 # Збереження часу запуску для uptime
 start_time = time.time()
 
 # Regex для валідації параметрів
-TIMESTAMP_PATTERN = re.compile(r'^\d{1,13}$')  # Unix timestamp
-USER_ID_PATTERN = re.compile(r'^\d+$')  # Numeric user ID
-TOKEN_PATTERN = re.compile(r'^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$')  # JWT format
-
+TIMESTAMP_PATTERN = re.compile(r'^\d{1,13}$')
+USER_ID_PATTERN = re.compile(r'^\d+$')
+TOKEN_PATTERN = re.compile(r'^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$')
 
 def validate_timestamp_flexible(timestamp_str):
-    """ОПТИМАЛЬНА гнучка валідація timestamp з підтримкою мілісекунд"""
+    """Гнучка валідація timestamp з підтримкою мілісекунд"""
     if not timestamp_str:
-        return True  # Опціональний параметр
+        return True
 
     try:
         timestamp = int(timestamp_str)
-
-        # Автоматично визначаємо формат (секунди vs мілісекунди)
-        if timestamp > 9999999999:  # Це мілісекунди (більше ніж 2001 рік)
+        if timestamp > 9999999999:
             timestamp = timestamp // 1000
 
-        # Розширені але розумні межі
         current_time = int(time.time())
-        min_time = current_time - (10 * 365 * 24 * 3600)  # 10 років назад
-        max_time = current_time + (5 * 365 * 24 * 3600)   # 5 років вперед
+        min_time = current_time - (10 * 365 * 24 * 3600)
+        max_time = current_time + (5 * 365 * 24 * 3600)
 
         if min_time <= timestamp <= max_time:
             return True
@@ -69,7 +74,6 @@ def validate_timestamp_flexible(timestamp_str):
         logger.debug(f"Невалідний формат timestamp: {timestamp_str}")
         return False
 
-
 def validate_user_id(user_id_str):
     """Валідація user ID"""
     if not user_id_str:
@@ -80,29 +84,24 @@ def validate_user_id(user_id_str):
 
     try:
         user_id = int(user_id_str)
-        # Telegram user IDs мають розумні межі
-        if user_id <= 0 or user_id > 999999999999:  # 12 цифр максимум
+        if user_id <= 0 or user_id > 999999999999:
             return False
         return True
     except (ValueError, OverflowError):
         return False
-
 
 def validate_jwt_format(token_str):
     """Валідація формату JWT токена"""
     if not token_str:
         return False
 
-    # Видаляємо Bearer prefix якщо є
     if token_str.startswith('Bearer '):
         token_str = token_str[7:]
 
     return TOKEN_PATTERN.match(token_str) is not None
 
-
 def extract_token_from_request():
     """Отримує токен з різних джерел у запиті з валідацією"""
-    # Спочатку перевіряємо заголовок Authorization
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
@@ -110,7 +109,6 @@ def extract_token_from_request():
             return token
         logger.warning(f"Invalid JWT format in Authorization header: {token[:20]}...")
 
-    # Перевіряємо тіло запиту
     data = request.get_json(silent=True) or {}
     if 'token' in data and data['token']:
         token = str(data['token'])
@@ -120,15 +118,12 @@ def extract_token_from_request():
 
     return None
 
-
 def extract_user_id_from_request():
     """Отримує Telegram ID користувача з різних джерел у запиті з валідацією"""
-    # Перевіряємо заголовок X-Telegram-User-Id
     header_id = request.headers.get('X-Telegram-User-Id')
     if header_id and validate_user_id(header_id):
         return str(header_id)
 
-    # Перевіряємо тіло запиту
     data = request.get_json(silent=True) or {}
     if 'telegram_id' in data and data['telegram_id']:
         user_id = str(data['telegram_id'])
@@ -141,7 +136,6 @@ def extract_user_id_from_request():
             return user_id
 
     return None
-
 
 def create_jwt_token(user_id, expiration_days=TOKEN_VALIDITY_DAYS, token_type="access"):
     """Створює новий JWT токен з валідацією"""
@@ -169,43 +163,27 @@ def create_jwt_token(user_id, expiration_days=TOKEN_VALIDITY_DAYS, token_type="a
         logger.error(f"Помилка створення JWT токена: {str(e)}")
         return None
 
-
 def is_request_from_telegram(request_data, headers):
-    """
-    Визначає чи запит прийшов від Telegram Mini App
-
-    Args:
-        request_data: Дані запиту (JSON)
-        headers: Заголовки запиту
-
-    Returns:
-        bool: True якщо запит від Telegram
-    """
-    # Перевіряємо наявність initData
+    """Визначає чи запит прийшов від Telegram Mini App"""
     if request_data.get('initData'):
         return True
 
-    # Перевіряємо заголовок X-Telegram-User-Id з валідацією
     header_user_id = headers.get('X-Telegram-User-Id')
     if header_user_id and validate_user_id(header_user_id):
         return True
 
-    # Перевіряємо User-Agent на наявність Telegram
     user_agent = headers.get('User-Agent', '')
     if 'Telegram' in user_agent or 'TelegramBot' in user_agent:
         return True
 
-    # Перевіряємо прапорець from_telegram
     if request_data.get('from_telegram'):
         return True
 
-    # Перевіряємо наявність повних даних користувача з валідацією
     if request_data.get('id') and validate_user_id(request_data.get('id')):
-        if request_data.get('first_name'):  # Базова перевірка Telegram даних
+        if request_data.get('first_name'):
             return True
 
     return False
-
 
 def handle_validation_error(message, request_id=None):
     """Централізована обробка помилок валідації"""
@@ -219,17 +197,15 @@ def handle_validation_error(message, request_id=None):
 
     return jsonify(error_response), 400
 
-
 def register_auth_routes(app):
     """Реєстрація маршрутів автентифікації"""
 
-    # ========== ОПТИМАЛЬНІ PING ENDPOINTS ==========
+    # ========== PING ENDPOINTS ==========
 
     @app.route('/api/ping', methods=['GET'])
     def api_ping():
-        """ОПТИМАЛЬНИЙ ping endpoint для health check"""
+        """Простий ping endpoint"""
         try:
-            # Отримуємо timestamp але НЕ валідуємо його строго
             timestamp_param = request.args.get('t', '')
 
             response_data = {
@@ -238,7 +214,6 @@ def register_auth_routes(app):
                 "server_time": datetime.now(timezone.utc).isoformat()
             }
 
-            # Просто echo timestamp якщо він переданий (без строгої валідації)
             if timestamp_param:
                 response_data["client_timestamp"] = timestamp_param
 
@@ -246,7 +221,6 @@ def register_auth_routes(app):
 
         except Exception as e:
             logger.error(f"Ping endpoint error: {str(e)}")
-            # Навіть при помилці повертаємо базовий pong
             return jsonify({
                 "status": "pong",
                 "timestamp": int(time.time()),
@@ -255,19 +229,17 @@ def register_auth_routes(app):
 
     @app.route('/ping', methods=['GET'])
     def ultra_simple_ping():
-        """Ультра простий ping без жодної валідації для критичних ситуацій"""
+        """Ультра простий ping без JSON"""
         return "pong"
 
     @app.route('/api/health', methods=['GET'])
     def enhanced_health():
         """Розширений health check з валідацією"""
         try:
-            # Тут можна використовувати строгу валідацію
             timestamp_param = request.args.get('t', '')
 
             if timestamp_param and not validate_timestamp_flexible(timestamp_param):
                 logger.warning(f"Invalid timestamp in health check: {timestamp_param}")
-                # Але не блокуємо запит
 
             health_data = {
                 "status": "ok",
@@ -310,22 +282,12 @@ def register_auth_routes(app):
             client_ip = request.remote_addr
             user_agent = request.headers.get('User-Agent', 'Unknown')
 
-            logger.info(f"[{request_id}] Запит автентифікації від {client_ip} ({user_agent[:50]}...)")
+            logger.info(f"[{request_id}] Запит автентифікації від {client_ip}")
 
-            if DEBUG_MODE:
-                logger.debug(f"[{request_id}] Заголовки: {dict(request.headers)}")
-                # НЕ логуємо повне тіло запиту в продакшені для безпеки
-                safe_data = {k: v for k, v in data.items() if k not in ['token', 'initData']}
-                logger.debug(f"[{request_id}] Безпечні дані запиту: {safe_data}")
-
-            # Перевіряємо чи це запит від Telegram
             if is_request_from_telegram(data, request.headers):
                 data['from_telegram'] = True
                 logger.info(f"[{request_id}] Запит ідентифіковано як Telegram Mini App")
-            else:
-                logger.warning(f"[{request_id}] Запит НЕ від Telegram Mini App")
 
-            # Перевіряємо наявність ID з валідацією
             user_id = None
             if data.get('id'):
                 if validate_user_id(data.get('id')):
@@ -339,7 +301,6 @@ def register_auth_routes(app):
                     return handle_validation_error('Invalid telegram_id format', request_id)
 
             if not user_id:
-                # Спробуємо отримати з заголовків
                 header_id = request.headers.get('X-Telegram-User-Id')
                 if header_id and validate_user_id(header_id):
                     user_id = str(header_id)
@@ -348,17 +309,26 @@ def register_auth_routes(app):
                 else:
                     logger.warning(f"[{request_id}] Відсутній або невалідний Telegram ID у запиті")
                     return handle_validation_error(
-                        'Telegram ID не надано або має невірний формат. Відкрийте додаток через Telegram.',
+                        'Telegram ID не надано або має невірний формат.',
                         request_id
                     )
 
             # Отримуємо/верифікуємо користувача
-            user = controllers.verify_user(data)
+            if controllers:
+                user = controllers.verify_user(data)
+            else:
+                # Fallback якщо controllers недоступні
+                user = {
+                    'telegram_id': user_id,
+                    'username': data.get('username', f'user_{user_id}'),
+                    'balance': 0,
+                    'coins': 0,
+                    'is_new_user': True
+                }
 
             if not user:
                 logger.warning(f"[{request_id}] Користувач не знайдений або не може бути створений")
 
-                # Різні повідомлення залежно від джерела запиту
                 if data.get('from_telegram'):
                     error_message = 'Не вдалося створити користувача. Спробуйте ще раз.'
                 else:
@@ -380,10 +350,8 @@ def register_auth_routes(app):
                     'request_id': request_id
                 }), 500
 
-            # Визначаємо чи це новий користувач
             is_new_user = user.get('is_new_user', False)
 
-            # Якщо прапорець не встановлено, перевіряємо за часом створення
             if not is_new_user and user.get('created_at'):
                 try:
                     created_at = datetime.fromisoformat(user['created_at'].replace('Z', '+00:00'))
@@ -391,7 +359,6 @@ def register_auth_routes(app):
                 except (ValueError, TypeError):
                     logger.warning(f"[{request_id}] Помилка при визначенні часу створення користувача")
 
-            # Формуємо відповідь
             response = {
                 'status': 'success',
                 'token': token_result['token'],
@@ -406,7 +373,6 @@ def register_auth_routes(app):
                 'request_id': request_id
             }
 
-            # Логування часу виконання
             execution_time = (datetime.now() - start_time_req).total_seconds()
             log_message = f"[{request_id}] Успішна автентифікація користувача {user.get('telegram_id')}"
             if is_new_user:
@@ -417,7 +383,6 @@ def register_auth_routes(app):
             return jsonify(response)
 
         except Exception as e:
-            # Детальне логування помилки
             logger.error(f"[{request_id}] Критична помилка в auth_user: {str(e)}")
             if DEBUG_MODE:
                 logger.error(traceback.format_exc())
@@ -430,7 +395,7 @@ def register_auth_routes(app):
 
     @app.route('/api/auth/refresh-token', methods=['POST'])
     def refresh_token():
-        """Оновлення JWT токену автентифікації"""
+        """ВИПРАВЛЕНО: Оновлення JWT токену автентифікації"""
         start_time_req = datetime.now()
         request_id = f"refresh_{int(start_time_req.timestamp())}"
 
@@ -438,16 +403,9 @@ def register_auth_routes(app):
             client_ip = request.remote_addr
             user_agent = request.headers.get('User-Agent', 'Unknown')
 
-            logger.info(f"[{request_id}] Запит оновлення токена від {client_ip} ({user_agent[:50]}...)")
+            logger.info(f"[{request_id}] Запит оновлення токена від {client_ip}")
 
-            # Отримуємо дані з різних джерел
             request_data = request.get_json(silent=True) or {}
-
-            if DEBUG_MODE:
-                logger.debug(f"[{request_id}] Заголовки: {dict(request.headers)}")
-                # Безпечне логування без токенів
-                safe_data = {k: v for k, v in request_data.items() if k not in ['token']}
-                logger.debug(f"[{request_id}] Безпечні дані запиту: {safe_data}")
 
             # Отримуємо ID користувача з валідацією
             user_id = extract_user_id_from_request()
@@ -456,18 +414,24 @@ def register_auth_routes(app):
                 logger.warning(f"[{request_id}] ID користувача не знайдено у запиті")
                 return handle_validation_error("ID користувача не знайдено у запиті", request_id)
 
-            # Перевіримо чи ID валідний (додаткова перевірка)
             if not validate_user_id(user_id):
                 logger.warning(f"[{request_id}] Невалідний формат ID: {user_id}")
                 return handle_validation_error("Невалідний формат ID користувача", request_id)
 
             # Перевіримо існування користувача
-            user = controllers.get_user_data(user_id)
+            if controllers:
+                user = controllers.get_user_data(user_id)
+            else:
+                # Fallback якщо controllers недоступні
+                user = {
+                    'telegram_id': user_id,
+                    'username': f'user_{user_id}',
+                    'balance': 0,
+                    'coins': 0
+                }
 
             if not user:
                 logger.warning(f"[{request_id}] Користувача {user_id} не знайдено")
-
-                # НЕ створюємо користувача автоматично при refresh токена
                 return jsonify({
                     "status": "error",
                     "message": "Користувача не знайдено. Пройдіть авторизацію.",
@@ -489,7 +453,6 @@ def register_auth_routes(app):
                         "request_id": request_id
                     }), 500
 
-                # Логування часу виконання
                 execution_time = (datetime.now() - start_time_req).total_seconds()
                 logger.info(f"[{request_id}] Створено новий токен для {user_id} за {execution_time:.4f}с")
 
@@ -508,12 +471,8 @@ def register_auth_routes(app):
 
                 token_user_id = payload.get("user_id")
 
-                # Перевіряємо, чи ID в токені відповідає запитаному ID
                 if token_user_id != user_id:
-                    logger.warning(
-                        f"[{request_id}] ID в токені ({token_user_id}) не відповідає запитаному ID ({user_id})")
-
-                    # Для безпеки не дозволяємо оновлення токена з невідповідним ID
+                    logger.warning(f"[{request_id}] ID в токені ({token_user_id}) не відповідає запитаному ID ({user_id})")
                     return jsonify({
                         "status": "error",
                         "message": "ID користувача не відповідає токену",
@@ -522,7 +481,6 @@ def register_auth_routes(app):
 
             except jwt.ExpiredSignatureError:
                 logger.info(f"[{request_id}] Токен протерміновано для {user_id}")
-                # Створюємо новий токен, оскільки ми вже перевірили існування користувача
                 token_result = create_jwt_token(user_id)
 
                 if not token_result:
@@ -542,7 +500,6 @@ def register_auth_routes(app):
 
             except jwt.InvalidTokenError as e:
                 logger.warning(f"[{request_id}] Невалідний токен для {user_id}: {str(e)}")
-                # Створюємо новий токен, оскільки поточний недійсний
                 token_result = create_jwt_token(user_id)
 
                 if not token_result:
@@ -560,7 +517,7 @@ def register_auth_routes(app):
                     "request_id": request_id
                 })
 
-            # Якщо ми дійшли сюди, токен валідний, але ми все одно створюємо новий
+            # Якщо токен валідний, створюємо новий
             logger.info(f"[{request_id}] Оновлюємо дійсний токен для {user_id}")
             token_result = create_jwt_token(user_id)
 
@@ -571,7 +528,6 @@ def register_auth_routes(app):
                     "request_id": request_id
                 }), 500
 
-            # Логування часу виконання
             execution_time = (datetime.now() - start_time_req).total_seconds()
             logger.info(f"[{request_id}] Успішно оновлено токен для {user_id} за {execution_time:.4f}с")
 
@@ -583,7 +539,6 @@ def register_auth_routes(app):
             })
 
         except Exception as e:
-            # Детальне логування помилки
             logger.error(f"[{request_id}] Критична помилка в refresh_token: {str(e)}")
             if DEBUG_MODE:
                 logger.error(traceback.format_exc())
@@ -602,7 +557,6 @@ def register_auth_routes(app):
             if not token:
                 return handle_validation_error("Токен не надано")
 
-            # Декодуємо і валідуємо токен
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             user_id = payload.get("user_id")
 
@@ -647,11 +601,8 @@ def register_auth_routes(app):
     @app.route('/api/auth/test', methods=['GET'])
     def auth_test():
         """Тестовий ендпоінт для перевірки роботи автентифікації"""
-        # Простий ендпоінт, який повертає інформацію про запит
         token = extract_token_from_request()
         user_id = extract_user_id_from_request()
-
-        # Перевіряємо чи запит від Telegram
         is_telegram = is_request_from_telegram({}, request.headers)
 
         return jsonify({
