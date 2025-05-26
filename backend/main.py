@@ -630,7 +630,7 @@ def create_app(config_name=None):
     # Додаємо after_request обробник для JS файлів і CORS заголовків
     @app.after_request
     def add_headers(response):
-        """""
+
         # Визначаємо дозволені origins
         origin = request.headers.get('Origin')
 
@@ -682,7 +682,7 @@ def create_app(config_name=None):
             response.headers['Expires'] = '0'
         else:
             response.headers['Cache-Control'] = 'public, max-age=3600'
-"""
+
         return response
 
 def setup_cors(app):
@@ -777,10 +777,6 @@ def add_health_check(app):
             "initialization_result": initialization_result
         }
 
-        @app.route('/health', methods=['GET'])
-        def simple_health():
-            return 'OK', 200
-
         # Додаємо інформацію про WINIX якщо доступний
         if WINIX_QUESTS_AVAILABLE:
             # Спробуємо відкладену ініціалізацію
@@ -810,6 +806,10 @@ def add_health_check(app):
             health_data["winix"] = {"available": False}
 
         return jsonify(health_data)
+
+    @app.route('/health', methods=['GET'])
+    def simple_health():
+        return 'OK', 200
 
 
 def register_api_routes(app):
