@@ -359,7 +359,8 @@ def validate_input_data(f: F) -> F:
         if not INPUT_VALIDATION_ENABLED:
             return f(*args, **kwargs)
 
-        if request.is_json:
+        # Перевіряємо JSON тільки для методів, які можуть мати body
+        if request.method in ['POST', 'PUT', 'PATCH'] and request.is_json:
             try:
                 data = request.get_json()
                 if data:
@@ -368,6 +369,7 @@ def validate_input_data(f: F) -> F:
                 logger.warning(f"Input validation failed: {str(e)}")
                 raise ValidationError("Невірні вхідні дані", 400)
 
+        # Валідація параметрів запиту для всіх методів
         for key, value in request.args.items():
             if detect_sql_injection(value) or detect_xss_attempt(value):
                 logger.warning(f"Malicious input detected in parameter {key}: {value}")
