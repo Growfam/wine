@@ -334,11 +334,13 @@
                         window.Telegram.WebApp.initDataUnsafe.user.id) {
 
                         const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                        console.log("🔍 getUserId - from Telegram:", tgUserId);
 
                         if (isValidId(tgUserId)) {
                             try {
                                 localStorage.setItem('telegram_user_id', tgUserId);
                             } catch (e) {}
+                            console.warn("🔌 API: Помилка отримання ID з Telegram WebApp:", e);
 
                             return tgUserId;
                         }
@@ -351,6 +353,7 @@
             // 2. Перевіряємо localStorage
             try {
                 const localId = localStorage.getItem('telegram_user_id');
+                console.log("🔍 getUserId - from localStorage:", localId);
                 if (isValidId(localId)) {
                     return localId;
                 }
