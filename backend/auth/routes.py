@@ -1,7 +1,6 @@
 """
 Маршрути для автентифікації користувачів.
-Включає функціонал авторизації та оновлення JWT токенів.
-ВИПРАВЛЕНА ВЕРСІЯ з кращою обробкою помилок та валідацією.
+ПОВНА ВИПРАВЛЕНА ВЕРСІЯ з оптимальними ping endpoints та покращеною обробкою помилок.
 """
 
 from flask import request, jsonify
@@ -22,12 +21,20 @@ logger = logging.getLogger("auth_routes")
 try:
     from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
 except ImportError:
-    from settings.config import JWT_SECRET, JWT_ALGORITHM
+    try:
+        from settings.config import JWT_SECRET, JWT_ALGORITHM
+    except ImportError:
+        import os
+        JWT_SECRET = os.getenv('JWT_SECRET', 'winix-secure-jwt-secret-key-2025')
+        JWT_ALGORITHM = 'HS256'
 
 # Константи
 TOKEN_VALIDITY_DAYS = 7
 REFRESH_TOKEN_VALIDITY_DAYS = 30
 DEBUG_MODE = True  # Встановіть False для продакшену
+
+# Збереження часу запуску для uptime
+start_time = time.time()
 
 # Regex для валідації параметрів
 TIMESTAMP_PATTERN = re.compile(r'^\d{1,13}$')  # Unix timestamp
@@ -35,22 +42,31 @@ USER_ID_PATTERN = re.compile(r'^\d+$')  # Numeric user ID
 TOKEN_PATTERN = re.compile(r'^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$')  # JWT format
 
 
-def validate_timestamp(timestamp_str):
-    """Валідація timestamp параметра"""
+def validate_timestamp_flexible(timestamp_str):
+    """ОПТИМАЛЬНА гнучка валідація timestamp з підтримкою мілісекунд"""
     if not timestamp_str:
         return True  # Опціональний параметр
 
-    if not TIMESTAMP_PATTERN.match(timestamp_str):
-        return False
-
     try:
         timestamp = int(timestamp_str)
-        # Перевірка розумних меж (не старше 1 року, не в майбутньому більше ніж на 1 день)
-        now = int(time.time())
-        if timestamp < (now - 365 * 24 * 3600) or timestamp > (now + 24 * 3600):
-            return False
-        return True
+
+        # Автоматично визначаємо формат (секунди vs мілісекунди)
+        if timestamp > 9999999999:  # Це мілісекунди (більше ніж 2001 рік)
+            timestamp = timestamp // 1000
+
+        # Розширені але розумні межі
+        current_time = int(time.time())
+        min_time = current_time - (10 * 365 * 24 * 3600)  # 10 років назад
+        max_time = current_time + (5 * 365 * 24 * 3600)   # 5 років вперед
+
+        if min_time <= timestamp <= max_time:
+            return True
+
+        logger.debug(f"Timestamp {timestamp} поза допустимими межами")
+        return False
+
     except (ValueError, OverflowError):
+        logger.debug(f"Невалідний формат timestamp: {timestamp_str}")
         return False
 
 
@@ -207,13 +223,13 @@ def handle_validation_error(message, request_id=None):
 def register_auth_routes(app):
     """Реєстрація маршрутів автентифікації"""
 
-    # В backend/auth/routes.py замініть ping endpoint на:
+    # ========== ОПТИМАЛЬНІ PING ENDPOINTS ==========
 
     @app.route('/api/ping', methods=['GET'])
     def api_ping():
-        """Простий ping endpoint без строгої валідації"""
+        """ОПТИМАЛЬНИЙ ping endpoint для health check"""
         try:
-            # Отримуємо timestamp параметр, але не валідуємо його строго
+            # Отримуємо timestamp але НЕ валідуємо його строго
             timestamp_param = request.args.get('t', '')
 
             response_data = {
@@ -222,32 +238,54 @@ def register_auth_routes(app):
                 "server_time": datetime.now(timezone.utc).isoformat()
             }
 
-            # Додаємо echo timestamp якщо був переданий
+            # Просто echo timestamp якщо він переданий (без строгої валідації)
             if timestamp_param:
-                try:
-                    # Конвертуємо з мілісекунд в секунди якщо потрібно
-                    ts_value = int(timestamp_param)
-                    if ts_value > 9999999999:  # Якщо це мілісекунди
-                        ts_value = ts_value // 1000
-                    response_data["echo_timestamp"] = str(ts_value)
-                except (ValueError, OverflowError):
-                    # Ігноруємо невалідні timestamp
-                    pass
+                response_data["client_timestamp"] = timestamp_param
 
             return jsonify(response_data)
 
         except Exception as e:
             logger.error(f"Ping endpoint error: {str(e)}")
+            # Навіть при помилці повертаємо базовий pong
             return jsonify({
-                "status": "error",
-                "message": "Internal server error",
-                "timestamp": int(time.time())
-            }), 500
+                "status": "pong",
+                "timestamp": int(time.time()),
+                "error": "partial_failure"
+            })
 
     @app.route('/ping', methods=['GET'])
-    def simple_ping():
-        """Найпростіший ping endpoint"""
+    def ultra_simple_ping():
+        """Ультра простий ping без жодної валідації для критичних ситуацій"""
         return "pong"
+
+    @app.route('/api/health', methods=['GET'])
+    def enhanced_health():
+        """Розширений health check з валідацією"""
+        try:
+            # Тут можна використовувати строгу валідацію
+            timestamp_param = request.args.get('t', '')
+
+            if timestamp_param and not validate_timestamp_flexible(timestamp_param):
+                logger.warning(f"Invalid timestamp in health check: {timestamp_param}")
+                # Але не блокуємо запит
+
+            health_data = {
+                "status": "ok",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "service": "WINIX Backend",
+                "version": "1.0.0",
+                "uptime": int(time.time() - start_time)
+            }
+
+            return jsonify(health_data)
+
+        except Exception as e:
+            logger.error(f"Health check error: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "error": str(e)
+            }), 500
 
     @app.route('/health', methods=['GET'])
     def simple_health():
@@ -256,14 +294,16 @@ def register_auth_routes(app):
             "status": "ok",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "service": "WINIX Backend",
-            "version": "1.0.0"
+            "uptime": int(time.time() - start_time)
         })
+
+    # ========== ОСНОВНІ AUTH ENDPOINTS ==========
 
     @app.route('/api/auth', methods=['POST'])
     def auth_user():
         """Автентифікація користувача через Telegram дані"""
-        start_time = datetime.now()
-        request_id = f"auth_{int(start_time.timestamp())}"
+        start_time_req = datetime.now()
+        request_id = f"auth_{int(start_time_req.timestamp())}"
 
         try:
             data = request.json or {}
@@ -367,7 +407,7 @@ def register_auth_routes(app):
             }
 
             # Логування часу виконання
-            execution_time = (datetime.now() - start_time).total_seconds()
+            execution_time = (datetime.now() - start_time_req).total_seconds()
             log_message = f"[{request_id}] Успішна автентифікація користувача {user.get('telegram_id')}"
             if is_new_user:
                 log_message += " (НОВИЙ КОРИСТУВАЧ)"
@@ -391,8 +431,8 @@ def register_auth_routes(app):
     @app.route('/api/auth/refresh-token', methods=['POST'])
     def refresh_token():
         """Оновлення JWT токену автентифікації"""
-        start_time = datetime.now()
-        request_id = f"refresh_{int(start_time.timestamp())}"
+        start_time_req = datetime.now()
+        request_id = f"refresh_{int(start_time_req.timestamp())}"
 
         try:
             client_ip = request.remote_addr
@@ -450,7 +490,7 @@ def register_auth_routes(app):
                     }), 500
 
                 # Логування часу виконання
-                execution_time = (datetime.now() - start_time).total_seconds()
+                execution_time = (datetime.now() - start_time_req).total_seconds()
                 logger.info(f"[{request_id}] Створено новий токен для {user_id} за {execution_time:.4f}с")
 
                 return jsonify({
@@ -532,7 +572,7 @@ def register_auth_routes(app):
                 }), 500
 
             # Логування часу виконання
-            execution_time = (datetime.now() - start_time).total_seconds()
+            execution_time = (datetime.now() - start_time_req).total_seconds()
             logger.info(f"[{request_id}] Успішно оновлено токен для {user_id} за {execution_time:.4f}с")
 
             return jsonify({
@@ -553,29 +593,6 @@ def register_auth_routes(app):
                 "message": f"Внутрішня помилка сервера: {str(e) if DEBUG_MODE else 'Зверніться до адміністратора'}",
                 "request_id": request_id
             }), 500
-
-    # Додаємо тестовий ендпоінт для перевірки роботи автентифікації
-    @app.route('/api/auth/test', methods=['GET'])
-    def auth_test():
-        """Тестовий ендпоінт для перевірки роботи автентифікації"""
-        # Простий ендпоінт, який повертає інформацію про запит
-        token = extract_token_from_request()
-        user_id = extract_user_id_from_request()
-
-        # Перевіряємо чи запит від Telegram
-        is_telegram = is_request_from_telegram({}, request.headers)
-
-        return jsonify({
-            "status": "success",
-            "message": "Тестовий ендпоінт автентифікації",
-            "received": {
-                "token": bool(token),
-                "user_id": user_id,
-                "is_telegram_request": is_telegram,
-                "headers": dict(request.headers),
-                "timestamp": datetime.now().isoformat()
-            }
-        })
 
     @app.route('/api/auth/validate', methods=['POST'])
     def validate_auth():
@@ -624,3 +641,29 @@ def register_auth_routes(app):
                 "message": "Помилка валідації токена",
                 "code": "validation_error"
             }), 500
+
+    # ========== ТЕСТОВІ ENDPOINTS ==========
+
+    @app.route('/api/auth/test', methods=['GET'])
+    def auth_test():
+        """Тестовий ендпоінт для перевірки роботи автентифікації"""
+        # Простий ендпоінт, який повертає інформацію про запит
+        token = extract_token_from_request()
+        user_id = extract_user_id_from_request()
+
+        # Перевіряємо чи запит від Telegram
+        is_telegram = is_request_from_telegram({}, request.headers)
+
+        return jsonify({
+            "status": "success",
+            "message": "Тестовий ендпоінт автентифікації",
+            "received": {
+                "token": bool(token),
+                "user_id": user_id,
+                "is_telegram_request": is_telegram,
+                "headers": dict(request.headers),
+                "timestamp": datetime.now().isoformat()
+            }
+        })
+
+    logger.info("✅ Маршрути автентифікації зареєстровано успішно")
