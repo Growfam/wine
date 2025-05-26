@@ -1,6 +1,6 @@
 """
 Маршрути для автентифікації користувачів.
-ВИПРАВЛЕНА ВЕРСІЯ без fallback плутанини та з правильною валідацією
+ВИПРАВЛЕНА ВЕРСІЯ з покращеною синхронізацією з frontend API
 """
 
 from flask import request, jsonify
@@ -211,7 +211,7 @@ def create_jwt_token(user_id: str, expiration_days: int = TOKEN_VALIDITY_DAYS, t
 
 def is_request_from_telegram(request_data: dict, headers: dict) -> bool:
     """
-    Визначає чи запит прийшов від Telegram Mini App
+    ВИПРАВЛЕНА функція визначення чи запит прийшов від Telegram Mini App
 
     Args:
         request_data: Дані запиту
@@ -238,9 +238,9 @@ def is_request_from_telegram(request_data: dict, headers: dict) -> bool:
     if request_data.get('from_telegram'):
         return True
 
-    # Перевіряємо комбінацію id + first_name (типово для Telegram)
+    # Перевіряємо комбінацію id + username/first_name (типово для Telegram)
     if (request_data.get('id') and validate_user_id(request_data.get('id')) and
-        request_data.get('first_name')):
+        (request_data.get('username') or request_data.get('first_name'))):
         return True
 
     return False
@@ -276,7 +276,6 @@ def register_auth_routes(app):
 
     # ========== PING ENDPOINTS ==========
 
-
     @app.route('/ping', methods=['GET'])
     def ultra_simple_ping():
         """Ультра простий ping без JSON"""
@@ -306,7 +305,7 @@ def register_auth_routes(app):
 
     @app.route('/api/auth', methods=['POST'])
     def auth_user():
-        """Автентифікація користувача через Telegram дані"""
+        """ВИПРАВЛЕНА автентифікація користувача через Telegram дані"""
         start_time_req = datetime.now()
         request_id = f"auth_{int(start_time_req.timestamp())}"
 
@@ -316,12 +315,12 @@ def register_auth_routes(app):
 
             logger.info(f"[{request_id}] Запит автентифікації від {client_ip}")
 
-            # Встановлюємо прапорець Telegram якщо запит від Mini App
+            # ВИПРАВЛЕНО: Встановлюємо прапорець Telegram якщо запит від Mini App
             if is_request_from_telegram(data, request.headers):
                 data['from_telegram'] = True
                 logger.info(f"[{request_id}] Запит ідентифіковано як Telegram Mini App")
 
-            # Отримуємо user_id з СТРОГОЮ валідацією
+            # ВИПРАВЛЕНО: Отримуємо user_id з СТРОГОЮ валідацією
             try:
                 user_id = extract_user_id_from_request()
             except ValueError as e:
@@ -331,7 +330,7 @@ def register_auth_routes(app):
             if not user_id:
                 logger.warning(f"[{request_id}] Відсутній Telegram ID у запиті")
                 return handle_error(
-                    'Telegram ID не надано. Перевірте параметри запиту.',
+                    'Telegram ID не надано. Додаток доступний тільки через Telegram.',
                     'missing_telegram_id',
                     400,
                     request_id
@@ -341,7 +340,7 @@ def register_auth_routes(app):
             data['id'] = user_id
             data['telegram_id'] = user_id
 
-            # Отримуємо/верифікуємо користувача через controllers
+            # ВИПРАВЛЕНО: Отримуємо/верифікуємо користувача через controllers
             try:
                 user = controllers.verify_user(data)
                 logger.info(f"[{request_id}] Користувач верифікований")
@@ -374,6 +373,7 @@ def register_auth_routes(app):
 
             is_new_user = user.get('is_new_user', False)
 
+            # ВИПРАВЛЕНО: Повертаємо формат очікуваний frontend
             response = {
                 'status': 'success',
                 'token': token_result['token'],
@@ -381,9 +381,12 @@ def register_auth_routes(app):
                 'data': {
                     'telegram_id': user.get('telegram_id'),
                     'username': user.get('username'),
-                    'balance': user.get('balance', 0),
-                    'coins': user.get('coins', 0),
-                    'is_new_user': is_new_user
+                    'balance': float(user.get('balance', 0)),
+                    'coins': int(user.get('coins', 0)),
+                    'is_new_user': is_new_user,
+                    'is_active': user.get('is_active', True),
+                    'created_at': user.get('created_at'),
+                    'last_login': user.get('last_login')
                 },
                 'request_id': request_id
             }
@@ -411,7 +414,7 @@ def register_auth_routes(app):
 
     @app.route('/api/auth/refresh-token', methods=['POST'])
     def refresh_token():
-        """Оновлення JWT токену автентифікації"""
+        """ВИПРАВЛЕНА функція оновлення JWT токену автентифікації"""
         start_time_req = datetime.now()
         request_id = f"refresh_{int(start_time_req.timestamp())}"
 
@@ -419,7 +422,7 @@ def register_auth_routes(app):
             client_ip = request.remote_addr
             logger.info(f"[{request_id}] Запит оновлення токена від {client_ip}")
 
-            # Отримуємо ID користувача з СТРОГОЮ валідацією
+            # ВИПРАВЛЕНО: Отримуємо ID користувача з СТРОГОЮ валідацією
             try:
                 user_id = extract_user_id_from_request()
             except ValueError as e:
@@ -521,7 +524,7 @@ def register_auth_routes(app):
 
     @app.route('/api/auth/validate', methods=['POST'])
     def validate_auth():
-        """Валідація токена автентифікації"""
+        """ВИПРАВЛЕНА валідація токена автентифікації"""
         try:
             token = extract_token_from_request()
             if not token:

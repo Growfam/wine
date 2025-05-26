@@ -1,7 +1,7 @@
 /**
  * auth.js - Модуль авторизації для Telegram Mini App
- * Версія без заглушок - тільки реальні дані з бекенду
- * @version 2.0.0
+ * ВИПРАВЛЕНА версія з синхронізованими API викликами
+ * @version 2.0.1
  */
 
 (function() {
@@ -154,6 +154,11 @@
     function showError(message) {
         console.error("❌ AUTH: " + message);
 
+        if (window.showNotification) {
+            window.showNotification(message, true);
+            return;
+        }
+
         if (window.simpleAlert) {
             window.simpleAlert(message, true);
             return;
@@ -173,6 +178,11 @@
     function showWelcomeMessage() {
         console.log("🔐 AUTH: Показ вітального повідомлення");
         const message = getLocalizedText('welcome');
+
+        if (window.showNotification) {
+            window.showNotification(message, false);
+            return;
+        }
 
         if (window.simpleAlert) {
             window.simpleAlert(message, false);
@@ -223,7 +233,8 @@
     function hasApiModule() {
         try {
             return window.WinixAPI &&
-                   typeof window.WinixAPI.apiRequest === 'function';
+                   typeof window.WinixAPI.apiRequest === 'function' &&
+                   typeof window.WinixAPI.getUserData === 'function';
         } catch (e) {
             console.error("🔐 AUTH: Помилка перевірки API модуля:", e);
             return false;
@@ -323,8 +334,8 @@
                 throw new Error("API module not available");
             }
 
-            // Виконуємо запит авторизації
-            const response = await window.WinixAPI.apiRequest('api/auth', 'POST', userData, {
+            // ВИПРАВЛЕНО: Використовуємо правильний API метод
+            const response = await window.WinixAPI.apiRequest('auth', 'POST', userData, {
                 timeout: 15000,
                 suppressErrors: false
             });
@@ -333,6 +344,11 @@
             if (spinner) spinner.classList.remove('show');
 
             if (response && response.status === 'success' && response.data) {
+                // Зберігаємо токен, якщо він є
+                if (response.token) {
+                    localStorage.setItem('auth_token', response.token);
+                }
+
                 // Зберігаємо дані користувача
                 window.WinixAuth.currentUser = response.data;
                 console.log("✅ AUTH: Користувача успішно авторизовано", response.data);
@@ -421,7 +437,7 @@
                 throw new Error("API module not available");
             }
 
-            // Отримуємо дані користувача
+            // ВИПРАВЛЕНО: Використовуємо правильний API метод
             const response = await window.WinixAPI.getUserData(forceRefresh);
 
             // Приховуємо індикатор завантаження
@@ -431,6 +447,17 @@
                 // Зберігаємо дані
                 window.WinixAuth.currentUser = response.data;
                 console.log("✅ AUTH: Дані користувача успішно отримано", response.data);
+
+                // Оновлюємо localStorage для швидкого доступу
+                if (response.data.balance !== undefined) {
+                    localStorage.setItem('userTokens', response.data.balance.toString());
+                }
+                if (response.data.coins !== undefined) {
+                    localStorage.setItem('userCoins', response.data.coins.toString());
+                }
+                if (response.data.username) {
+                    localStorage.setItem('username', response.data.username);
+                }
 
                 // Відправляємо подію оновлення даних
                 document.dispatchEvent(new CustomEvent(EVENT_USER_DATA_UPDATED, {
@@ -449,7 +476,10 @@
             const spinner = document.getElementById('loading-spinner');
             if (spinner) spinner.classList.remove('show');
 
-            showError(getLocalizedText('dataError'));
+            // Якщо це не критична помилка, не показуємо error user
+            if (error.status !== 401 && error.status !== 403) {
+                showError(getLocalizedText('dataError'));
+            }
 
             // Генеруємо подію про помилку
             document.dispatchEvent(new CustomEvent(EVENT_AUTH_ERROR, {
@@ -558,7 +588,7 @@
         stopPeriodicUpdate,
 
         // Технічна інформація
-        version: '2.0.0'
+        version: '2.0.1'
     };
 
     // ======== АВТОМАТИЧНА ІНІЦІАЛІЗАЦІЯ ========
