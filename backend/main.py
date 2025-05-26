@@ -631,6 +631,7 @@ def create_app(config_name=None):
     @app.after_request
     def add_headers(response):
 
+
         # Визначаємо дозволені origins
         origin = request.headers.get('Origin')
 
@@ -684,6 +685,9 @@ def create_app(config_name=None):
             response.headers['Cache-Control'] = 'public, max-age=3600'
 
         return response
+
+    logger.info("🏁 Flask app створено і готово до повернення")
+    return app
 
 def setup_cors(app):
     """Налаштування CORS для API"""
