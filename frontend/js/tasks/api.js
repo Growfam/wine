@@ -1,5 +1,5 @@
 /**
- * tasks-api.js - Єдиний модуль для всіх API-запитів WINIX
+api.js - Єдиний модуль для всіх API-запитів WINIX
  * Виправлена версія з health check та кращою обробкою помилок для ПРОДАКШН
  * @version 1.4.0
  */
@@ -380,7 +380,7 @@
     }
 
     /**
-     * ВИПРАВЛЕНО: Перевірка готовності API перед запитом з кращою логікою
+     * ВИПРАВЛЕНО: Перевірка готовності API перед запитом з кращою логікою та fallback
      */
     async function ensureApiReady() {
         // Якщо health check застарілий (більше 2 хвилин для продакшн)
@@ -392,7 +392,14 @@
             const isHealthy = await checkApiHealth();
 
             if (!isHealthy) {
-                throw new Error("Сервер недоступний. Перевірте з'єднання з інтернетом та спробуйте пізніше.");
+                // НОВОЕ: Для продакшн не блокуємо запити, а просто попереджаємо
+                if (!API_BASE_URL.includes('localhost')) {
+                    console.warn("⚠️ API: Health check провалений, але продовжуємо роботу для продакшн");
+                    _apiState.isHealthy = true; // Примусово встановлюємо як здоровий для продакшн
+                    return true;
+                } else {
+                    throw new Error("Сервер недоступний. Перевірте з'єднання з інтернетом та спробуйте пізніше.");
+                }
             }
         }
 
@@ -645,17 +652,13 @@
     }
 
     /**
-     * ВИПРАВЛЕНО: Оновлення токену авторизації з покращеною обробкою помилок
+     * ВИПРАВЛЕНО: Оновлення токену авторизації з покращеною обробкою помилок та fallback
      * @returns {Promise<string|null>} Новий токен або null
      */
     async function refreshToken() {
-        // Перевіряємо готовність API
-        try {
-            await ensureApiReady();
-        } catch (error) {
-            console.error("🔌 API: Сервер недоступний для оновлення токену:", error);
-            throw error;
-        }
+        // ВИПРАВЛЕНО: Для refresh token не робимо строгу перевірку API ready
+        // Це може створити циклічну залежність
+        console.log("🔄 API: Початок оновлення токену (пропускаємо health check)");
 
         // Перевіряємо, чи вже відбувається оновлення
         if (_pendingRequests['refresh-token']) {
@@ -671,86 +674,114 @@
                     throw new Error("ID користувача не знайдено");
                 }
 
-                console.log("🔄 API: Початок оновлення токену");
-
-                // ВИПРАВЛЕНО: Збільшений таймаут для продакшн
-                const timeout = API_BASE_URL.includes('localhost') ? 10000 : 20000; // 20 секунд для продакшн
+                // ВИПРАВЛЕНО: Збільшений таймаут для продакшн та fallback режим
+                const timeout = API_BASE_URL.includes('localhost') ? 10000 : 30000; // 30 секунд для продакшн
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-                const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Telegram-User-Id': userId
-                    },
-                    body: JSON.stringify({
-                        telegram_id: userId,
-                        token: _authToken || ''
-                    }),
-                    signal: controller.signal
-                });
+                try {
+                    const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Telegram-User-Id': userId,
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        },
+                        body: JSON.stringify({
+                            telegram_id: userId,
+                            token: _authToken || ''
+                        }),
+                        signal: controller.signal
+                    });
 
-                clearTimeout(timeoutId);
+                    clearTimeout(timeoutId);
 
-                if (!response.ok) {
-                    // Спеціальна обробка 400/401 помилок при оновленні токену
-                    if (response.status === 400 || response.status === 401) {
-                        console.warn("⚠️ API: Токен недійсний, очищаємо");
-                        clearAuthToken();
-                        throw new Error("Токен недійсний. Потрібна повторна авторизація");
-                    }
-                    throw new Error(`Помилка HTTP: ${response.status} ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                if (data && data.status === 'success' && data.token) {
-                    // Зберігаємо новий токен
-                    _authToken = data.token;
-
-                    // Визначаємо час закінчення токену
-                    if (data.expires_at) {
-                        _authTokenExpiry = new Date(data.expires_at).getTime();
-                    } else if (data.expires_in) {
-                        _authTokenExpiry = Date.now() + (data.expires_in * 1000);
-                    } else {
-                        // За замовчуванням 24 години
-                        _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
-                    }
-
-                    // Зберігаємо в localStorage і використовуємо StorageUtils, якщо доступний
-                    try {
-                        if (window.StorageUtils) {
-                            window.StorageUtils.setItem('auth_token', _authToken, {
-                                persist: true,
-                                expires: _authTokenExpiry - Date.now()
-                            });
-                            window.StorageUtils.setItem('auth_token_expiry', _authTokenExpiry.toString(), {
-                                persist: true,
-                                expires: _authTokenExpiry - Date.now()
-                            });
-                        } else {
-                            localStorage.setItem('auth_token', _authToken);
-                            localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
+                    if (!response.ok) {
+                        // Спеціальна обробка 400/401 помилок при оновленні токену
+                        if (response.status === 400 || response.status === 401) {
+                            console.warn("⚠️ API: Токен недійсний, очищаємо");
+                            clearAuthToken();
+                            throw new Error("Токен недійсний. Потрібна повторна авторизація");
                         }
-                    } catch (e) {
-                        console.warn("🔌 API: Помилка збереження токену:", e);
+
+                        // НОВОЕ: Для 404 помилок в продакшн показуємо більш м'яке повідомлення
+                        if (response.status === 404 && !API_BASE_URL.includes('localhost')) {
+                            console.warn("⚠️ API: Endpoint refresh-token не знайдено, можливо сервер ще не готовий");
+                            throw new Error("Сервіс автентифікації тимчасово недоступний");
+                        }
+
+                        throw new Error(`Помилка HTTP: ${response.status} ${response.statusText}`);
                     }
 
-                    console.log("✅ API: Токен успішно оновлено");
+                    const data = await response.json();
 
-                    // Відправляємо подію про оновлення токену
-                    document.dispatchEvent(new CustomEvent('token-refreshed', {
-                        detail: { token: _authToken, expires_at: _authTokenExpiry }
-                    }));
+                    if (data && data.status === 'success' && data.token) {
+                        // Зберігаємо новий токен
+                        _authToken = data.token;
 
-                    resolve(_authToken);
-                } else {
-                    throw new Error(data.message || "Помилка оновлення токену");
+                        // Визначаємо час закінчення токену
+                        if (data.expires_at) {
+                            _authTokenExpiry = new Date(data.expires_at).getTime();
+                        } else if (data.expires_in) {
+                            _authTokenExpiry = Date.now() + (data.expires_in * 1000);
+                        } else {
+                            // За замовчуванням 24 години
+                            _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
+                        }
+
+                        // Зберігаємо в localStorage
+                        try {
+                            if (window.StorageUtils) {
+                                window.StorageUtils.setItem('auth_token', _authToken, {
+                                    persist: true,
+                                    expires: _authTokenExpiry - Date.now()
+                                });
+                                window.StorageUtils.setItem('auth_token_expiry', _authTokenExpiry.toString(), {
+                                    persist: true,
+                                    expires: _authTokenExpiry - Date.now()
+                                });
+                            } else {
+                                localStorage.setItem('auth_token', _authToken);
+                                localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
+                            }
+                        } catch (e) {
+                            console.warn("🔌 API: Помилка збереження токену:", e);
+                        }
+
+                        console.log("✅ API: Токен успішно оновлено");
+
+                        // Відправляємо подію про оновлення токену
+                        document.dispatchEvent(new CustomEvent('token-refreshed', {
+                            detail: { token: _authToken, expires_at: _authTokenExpiry }
+                        }));
+
+                        resolve(_authToken);
+                    } else {
+                        throw new Error(data.message || "Помилка оновлення токену");
+                    }
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+
+                    // НОВОЕ: Детальна обробка різних типів помилок
+                    if (fetchError.name === 'AbortError') {
+                        throw new Error("Timeout при оновленні токену - сервер занадто повільно відповідає");
+                    } else if (fetchError.message && fetchError.message.includes('NetworkError')) {
+                        throw new Error("Мережева помилка при оновленні токену");
+                    } else if (fetchError.message && fetchError.message.includes('CORS')) {
+                        throw new Error("CORS помилка при оновленні токену");
+                    } else {
+                        throw fetchError;
+                    }
                 }
             } catch (error) {
                 console.error("❌ API: Помилка оновлення токену:", error);
+
+                // НОВОЕ: Для продакшн не показуємо технічні деталі користувачу
+                if (!API_BASE_URL.includes('localhost') && typeof window.showToast === 'function') {
+                    window.showToast('Проблема з автентифікацією. Спробуйте перезавантажити сторінку.', 'warning');
+                }
+
                 reject(error);
             } finally {
                 // Видаляємо запит зі списку активних
@@ -896,14 +927,22 @@
             }
 
             // Перевірка готовності API перед запитом (тільки для важливих запитів)
-            if (!options.skipHealthCheck && !safeIncludes(endpoint, 'ping') && !safeIncludes(endpoint, 'health')) {
+            if (!options.skipHealthCheck && !safeIncludes(endpoint, 'ping') && !safeIncludes(endpoint, 'health') && !safeIncludes(endpoint, 'cors-test')) {
                 try {
                     await ensureApiReady();
                 } catch (error) {
                     console.error("🔌 API: Сервер недоступний:", error);
 
-                    // Для критичних запитів показуємо помилку
-                    if (!options.suppressErrors) {
+                    // НОВОЕ: Emergency режим для критичних запитів
+                    const isCriticalEndpoint = safeIncludes(endpoint, 'auth') ||
+                                             safeIncludes(endpoint, 'refresh-token') ||
+                                             safeIncludes(endpoint, 'user') ||
+                                             safeIncludes(endpoint, 'balance');
+
+                    if (isCriticalEndpoint && !API_BASE_URL.includes('localhost')) {
+                        console.warn("🚨 API: Emergency режим для критичного запиту:", endpoint);
+                        // Пропускаємо health check для критичних запитів в продакшн
+                    } else if (!options.suppressErrors) {
                         return Promise.reject({
                             status: 'error',
                             message: error.message,
@@ -1692,8 +1731,139 @@
         }
     }
 
-    // Запускаємо CORS тест через 2 секунди після ініціалізації
-    setTimeout(testCorsOnInit, 2000);
+    // НОВОЕ: Функція для діагностики підключення
+    async function diagnoseProdConnection() {
+        console.log("🔍 === ДІАГНОСТИКА ПІДКЛЮЧЕННЯ ДО ПРОДАКШН СЕРВЕРА ===");
+        const results = {
+            baseUrl: API_BASE_URL,
+            tests: []
+        };
+
+        // Тест 1: Простий ping
+        try {
+            const pingStart = Date.now();
+            const pingResponse = await fetch(`${API_BASE_URL}/ping`, {
+                method: 'GET',
+                cache: 'no-cache',
+                signal: AbortSignal.timeout(10000)
+            });
+            const pingTime = Date.now() - pingStart;
+
+            results.tests.push({
+                name: 'Simple Ping',
+                success: pingResponse.ok,
+                time: pingTime,
+                status: pingResponse.status,
+                details: pingResponse.ok ? 'OK' : `HTTP ${pingResponse.status}`
+            });
+        } catch (error) {
+            results.tests.push({
+                name: 'Simple Ping',
+                success: false,
+                error: error.message,
+                details: 'Ping failed'
+            });
+        }
+
+        // Тест 2: API Health
+        try {
+            const healthStart = Date.now();
+            const healthResponse = await fetch(`${API_BASE_URL}/api/health`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-cache',
+                signal: AbortSignal.timeout(15000)
+            });
+            const healthTime = Date.now() - healthStart;
+
+            results.tests.push({
+                name: 'API Health',
+                success: healthResponse.ok,
+                time: healthTime,
+                status: healthResponse.status,
+                details: healthResponse.ok ? 'OK' : `HTTP ${healthResponse.status}`
+            });
+
+            if (healthResponse.ok) {
+                try {
+                    const healthData = await healthResponse.json();
+                    results.healthData = healthData;
+                } catch (e) {
+                    results.tests[results.tests.length - 1].details += ' (JSON parse error)';
+                }
+            }
+        } catch (error) {
+            results.tests.push({
+                name: 'API Health',
+                success: false,
+                error: error.message,
+                details: 'Health check failed'
+            });
+        }
+
+        // Тест 3: CORS
+        try {
+            const corsStart = Date.now();
+            const corsResponse = await fetch(`${API_BASE_URL}/api/cors-test`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Origin': window.location.origin
+                },
+                cache: 'no-cache',
+                signal: AbortSignal.timeout(10000)
+            });
+            const corsTime = Date.now() - corsStart;
+
+            results.tests.push({
+                name: 'CORS Test',
+                success: corsResponse.ok,
+                time: corsTime,
+                status: corsResponse.status,
+                details: corsResponse.ok ? 'OK' : `HTTP ${corsResponse.status}`
+            });
+        } catch (error) {
+            results.tests.push({
+                name: 'CORS Test',
+                success: false,
+                error: error.message,
+                details: 'CORS test failed'
+            });
+        }
+
+        console.log("🔍 Результати діагностики:", results);
+
+        // Показуємо результат користувачу
+        const successfulTests = results.tests.filter(t => t.success).length;
+        const totalTests = results.tests.length;
+
+        console.log(`📊 Успішно: ${successfulTests}/${totalTests} тестів`);
+
+        if (successfulTests === 0) {
+            console.error("💥 Сервер повністю недоступний!");
+            if (typeof window.showToast === 'function') {
+                window.showToast('Сервер недоступний. Перевірте інтернет-з\'єднання.', 'error');
+            }
+        } else if (successfulTests < totalTests) {
+            console.warn("⚠️ Частина тестів провалена");
+            if (typeof window.showToast === 'function') {
+                window.showToast('Деякі функції можуть працювати нестабільно', 'warning');
+            }
+        } else {
+            console.log("✅ Всі тести пройдено успішно");
+        }
+
+        return results;
+    }
+
+    // Запускаємо повну діагностику через 3 секунди після ініціалізації (для продакшн)
+    setTimeout(() => {
+        if (!API_BASE_URL.includes('localhost')) {
+            diagnoseProdConnection();
+        } else {
+            testCorsOnInit();
+        }
+    }, 3000);
 
     // ======== ЕКСПОРТ API ========
 
@@ -1793,7 +1963,8 @@
                 _apiState.isHealthy = false;
                 return true;
             },
-            testCors: testCorsOnInit
+            testCors: testCorsOnInit,
+            diagnoseProdConnection: diagnoseProdConnection // НОВОЕ: Додаємо діагностику
         }
     };
 
@@ -1825,6 +1996,10 @@
         }
     });
 
+    // НОВОЕ: Глобальна діагностична функція для консолі
+    window.WinixDiagnose = diagnoseProdConnection;
+
     console.log(`✅ API: Модуль успішно ініціалізовано для ПРОДАКШН (URL: ${API_BASE_URL})`);
     console.log(`🔧 API: Режим відлагодження: ${_debugMode ? 'увімкнено' : 'вимкнено'}`);
+    console.log(`🩺 API: Запустіть WinixDiagnose() в консолі для діагностики підключення`);
 })();
