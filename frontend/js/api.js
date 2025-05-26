@@ -1034,13 +1034,12 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
             // Забезпечуємо, що до URL не додаються неправильні параметри
             const hasQuery = safeIncludes(normalizedEndpoint, '?');
 
-            // ВИПРАВЛЕНО: Додаємо кешобрейкер до URL (параметр t=timestamp)
-            const timestamp = Date.now();
+            // ВИПРАВЛЕНО: Додаємо кешобрейкер до URL (параметр t=timestamp в секундах)
+            const timestamp = Math.floor(Date.now() / 1000);
 
-            // ВИПРАВЛЕНО: Формуємо повний URL з коректним шляхом і уникаємо подвійних слешів
             url = `${API_BASE_URL}/${normalizedEndpoint}`
                 .replace(/([^:]\/)\/+/g, "$1") // Видаляємо зайві послідовні слеші
-                + (hasQuery ? '&' : '?') + `t=${timestamp}`; // Додаємо кешобрейкер
+                + (hasQuery ? '&' : '?') + `t=${timestamp}`; // ВИПРАВЛЕНО: додана крапка з комою
         }
 
         // Перевірка на пристрій офлайн
@@ -1121,7 +1120,7 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
 
         // Спроби виконати запит
         let response;
-        let lastError;
+        let lastError = null; // ВИПРАВЛЕНО: ініціалізуємо змінну
 
         try {
             // Інкрементуємо лічильник запитів
@@ -1308,6 +1307,10 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
 
             // Якщо це остання спроба, перекидаємо помилку далі
             if (retries <= 0) {
+                // ВИПРАВЛЕНО: використовуємо lastError для детальної інформації
+                if (lastError) {
+                    console.error(`❌ API: Остання помилка для ${endpoint}:`, lastError.message);
+                }
                 throw error;
             }
 
@@ -1338,14 +1341,14 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
             // Видаляємо ендпоінт зі списку активних
             _activeEndpoints.delete(endpoint);
 
-            // Зменшуємо лічільник поточних запитів
+            // Зменшуємо лічильник поточних запитів
             _requestCounter.current = Math.max(0, _requestCounter.current - 1);
         }
 
         // Якщо запит успішний, повертаємо відповідь
         return response;
     } catch (error) {
-        // Збільшуємо лічільник помилок
+        // Збільшуємо лічильник помилок
         _requestCounter.errors++;
 
         // Приховуємо індикатор завантаження
