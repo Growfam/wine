@@ -188,8 +188,17 @@ def handle_telegram_update(data):
 def register_telegram_routes(app):
     """Реєструє маршрути для Telegram webhook"""
 
-    @app.route('/telegram/webhook', methods=['POST'])
+    @app.route('/telegram/webhook', methods=['POST', 'GET'])  # ✅ Додано GET для перевірки
     def telegram_webhook():
+        """Обробник webhook від Telegram"""
+
+        # Обробка GET запиту для перевірки endpoint
+        if request.method == 'GET':
+            return jsonify({
+                'status': 'ok',
+                'endpoint': 'telegram webhook',
+                'info': 'Use POST method to send updates'
+            })
         """Обробник webhook від Telegram"""
         try:
             data = request.get_json()

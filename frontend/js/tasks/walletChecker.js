@@ -29,17 +29,25 @@ window.WalletChecker = (function() {
     /**
      * Ініціалізація модуля
      */
-    async function init() {
-        console.log('🚀 [WalletChecker] Початок ініціалізації');
-        console.log('⚙️ [WalletChecker] Конфігурація:', config);
+async function init(userId = null) {
+    console.log('🚀 [WalletChecker] Початок ініціалізації');
+    console.log('⚙️ [WalletChecker] Конфігурація:', config);
 
-        try {
-            // Отримуємо ID користувача
-            state.userId = window.TasksStore?.selectors?.getUserId();
-            if (!state.userId) {
-                console.error('❌ [WalletChecker] User ID не знайдено');
-                throw new Error('User ID not found');
-            }
+    try {
+        // Отримуємо ID користувача з параметра або зі Store
+        state.userId = userId || window.TasksStore?.selectors?.getUserId();
+
+        // Якщо все ще немає - спробуємо з WinixAPI
+        if (!state.userId && window.WinixAPI?.getUserId) {
+            state.userId = window.WinixAPI.getUserId();
+        }
+
+        if (!state.userId) {
+            console.error('❌ [WalletChecker] User ID не знайдено');
+            throw new Error('User ID not found');
+        }
+
+        console.log('✅ [WalletChecker] User ID отримано:', state.userId);
 
             // Перевіряємо наявність TON Connect
             if (!window.TON_CONNECT_UI) {

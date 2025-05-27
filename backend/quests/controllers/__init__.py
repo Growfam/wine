@@ -44,7 +44,7 @@ except ImportError as e:
 
 # === AUTH CONTROLLER ===
 try:
-    from .auth_controller import (
+    from backend.auth.controllers import (
         AuthController,
         validate_telegram_route,
         refresh_token_route,
