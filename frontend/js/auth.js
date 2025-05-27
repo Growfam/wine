@@ -579,7 +579,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const userIdElement = document.getElementById('user-id');
     if (userIdElement) {
         userIdElement.textContent = telegramId;
-        console.log(`🔐 AUTH: Встановлено ID користувача: ${telegramId}`);
     }
 
     // Запускаємо ініціалізацію
@@ -619,18 +618,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Додаємо обробник події 'telegram-ready'
-    document.addEventListener('telegram-ready', function() {
-        console.log("🔐 AUTH: Отримано подію telegram-ready, запуск авторизації");
+document.addEventListener('telegram-ready', function() {
+    console.log("🔐 AUTH: Отримано подію telegram-ready, запуск авторизації");
 
-        getUserData()
-            .then(() => {
-                console.log("✅ AUTH: Дані користувача оновлено після telegram-ready");
-                window.WinixAuth.isInitialized = true;
-            })
-            .catch(error => {
-                console.warn("⚠️ AUTH: Помилка оновлення даних після telegram-ready", error);
-            });
-    });
+    getUserData()
+        .then(() => {
+            console.log("✅ AUTH: Дані користувача оновлено після telegram-ready");
+            window.WinixAuth.isInitialized = true;
+        })
+        .catch(error => {
+            console.warn("⚠️ AUTH: Помилка оновлення даних після telegram-ready", error);
+        });
+});
 
     // Запускаємо періодичне оновлення
     startPeriodicUpdate();
