@@ -569,34 +569,32 @@ async function refreshToken() {
     // Створюємо проміс для відстеження запиту
     const refreshPromise = new Promise(async (resolve, reject) => {
         try {
-            // Отримуємо ID користувача
+            // ВИПРАВЛЕННЯ: Отримуємо ID користувача ВСЕРЕДИНІ Promise
             const userId = getUserId();
             console.log("🔍 refreshToken - userId:", userId, "type:", typeof userId);
 
             if (!userId) {
                 throw new Error("ID користувача не знайдено");
             }
-                 console.log("🔍 refreshToken - userId:", userId);
-        console.log("🔍 refreshToken - userId type:", typeof userId);
-        console.log("🔍 refreshToken - is numeric:", /^\d+$/.test(userId));
 
-                console.log("🔄 API: Початок оновлення токену");
+            console.log("🔄 API: Початок оновлення токену");
 
-                  const requestBody = {
-         telegram_id: String(userId),
-        token: _authToken || ''
-    };
+            const requestBody = {
+                telegram_id: userId,
+                token: _authToken || ''
+            };
 
-    console.log("🔍 refreshToken - requestBody:", JSON.stringify(requestBody));
 
-    const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Telegram-User-Id': userId
-        },
-        body: JSON.stringify(requestBody)
-    });
+            console.log("🔍 refreshToken - sending body:", requestBody);
+
+            const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Telegram-User-Id': userId
+                },
+                body: JSON.stringify(requestBody)
+            });
 
                 if (!response.ok) {
                     // Спеціальна обробка 400/401 помилок при оновленні токену
@@ -1927,6 +1925,9 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
         }
     };
 
+    // Робимо WinixAPI доступним глобально одразу
+    window.WinixAPI = WinixAPI;
+
     // Для зворотної сумісності
     window.apiRequest = apiRequest;
     window.getUserId = getUserId;
@@ -1946,14 +1947,19 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
         console.log("🔄 API: З'єднання з мережею відновлено, спроба підключення");
         reconnect();
     });
+
     // Генеруємо подію про готовність WinixAPI
+    console.log('🚀 WinixAPI: Генеруємо подію готовності');
     setTimeout(() => {
         document.dispatchEvent(new CustomEvent('winix-api-ready', {
             detail: { version: '1.3.0' }
         }));
-        console.log('🚀 WinixAPI: Подія готовності відправлена');
-    }, 100);
+    }, 10); // Зменшено затримку
+
+// Позначаємо модуль як готовий
+    if (window.WinixInit) {
+        window.WinixInit.checkModule('api');
+    }
 
     console.log(`✅ API: Модуль успішно ініціалізовано з health check (URL: ${API_BASE_URL})`);
 })();
-

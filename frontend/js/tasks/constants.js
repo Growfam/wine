@@ -360,6 +360,11 @@ window.TasksConstants = (function() {
         production: !DEBUG.ENABLED
     });
 
+    // Позначаємо модуль як готовий
+    if (window.WinixInit) {
+        window.WinixInit.checkModule('tasksConstants');
+    }
+
     // Публічний інтерфейс
     return {
         API_ENDPOINTS,
@@ -379,7 +384,6 @@ window.TasksConstants = (function() {
         PRODUCTION_CONFIG,
         VALIDATION_RULES
     };
-
 })();
 
 console.log('✅ [TasksConstants] Модуль констант готовий до використання (Production)');

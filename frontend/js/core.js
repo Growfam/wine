@@ -1061,4 +1061,8 @@
     };
 
     console.log("✅ Core: Модуль успішно завантажено (Fixed Version)");
+    // Позначаємо модуль як готовий
+    if (window.WinixInit) {
+        window.WinixInit.checkModule('core');
+    }
 })();
