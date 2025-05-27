@@ -555,7 +555,6 @@
                patterns.noHyphens.test(normalized) ||
                patterns.braced.test(normalized);
     }
-console.log('DEBUG: RefreshToken userId:', userId, 'Type:', typeof userId);
     /**
      * Оновлення токену авторизації
      * @returns {Promise<string|null>} Новий токен або null
@@ -571,6 +570,8 @@ async function refreshToken() {
         try {
             // Отримуємо ID користувача
             const userId = getUserId();
+
+            console.log('DEBUG: RefreshToken userId:', userId, 'Type:', typeof userId);
 
             if (!userId) {
                 throw new Error("ID користувача не знайдено");
