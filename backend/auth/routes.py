@@ -300,3 +300,10 @@ def internal_error(error):
         'message': 'Внутрішня помилка сервера',
         'code': 'internal_error'
     }), 500
+
+
+def register_auth_routes(app):
+    """Реєструє auth blueprint з додатком"""
+    app.register_blueprint(auth_bp)
+    logger.info("✅ Auth routes registered successfully")
+    return True
