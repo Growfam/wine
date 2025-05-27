@@ -13,13 +13,13 @@ import time
 import uuid
 import asyncio
 from datetime import datetime, timezone
-
 import traceback
 
 # Сторонні бібліотеки
 from flask import Flask, render_template, request, jsonify, send_from_directory, g
 from flask_cors import CORS
 from dotenv import load_dotenv
+from backend.middleware import auth_required, auth_optional, get_current_user
 
 # Завантажуємо змінні середовища
 load_dotenv()
@@ -592,6 +592,8 @@ def create_app(config_name=None):
     # Налаштовуємо обробники запитів
     setup_request_handlers(app)
 
+    setup_auth_middleware(app)
+
     # Додаємо health check endpoint
     add_health_check(app)
 
@@ -766,6 +768,40 @@ def setup_request_handlers(app):
             logger.info(f"📤 Відповідь: {response.status_code} (час: {execution_time:.4f}s)")
         return response
 
+
+def setup_auth_middleware(app):
+    """Налаштування middleware для авторизації"""
+
+    @app.before_request
+    def check_auth():
+        """Перевірка авторизації для всіх запитів"""
+        # Пропускаємо статичні файли та публічні endpoint'и
+        public_paths = [
+            '/api/ping',
+            '/api/health',
+            '/tonconnect-manifest.json',
+            '/api/auth/telegram',
+            '/api/auth/validate-telegram',
+            '/health',
+            '/debug'
+        ]
+
+        # Пропускаємо статичні файли
+        if request.path.startswith('/static') or request.path.startswith('/assets'):
+            return
+
+        # Пропускаємо публічні endpoints
+        if request.path in public_paths:
+            return
+
+        # Для API запитів логуємо стан авторизації
+        if request.path.startswith('/api/'):
+            user = get_current_user()
+            if user:
+                g.current_user = user
+                logger.info(f"✅ Авторизований запит від {user.get('user_id')} до {request.path}")
+            else:
+                logger.info(f"⚠️ Неавторизований запит до {request.path}")
 
 def add_health_check(app):
     """Додає endpoint для перевірки стану API"""
@@ -983,7 +1019,7 @@ def register_utility_routes(app):
     @app.route('/api/ping')
     def ping():
         """Найпростіший маршрут для перевірки стану додатка"""
-        return "pong"
+        return jsonify({"pong": True, "status": "ok", "timestamp": datetime.now().isoformat()})
 
     @app.route('/api/raffles-test')
     def api_raffles_test():
@@ -1287,7 +1323,7 @@ def register_static_routes(app):
 
         try:
             # Спробуємо використати quests auth якщо доступний
-            from quests.routes.auth_routes import refresh_token as quests_refresh
+            from auth.controllers import refresh_token as quests_refresh
             return quests_refresh()
         except ImportError:
             # Якщо quests недоступний, використовуємо базову логіку
@@ -1300,6 +1336,16 @@ def register_static_routes(app):
                     'status': 'error',
                     'message': 'Refresh token endpoint not configured'
                 }), 501
+
+            # Додайте цей endpoint після існуючого /api/auth/refresh
+            @auth_bp.route('/refresh-token', methods=['POST'])
+            def refresh_token_alt():
+                """
+                Альтернативний endpoint для refresh token (для сумісності з frontend)
+
+                POST /api/auth/refresh-token
+                """
+                return refresh_user_token()  # Використовуємо існуючу функцію
 
     @app.route('/telegram/webhook', methods=['POST', 'GET'])
     def telegram_webhook_fallback():
@@ -1506,6 +1552,19 @@ def setup_staking_routes(app):
         logger.warning(f"Неможливо налаштувати маршрути стейкінгу: модуль не знайдено - {str(e)}")
     except Exception as e:
         logger.error(f"Помилка налаштування маршрутів стейкінгу: {str(e)}")
+
+        @app.route('/tonconnect-manifest.json')
+        def serve_tonconnect_manifest():
+            """Serve TON Connect manifest"""
+            manifest = {
+                "url": "https://winixbot.com",
+                "name": "WINIX",
+                "iconUrl": "https://winixbot.com/assets/logo.png",
+                "termsOfUseUrl": "https://winixbot.com/terms",
+                "privacyPolicyUrl": "https://winixbot.com/privacy"
+            }
+            return jsonify(manifest)
+
 
 
 def register_tutorial_routes(app):
