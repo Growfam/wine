@@ -7,7 +7,7 @@
 from flask import Blueprint, request, jsonify
 import logging
 from datetime import datetime
-from .controllers  import TelegramAuthController, require_auth
+from .controllers import TelegramAuthController, require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,16 @@ def refresh_token():
         }), 500
 
 
+@auth_bp.route('/refresh-token', methods=['POST'])
+def refresh_token_alt():
+    """
+    Альтернативний endpoint для refresh token (для сумісності з frontend)
+
+    POST /api/auth/refresh-token
+    """
+    return refresh_token()
+
+
 @auth_bp.route('/validate', methods=['POST'])
 def validate_token():
     """
@@ -218,12 +228,21 @@ def logout():
 
 
 # Спеціальний endpoint для Telegram WebApp валідації (для сумісності)
-@auth_bp.route('/validate-telegram', methods=['POST'])
+@auth_bp.route('/validate-telegram', methods=['POST', 'GET'])
 def validate_telegram_webapp():
     """
     Валідація Telegram WebApp даних (legacy endpoint)
-    Перенаправляє на основний endpoint
+    Підтримує GET та POST методи
     """
+    if request.method == 'GET':
+        # Для GET запитів повертаємо інформацію про endpoint
+        return jsonify({
+            'status': 'info',
+            'message': 'Use POST method to validate Telegram data',
+            'endpoint': '/api/auth/validate-telegram'
+        }), 200
+
+    # Для POST запитів перенаправляємо на основний endpoint
     return authenticate_telegram()
 
 
@@ -246,9 +265,11 @@ def test_auth():
         'endpoints': [
             'POST /api/auth/telegram',
             'POST /api/auth/refresh',
+            'POST /api/auth/refresh-token',
             'POST /api/auth/validate',
             'GET /api/auth/status',
-            'POST /api/auth/logout'
+            'POST /api/auth/logout',
+            'POST|GET /api/auth/validate-telegram'
         ]
     }), 200
 

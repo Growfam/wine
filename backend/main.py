@@ -782,6 +782,8 @@ def setup_auth_middleware(app):
             '/tonconnect-manifest.json',
             '/api/auth/telegram',
             '/api/auth/validate-telegram',
+            '/api/auth/refresh',
+            '/api/auth/refresh-token',
             '/health',
             '/debug'
         ]
@@ -1164,7 +1166,7 @@ def register_utility_routes(app):
 
         api_routes = [r for r in routes if r['rule'].startswith('/api/')]
         critical_routes = [r for r in api_routes if any(keyword in r['rule'] for keyword in [
-            'auth/validate-telegram', 'user/profile', 'daily/status', 'flex/', 'tasks/'
+            'auth/validate-telegram', 'user/profile', 'daily/status', 'flex/', 'tasks/', 'auth/refresh-token'
         ])]
 
         return jsonify({
@@ -1210,6 +1212,7 @@ def register_utility_routes(app):
             # Перевіряємо критичні endpoint'и
             critical_checks = {
                 "auth_validate": any('/api/auth/validate-telegram' in str(rule.rule) for rule in app.url_map.iter_rules()),
+                "auth_refresh_token": any('/api/auth/refresh-token' in str(rule.rule) for rule in app.url_map.iter_rules()),
                 "user_profile": any('/api/user/profile/' in str(rule.rule) for rule in app.url_map.iter_rules()),
                 "daily_status": any('/api/daily/status/' in str(rule.rule) for rule in app.url_map.iter_rules()),
                 "winix_health": any('/api/winix/health' in str(rule.rule) for rule in app.url_map.iter_rules())
@@ -1313,40 +1316,6 @@ def register_static_routes(app):
 
     logger.info("Маршрути для статичних файлів зареєстровано")
 
-
-
-    @app.route('/api/auth/refresh-token', methods=['POST', 'OPTIONS'])
-    def refresh_token_fallback():
-        """Фолбек обробник для refresh token"""
-        if request.method == 'OPTIONS':
-            return '', 200
-
-        try:
-            # Спробуємо використати quests auth якщо доступний
-            from auth.controllers import refresh_token as quests_refresh
-            return quests_refresh()
-        except ImportError:
-            # Якщо quests недоступний, використовуємо базову логіку
-            try:
-                from auth.controllers import refresh_user_token
-                return refresh_user_token()
-            except ImportError:
-                logger.error("❌ Жоден обробник refresh token не знайдено")
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Refresh token endpoint not configured'
-                }), 501
-
-            # Додайте цей endpoint після існуючого /api/auth/refresh
-            @auth_bp.route('/refresh-token', methods=['POST'])
-            def refresh_token_alt():
-                """
-                Альтернативний endpoint для refresh token (для сумісності з frontend)
-
-                POST /api/auth/refresh-token
-                """
-                return refresh_user_token()  # Використовуємо існуючу функцію
-
     @app.route('/telegram/webhook', methods=['POST', 'GET'])
     def telegram_webhook_fallback():
         """Фолбек обробник для Telegram webhook"""
@@ -1365,6 +1334,18 @@ def register_static_routes(app):
                 'method': 'POST required',
                 'info': 'Send Telegram updates here'
             })
+
+    @app.route('/tonconnect-manifest.json')
+    def serve_tonconnect_manifest():
+        """Serve TON Connect manifest"""
+        manifest = {
+            "url": "https://winixbot.com",
+            "name": "WINIX",
+            "iconUrl": "https://winixbot.com/assets/logo.png",
+            "termsOfUseUrl": "https://winixbot.com/terms",
+            "privacyPolicyUrl": "https://winixbot.com/privacy"
+        }
+        return jsonify(manifest)
 
 
 def register_page_routes(app):
@@ -1552,19 +1533,6 @@ def setup_staking_routes(app):
         logger.warning(f"Неможливо налаштувати маршрути стейкінгу: модуль не знайдено - {str(e)}")
     except Exception as e:
         logger.error(f"Помилка налаштування маршрутів стейкінгу: {str(e)}")
-
-        @app.route('/tonconnect-manifest.json')
-        def serve_tonconnect_manifest():
-            """Serve TON Connect manifest"""
-            manifest = {
-                "url": "https://winixbot.com",
-                "name": "WINIX",
-                "iconUrl": "https://winixbot.com/assets/logo.png",
-                "termsOfUseUrl": "https://winixbot.com/terms",
-                "privacyPolicyUrl": "https://winixbot.com/privacy"
-            }
-            return jsonify(manifest)
-
 
 
 def register_tutorial_routes(app):
