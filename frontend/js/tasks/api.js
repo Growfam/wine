@@ -339,18 +339,33 @@ if (!dependenciesReady) {
      * API методи для Auth
      */
     const auth = {
-    validateTelegram: async (initData) => {
-        console.log('🔐 [TasksAPI] Валідація Telegram даних');
+validateTelegram: async (initData) => {
+    console.log('🔐 [TasksAPI] Валідація Telegram даних');
 
-        if (!initData) {
-            throw new APIError('Telegram дані відсутні', 400);
+    if (!initData) {
+        throw new APIError('Telegram дані відсутні', 400);
+    }
+
+    // Додаємо telegram_id з initData якщо можливо
+    let telegramId = null;
+    try {
+        const parsedData = JSON.parse(initData);
+        if (parsedData.user && parsedData.user.id) {
+            telegramId = parsedData.user.id;
         }
+    } catch (e) {
+        console.warn('⚠️ [TasksAPI] Не вдалося розпарсити initData');
+    }
 
-        return apiCall('auth/telegram', {  // ← Змінити тут
-            method: 'POST',
-            body: { initData, timestamp: Date.now() }
-        });
-    },
+    return apiCall('auth/telegram', {
+        method: 'POST',
+        body: {
+            initData,
+            timestamp: Date.now(),
+            ...(telegramId ? { telegram_id: telegramId } : {})
+        }
+    });
+},
 
         refreshToken: async () => {
             console.log('🔄 [TasksAPI] Оновлення токену');

@@ -581,19 +581,25 @@ async function refreshToken() {
 
             const requestBody = {
                 telegram_id: userId,
-                token: _authToken || ''
+                token: _authToken || '',
+                user_id: userId
             };
 
             console.log("🔍 refreshToken - sending body:", requestBody);
 
-            const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Telegram-User-Id': userId
-                },
-                body: JSON.stringify(requestBody)
-            });
+// Отримуємо поточний токен
+const currentToken = getAuthToken();
+
+const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-User-Id': userId,
+        // Додаємо Authorization header якщо є токен
+        ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {})
+    },
+    body: JSON.stringify(requestBody)
+});
 
             if (!response.ok) {
                 // Спеціальна обробка 400/401 помилок при оновленні токену

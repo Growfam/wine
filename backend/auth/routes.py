@@ -164,6 +164,13 @@ def refresh_token():
     Body: { "token": "..." } // альтернатива
     """
     try:
+
+        logger.info("=== REFRESH TOKEN REQUEST ===")
+        logger.info(f"Method: {request.method}")
+        logger.info(f"Path: {request.path}")
+        logger.info(f"Headers: {dict(request.headers)}")
+        logger.info(f"Body: {request.get_json()}")
+
         # Використовуємо middleware для отримання telegram_id
         from middleware import extract_telegram_id
 
