@@ -326,29 +326,30 @@
                        id.toString().trim() !== '';
             }
 
-            // 1. Спочатку перевіряємо Telegram WebApp
-            if (window.Telegram && window.Telegram.WebApp) {
-                try {
-                    if (window.Telegram.WebApp.initDataUnsafe &&
-                        window.Telegram.WebApp.initDataUnsafe.user &&
-                        window.Telegram.WebApp.initDataUnsafe.user.id) {
+                   // 1. Спочатку перевіряємо Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp) {
+            try {
+                if (window.Telegram.WebApp.initDataUnsafe &&
+                    window.Telegram.WebApp.initDataUnsafe.user &&
+                    window.Telegram.WebApp.initDataUnsafe.user.id) {
 
-                        const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-                        console.log("🔍 getUserId - from Telegram:", tgUserId);
+                    const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                    console.log("🔍 getUserId - from Telegram:", tgUserId);
 
-                        if (isValidId(tgUserId)) {
-                            try {
-                                localStorage.setItem('telegram_user_id', tgUserId);
-                            } catch (e) {}
-                            console.warn("🔌 API: Помилка отримання ID з Telegram WebApp:", e);
-
-                            return tgUserId;
+                    if (isValidId(tgUserId)) {
+                        try {
+                            localStorage.setItem('telegram_user_id', tgUserId);
+                        } catch (storageError) { // ✅ Виправлено: правильне ім'я змінної
+                            console.warn("🔌 API: Помилка збереження ID в localStorage:", storageError);
                         }
+
+                        return tgUserId;
                     }
-                } catch (e) {
-                    console.warn("🔌 API: Помилка отримання ID з Telegram WebApp:", e);
                 }
+            } catch (e) {
+                console.warn("🔌 API: Помилка отримання ID з Telegram WebApp:", e);
             }
+        }
 
             // 2. Перевіряємо localStorage
             try {
@@ -581,19 +582,21 @@
 
                 console.log("🔄 API: Початок оновлення токену");
 
-                // Використовуємо rawApiRequest без токену, щоб уникнути рекурсії
-                const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Telegram-User-Id': userId
-                    },
-                    body: JSON.stringify({
-                        telegram_id: userId,
-                        token: _authToken || ''
-                    })
-                });
-                   console.log("🔍 refreshToken - sending body:", requestBody);
+                  const requestBody = {
+        telegram_id: userId,
+        token: _authToken || ''
+    };
+
+    console.log("🔍 refreshToken - sending body:", requestBody);
+
+    const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Telegram-User-Id': userId
+        },
+        body: JSON.stringify(requestBody)
+    });
 
                 if (!response.ok) {
                     // Спеціальна обробка 400/401 помилок при оновленні токену
