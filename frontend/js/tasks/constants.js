@@ -14,7 +14,7 @@ window.TasksConstants = (function() {
         BASE_URL: '/api',
 
         // Auth endpoints
-        AUTH_VALIDATE: '/auth/validate-telegram',
+        AUTH_VALIDATE: '/auth/telegram',
         AUTH_REFRESH: '/auth/refresh-token',
 
         // User endpoints
