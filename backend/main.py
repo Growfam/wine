@@ -1277,46 +1277,7 @@ def register_static_routes(app):
 
     logger.info("Маршрути для статичних файлів зареєстровано")
 
-    @app.route('/api/auth/refresh-token', methods=['POST', 'OPTIONS'])
-    def refresh_token_fallback():
-        """Фолбек обробник для refresh token"""
-        if request.method == 'OPTIONS':
-            return '', 200
 
-        try:
-            # Спробуємо використати quests auth якщо доступний
-            from quests.routes.auth_routes import refresh_token as quests_refresh
-            return quests_refresh()
-        except ImportError:
-            # Якщо quests недоступний, використовуємо базову логіку
-            try:
-                from auth.controllers import refresh_user_token
-                return refresh_user_token()
-            except ImportError:
-                logger.error("❌ Жоден обробник refresh token не знайдено")
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Refresh token endpoint not configured'
-                }), 501
-
-    @app.route('/telegram/webhook', methods=['POST', 'GET'])
-    def telegram_webhook_fallback():
-        """Фолбек обробник для Telegram webhook"""
-        if request.method == 'POST':
-            try:
-                # Перенаправляємо на правильний маршрут якщо він існує
-                from telegram_webhook import telegram_webhook as webhook_handler
-                return webhook_handler()
-            except ImportError:
-                logger.warning("⚠️ Telegram webhook handler не знайдено")
-                return jsonify({'ok': False, 'error': 'Webhook handler not found'}), 404
-        else:
-            # GET запит - повертаємо інформацію про webhook
-            return jsonify({
-                'status': 'webhook endpoint',
-                'method': 'POST required',
-                'info': 'Send Telegram updates here'
-            })
 
     @app.route('/api/auth/refresh-token', methods=['POST', 'OPTIONS'])
     def refresh_token_fallback():
