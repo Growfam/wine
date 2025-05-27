@@ -569,9 +569,8 @@ async function refreshToken() {
     // Створюємо проміс для відстеження запиту
     const refreshPromise = new Promise(async (resolve, reject) => {
         try {
-            // ВИПРАВЛЕННЯ: Отримуємо ID користувача ВСЕРЕДИНІ Promise
+            // Отримуємо ID користувача
             const userId = getUserId();
-            console.log("🔍 refreshToken - userId:", userId, "type:", typeof userId);
 
             if (!userId) {
                 throw new Error("ID користувача не знайдено");
@@ -584,7 +583,6 @@ async function refreshToken() {
                 token: _authToken || ''
             };
 
-
             console.log("🔍 refreshToken - sending body:", requestBody);
 
             const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
@@ -596,76 +594,76 @@ async function refreshToken() {
                 body: JSON.stringify(requestBody)
             });
 
-                if (!response.ok) {
-                    // Спеціальна обробка 400/401 помилок при оновленні токену
-                    if (response.status === 400 || response.status === 401) {
-                        console.warn("⚠️ API: Токен недійсний, очищаємо");
-                        clearAuthToken();
-                        throw new Error("Токен недійсний. Потрібна повторна авторизація");
-                    }
-                    throw new Error(`Помилка HTTP: ${response.status}`);
+            if (!response.ok) {
+                // Спеціальна обробка 400/401 помилок при оновленні токену
+                if (response.status === 400 || response.status === 401) {
+                    console.warn("⚠️ API: Токен недійсний, очищаємо");
+                    clearAuthToken();
+                    throw new Error("Токен недійсний. Потрібна повторна авторизація");
                 }
-
-                const data = await response.json();
-
-                if (data && data.status === 'success' && data.token) {
-                    // Зберігаємо новий токен
-                    _authToken = data.token;
-
-                    // Визначаємо час закінчення токену
-                    if (data.expires_at) {
-                        _authTokenExpiry = new Date(data.expires_at).getTime();
-                    } else if (data.expires_in) {
-                        _authTokenExpiry = Date.now() + (data.expires_in * 1000);
-                    } else {
-                        // За замовчуванням 24 години
-                        _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
-                    }
-
-                    // Зберігаємо в localStorage і використовуємо StorageUtils, якщо доступний
-                    try {
-                        if (window.StorageUtils) {
-                            window.StorageUtils.setItem('auth_token', _authToken, {
-                                persist: true,
-                                expires: _authTokenExpiry - Date.now()
-                            });
-                            window.StorageUtils.setItem('auth_token_expiry', _authTokenExpiry.toString(), {
-                                persist: true,
-                                expires: _authTokenExpiry - Date.now()
-                            });
-                        } else {
-                            localStorage.setItem('auth_token', _authToken);
-                            localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
-                        }
-                    } catch (e) {
-                        console.warn("🔌 API: Помилка збереження токену:", e);
-                    }
-
-                    console.log("✅ API: Токен успішно оновлено");
-
-                    // Відправляємо подію про оновлення токену
-                    document.dispatchEvent(new CustomEvent('token-refreshed', {
-                        detail: { token: _authToken, expires_at: _authTokenExpiry }
-                    }));
-
-                    resolve(_authToken);
-                } else {
-                    throw new Error(data.message || "Помилка оновлення токену");
-                }
-            } catch (error) {
-                console.error("❌ API: Помилка оновлення токену:", error);
-                reject(error);
-            } finally {
-                // Видаляємо запит зі списку активних
-                delete _pendingRequests['refresh-token'];
+                throw new Error(`Помилка HTTP: ${response.status}`);
             }
-        });
 
-        // Зберігаємо проміс для відстеження запиту
-        _pendingRequests['refresh-token'] = refreshPromise;
+            const data = await response.json();
 
-        return refreshPromise;
-    }
+            if (data && data.status === 'success' && data.token) {
+                // Зберігаємо новий токен
+                _authToken = data.token;
+
+                // Визначаємо час закінчення токену
+                if (data.expires_at) {
+                    _authTokenExpiry = new Date(data.expires_at).getTime();
+                } else if (data.expires_in) {
+                    _authTokenExpiry = Date.now() + (data.expires_in * 1000);
+                } else {
+                    // За замовчуванням 24 години
+                    _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
+                }
+
+                // Зберігаємо в localStorage
+                try {
+                    if (window.StorageUtils) {
+                        window.StorageUtils.setItem('auth_token', _authToken, {
+                            persist: true,
+                            expires: _authTokenExpiry - Date.now()
+                        });
+                        window.StorageUtils.setItem('auth_token_expiry', _authTokenExpiry.toString(), {
+                            persist: true,
+                            expires: _authTokenExpiry - Date.now()
+                        });
+                    } else {
+                        localStorage.setItem('auth_token', _authToken);
+                        localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
+                    }
+                } catch (e) {
+                    console.warn("🔌 API: Помилка збереження токену:", e);
+                }
+
+                console.log("✅ API: Токен успішно оновлено");
+
+                // Відправляємо подію про оновлення токену
+                document.dispatchEvent(new CustomEvent('token-refreshed', {
+                    detail: { token: _authToken, expires_at: _authTokenExpiry }
+                }));
+
+                resolve(_authToken);
+            } else {
+                throw new Error(data.message || "Помилка оновлення токену");
+            }
+        } catch (error) {
+            console.error("❌ API: Помилка оновлення токену:", error);
+            reject(error);
+        } finally {
+            // Видаляємо запит зі списку активних
+            delete _pendingRequests['refresh-token'];
+        }
+    });
+
+    // Зберігаємо проміс для відстеження запиту
+    _pendingRequests['refresh-token'] = refreshPromise;
+
+    return refreshPromise;
+}
 
     /**
      * Очистити токен авторизації
