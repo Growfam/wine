@@ -87,6 +87,7 @@ class TelegramAuthController:
                     'last_name': user_info.get('last_name'),
                     'language_code': user_info.get('language_code', 'uk')
                 }
+
         except Exception as e:
             logger.error(f"Помилка витягування користувача: {str(e)}")
 
@@ -229,48 +230,33 @@ class TelegramAuthController:
             }
 
     @staticmethod
-    def refresh_token(current_token: str) -> Dict[str, Any]:
-        """Оновлення JWT токена"""
+    def refresh_token(telegram_id: str = None) -> Dict[str, Any]:
+        """Оновлення JWT токена з підтримкою передачі telegram_id"""
         try:
-            # Якщо токен не переданий як параметр, спробуємо отримати з request
-            if not current_token:
+            # Якщо telegram_id не переданий, спробуємо отримати з request
+            if not telegram_id:
                 from flask import request
+                from middleware import extract_telegram_id
 
-                # Отримуємо токен з заголовка
-                auth_header = request.headers.get('Authorization')
-                if auth_header and auth_header.startswith('Bearer '):
-                    current_token = auth_header[7:]
-                else:
-                    # Або з тіла запиту
-                    data = request.get_json() or {}
-                    current_token = data.get('token')
+                telegram_id = extract_telegram_id()
 
-            if not current_token:
+            if not telegram_id:
+                logger.error("refresh_token: telegram_id відсутній")
                 return {
                     'success': False,
-                    'error': 'Токен відсутній',
-                    'code': 'missing_token'
+                    'error': 'User ID відсутній',
+                    'code': 'missing_user_id'
                 }
 
-            # Декодуємо токен без перевірки терміну дії
-            payload = jwt.decode(
-                current_token,
-                JWT_SECRET,
-                algorithms=[JWT_ALGORITHM],
-                options={"verify_exp": False}
-            )
+            # Нормалізуємо telegram_id
+            telegram_id = str(telegram_id).strip()
 
-            user_id = payload.get('user_id')
-            if not user_id:
-                return {
-                    'success': False,
-                    'error': 'Невірний токен',
-                    'code': 'invalid_token'
-                }
+            logger.info(f"refresh_token: Оновлення токену для користувача {telegram_id}")
 
             # Перевіряємо існування користувача
-            user = get_user(user_id)
+            user = get_user(telegram_id)
             if not user:
+                logger.error(f"refresh_token: Користувач {telegram_id} не знайдений")
                 return {
                     'success': False,
                     'error': 'Користувач не знайдений',
@@ -279,28 +265,42 @@ class TelegramAuthController:
 
             # Генеруємо новий токен
             new_token = TelegramAuthController.generate_jwt_token({
-                'telegram_id': user_id,
+                'telegram_id': telegram_id,
                 'username': user.get('username', ''),
                 'first_name': user.get('first_name', ''),
                 'last_name': user.get('last_name', '')
             })
 
+            if not new_token:
+                return {
+                    'success': False,
+                    'error': 'Помилка генерації токена',
+                    'code': 'token_generation_failed'
+                }
+
+            # Оновлюємо last_activity
+            update_user(telegram_id, {
+                'last_activity': datetime.now(timezone.utc).isoformat()
+            })
+
             return {
                 'success': True,
-                'status': 'success',  # Додаємо для сумісності з frontend
+                'status': 'success',
                 'token': new_token,
                 'expires_in': JWT_EXPIRATION,
                 'user': {
-                    'telegram_id': user_id,
-                    'username': user.get('username', '')
+                    'telegram_id': telegram_id,
+                    'username': user.get('username', ''),
+                    'balance': float(user.get('balance', 0)),
+                    'coins': int(user.get('coins', 0))
                 }
             }
 
         except Exception as e:
-            logger.error(f"Помилка оновлення токена: {str(e)}")
+            logger.error(f"refresh_token: Критична помилка: {str(e)}", exc_info=True)
             return {
                 'success': False,
-                'status': 'error',  # Додаємо для сумісності
+                'status': 'error',
                 'error': 'Помилка оновлення токена',
                 'code': 'refresh_failed'
             }

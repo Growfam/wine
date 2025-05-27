@@ -555,7 +555,7 @@
                patterns.noHyphens.test(normalized) ||
                patterns.braced.test(normalized);
     }
-
+console.log('DEBUG: RefreshToken userId:', userId, 'Type:', typeof userId);
     /**
      * Оновлення токену авторизації
      * @returns {Promise<string|null>} Новий токен або null
@@ -583,11 +583,11 @@
                 console.log("🔄 API: Початок оновлення токену");
 
                   const requestBody = {
-        telegram_id: userId,
+         telegram_id: String(userId),
         token: _authToken || ''
     };
 
-    console.log("🔍 refreshToken - sending body:", requestBody);
+    console.log("🔍 refreshToken - requestBody:", JSON.stringify(requestBody));
 
     const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
         method: 'POST',

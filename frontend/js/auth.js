@@ -215,6 +215,8 @@
             return null;
         }
     }
+    console.log('DEBUG: Telegram ID:', telegramId, 'Type:', typeof telegramId);
+
 
     /**
      * Перевірка наявності API модуля
