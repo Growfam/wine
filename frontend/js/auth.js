@@ -582,17 +582,17 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log(`🔐 AUTH: Встановлено ID користувача: ${telegramId}`);
     }
 
-        // Запускаємо ініціалізацію
-        init()
-            .then(() => {
-                console.log("✅ AUTH: Ініціалізацію успішно виконано");
-                window.WinixAuth.isInitialized = true;
-            })
-            .catch(error => {
-                console.error("❌ AUTH: Помилка ініціалізації:", error);
-                window.WinixAuth.isInitialized = false;
-            });
-    });
+    // Запускаємо ініціалізацію
+    init()
+        .then(() => {
+            console.log("✅ AUTH: Ініціалізацію успішно виконано");
+            window.WinixAuth.isInitialized = true;
+        })
+        .catch(error => {
+            console.error("❌ AUTH: Помилка ініціалізації:", error);
+            window.WinixAuth.isInitialized = false;
+        });
+});
 
     // Запускаємо авторизацію для веб-аплікацій, які вже завантажилися
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -642,6 +642,12 @@ document.addEventListener('DOMContentLoaded', function() {
             window.WinixAuth.currentUser = event.detail;
         }
     });
+
+
+    // Позначаємо модуль як готовий
+    if (window.WinixInit) {
+        window.WinixInit.checkModule('auth');
+    }
 
     console.log("✅ AUTH: Систему авторизації успішно ініціалізовано");
 })();

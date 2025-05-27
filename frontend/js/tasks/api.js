@@ -745,6 +745,11 @@ if (!dependenciesReady) {
 
     console.log('✅ [TasksAPI] API модуль готовий до використання (Production)');
 
+// Позначаємо модуль як готовий
+    if (window.WinixInit) {
+        window.WinixInit.checkModule('tasksAPI');
+    }
+
     // Публічний API
     return {
         // Основний метод
@@ -773,5 +778,4 @@ if (!dependenciesReady) {
     };
 
 })();
-
-console.log('✅ [TasksAPI] Модуль експортовано глобально (Production)');
+    console.log('✅ [TasksAPI] Модуль експортовано глобально (Production)');

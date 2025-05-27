@@ -454,6 +454,10 @@ window.TasksUtils = (function() {
     }
 
     console.log('✅ [TasksUtils] Утилітарні функції завантажено успішно');
+    // Позначаємо модуль як готовий
+    if (window.WinixInit) {
+        window.WinixInit.checkModule('tasksUtils');
+    }
 
     // Публічний API
     return {
