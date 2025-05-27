@@ -106,33 +106,70 @@ async function init(userId = null) {
         }
     }
 
-    /**
-     * Ініціалізація TON Connect UI
-     */
-    async function initializeTonConnect() {
-        console.log('🔧 [WalletChecker] Ініціалізація TON Connect UI...');
+   /**
+ * Ініціалізація TON Connect UI
+ */
+async function initializeTonConnect() {
+    console.log('🔧 [WalletChecker] Ініціалізація TON Connect UI...');
 
-        try {
-            state.tonConnectUI = new window.TON_CONNECT_UI.TonConnectUI({
-                manifestUrl: config.manifestUrl,
-                buttonRootId: 'ton-connect-button'
-            });
+    try {
+        // Перевіряємо чи вже існує кнопка TON Connect
+        const existingButton = document.querySelector('tc-root');
+        if (existingButton) {
+            console.log('⚠️ [WalletChecker] TON Connect вже ініціалізовано, пропускаємо');
 
-            console.log('✅ [WalletChecker] TON Connect UI ініціалізовано');
-            console.log('📊 [WalletChecker] Manifest URL:', config.manifestUrl);
+            // Якщо є глобальний об'єкт tonConnectUI, використовуємо його
+            if (window.tonConnectUI) {
+                state.tonConnectUI = window.tonConnectUI;
+                console.log('✅ [WalletChecker] Використовуємо існуючий TON Connect UI');
 
-            // Підписуємось на зміни статусу
-            state.tonConnectUI.onStatusChange(wallet => {
-                console.log('🔄 [WalletChecker] Статус гаманця змінився:', wallet);
-                handleWalletStatusChange(wallet);
-            });
+                // Підписуємось на зміни статусу
+                state.tonConnectUI.onStatusChange(wallet => {
+                    console.log('🔄 [WalletChecker] Статус гаманця змінився:', wallet);
+                    handleWalletStatusChange(wallet);
+                });
 
-        } catch (error) {
-            console.error('❌ [WalletChecker] Помилка ініціалізації TON Connect:', error);
-            throw error;
+                return;
+            }
         }
-    }
 
+        // Створюємо новий екземпляр тільки якщо його немає
+        state.tonConnectUI = new window.TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: config.manifestUrl,
+            buttonRootId: 'ton-connect-button'
+        });
+
+        // Зберігаємо глобально для інших модулів
+        window.tonConnectUI = state.tonConnectUI;
+
+        console.log('✅ [WalletChecker] TON Connect UI ініціалізовано');
+        console.log('📊 [WalletChecker] Manifest URL:', config.manifestUrl);
+
+        // Підписуємось на зміни статусу
+        state.tonConnectUI.onStatusChange(wallet => {
+            console.log('🔄 [WalletChecker] Статус гаманця змінився:', wallet);
+            handleWalletStatusChange(wallet);
+        });
+
+    } catch (error) {
+        // Якщо помилка пов'язана з дублікатом custom element
+        if (error.message && error.message.includes('Cannot define multiple custom elements')) {
+            console.warn('⚠️ [WalletChecker] TON Connect вже визначено, спробуємо використати існуючий');
+
+            // Чекаємо трохи і пробуємо знайти існуючий
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            if (window.tonConnectUI) {
+                state.tonConnectUI = window.tonConnectUI;
+                console.log('✅ [WalletChecker] Використовуємо існуючий TON Connect UI (після помилки)');
+                return;
+            }
+        }
+
+        console.error('❌ [WalletChecker] Помилка ініціалізації TON Connect:', error);
+        throw error;
+    }
+}
     /**
      * Перевірка підключення гаманця
      */

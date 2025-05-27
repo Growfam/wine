@@ -232,6 +232,26 @@ class TelegramAuthController:
     def refresh_token(current_token: str) -> Dict[str, Any]:
         """Оновлення JWT токена"""
         try:
+            # Якщо токен не переданий як параметр, спробуємо отримати з request
+            if not current_token:
+                from flask import request
+
+                # Отримуємо токен з заголовка
+                auth_header = request.headers.get('Authorization')
+                if auth_header and auth_header.startswith('Bearer '):
+                    current_token = auth_header[7:]
+                else:
+                    # Або з тіла запиту
+                    data = request.get_json() or {}
+                    current_token = data.get('token')
+
+            if not current_token:
+                return {
+                    'success': False,
+                    'error': 'Токен відсутній',
+                    'code': 'missing_token'
+                }
+
             # Декодуємо токен без перевірки терміну дії
             payload = jwt.decode(
                 current_token,
@@ -267,6 +287,7 @@ class TelegramAuthController:
 
             return {
                 'success': True,
+                'status': 'success',  # Додаємо для сумісності з frontend
                 'token': new_token,
                 'expires_in': JWT_EXPIRATION,
                 'user': {
@@ -279,6 +300,7 @@ class TelegramAuthController:
             logger.error(f"Помилка оновлення токена: {str(e)}")
             return {
                 'success': False,
+                'status': 'error',  # Додаємо для сумісності
                 'error': 'Помилка оновлення токена',
                 'code': 'refresh_failed'
             }
