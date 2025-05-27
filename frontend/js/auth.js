@@ -215,8 +215,6 @@
             return null;
         }
     }
-    console.log('DEBUG: Telegram ID:', telegramId, 'Type:', typeof telegramId);
-
 
     /**
      * Перевірка наявності API модуля
@@ -308,6 +306,7 @@
                 blockAccess();
                 throw new Error("No Telegram ID");
             }
+            console.log('DEBUG: Telegram ID:', telegramId, 'Type:', typeof telegramId);
 
             // Оновлюємо userData з актуальним ID
             userData = {
