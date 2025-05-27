@@ -19,7 +19,7 @@ import traceback
 from flask import Flask, render_template, request, jsonify, send_from_directory, g
 from flask_cors import CORS
 from dotenv import load_dotenv
-from backend.middleware import auth_required, auth_optional, get_current_user
+from middleware import auth_required, auth_optional, get_current_user
 
 # Завантажуємо змінні середовища
 load_dotenv()
