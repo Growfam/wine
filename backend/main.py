@@ -159,6 +159,7 @@ def lazy_initialize_winix():
         }
         return False
 
+
 def safe_register_quests_routes(app):
     """Безпечна реєстрація quests маршрутів з покращеною діагностикою"""
     logger.info("🎯 === БЕЗПЕЧНА РЕЄСТРАЦІЯ QUESTS МАРШРУТІВ ===")
@@ -167,9 +168,21 @@ def safe_register_quests_routes(app):
         logger.warning("⚠️ WINIX недоступний, пропускаємо реєстрацію quests маршрутів")
         return False
 
+    # НОВИЙ КОД: Перевіряємо які маршрути вже зареєстровані
+    existing_endpoints = set()
+    for rule in app.url_map.iter_rules():
+        existing_endpoints.add(rule.endpoint)
+
+    logger.info(f"📊 Вже зареєстровано {len(existing_endpoints)} endpoints")
+
+    # НОВИЙ КОД: Перевіряємо чи вже зареєстровані auth маршрути
+    auth_already_registered = any(endpoint.startswith('auth.') for endpoint in existing_endpoints)
+
+    if auth_already_registered:
+        logger.warning("⚠️ Auth маршрути вже зареєстровані, пропускаємо WINIX auth")
+
     # Ініціалізуємо WINIX якщо ще не зробили
     lazy_initialize_winix()
-
     # Спочатку пробуємо через winix.register_routes
     if winix and hasattr(winix, 'register_routes'):
         try:
@@ -251,15 +264,31 @@ def register_quests_routes_fallback(app):
         logger.error(f"Fallback register_quests_routes помилка: {e}")
         return False
 
+
 def register_quests_blueprints_manually(app):
     """Ручна реєстрація всіх Blueprint'ів з quests системи з обробкою помилок"""
     logger.info("🔧 === РУЧНА РЕЄСТРАЦІЯ QUESTS BLUEPRINT'ІВ ===")
 
     registered_count = 0
 
+    # НОВИЙ КОД: Перевіряємо чи вже є auth маршрути
+    auth_already_registered = False
+    for rule in app.url_map.iter_rules():
+        if rule.endpoint and rule.endpoint.startswith('auth.'):
+            auth_already_registered = True
+            break
+
     # Список Blueprint'ів для реєстрації
-    blueprints_to_register = [
-        ('quests.routes.user_routes', 'user_bp', '/api/user'),
+    blueprints_to_register = []
+
+    # НОВИЙ КОД: Умовно додаємо user_bp тільки якщо немає конфлікту
+    if not auth_already_registered:
+        blueprints_to_register.append(('quests.routes.user_routes', 'user_bp', '/api/user'))
+    else:
+        logger.warning("⏭️ Пропускаємо quests.user_routes через конфлікт з auth")
+
+    # Решта blueprint'ів завжди додаються
+    blueprints_to_register.extend([
         ('quests.routes.daily_routes', 'daily_bp', '/api/daily'),
         ('quests.routes.analytics_routes', 'analytics_bp', '/api/analytics'),
         ('quests.routes.flex_routes', 'flex_bp', '/api/flex'),
@@ -267,7 +296,7 @@ def register_quests_blueprints_manually(app):
         ('quests.routes.transaction_routes', 'transaction_bp', '/api/transactions'),
         ('quests.routes.verification_routes', 'verification_bp', '/api/verify'),
         ('quests.routes.wallet_routes', 'wallet_bp', '/api/wallet')
-    ]
+    ])
 
     for module_name, blueprint_name, url_prefix in blueprints_to_register:
         try:
@@ -870,7 +899,18 @@ def register_api_routes(app):
     registered_successfully = []
     registration_errors = []
 
-    # 🔥 1. ПРІОРИТЕТ: WINIX/QUESTS МАРШРУТИ (безпечно)
+    # 🔥 НОВИЙ ПОРЯДОК: СПОЧАТКУ ОРИГІНАЛЬНІ AUTH МАРШРУТИ
+    try:
+        logger.info("🔐 === РЕЄСТРАЦІЯ ОРИГІНАЛЬНИХ AUTH МАРШРУТІВ ===")
+        from auth.routes import register_auth_routes
+        register_auth_routes(app)
+        registered_successfully.append("Auth (original)")
+        logger.info("✅ Оригінальні auth маршрути зареєстровано ПЕРШИМИ")
+    except Exception as e:
+        logger.error(f"❌ Помилка реєстрації оригінальних auth: {e}")
+        registration_errors.append(f"Auth (original): {e}")
+
+    # 🔥 2. ТЕПЕР WINIX/QUESTS МАРШРУТИ
     try:
         logger.info("🎯 === ПОЧАТОК РЕЄСТРАЦІЇ WINIX/QUESTS МАРШРУТІВ ===")
 
@@ -1699,6 +1739,17 @@ app = create_app()
 
 # Запускаємо сервіс розіграшів, якщо налаштовано
 init_raffle_service()
+
+# Діагностика маршрутів
+logger.info("=== ФІНАЛЬНА ДІАГНОСТИКА МАРШРУТІВ ===")
+auth_routes = []
+for rule in app.url_map.iter_rules():
+    if '/auth/' in str(rule):
+        auth_routes.append(f"{rule.endpoint} -> {rule.rule} [{', '.join(rule.methods)}]")
+
+logger.info(f"Знайдено {len(auth_routes)} auth маршрутів:")
+for route in auth_routes:
+    logger.info(f"  📍 {route}")
 
 # Запуск застосунку
 if __name__ == '__main__':
