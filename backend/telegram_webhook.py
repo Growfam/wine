@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 # Імпорт модулів проекту
 from supabase_client import create_user, get_user, update_user
-from auth.controllers import verify_user
+
 
 logger = logging.getLogger(__name__)
 
