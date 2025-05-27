@@ -652,8 +652,21 @@
     </div>
 
     <!-- Завантаження скриптів у правильному порядку -->
-    <script src="./js/api.js"></script>
-    <script src="./js/auth.js"></script>
+<!-- API Loader - завантажує всі модулі в правильному порядку -->
+<script src="./js/api-loader.js"></script>
+
+<!-- Інші скрипти завантажуйте ПІСЛЯ api-loader -->
+<script>
+    // Чекаємо на готовність API
+    document.addEventListener('api-ready', function() {
+        console.log('✅ Всі API модулі готові');
+
+        // Тепер можна ініціалізувати інші модулі
+        if (window.TasksIntegration) {
+            window.TasksIntegration.init();
+        }
+    });
+</script>
     <script src="./js/core.js"></script>
 
     <!-- 1. Базові утиліти та константи (не мають залежностей) -->
@@ -704,8 +717,6 @@
             window.Telegram.WebApp.expand();
         });
     </script>
-<script src="js/tasks/api.js"></script>
-
 <!-- 4.4. Валідатори та сервіси (залежать від api, store) -->
 <script src="js/tasks/telegramValidator.js"></script>
 <script src="js/tasks/services.js"></script>

@@ -560,22 +560,22 @@ console.log('DEBUG: RefreshToken userId:', userId, 'Type:', typeof userId);
      * Оновлення токену авторизації
      * @returns {Promise<string|null>} Новий токен або null
      */
-    async function refreshToken() {
+async function refreshToken() {
+    // Перевіряємо, чи вже відбувається оновлення
+    if (_pendingRequests['refresh-token']) {
+        return _pendingRequests['refresh-token'];
+    }
 
-        // Перевіряємо, чи вже відбувається оновлення
-        if (_pendingRequests['refresh-token']) {
-            return _pendingRequests['refresh-token'];
-        }
+    // Створюємо проміс для відстеження запиту
+    const refreshPromise = new Promise(async (resolve, reject) => {
+        try {
+            // Отримуємо ID користувача
+            const userId = getUserId();
+            console.log("🔍 refreshToken - userId:", userId, "type:", typeof userId);
 
-        // Створюємо проміс для відстеження запиту
-        const refreshPromise = new Promise(async (resolve, reject) => {
-            try {
-                // Отримуємо ID користувача
-                const userId = getUserId();
-                console.log("🔍 Refresh Token - userId:", userId, "type:", typeof userId);
-                if (!userId) {
-                    throw new Error("ID користувача не знайдено");
-                }
+            if (!userId) {
+                throw new Error("ID користувача не знайдено");
+            }
                  console.log("🔍 refreshToken - userId:", userId);
         console.log("🔍 refreshToken - userId type:", typeof userId);
         console.log("🔍 refreshToken - is numeric:", /^\d+$/.test(userId));
@@ -1946,6 +1946,14 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
         console.log("🔄 API: З'єднання з мережею відновлено, спроба підключення");
         reconnect();
     });
+    // Генеруємо подію про готовність WinixAPI
+    setTimeout(() => {
+        document.dispatchEvent(new CustomEvent('winix-api-ready', {
+            detail: { version: '1.3.0' }
+        }));
+        console.log('🚀 WinixAPI: Подія готовності відправлена');
+    }, 100);
 
     console.log(`✅ API: Модуль успішно ініціалізовано з health check (URL: ${API_BASE_URL})`);
 })();
+

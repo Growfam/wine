@@ -11,59 +11,74 @@ window.TasksAPI = (function() {
     // Перевірка залежностей при ініціалізації
     let dependenciesReady = false;
     let initializationAttempted = false;
+    let initializationDeferred = false;
 
     /**
      * Перевірка готовності залежностей
      */
-    function checkDependencies() {
-        console.log('🔍 [TasksAPI] Перевірка залежностей...');
+function checkDependencies() {
+    console.log('🔍 [TasksAPI] Перевірка залежностей...');
 
-        // Перевіряємо наявність базового API
-        if (!window.WinixAPI) {
-            console.error('❌ [TasksAPI] WinixAPI не знайдено - критична залежність відсутня');
-            return false;
+    // Перевіряємо наявність базового API
+    if (!window.WinixAPI) {
+        console.warn('⚠️ [TasksAPI] WinixAPI ще не завантажено - відкладаємо ініціалізацію');
+
+        // Спробуємо пізніше
+        if (!initializationDeferred) {
+            initializationDeferred = true;
+            setTimeout(() => {
+                console.log('🔄 [TasksAPI] Повторна спроба ініціалізації...');
+                initialize();
+            }, 1000);
         }
 
-        if (typeof window.WinixAPI.apiRequest !== 'function') {
-            console.error('❌ [TasksAPI] WinixAPI.apiRequest не є функцією');
-            return false;
-        }
-
-        // Перевіряємо наявність констант
-        if (!window.TasksConstants) {
-            console.warn('⚠️ [TasksAPI] TasksConstants не знайдено, використовуємо fallback');
-        }
-
-        // Перевіряємо наявність утиліт
-        if (!window.TasksUtils) {
-            console.warn('⚠️ [TasksAPI] TasksUtils не знайдено, деякі функції можуть не працювати');
-        }
-
-        console.log('✅ [TasksAPI] Базові залежності готові');
-        return true;
+        return false;
     }
+
+    if (typeof window.WinixAPI.apiRequest !== 'function') {
+        console.error('❌ [TasksAPI] WinixAPI.apiRequest не є функцією');
+        return false;
+    }
+
+    // Перевіряємо наявність констант
+    if (!window.TasksConstants) {
+        console.warn('⚠️ [TasksAPI] TasksConstants не знайдено, використовуємо fallback');
+    }
+
+    // Перевіряємо наявність утиліт
+    if (!window.TasksUtils) {
+        console.warn('⚠️ [TasksAPI] TasksUtils не знайдено, деякі функції можуть не працювати');
+    }
+
+    console.log('✅ [TasksAPI] Базові залежності готові');
+    return true;
+}
 
     /**
      * Ініціалізація API модуля
      */
-    function initialize() {
-        if (initializationAttempted) {
-            return dependenciesReady;
-        }
-
-        initializationAttempted = true;
-        console.log('🚀 [TasksAPI] Початок ініціалізації...');
-
-        dependenciesReady = checkDependencies();
-
-        if (!dependenciesReady) {
-            console.error('❌ [TasksAPI] Ініціалізація провалена - залежності не готові');
-            return false;
-        }
-
-        console.log('✅ [TasksAPI] API модуль успішно ініціалізовано');
-        return true;
+function initialize() {
+    if (initializationAttempted && dependenciesReady) {
+        return dependenciesReady;
     }
+
+    initializationAttempted = true;
+    console.log('🚀 [TasksAPI] Початок ініціалізації...');
+
+    dependenciesReady = checkDependencies();
+
+    if (!dependenciesReady) {
+        console.warn('⚠️ [TasksAPI] Залежності ще не готові');
+        return false;
+    }
+
+    console.log('✅ [TasksAPI] API модуль успішно ініціалізовано');
+
+    // Генеруємо подію про готовність
+    document.dispatchEvent(new CustomEvent('tasks-api-ready'));
+
+    return true;
+}
 
     // Конфігурація з fallback значеннями
     const config = {
@@ -146,11 +161,30 @@ window.TasksAPI = (function() {
         console.log('📡 [TasksAPI] === API ВИКЛИК ===');
         console.log('🔗 [TasksAPI] Endpoint:', endpoint);
 
-        // Перевіряємо готовність модуля
-        if (!dependenciesReady && !initialize()) {
-            console.error('❌ [TasksAPI] API модуль не готовий');
-            throw new APIError('API модуль не ініціалізовано', 500);
-        }
+// Перевіряємо готовність модуля
+if (!dependenciesReady) {
+    // Спробуємо ініціалізувати
+    if (!initialize()) {
+        // Якщо не вдалося, чекаємо на готовність
+        console.warn('⚠️ [TasksAPI] Чекаємо на готовність залежностей...');
+
+        return new Promise((resolve, reject) => {
+            let attempts = 0;
+            const checkInterval = setInterval(() => {
+                attempts++;
+
+                if (initialize()) {
+                    clearInterval(checkInterval);
+                    // Тепер можна виконати запит
+                    apiCall(endpoint, options).then(resolve).catch(reject);
+                } else if (attempts > 10) {
+                    clearInterval(checkInterval);
+                    reject(new APIError('API модуль не ініціалізовано після 10 спроб', 500));
+                }
+            }, 500);
+        });
+    }
+}
 
         // Перевіряємо доступність базового API
         if (!window.WinixAPI?.apiRequest) {
