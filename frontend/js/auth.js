@@ -565,23 +565,22 @@
 
     // ======== АВТОМАТИЧНА ІНІЦІАЛІЗАЦІЯ ========
 
-    // Ініціалізуємо при завантаженні DOM
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("🔐 AUTH: DOMContentLoaded, автоматична ініціалізація");
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("🔐 AUTH: DOMContentLoaded, автоматична ініціалізація");
 
-        // Перевіряємо Telegram ID одразу
-        const telegramId = getTelegramUserId();
-        if (!telegramId) {
-            blockAccess();
-            return;
-        }
+    // Перевіряємо Telegram ID одразу
+    const telegramId = getTelegramUserId();
+    if (!telegramId) {
+        blockAccess();
+        return;
+    }
 
-        // Оновлюємо елемент на сторінці, якщо він є
-        const userIdElement = document.getElementById('user-id');
-        if (userIdElement) {
-            userIdElement.textContent = telegramId;
-            console.log(`🔐 AUTH: Встановлено ID користувача: ${telegramId}`);
-        }
+    // Оновлюємо елемент на сторінці, якщо він є
+    const userIdElement = document.getElementById('user-id');
+    if (userIdElement) {
+        userIdElement.textContent = telegramId;
+        console.log(`🔐 AUTH: Встановлено ID користувача: ${telegramId}`);
+    }
 
         // Запускаємо ініціалізацію
         init()
