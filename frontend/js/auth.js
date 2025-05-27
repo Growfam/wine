@@ -16,8 +16,8 @@
     let _userDataRequestInProgress = false;
     let _lastRequestTime = 0;
 
-    // Мінімальний інтервал між запитами (15 секунд)
-    const MIN_REQUEST_INTERVAL = 15000;
+    // Мінімальний інтервал між запитами (30 секунд)
+    const MIN_REQUEST_INTERVAL = 30000;
 
     // Підтримка подій
     const EVENT_USER_DATA_UPDATED = 'user-data-updated';

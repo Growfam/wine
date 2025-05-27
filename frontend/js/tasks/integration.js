@@ -470,33 +470,38 @@ window.TasksIntegration = (function() {
         let successCount = 0;
         let failureCount = 0;
 
-        // WalletChecker
-        if (window.WalletChecker) {
-            console.log('  🔧 [TASKS-INTEGRATION] Ініціалізація WalletChecker...');
-            try {
-                this.managers.walletChecker = window.WalletChecker;
-                await this.managers.walletChecker.init();
-                console.log('  ✅ [TASKS-INTEGRATION] WalletChecker ініціалізовано');
-                successCount++;
-            } catch (error) {
-                console.warn('  ⚠️ [TASKS-INTEGRATION] Помилка WalletChecker:', error.message);
-                failureCount++;
-            }
-        }
+
+// WalletChecker
+if (window.WalletChecker) {
+    console.log('  🔧 [TASKS-INTEGRATION] Ініціалізація WalletChecker...');
+    console.log('  👤 [TASKS-INTEGRATION] Передаємо userId:', userId);
+    try {
+        this.managers.walletChecker = window.WalletChecker;
+        // ВАЖЛИВО: передаємо userId при ініціалізації
+        await this.managers.walletChecker.init(userId);
+        console.log('  ✅ [TASKS-INTEGRATION] WalletChecker ініціалізовано з userId:', userId);
+        successCount++;
+    } catch (error) {
+        console.warn('  ⚠️ [TASKS-INTEGRATION] Помилка WalletChecker:', error.message);
+        // Не вважаємо критичною помилкою - продовжуємо
+        failureCount++;
+    }
+}
 
         // FlexEarnManager
-        if (window.FlexEarnManager) {
-            console.log('  🔧 [TASKS-INTEGRATION] Ініціалізація FlexEarnManager...');
-            try {
-                this.managers.flexEarn = window.FlexEarnManager;
-                this.managers.flexEarn.init(userId);
-                console.log('  ✅ [TASKS-INTEGRATION] FlexEarnManager ініціалізовано');
-                successCount++;
-            } catch (error) {
-                console.warn('  ⚠️ [TASKS-INTEGRATION] Помилка FlexEarnManager:', error.message);
-                failureCount++;
-            }
+    if (window.FlexEarnManager) {
+        console.log('  🔧 [TASKS-INTEGRATION] Ініціалізація FlexEarnManager...');
+        try {
+            this.managers.flexEarn = window.FlexEarnManager;
+            // Передаємо userId та вказуємо що WalletChecker вже ініціалізований
+            this.managers.flexEarn.init(userId, { skipWalletInit: true });
+            console.log('  ✅ [TASKS-INTEGRATION] FlexEarnManager ініціалізовано');
+            successCount++;
+        } catch (error) {
+            console.warn('  ⚠️ [TASKS-INTEGRATION] Помилка FlexEarnManager:', error.message);
+            failureCount++;
         }
+    }
 
         // DailyBonusManager
         if (window.DailyBonusManager) {

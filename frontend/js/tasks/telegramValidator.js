@@ -393,42 +393,63 @@ window.TelegramValidator = (function() {
     /**
      * Оновити токен
      */
-    async function refreshToken() {
+ async function refreshToken() {
     console.log('🔄 [TelegramValidator] Оновлення токену...');
 
-    const currentToken = getAuthToken();
-    if (!currentToken) {
-        console.error('❌ [TelegramValidator] Немає токену для оновлення');
-        throw new Error('Немає токену для оновлення');
-    }
     try {
-        // Використовуємо WinixAPI замість TasksAPI якщо він доступний
-        if (window.WinixAPI?.refreshToken) {
-            const newToken = await window.WinixAPI.refreshToken();
-            if (newToken) {
-                console.log('✅ [TelegramValidator] Токен оновлено через WinixAPI');
-                return true;
+        let tokenRefreshed = false;
+        let newToken = null;
+
+        // Пріоритет 1: WinixAPI (якщо доступний)
+        if (window.WinixAPI && typeof window.WinixAPI.refreshToken === 'function') {
+            console.log('🔄 [TelegramValidator] Спроба оновлення через WinixAPI...');
+            try {
+                newToken = await window.WinixAPI.refreshToken();
+                if (newToken) {
+                    tokenRefreshed = true;
+                    console.log('✅ [TelegramValidator] Токен оновлено через WinixAPI');
+                }
+            } catch (winixError) {
+                console.warn('⚠️ [TelegramValidator] Помилка WinixAPI:', winixError.message);
             }
-        } else if (window.TasksAPI?.auth?.refreshToken) {
-            const response = await window.TasksAPI.auth.refreshToken();
-            if (response.token) {
-                const storageKey = window.TasksConstants?.STORAGE_KEYS?.AUTH_TOKEN || 'winix_auth_token';
-                sessionStorage.setItem(storageKey, response.token);
-                console.log('✅ [TelegramValidator] Токен оновлено через TasksAPI');
-                return true;
-            }
-        } else {
-            throw new Error('API модуль не ініціалізовано');
         }
 
-        throw new Error('Сервер не повернув новий токен');
+        // Пріоритет 2: TasksAPI (якщо WinixAPI не спрацював)
+        if (!tokenRefreshed && window.TasksAPI?.auth?.refreshToken) {
+            console.log('🔄 [TelegramValidator] Спроба оновлення через TasksAPI...');
+            try {
+                const response = await window.TasksAPI.auth.refreshToken();
+                if (response.token) {
+                    const storageKey = window.TasksConstants?.STORAGE_KEYS?.AUTH_TOKEN || 'winix_auth_token';
+                    sessionStorage.setItem(storageKey, response.token);
+                    tokenRefreshed = true;
+                    console.log('✅ [TelegramValidator] Токен оновлено через TasksAPI');
+                }
+            } catch (tasksError) {
+                console.warn('⚠️ [TelegramValidator] Помилка TasksAPI:', tasksError.message);
+            }
+        }
+
+        if (!tokenRefreshed) {
+            // Перевіряємо чи є поточний токен
+            const currentToken = getAuthToken();
+            if (!currentToken) {
+                throw new Error('Немає токену для оновлення та не вдалось отримати новий');
+            } else {
+                console.warn('⚠️ [TelegramValidator] Не вдалось оновити токен, використовуємо поточний');
+                return false;
+            }
+        }
+
+        return true;
 
     } catch (error) {
-        console.error('❌ [TelegramValidator] Помилка оновлення токену:', error);
+        console.error('❌ [TelegramValidator] Критична помилка оновлення токену:', error);
 
-        // Якщо це 400/401 помилка - очищаємо токен
-        if (error.message.includes('400') || error.message.includes('401') ||
-            error.message.includes('недійсний')) {
+        // Перевіряємо тип помилки
+        const errorMessage = error.message?.toLowerCase() || '';
+        if (errorMessage.includes('400') || errorMessage.includes('401') ||
+            errorMessage.includes('недійсний') || errorMessage.includes('invalid')) {
             clearAuthToken();
         }
 

@@ -32,19 +32,48 @@ window.WalletChecker = (function() {
 async function init(userId = null) {
     console.log('🚀 [WalletChecker] Початок ініціалізації');
     console.log('⚙️ [WalletChecker] Конфігурація:', config);
+    console.log('👤 [WalletChecker] Переданий userId:', userId);
 
     try {
-        // Отримуємо ID користувача з параметра або зі Store
-        state.userId = userId || window.TasksStore?.selectors?.getUserId();
+        // Пріоритет: 1) переданий параметр, 2) Store, 3) WinixAPI
+        if (userId) {
+            state.userId = userId;
+            console.log('✅ [WalletChecker] Використовуємо переданий userId:', userId);
+        } else {
+            // Спробуємо зі Store
+            const storeUserId = window.TasksStore?.selectors?.getUserId?.();
+            if (storeUserId) {
+                state.userId = storeUserId;
+                console.log('✅ [WalletChecker] userId отримано зі Store:', storeUserId);
+            } else {
+                // Спробуємо з WinixAPI
+                const apiUserId = window.WinixAPI?.getUserId?.();
+                if (apiUserId) {
+                    state.userId = apiUserId;
+                    console.log('✅ [WalletChecker] userId отримано з WinixAPI:', apiUserId);
+                }
+            }
+        }
 
-        // Якщо все ще немає - спробуємо з WinixAPI
-        if (!state.userId && window.WinixAPI?.getUserId) {
-            state.userId = window.WinixAPI.getUserId();
+        // Конвертуємо в число якщо потрібно
+        if (state.userId && typeof state.userId === 'string') {
+            state.userId = parseInt(state.userId, 10);
+            console.log('🔄 [WalletChecker] userId конвертовано в число:', state.userId);
         }
 
         if (!state.userId) {
-            console.error('❌ [WalletChecker] User ID не знайдено');
-            throw new Error('User ID not found');
+            console.error('❌ [WalletChecker] User ID не знайдено в жодному джерелі');
+            console.error('📊 [WalletChecker] Доступні джерела:', {
+                parameter: userId,
+                store: window.TasksStore?.selectors?.getUserId?.(),
+                api: window.WinixAPI?.getUserId?.()
+            });
+
+            // Не кидаємо помилку одразу - даємо шанс працювати без userId
+            console.warn('⚠️ [WalletChecker] Продовжуємо без userId - функціональність обмежена');
+            // throw new Error('User ID not found');
+        } else {
+            console.log('✅ [WalletChecker] User ID успішно отримано:', state.userId);
         }
 
         console.log('✅ [WalletChecker] User ID отримано:', state.userId);
