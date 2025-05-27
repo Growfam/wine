@@ -365,3 +365,4 @@ def require_auth(f):
 
     decorated_function.__name__ = f.__name__
     return decorated_function
+
