@@ -404,35 +404,54 @@ async function verifyWalletOnBackend(wallet) {
     /**
      * Показати UI для підключення гаманця
      */
-    function showWalletConnectionUI() {
-        console.log('🔌 [WalletChecker] Показуємо UI для підключення');
+   function showWalletConnectionUI() {
+    console.log('🔌 [WalletChecker] Показуємо UI для підключення');
 
-        // Показуємо кнопку TON Connect якщо є
-        const tonConnectButton = document.getElementById('ton-connect-button');
-        if (tonConnectButton) {
-            tonConnectButton.style.display = 'block';
+    // Показуємо кнопку TON Connect якщо є
+    const tonConnectButton = document.getElementById('ton-connect-button');
+    if (tonConnectButton) {
+        console.log('✅ [WalletChecker] ton-connect-button знайдено');
+        tonConnectButton.style.display = 'block';
+
+        // Перевіряємо чи є дочірні елементи (сама кнопка TON Connect)
+        const tcRoot = tonConnectButton.querySelector('tc-root');
+        if (tcRoot) {
+            console.log('✅ [WalletChecker] TON Connect root елемент присутній');
+        } else {
+            console.log('⚠️ [WalletChecker] TON Connect root елемент відсутній - ініціалізуємо');
+            // Спробуємо переініціалізувати TON Connect
+            if (state.tonConnectUI && !state.tonConnectUI.connected) {
+                console.log('🔄 [WalletChecker] Переініціалізація TON Connect UI');
+                // Кнопка буде створена автоматично при ініціалізації
+            }
         }
-
-        // Оновлюємо текст статусу
-        const statusText = document.getElementById('wallet-connection-status');
-        if (statusText) {
-            statusText.textContent = 'Гаманець не підключено';
-        }
-
-        // Показуємо блок підключення
-        const statusContainer = document.querySelector('.wallet-status-container');
-        if (statusContainer) {
-            statusContainer.style.display = 'block';
-        }
-
-        // Приховуємо завдання
-        const tasksContainer = document.getElementById('flex-tasks');
-        if (tasksContainer) {
-            tasksContainer.style.display = 'none';
-        }
-
-        console.log('✅ [WalletChecker] UI оновлено');
+    } else {
+        console.error('❌ [WalletChecker] ton-connect-button не знайдено!');
     }
+
+    // Оновлюємо текст статусу
+    const statusText = document.getElementById('wallet-connection-status');
+    if (statusText) {
+        statusText.textContent = 'Гаманець не підключено';
+        console.log('✅ [WalletChecker] Статус текст оновлено');
+    }
+
+    // Показуємо блок підключення
+    const statusContainer = document.querySelector('.wallet-status-container');
+    if (statusContainer) {
+        statusContainer.style.display = 'block';
+        console.log('✅ [WalletChecker] Статус контейнер показано');
+    }
+
+    // Приховуємо завдання
+    const tasksContainer = document.getElementById('flex-tasks');
+    if (tasksContainer) {
+        tasksContainer.style.display = 'none';
+        console.log('✅ [WalletChecker] Контейнер завдань приховано');
+    }
+
+    console.log('✅ [WalletChecker] UI оновлено');
+}
 
     /**
      * Показати Flex завдання
@@ -619,23 +638,18 @@ async function disconnectWallet() {
         console.log('🎯 [WalletChecker] Налаштування слухачів подій');
 
         // Кнопка підключення в нашому UI
-        const connectButton = document.querySelector('.connect-wallet-redirect');
-        if (connectButton) {
-            connectButton.addEventListener('click', async (e) => {
-                e.preventDefault();
-                console.log('🖱️ [WalletChecker] Клік на кнопку підключення');
+const connectButton = document.querySelector('.connect-wallet-redirect');
+if (connectButton) {
+    connectButton.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // Зупиняємо спливання події
+        console.log('🖱️ [WalletChecker] Клік на кнопку підключення');
 
-                // Якщо на сторінці earn - відкриваємо TON Connect
-                if (window.location.pathname.includes('earn')) {
-                    await connectWallet();
-                } else {
-                    // Інакше перенаправляємо на wallet.html
-                    console.log('🚀 [WalletChecker] Перенаправлення на wallet.html');
-                    window.location.href = 'wallet.html';
-                }
-            });
-            console.log('✅ [WalletChecker] Обробник кнопки підключення додано');
-        }
+        // Завжди відкриваємо TON Connect на сторінці earn.html
+        await connectWallet();
+    });
+    console.log('✅ [WalletChecker] Обробник кнопки підключення додано');
+}
 
         // Слухач видимості сторінки
         document.addEventListener('visibilitychange', () => {
@@ -696,6 +710,16 @@ async function disconnectWallet() {
     }
 
     console.log('✅ [WalletChecker] Модуль перевірки гаманця готовий');
+
+    // Робимо функцію доступною глобально
+window.connectWalletDirectly = async function() {
+    console.log('🔌 [Global] Виклик підключення гаманця');
+    if (window.WalletChecker && window.WalletChecker.connectWallet) {
+        await window.WalletChecker.connectWallet();
+    } else {
+        console.error('❌ [Global] WalletChecker не доступний');
+    }
+};
 
     // Публічний API
     return {
