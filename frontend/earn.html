@@ -652,7 +652,7 @@
     </div>
 
     <!-- Завантаження скриптів у правильному порядку -->
-    <script src="js/loader.js"></script>
+
     <script src="./js/api-init.js"></script>
     <script src="./js/api.js"></script>
     <script src="./js/auth.js"></script>
@@ -803,5 +803,26 @@
             closeVerificationPopup();
         }
     </script>
+// Додайте в кінець index.html для діагностики
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== ДІАГНОСТИКА СИСТЕМИ ===');
+    console.log('window._WINIX_USER_ID:', window._WINIX_USER_ID);
+    console.log('window._WINIX_READY:', window._WINIX_READY);
+    console.log('localStorage telegram_user_id:', localStorage.getItem('telegram_user_id'));
+    console.log('Telegram WebApp доступний:', !!window.Telegram?.WebApp);
+
+    if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+        console.log('Telegram user data:', window.Telegram.WebApp.initDataUnsafe.user);
+    }
+
+    // Перевірка через 2 секунди
+    setTimeout(() => {
+        console.log('=== ПЕРЕВІРКА ЧЕРЕЗ 2 СЕКУНДИ ===');
+        console.log('window._WINIX_USER_ID:', window._WINIX_USER_ID);
+        console.log('window._WINIX_READY:', window._WINIX_READY);
+    }, 2000);
+});
+</script>
 </body>
 </html>

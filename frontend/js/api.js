@@ -310,20 +310,29 @@ async function ensureApiReady() {
      * Отримати ID користувача з доступних джерел
      * @returns {string|null} ID користувача або null
      */
-    function getUserId() {
-        try {
-            // Перевірка валідності ID
-            function isValidId(id) {
-                return id &&
-                       id !== 'undefined' &&
-                       id !== 'null' &&
-                       id !== undefined &&
-                       id !== null &&
-                       typeof id !== 'function' &&
-                       id.toString().trim() !== '';
-            }
+    /**
+ * Отримати ID користувача з доступних джерел
+ * @returns {string|null} ID користувача або null
+ */
+function getUserId() {
+    try {
+        // КРИТИЧНО: Спочатку перевіряємо глобальну змінну
+        if (window._WINIX_USER_ID && isValidId(window._WINIX_USER_ID)) {
+            return window._WINIX_USER_ID;
+        }
 
-                   // 1. Спочатку перевіряємо Telegram WebApp
+        // Перевірка валідності ID
+        function isValidId(id) {
+            return id &&
+                   id !== 'undefined' &&
+                   id !== 'null' &&
+                   id !== undefined &&
+                   id !== null &&
+                   typeof id !== 'function' &&
+                   id.toString().trim() !== '';
+        }
+
+        // 1. Перевіряємо Telegram WebApp
         if (window.Telegram && window.Telegram.WebApp) {
             try {
                 if (window.Telegram.WebApp.initDataUnsafe &&
@@ -334,9 +343,12 @@ async function ensureApiReady() {
                     console.log("🔍 getUserId - from Telegram:", tgUserId);
 
                     if (isValidId(tgUserId)) {
+                        // Зберігаємо в глобальну змінну
+                        window._WINIX_USER_ID = tgUserId;
+
                         try {
                             localStorage.setItem('telegram_user_id', tgUserId);
-                        } catch (storageError) { // ✅ Виправлено: правильне ім'я змінної
+                        } catch (storageError) {
                             console.warn("🔌 API: Помилка збереження ID в localStorage:", storageError);
                         }
 
@@ -348,56 +360,26 @@ async function ensureApiReady() {
             }
         }
 
-            // 2. Перевіряємо localStorage
-            try {
-                const localId = localStorage.getItem('telegram_user_id');
-                console.log("🔍 getUserId - from localStorage:", localId);
-                if (isValidId(localId)) {
-                    return localId;
-                }
-            } catch (e) {
-                console.warn("🔌 API: Помилка отримання ID з localStorage:", e);
+        // 2. Перевіряємо localStorage
+        try {
+            const localId = localStorage.getItem('telegram_user_id');
+            console.log("🔍 getUserId - from localStorage:", localId);
+            if (isValidId(localId)) {
+                window._WINIX_USER_ID = localId;
+                return localId;
             }
-
-            // 3. Перевіряємо DOM елемент
-            try {
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement && userIdElement.textContent) {
-                    const domId = userIdElement.textContent.trim();
-                    if (isValidId(domId)) {
-                        try {
-                            localStorage.setItem('telegram_user_id', domId);
-                        } catch (e) {}
-
-                        return domId;
-                    }
-                }
-            } catch (e) {
-                console.warn("🔌 API: Помилка отримання ID з DOM:", e);
-            }
-
-            // 4. Перевіряємо URL параметри
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-                const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-                if (isValidId(urlId)) {
-                    try {
-                        localStorage.setItem('telegram_user_id', urlId);
-                    } catch (e) {}
-
-                    return urlId;
-                }
-            } catch (e) {
-                console.warn("🔌 API: Помилка отримання ID з URL:", e);
-            }
-
-            // ID не знайдено
-            return null;
         } catch (e) {
-            console.error("🔌 API: Критична помилка отримання ID користувача:", e);
-            return null;
+            console.warn("🔌 API: Помилка отримання ID з localStorage:", e);
         }
+
+        // ID не знайдено
+        console.error("❌ getUserId: ID користувача не знайдено!");
+        return null;
+    } catch (e) {
+        console.error("🔌 API: Критична помилка отримання ID користувача:", e);
+        return null;
     }
+}
 
     /**
      * Отримання токену авторизації
