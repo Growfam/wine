@@ -372,24 +372,34 @@ def block_suspicious_requests(f: F) -> F:
 
 def validate_input_data(f: F) -> F:
     """Декоратор для валідації вхідних даних"""
+
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         if not INPUT_VALIDATION_ENABLED:
             return f(*args, **kwargs)
 
         # Перевіряємо JSON тільки для методів з body
-        if request.method in ['POST', 'PUT', 'PATCH'] and request.is_json:
-            try:
-                data = request.get_json()
-                if data:
-                    _validate_json_data(data)
-            except Exception as e:
-                logger.warning(f"Input validation failed: {str(e)}")
-                return jsonify({
-                    "status": "error",
-                    "message": "Невірні вхідні дані",
-                    "code": "invalid_input"
-                }), 400
+        if request.method in ['POST', 'PUT', 'PATCH']:
+            # Додаємо перевірку Content-Type
+            content_type = request.headers.get('Content-Type', '')
+
+            # Якщо є Content-Type application/json, перевіряємо JSON
+            if 'application/json' in content_type:
+                try:
+                    data = request.get_json(force=True)
+                    if data:
+                        _validate_json_data(data)
+                except Exception as e:
+                    logger.warning(f"Input validation failed: {str(e)}")
+                    return jsonify({
+                        "status": "error",
+                        "message": "Невірні вхідні дані",
+                        "code": "invalid_input"
+                    }), 400
+            # Якщо немає body або Content-Type - це нормально для деяких POST запитів
+            elif request.content_length and request.content_length > 0:
+                # Є контент, але не JSON
+                logger.warning(f"Non-JSON content for {request.method} request")
 
         # Валідація параметрів запиту
         for key, value in request.args.items():
@@ -402,8 +412,8 @@ def validate_input_data(f: F) -> F:
                 }), 400
 
         return f(*args, **kwargs)
-    return decorated_function
 
+    return decorated_function
 
 def _validate_json_data(data: Any, path: str = ""):
     """Рекурсивна валідація JSON даних"""
