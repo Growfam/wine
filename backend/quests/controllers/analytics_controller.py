@@ -24,6 +24,27 @@ from ..models.analytics import (
 logger = logging.getLogger(__name__)
 
 
+def run_async(coro):
+    """Helper для запуску async функцій у Flask"""
+    try:
+        return asyncio.run(coro)
+    except RuntimeError:
+        # Якщо вже є event loop
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Створюємо новий thread для виконання
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, coro)
+                    return future.result()
+            else:
+                return loop.run_until_complete(coro)
+        except Exception as e:
+            logger.error(f"Помилка виконання async операції: {e}")
+            return None
+
+
 class AnalyticsController:
     """Контролер для управління аналітикою"""
 
@@ -95,12 +116,12 @@ class AnalyticsController:
                 severity=EventSeverity(severity)
             )
 
-            # Зберігаємо в фоновому режимі
-            asyncio.create_task(analytics_db.save_event(event))
+            # Зберігаємо синхронно
+            saved = run_async(analytics_db.save_event(event))
 
             # Оновлюємо статистику користувача (якщо є)
             if user_id:
-                asyncio.create_task(AnalyticsController._update_user_stats(user_id, event))
+                run_async(AnalyticsController._update_user_stats(user_id, event))
 
             logger.info(f"Подія відстежена: {category}.{action} для користувача {user_id}")
 
@@ -184,12 +205,12 @@ class AnalyticsController:
 
                 created_events.append(event)
 
-            # Зберігаємо всі події в фоновому режимі
-            asyncio.create_task(AnalyticsController._save_batch_events(created_events))
+            # Зберігаємо всі події
+            run_async(AnalyticsController._save_batch_events(created_events))
 
             # Оновлюємо статистику
             if user_id:
-                asyncio.create_task(AnalyticsController._update_user_stats_batch(user_id, created_events))
+                run_async(AnalyticsController._update_user_stats_batch(user_id, created_events))
 
             logger.info(f"Пакет з {len(created_events)} подій збережено для користувача {user_id}")
 
@@ -224,7 +245,7 @@ class AnalyticsController:
                 }), 403
 
             # Отримуємо статистику
-            user_stats = asyncio.run(analytics_db.get_user_stats(user_id))
+            user_stats = run_async(analytics_db.get_user_stats(user_id))
 
             if not user_stats:
                 return jsonify({
@@ -236,7 +257,7 @@ class AnalyticsController:
             end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=7)
 
-            recent_events = asyncio.run(analytics_db.get_events(
+            recent_events = run_async(analytics_db.get_events(
                 user_id=user_id,
                 start_date=start_date,
                 end_date=end_date,
@@ -252,8 +273,8 @@ class AnalyticsController:
             return jsonify({
                 "status": "success",
                 "data": {
-                    "user_stats": user_stats.to_dict(),
-                    "recent_events_count": len(recent_events),
+                    "user_stats": user_stats.to_dict() if user_stats else {},
+                    "recent_events_count": len(recent_events) if recent_events else 0,
                     "daily_activity": daily_activity,
                     "top_actions": top_actions,
                     "analysis_period": {
@@ -283,17 +304,30 @@ class AnalyticsController:
             end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=7)
 
-            summary = asyncio.run(analytics_db.get_summary_stats(start_date, end_date))
+            summary = run_async(analytics_db.get_summary_stats(start_date, end_date))
 
             # Додаємо додаткову інформацію
-            summary.update({
-                "period": {
-                    "start": start_date.isoformat(),
-                    "end": end_date.isoformat(),
-                    "days": 7
-                },
-                "generated_at": end_date.isoformat()
-            })
+            if summary:
+                summary.update({
+                    "period": {
+                        "start": start_date.isoformat(),
+                        "end": end_date.isoformat(),
+                        "days": 7
+                    },
+                    "generated_at": end_date.isoformat()
+                })
+            else:
+                summary = {
+                    "total_events": 0,
+                    "unique_users": 0,
+                    "event_types": {},
+                    "period": {
+                        "start": start_date.isoformat(),
+                        "end": end_date.isoformat(),
+                        "days": 7
+                    },
+                    "generated_at": end_date.isoformat()
+                }
 
             return jsonify({
                 "status": "success",
@@ -340,7 +374,7 @@ class AnalyticsController:
                     user_agent=request.headers.get('User-Agent', '')
                 )
 
-                asyncio.create_task(analytics_db.save_session(session))
+                run_async(analytics_db.save_session(session))
 
                 logger.info(f"Сесія {session_id} розпочата для користувача {user_id}")
 
@@ -501,22 +535,30 @@ class AnalyticsController:
     @staticmethod
     def _analyze_daily_activity(events: List[AnalyticsEvent]) -> Dict[str, int]:
         """Аналізувати щоденну активність"""
+        if not events:
+            return {}
+
         daily_counts = defaultdict(int)
 
         for event in events:
-            date_key = event.timestamp.date().isoformat()
-            daily_counts[date_key] += 1
+            if event and hasattr(event, 'timestamp'):
+                date_key = event.timestamp.date().isoformat()
+                daily_counts[date_key] += 1
 
         return dict(daily_counts)
 
     @staticmethod
     def _get_top_actions(events: List[AnalyticsEvent], limit: int = 10) -> List[Dict[str, Any]]:
         """Отримати топ дій"""
+        if not events:
+            return []
+
         action_counts = Counter()
 
         for event in events:
-            action_key = f"{event.category}.{event.action}"
-            action_counts[action_key] += 1
+            if event and hasattr(event, 'category') and hasattr(event, 'action'):
+                action_key = f"{event.category}.{event.action}"
+                action_counts[action_key] += 1
 
         return [
             {"action": action, "count": count}
@@ -563,7 +605,7 @@ def track_user_action(user_id: str, action: str, category: str = "User",
             properties=properties
         )
 
-        asyncio.create_task(analytics_db.save_event(event))
+        run_async(analytics_db.save_event(event))
         logger.info(f"Дія відстежена: {category}.{action} для користувача {user_id}")
 
     except Exception as e:
@@ -582,8 +624,8 @@ def track_task_action(user_id: str, action: str, task_id: str, task_type: str,
             reward=reward
         )
 
-        asyncio.create_task(analytics_db.save_event(event))
-        asyncio.create_task(AnalyticsController._update_user_stats(user_id, event))
+        run_async(analytics_db.save_event(event))
+        run_async(AnalyticsController._update_user_stats(user_id, event))
 
         logger.info(f"Дія завдання відстежена: {action} для користувача {user_id}")
 
@@ -609,7 +651,7 @@ def track_error(user_id: Optional[str], error_message: str, context: Optional[st
             severity=EventSeverity.HIGH
         )
 
-        asyncio.create_task(analytics_db.save_event(event))
+        run_async(analytics_db.save_event(event))
         logger.warning(f"Помилка відстежена: {error_message}")
 
     except Exception as e:
