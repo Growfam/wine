@@ -267,9 +267,12 @@
                                 <p class="wallet-status" id="wallet-connection-status">Кошелек не підключено</p>
                                 <p class="wallet-hint">Підключіть TON кошелек для доступу до Flex завдань</p>
                             </div>
-                           <button class="connect-wallet-redirect">
-                                Підключити кошелек
-                            </button>
+<button class="connect-wallet-redirect"
+        onclick="if(window.WalletChecker) window.WalletChecker.connectWallet();
+                 else if(window.tonConnectUI) window.tonConnectUI.connectWallet();
+                 else alert('Система ще завантажується, спробуйте через кілька секунд');">
+    Підключити кошелек
+</button>
                         </div>
                     </div>
 
