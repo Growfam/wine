@@ -802,5 +802,31 @@
             closeVerificationPopup();
         }
     </script>
+<script>
+    // Додайте після ініціалізації для дебагу
+    window.addEventListener('load', async () => {
+        console.log('🔍 [DEBUG] Перевірка доступності API...');
+
+        try {
+            const response = await fetch('/api/ping');
+            console.log('✅ [DEBUG] API відповідь:', response.status);
+
+            if (!response.ok) {
+                console.error('❌ [DEBUG] API недоступний:', response.statusText);
+            }
+        } catch (error) {
+            console.error('❌ [DEBUG] Помилка підключення до API:', error);
+        }
+
+        // Перевірка даних користувача
+        setTimeout(() => {
+            const userId = window.TasksStore?.selectors?.getUserId();
+            const balance = window.TasksStore?.selectors?.getUserBalance();
+
+            console.log('🔍 [DEBUG] User ID:', userId);
+            console.log('🔍 [DEBUG] Balance:', balance);
+        }, 3000);
+    });
+</script>
 </body>
 </html>
