@@ -104,27 +104,30 @@ class WalletModel:
     @staticmethod
     def validate_ton_address(address: str) -> bool:
         """
-        Валідація TON адреси
-
-        Args:
-            address: Адреса для валідації
-
-        Returns:
-            True якщо адреса валідна
+        Валідація TON адреси - більш гнучка версія
         """
         try:
             if not address or not isinstance(address, str):
                 return False
 
-            # Перевіряємо довжину (base64url encoded, 48 символів)
-            if len(address) != WalletModel.TON_ADDRESS_LENGTH:
-                return False
+            # Різні формати TON адрес
+            # 1. User-friendly (48 символів з префіксом EQ/UQ)
+            if (address.startswith('EQ') or address.startswith('UQ')) and len(address) == 48:
+                return re.match(r'^[A-Za-z0-9_-]+$', address) is not None
 
-            # Перевіряємо символи (base64url: A-Z, a-z, 0-9, -, _)
-            if not re.match(r'^[A-Za-z0-9_-]+$', address):
-                return False
+            # 2. Raw format (workchain:hex)
+            if ':' in address:
+                parts = address.split(':')
+                if len(parts) == 2:
+                    workchain = parts[0]
+                    hex_part = parts[1]
+                    return workchain in ['-1', '0'] and re.match(r'^[0-9a-fA-F]{64}$', hex_part) is not None
 
-            return True
+            # 3. Hex only (64 символи)
+            if re.match(r'^[0-9a-fA-F]{64}$', address):
+                return True
+
+            return False
 
         except Exception as e:
             logger.error(f"Помилка валідації адреси {address}: {str(e)}")
@@ -561,15 +564,20 @@ class WalletModel:
             if not wallet_data.get('address'):
                 return {'valid': False, 'error': 'Адреса гаманця відсутня'}
 
+            address = wallet_data['address']
+            logger.info(f"Валідація адреси: {address}, довжина: {len(address)}, тип: {type(address)}")
+
             # Валідуємо адресу
-            if not self.validate_ton_address(wallet_data['address']):
-                return {'valid': False, 'error': 'Невалідна адреса TON гаманця'}
+            if not self.validate_ton_address(address):
+                logger.error(f"Адреса не пройшла валідацію: {address}")
+                return {'valid': False, 'error': f'Невалідна адреса TON гаманця: {address}'}
 
             # Перевіряємо chain_id
             chain_id = wallet_data.get('chain', self.TON_MAINNET_CHAIN)
             if chain_id not in [self.TON_MAINNET_CHAIN, self.TON_TESTNET_CHAIN]:
                 return {'valid': False, 'error': 'Невалідний chain ID'}
 
+            logger.info(f"✅ Адреса {address} успішно пройшла валідацію")
             return {'valid': True}
 
         except Exception as e:
