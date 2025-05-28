@@ -262,12 +262,21 @@
         return Promise.reject(new Error('API module not available'));
     }
 
-    try {
-        // Готуємо дані для авторизації
-        const authData = {
-            id: telegramId,
-            telegram_id: telegramId
-        };
+ try {
+    // Готуємо дані для авторизації
+    const authData = {
+        id: telegramId,
+        telegram_id: telegramId
+    };
+
+    // КРИТИЧНО: Додаємо initData ОДРАЗУ при створенні authData
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+        authData.initData = window.Telegram.WebApp.initData;
+        console.log("✅ AUTH: initData додано до authData (довжина: " + authData.initData.length + ")");
+    } else {
+        console.error("❌ AUTH: Telegram WebApp initData ВІДСУТНІЙ!");
+        throw new Error("Додаток повинен бути відкритий через Telegram");
+    }
 
         // ВАЖЛИВО: Додаємо дані від Telegram
         if (window.Telegram && window.Telegram.WebApp) {
@@ -368,11 +377,15 @@
     telegramInitData: window.Telegram?.WebApp?.initData ? 'Є' : 'Немає'
 });
 
-// Перевірка чи ми в Telegram
-if (!window.Telegram || !window.Telegram.WebApp) {
-    console.error('❌ AUTH: Додаток НЕ відкритий через Telegram!');
-} else if (!window.Telegram.WebApp.initData) {
-    console.error('❌ AUTH: Telegram WebApp initData ВІДСУТНІЙ!');
+// КРИТИЧНА ПЕРЕВІРКА: без initData не продовжуємо
+if (!window.Telegram || !window.Telegram.WebApp || !window.Telegram.WebApp.initData) {
+    console.error('❌ AUTH: Додаток НЕ відкритий через Telegram або initData відсутній!');
+    throw new Error("Додаток доступний тільки через Telegram");
+}
+
+// ОБОВ'ЯЗКОВО: Додаємо initData якщо його ще немає
+if (!userData.initData && window.Telegram.WebApp.initData) {
+    userData.initData = window.Telegram.WebApp.initData;
 }
 // ДІАГНОСТИКА ПЕРЕД ВІДПРАВКОЮ
 console.log('🔐 AUTH: === ДІАГНОСТИКА ПЕРЕД ЗАПИТОМ ===');

@@ -87,13 +87,16 @@ def authenticate_telegram():
         data['id'] = telegram_id  # Для сумісності
 
         # ===== НОВЕ: ТИМЧАСОВЕ РІШЕННЯ ДЛЯ ТЕСТУВАННЯ =====
-        ALLOW_AUTH_WITHOUT_INITDATA = os.getenv('ALLOW_AUTH_WITHOUT_INITDATA', 'true').lower() == 'true'
+        ALLOW_AUTH_WITHOUT_INITDATA = os.getenv('ALLOW_AUTH_WITHOUT_INITDATA', 'false').lower() == 'true'
 
-        # Якщо немає initData, але є telegram_id - дозволяємо
-        if ALLOW_AUTH_WITHOUT_INITDATA and not data.get('initData') and telegram_id:
-            logger.warning(f"⚠️ Авторизація без initData для користувача {telegram_id}")
-            # Видаляємо initData з data щоб пропустити перевірку підпису
-            data.pop('initData', None)
+        # Для продакшену ОБОВ'ЯЗКОВО перевіряємо initData
+        if not data.get('initData'):
+            logger.error(f"❌ Авторизація без initData заборонена для користувача {telegram_id}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Додаток доступний тільки через Telegram',
+                'code': 'missing_init_data'
+            }), 401
 
         # Детальне логування для діагностики
         logger.info(f"=== АВТОРИЗАЦІЯ TELEGRAM ===")
