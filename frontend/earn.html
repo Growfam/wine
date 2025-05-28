@@ -828,5 +828,58 @@
         }, 3000);
     });
 </script>
+<script>
+    // Діагностика проблеми з кнопкою
+    window.addEventListener('load', function() {
+        console.log('🔍 === ДІАГНОСТИКА КНОПКИ ПІДКЛЮЧЕННЯ ===');
+
+        const button = document.querySelector('.connect-wallet-redirect');
+        console.log('Кнопка знайдена:', button);
+
+        if (button) {
+            // Перевіряємо всі обробники
+            const listeners = getEventListeners ? getEventListeners(button) : null;
+            console.log('Event listeners:', listeners);
+
+            // Перевіряємо onclick
+            console.log('onclick атрибут:', button.onclick);
+            console.log('getAttribute onclick:', button.getAttribute('onclick'));
+
+            // Видаляємо всі можливі блокування
+            button.onclick = null;
+            button.removeAttribute('onclick');
+
+            // Клонуємо кнопку щоб видалити всі обробники
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+
+            // Додаємо новий чистий обробник
+            newButton.addEventListener('click', function(e) {
+                console.log('🔴 [DEBUG] КНОПКА НАТИСНУТА!');
+                console.log('Event:', e);
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Перевіряємо доступність об'єктів
+                console.log('window.WalletChecker:', window.WalletChecker);
+                console.log('window.TasksIntegrationInstance:', window.TasksIntegrationInstance);
+                console.log('window.tonConnectUI:', window.tonConnectUI);
+
+                // Пробуємо викликати підключення
+                if (window.WalletChecker && window.WalletChecker.connectWallet) {
+                    console.log('✅ Викликаємо WalletChecker.connectWallet()');
+                    window.WalletChecker.connectWallet();
+                } else if (window.tonConnectUI) {
+                    console.log('✅ Викликаємо tonConnectUI.connectWallet()');
+                    window.tonConnectUI.connectWallet();
+                } else {
+                    console.error('❌ Немає доступних методів підключення!');
+                }
+            });
+
+            console.log('✅ Новий обробник додано');
+        }
+    });
+</script>
 </body>
 </html>
