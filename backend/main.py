@@ -660,7 +660,10 @@ def create_app(config_name=None):
     # Додаємо after_request обробник для JS файлів і CORS заголовків
     @app.after_request
     def add_headers(response):
-
+        # Для POST запитів з query параметрами
+        if request.method == 'POST' and request.args:
+            # Явно вказуємо що це POST
+            response.headers['X-Original-Method'] = 'POST'
 
         # Визначаємо дозволені origins
         origin = request.headers.get('Origin')

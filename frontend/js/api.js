@@ -595,10 +595,10 @@ const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH
     headers: {
         'Content-Type': 'application/json',
         'X-Telegram-User-Id': userId,
-        // Додаємо Authorization header якщо є токен
         ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {})
     },
-    body: JSON.stringify(requestBody)
+    body: JSON.stringify(requestBody),
+    // Важливо: НЕ додавати cache або mode параметри
 });
 
             if (!response.ok) {
@@ -1028,26 +1028,20 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}, r
         }
 
         // Формуємо URL запиту
-        let url;
+let url;
+if (safeIncludes(endpoint, 'http')) {
+    url = endpoint;
+} else {
+    const normalizedEndpoint = normalizeEndpoint(endpoint);
+    url = `${API_BASE_URL}/${normalizedEndpoint}`.replace(/([^:]\/)\/+/g, "$1");
 
-        // Переконуємося, що URL формується коректно
-        if (safeIncludes(endpoint, 'http')) {
-            // Endpoint вже є повним URL - використовуємо як є
-            url = endpoint;
-        } else {
-            // ВИПРАВЛЕНО: Нормалізуємо endpoint для правильного формату і запобігаємо подвійним слешам
-            const normalizedEndpoint = normalizeEndpoint(endpoint);
-
-            // Забезпечуємо, що до URL не додаються неправильні параметри
-            const hasQuery = safeIncludes(normalizedEndpoint, '?');
-
-            // ВИПРАВЛЕНО: Додаємо кешобрейкер до URL (параметр t=timestamp в секундах)
-            const timestamp = Math.floor(Date.now() / 1000);
-
-            url = `${API_BASE_URL}/${normalizedEndpoint}`
-                .replace(/([^:]\/)\/+/g, "$1") // Видаляємо зайві послідовні слеші
-                + (hasQuery ? '&' : '?') + `t=${timestamp}`; // ВИПРАВЛЕНО: додана крапка з комою
-        }
+    // Додаємо timestamp тільки для GET запитів
+    if (method === 'GET') {
+        const hasQuery = safeIncludes(url, '?');
+        const timestamp = Math.floor(Date.now() / 1000);
+        url += (hasQuery ? '&' : '?') + `t=${timestamp}`;
+    }
+}
 
         // Перевірка на пристрій офлайн
         if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
