@@ -338,34 +338,68 @@ if (!dependenciesReady) {
     /**
      * API методи для Auth
      */
-    const auth = {
-validateTelegram: async (initData) => {
-    console.log('🔐 [TasksAPI] Валідація Telegram даних');
+   const auth = {
+   validateTelegram: async (data) => {
+       console.log('🔐 [TasksAPI] Валідація Telegram даних');
 
-    if (!initData) {
-        throw new APIError('Telegram дані відсутні', 400);
-    }
+       if (!data) {
+           throw new APIError('Telegram дані відсутні', 400);
+       }
 
-    // Додаємо telegram_id з initData якщо можливо
-    let telegramId = null;
-    try {
-        const parsedData = JSON.parse(initData);
-        if (parsedData.user && parsedData.user.id) {
-            telegramId = parsedData.user.id;
-        }
-    } catch (e) {
-        console.warn('⚠️ [TasksAPI] Не вдалося розпарсити initData');
-    }
+       let requestBody = {
+           timestamp: Date.now()
+       };
 
-    return apiCall('auth/telegram', {
-        method: 'POST',
-        body: {
-            initData,
-            timestamp: Date.now(),
-            ...(telegramId ? { telegram_id: telegramId } : {})
-        }
-    });
-},
+       // Якщо data - це рядок (старий формат, тільки initData)
+       if (typeof data === 'string') {
+           requestBody.initData = data;
+
+           // Намагаємось витягнути telegram_id з initData
+           try {
+               const parsed = JSON.parse(data);
+               if (parsed.user?.id) {
+                   requestBody.telegram_id = parsed.user.id;
+                   requestBody.id = parsed.user.id;
+               }
+           } catch (e) {
+               console.warn('⚠️ [TasksAPI] InitData не є JSON');
+           }
+       }
+       // Якщо data - це об'єкт (новий формат з telegramValidator)
+       else if (typeof data === 'object') {
+           requestBody.initData = data.initData;
+
+           // Витягуємо telegram_id з усіх можливих місць
+           const telegramId = data.telegram_id || data.user?.id || data.id;
+
+           if (telegramId) {
+               requestBody.telegram_id = telegramId;
+               requestBody.id = telegramId;
+           }
+
+           // Додаємо інші корисні дані якщо є
+           if (data.username || data.user?.username) {
+               requestBody.username = data.username || data.user.username;
+           }
+       }
+
+       // Перевіряємо чи вдалось отримати telegram_id
+       if (!requestBody.telegram_id) {
+           console.error('❌ [TasksAPI] Telegram ID не знайдено в даних:', data);
+           throw new APIError('Telegram ID відсутній', 400);
+       }
+
+       console.log('📊 [TasksAPI] Запит авторизації:', {
+           hasInitData: !!requestBody.initData,
+           telegram_id: requestBody.telegram_id,
+           username: requestBody.username
+       });
+
+       return apiCall('auth/telegram', {
+           method: 'POST',
+           body: requestBody
+       });
+   },
 
         refreshToken: async () => {
             console.log('🔄 [TasksAPI] Оновлення токену');
