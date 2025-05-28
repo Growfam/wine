@@ -1171,12 +1171,12 @@ if (safeIncludes(endpoint, 'http')) {
             clearTimeout(timeoutId);
 
             // ДІАГНОСТИКА: Логуємо відповідь
-console.log(`🔍 API Response: ${response.status} ${response.statusText} for ${url}`);
-console.log(`🔍 Response headers:`, response.headers);
+console.log(`🔍 API Response: ${fetchResponse.status} ${fetchResponse.statusText} for ${url}`);
+console.log(`🔍 Response headers:`, fetchResponse.headers);
 
 // Спробуємо отримати текст помилки
-if (!response.ok) {
-    const errorText = await response.text();
+if (!fetchResponse.ok) {
+    const errorText = await fetchResponse.text();
     console.error(`❌ API Error response body: ${errorText}`);
 
     // Спеціальна обробка для помилок авторизації
