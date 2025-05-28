@@ -360,6 +360,34 @@
             throw new Error("API module not available");
         }
 
+        console.log('🔐 AUTH: Фінальні дані перед відправкою:', {
+    userData: userData,
+    hasInitData: !!userData.initData,
+    initDataPreview: userData.initData ? userData.initData.substring(0, 100) + '...' : 'ВІДСУТНІЙ',
+    hasTelegramWebApp: !!window.Telegram?.WebApp,
+    telegramInitData: window.Telegram?.WebApp?.initData ? 'Є' : 'Немає'
+});
+
+// Перевірка чи ми в Telegram
+if (!window.Telegram || !window.Telegram.WebApp) {
+    console.error('❌ AUTH: Додаток НЕ відкритий через Telegram!');
+} else if (!window.Telegram.WebApp.initData) {
+    console.error('❌ AUTH: Telegram WebApp initData ВІДСУТНІЙ!');
+}
+// ДІАГНОСТИКА ПЕРЕД ВІДПРАВКОЮ
+console.log('🔐 AUTH: === ДІАГНОСТИКА ПЕРЕД ЗАПИТОМ ===');
+console.log('userData:', userData);
+console.log('Має initData:', !!userData.initData);
+
+// Спроба додати initData якщо його немає
+if (!userData.initData && window.Telegram?.WebApp?.initData) {
+    userData.initData = window.Telegram.WebApp.initData;
+    console.log('✅ AUTH: initData додано автоматично! Довжина:', userData.initData.length);
+} else if (!userData.initData) {
+    console.error('❌ AUTH: initData відсутній!');
+    console.log('  Telegram WebApp:', window.Telegram?.WebApp);
+}
+
         // Виконуємо запит авторизації
         const response = await window.WinixAPI.apiRequest('/api/auth/telegram', 'POST', userData, {
             timeout: 15000,

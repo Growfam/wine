@@ -1123,6 +1123,33 @@ if (safeIncludes(endpoint, 'http')) {
         let response;
         let lastError = null; // ВИПРАВЛЕНО: ініціалізуємо змінну
 
+
+        if (url.includes('auth/telegram') || endpoint.includes('auth/telegram')) {
+    console.log('🔍 API: === ДІАГНОСТИКА AUTH/TELEGRAM ЗАПИТУ ===');
+    console.log('  URL:', url);
+    console.log('  Endpoint:', endpoint);
+    console.log('  Method:', method);
+    console.log('  Data:', data);
+    console.log('  Має initData:', data && data.initData ? 'ТАК' : 'НІ');
+
+    // Перевірка Telegram WebApp
+    console.log('🔍 TELEGRAM WEBAPP СТАН:');
+    console.log('  window.Telegram:', !!window.Telegram);
+    console.log('  window.Telegram.WebApp:', !!window.Telegram?.WebApp);
+    console.log('  initData наявність:', !!window.Telegram?.WebApp?.initData);
+
+    if (window.Telegram?.WebApp?.initData) {
+        console.log('  ✅ initData Є! Довжина:', window.Telegram.WebApp.initData.length);
+        console.log('  Перші 100 символів:', window.Telegram.WebApp.initData.substring(0, 100) + '...');
+    } else {
+        console.error('  ❌ initData ВІДСУТНІЙ!');
+    }
+
+    console.log('  Версія WebApp:', window.Telegram?.WebApp?.version);
+    console.log('  Platform:', window.Telegram?.WebApp?.platform);
+    console.log('  initDataUnsafe:', window.Telegram?.WebApp?.initDataUnsafe);
+}
+
         try {
             // Інкрементуємо лічильник запитів
             _requestCounter.total++;
