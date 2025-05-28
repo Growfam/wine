@@ -431,7 +431,8 @@ connect: async (userId, walletData) => {
             }
 
             return apiCall(`wallet/disconnect/${userId}`, {
-                method: 'POST'
+                method: 'POST',
+                 body: {}
             });
         },
 

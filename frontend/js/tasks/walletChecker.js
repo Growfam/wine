@@ -507,17 +507,17 @@ console.log('✅ [WalletChecker] Адреса валідна:', address);
     /**
      * Відключити гаманець
      */
-    async function disconnectWallet() {
-        console.log('🔌 [WalletChecker] === ВІДКЛЮЧЕННЯ ГАМАНЦЯ ===');
+ async function disconnectWallet() {
+    console.log('🔌 [WalletChecker] === ВІДКЛЮЧЕННЯ ГАМАНЦЯ ===');
 
-        if (!state.tonConnectUI) {
-            console.error('❌ [WalletChecker] TON Connect UI не ініціалізовано');
-            return;
-        }
+    if (!state.tonConnectUI) {
+        console.error('❌ [WalletChecker] TON Connect UI не ініціалізовано');
+        return;
+    }
 
-        try {
-            // Відключаємо на бекенді
-            await window.TasksAPI.wallet.disconnect(state.userId);
+    try {
+        // Відключаємо на бекенді - додаємо пустий body
+        await window.TasksAPI.wallet.disconnect(state.userId);
 
             // Відключаємо в TON Connect
             await state.tonConnectUI.disconnect();
