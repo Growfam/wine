@@ -4,7 +4,8 @@
 Оптимізовано для Telegram Mini App
 """
 
-from flask import Blueprint, request, jsonify, os, g
+from flask import Blueprint, request, jsonify, g
+import os
 import logging
 from datetime import datetime
 from .controllers import TelegramAuthController, require_auth
