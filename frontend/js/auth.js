@@ -234,8 +234,14 @@
      * Ініціалізація системи авторизації
      * @returns {Promise<Object>} Об'єкт з даними користувача
      */
-    async function init() {
+   async function init() {
     console.log("🔐 AUTH: Запуск ініціалізації");
+
+    // КРИТИЧНО: Чекаємо готовності системи
+    if (!window._WINIX_READY) {
+        console.log("⏳ AUTH: Чекаємо готовності системи...");
+        await window.WinixInit.waitForReady();
+    }
 
     const now = Date.now();
     if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL) {
@@ -249,19 +255,12 @@
     _lastRequestTime = now;
 
     // Перевіряємо Telegram ID
-    const telegramId = getTelegramUserId();
-    if (!telegramId) {
+    const telegramId = window._WINIX_USER_ID || getTelegramUserId();
+
+    if (!telegramId || telegramId === 'undefined') {
         blockAccess();
-        return Promise.reject(new Error('No Telegram ID'));
+        return Promise.reject(new Error('No valid Telegram ID'));
     }
-
-    // Перевіряємо наявність API модуля
-    if (!hasApiModule()) {
-        console.error("⚠️ AUTH: API модуль недоступний");
-        showError(getLocalizedText('authError'));
-        return Promise.reject(new Error('API module not available'));
-    }
-
  try {
     // Готуємо дані для авторизації
     const authData = {
@@ -641,8 +640,74 @@ if (!userData.initData && window.Telegram?.WebApp?.initData) {
 
     // ======== АВТОМАТИЧНА ІНІЦІАЛІЗАЦІЯ ========
 
-// НЕ запускаємо автоматично - loader.js це зробить
-console.log("✅ AUTH: Модуль готовий, чекаємо на виклик від loader");
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("🔐 AUTH: DOMContentLoaded, автоматична ініціалізація");
+
+    // Перевіряємо Telegram ID одразу
+    const telegramId = getTelegramUserId();
+    if (!telegramId) {
+        blockAccess();
+        return;
+    }
+
+    // Оновлюємо елемент на сторінці, якщо він є
+    const userIdElement = document.getElementById('user-id');
+    if (userIdElement) {
+        userIdElement.textContent = telegramId;
+    }
+
+    // Запускаємо ініціалізацію
+    init()
+        .then(() => {
+            console.log("✅ AUTH: Ініціалізацію успішно виконано");
+            window.WinixAuth.isInitialized = true;
+        })
+        .catch(error => {
+            console.error("❌ AUTH: Помилка ініціалізації:", error);
+            window.WinixAuth.isInitialized = false;
+        });
+});
+
+    // Запускаємо авторизацію для веб-аплікацій, які вже завантажилися
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        console.log("🔐 AUTH: Документ вже завантажено, запуск авторизації");
+
+        setTimeout(() => {
+            // Перевіряємо Telegram ID
+            const telegramId = getTelegramUserId();
+            if (!telegramId) {
+                blockAccess();
+                return;
+            }
+
+            // Оновлюємо дані користувача
+            getUserData()
+                .then(() => {
+                    console.log("✅ AUTH: Дані користувача оновлено після завантаження");
+                    window.WinixAuth.isInitialized = true;
+                })
+                .catch(error => {
+                    console.error("❌ AUTH: Помилка завантаження даних користувача", error);
+                });
+        }, 100);
+    }
+
+    // Додаємо обробник події 'telegram-ready'
+document.addEventListener('telegram-ready', function() {
+    console.log("🔐 AUTH: Отримано подію telegram-ready, запуск авторизації");
+
+    getUserData()
+        .then(() => {
+            console.log("✅ AUTH: Дані користувача оновлено після telegram-ready");
+            window.WinixAuth.isInitialized = true;
+        })
+        .catch(error => {
+            console.warn("⚠️ AUTH: Помилка оновлення даних після telegram-ready", error);
+        });
+});
+
+    // Запускаємо періодичне оновлення
+    startPeriodicUpdate();
 
     // Додаємо обробник подій для синхронізації з іншими модулями
     document.addEventListener(EVENT_USER_DATA_UPDATED, function(event) {

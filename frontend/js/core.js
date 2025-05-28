@@ -273,27 +273,24 @@
      * Виконання API-запиту з повторними спробами та перевіркою здоров'я
      */
     async function executeApiRequest(endpoint, method = 'GET', data = null, options = {}) {
-        if (!endpoint) {
-            console.error("❌ Core: Невалідний endpoint для запиту");
-            throw new Error('Невалідний endpoint');
-        }
+    // КРИТИЧНО: Перевіряємо готовність системи
+    if (!window._WINIX_READY) {
+        console.warn("⏳ Core: Система ще не готова, чекаємо...");
+        await window.WinixInit.waitForReady();
+    }
 
-        // Перевіряємо здоров'я сервера перед запитом
-        if (!_state.serverHealthy) {
-            console.warn("⚠️ Core: Сервер недоступний, перевіряємо статус...");
+    if (!endpoint) {
+        console.error("❌ Core: Невалідний endpoint для запиту");
+        throw new Error('Невалідний endpoint');
+    }
 
-            const isHealthy = await checkApiHealth();
-            if (!isHealthy) {
-                throw new Error('Сервер тимчасово недоступний. Спробуйте пізніше.');
-            }
-        }
+    // Перевіряємо наявність Telegram ID
+    const telegramId = window._WINIX_USER_ID || getTelegramUserId();
 
-        // Перевіряємо наявність Telegram ID
-        const telegramId = getTelegramUserId();
-        if (!telegramId) {
-            console.error("❌ Core: Немає Telegram ID для запиту");
-            throw new Error('No Telegram ID');
-        }
+    if (!telegramId || telegramId === 'undefined') {
+        console.error("❌ Core: Немає валідного Telegram ID для запиту");
+        throw new Error('No valid Telegram ID');
+    }
 
         // Перевіряємо API модуль
         if (!hasApiModule()) {
