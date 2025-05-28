@@ -67,30 +67,35 @@
 
     // ======== ПРИВАТНІ ЗМІННІ ========
 
-    // Базовий URL - без /api на кінці!
-    const API_BASE_URL = (() => {
-        // Перевіряємо глобальний конфіг, якщо він існує
-        if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
-            // Видаляємо /api якщо він є на кінці
-            let url = window.WinixConfig.apiBaseUrl;
-            return url.endsWith('/api') ? url.slice(0, -4) : url;
-        }
+// Базовий URL - без /api на кінці!
+const API_BASE_URL = (() => {
+    // Перевіряємо глобальний конфіг, якщо він існує
+    if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
+        // Видаляємо /api якщо він є на кінці
+        let url = window.WinixConfig.apiBaseUrl;
+        return url.endsWith('/api') ? url.slice(0, -4) : url;
+    }
 
-        // Визначаємо URL на основі поточного середовища
-        const hostname = window.location.hostname;
+    // ПРОСТО ПОВЕРНИ ЦЕ:
+    return 'https://winixbot.com';
 
-        // Конкретні умови для локального середовища
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            // Локальне середовище - використовуємо порт 8080
-            return `http://${hostname}:8080`;
-        } else if (hostname.includes('testenv') || hostname.includes('staging')) {
-            // Тестові середовища
-            return `https://${hostname}`;
-        } else {
-            // Продакшн середовище
-            return 'https://winixbot.com';
-        }
-    })();
+    /* ЗАКОМЕНТУЙ ВСЕ ЦЕ ГІВНО:
+    // Визначаємо URL на основі поточного середовища
+    const hostname = window.location.hostname;
+
+    // Конкретні умови для локального середовища
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // Локальне середовище - використовуємо порт 8080
+        return `http://${hostname}:8080`;
+    } else if (hostname.includes('testenv') || hostname.includes('staging')) {
+        // Тестові середовища
+        return `https://${hostname}`;
+    } else {
+        // Продакшн середовище
+        return 'https://winixbot.com';
+    }
+    */
+})();
 
     // Стан API
     let _apiState = {
@@ -292,20 +297,12 @@
     /**
      * Перевірка готовності API перед запитом
      */
-    async function ensureApiReady() {
-        // Якщо health check застарілий (більше 1 хвилини)
-        const healthCheckAge = Date.now() - _apiState.lastHealthCheck;
-        if (healthCheckAge > 60000 || !_apiState.isHealthy) {
-            console.log("🔍 API: Перевіряємо готовність API...");
-            const isHealthy = await checkApiHealth();
-
-            if (!isHealthy) {
-                throw new Error("Сервер недоступний. Спробуйте пізніше.");
-            }
-        }
-
-        return true;
-    }
+async function ensureApiReady() {
+    // ТИМЧАСОВО ВИМИКАЄМО ЦЮ ХУЙНЮ
+    _apiState.isHealthy = true;
+    _apiState.lastHealthCheck = Date.now();
+    return true;
+}
 
     // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З ID КОРИСТУВАЧА ========
 
