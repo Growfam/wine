@@ -234,9 +234,15 @@ async function initializeTonConnect() {
 async function verifyWalletOnBackend(wallet) {
     console.log('🌐 [WalletChecker] === ВЕРИФІКАЦІЯ НА БЕКЕНДІ ===');
 
+    // Перевіряємо чи взагалі є wallet object
+    if (!wallet || !wallet.account || !wallet.account.address) {
+        console.error('❌ [WalletChecker] Wallet або адреса відсутні');
+        throw new Error('Гаманець не підключено або адреса відсутня');
+    }
+
     const address = wallet.account.address;
 
-    // Більш гнучка перевірка TON адрес
+    // Тепер безпечно валідуємо
     const isValidTonAddress =
         (typeof address === 'string' && address.length > 0) &&
         (address.startsWith('EQ') ||
@@ -249,6 +255,7 @@ async function verifyWalletOnBackend(wallet) {
         console.error('❌ [WalletChecker] Невалідний формат адреси:', address);
         throw new Error('Невалідний формат адреси TON гаманця');
     }
+
 console.log('✅ [WalletChecker] Адреса валідна:', address);
 
     const chain = wallet.account.chain || '-239';

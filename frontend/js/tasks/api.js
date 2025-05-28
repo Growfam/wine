@@ -406,8 +406,15 @@ connect: async (userId, walletData) => {
         throw new APIError('Адреса гаманця не вказана', 400);
     }
 
+    // Додаткова валідація формату адреси
+    const address = walletData.address;
+    if (typeof address !== 'string' || address.length === 0) {
+        throw new APIError('Невалідна адреса гаманця', 400);
+    }
+
     // ВАЖЛИВО: Перевіряємо що адреса це справді TON адреса
-    if (!walletData.address.startsWith('EQ') && !walletData.address.startsWith('UQ')) {
+    if (!address.startsWith('EQ') && !address.startsWith('UQ') &&
+        !address.startsWith('0:') && !address.startsWith('-1:')) {
         throw new APIError('Невалідна адреса TON гаманця', 400);
     }
 
