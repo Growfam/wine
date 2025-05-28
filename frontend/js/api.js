@@ -298,10 +298,12 @@ const API_BASE_URL = (() => {
      * Перевірка готовності API перед запитом
      */
 async function ensureApiReady() {
-    // ТИМЧАСОВО ВИМИКАЄМО ЦЮ ХУЙНЮ
-    _apiState.isHealthy = true;
-    _apiState.lastHealthCheck = Date.now();
-    return true;
+    // Перевіряємо готовність API перед запитом
+    const isHealthy = await checkApiHealth();
+    if (!isHealthy) {
+        console.warn('⚠️ API: Сервер недоступний');
+    }
+    return isHealthy;
 }
 
     // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З ID КОРИСТУВАЧА ========

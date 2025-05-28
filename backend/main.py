@@ -800,7 +800,8 @@ def add_health_check(app):
     def api_ping():
         """Простий ping endpoint для швидкої перевірки"""
         return jsonify({
-            "status": "ok",
+            "status": "success",  # Змінити з "ok" на "success"
+            "pong": True,  # Додати це поле
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "message": "API is running"
         })
