@@ -195,7 +195,8 @@ class WalletController:
 
             # Валідація адреси гаманця
             address = wallet_data.get('address', '').strip()
-            if not validate_wallet_address(address):
+            from ..models.wallet import WalletModel
+            if not WalletModel.validate_ton_address(address):
                 return {
                     "status": "error",
                     "message": "Невалідна адреса TON гаманця",

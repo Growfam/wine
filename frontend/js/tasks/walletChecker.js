@@ -31,8 +31,6 @@ window.WalletChecker = (function() {
      */
 async function init(userId = null) {
     console.log('🚀 [WalletChecker] Початок ініціалізації');
-    console.log('⚙️ [WalletChecker] Конфігурація:', config);
-    console.log('👤 [WalletChecker] Переданий userId:', userId);
 
     try {
         // Пріоритет: 1) переданий параметр, 2) Store, 3) WinixAPI
@@ -63,15 +61,8 @@ async function init(userId = null) {
 
         if (!state.userId) {
             console.error('❌ [WalletChecker] User ID не знайдено в жодному джерелі');
-            console.error('📊 [WalletChecker] Доступні джерела:', {
-                parameter: userId,
-                store: window.TasksStore?.selectors?.getUserId?.(),
-                api: window.WinixAPI?.getUserId?.()
-            });
-
             // Не кидаємо помилку одразу - даємо шанс працювати без userId
             console.warn('⚠️ [WalletChecker] Продовжуємо без userId - функціональність обмежена');
-            // throw new Error('User ID not found');
         } else {
             console.log('✅ [WalletChecker] User ID успішно отримано:', state.userId);
         }
@@ -141,15 +132,6 @@ async function initializeTonConnect() {
 
         // Зберігаємо глобально для інших модулів
         window.tonConnectUI = state.tonConnectUI;
-
-        console.log('✅ [WalletChecker] TON Connect UI ініціалізовано');
-        console.log('📊 [WalletChecker] Manifest URL:', config.manifestUrl);
-
-        // Підписуємось на зміни статусу
-        state.tonConnectUI.onStatusChange(wallet => {
-            console.log('🔄 [WalletChecker] Статус гаманця змінився:', wallet);
-            handleWalletStatusChange(wallet);
-        });
 
     } catch (error) {
         // Якщо помилка пов'язана з дублікатом custom element
@@ -230,7 +212,6 @@ async function initializeTonConnect() {
     /**
      * Верифікація гаманця на бекенді
      */
-    // В функції verifyWalletOnBackend (рядок ~311)
 async function verifyWalletOnBackend(wallet) {
     console.log('🌐 [WalletChecker] === ВЕРИФІКАЦІЯ НА БЕКЕНДІ ===');
 
@@ -256,7 +237,7 @@ async function verifyWalletOnBackend(wallet) {
         throw new Error('Невалідний формат адреси TON гаманця');
     }
 
-console.log('✅ [WalletChecker] Адреса валідна:', address);
+    console.log('✅ [WalletChecker] Адреса валідна:', address);
 
     const chain = wallet.account.chain || '-239';
     const publicKey = wallet.account.publicKey;
@@ -514,20 +495,15 @@ console.log('✅ [WalletChecker] Адреса валідна:', address);
     /**
      * Відключити гаманець
      */
- async function disconnectWallet() {
+async function disconnectWallet() {
     console.log('🔌 [WalletChecker] === ВІДКЛЮЧЕННЯ ГАМАНЦЯ ===');
-
-    if (!state.tonConnectUI) {
-        console.error('❌ [WalletChecker] TON Connect UI не ініціалізовано');
-        return;
-    }
 
     try {
         // Відключаємо на бекенді - додаємо пустий body
         await window.TasksAPI.wallet.disconnect(state.userId);
 
-            // Відключаємо в TON Connect
-            await state.tonConnectUI.disconnect();
+        // Відключаємо в TON Connect
+        await state.tonConnectUI.disconnect();
 
             console.log('✅ [WalletChecker] Гаманець відключено');
 

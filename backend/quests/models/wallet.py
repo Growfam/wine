@@ -101,6 +101,7 @@ class WalletModel:
 
         logger.info("✅ WalletModel ініціалізовано")
 
+    @staticmethod
     def validate_ton_address(address: str) -> bool:
         """
         Валідація TON адреси - більш гнучка версія
