@@ -30,8 +30,18 @@ def authenticate_telegram():
         "referrer_id": "..." // опціонально
     }
     """
+    # ДІАГНОСТИКА: Логуємо весь запит
+    logger.info("=" * 50)
+    logger.info("🔍 AUTH TELEGRAM REQUEST")
+    logger.info(f"Headers: {dict(request.headers)}")
+    logger.info(f"Method: {request.method}")
+    logger.info(f"Content-Type: {request.content_type}")
+
     try:
         data = request.get_json() or {}
+        logger.info(f"Body keys: {list(data.keys())}")
+        logger.info(f"Has initData: {bool(data.get('initData'))}")
+        logger.info(f"Telegram ID: {data.get('telegram_id') or data.get('id')}")
 
         # ===== ПОКРАЩЕНА ОБРОБКА TELEGRAM ID =====
         # Пріоритет джерел telegram_id:
