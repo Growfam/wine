@@ -368,7 +368,7 @@ def diagnose_quests_routes(app: Flask) -> dict:
 
         # Перевіряємо обов'язкові endpoint'и
         required_endpoints = [
-            '/api/auth/validate-telegram',
+            '/api/auth/telegram'
             '/api/user/profile/<telegram_id>',
             '/api/daily/status/<telegram_id>',
         ]
