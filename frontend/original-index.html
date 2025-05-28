@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WINIX - Головна сторінка</title>
+    <script src="js/winix-init-guard.js"></script>
 
     <script src="js/telegram-web-app.js"></script>
 <script>
@@ -4733,6 +4734,20 @@ setTimeout(() => {
         buttonContainer.appendChild(refreshButton);
     }
 }, 3000);
+</script>
+<!-- КРИТИЧНО: Ініціалізація User ID одразу -->
+<script>
+// Глобальні змінні для блокування передчасних запитів
+window._WINIX_USER_ID = null;
+window._WINIX_SYSTEM_READY = false;
+
+// Негайне отримання User ID
+(function() {
+    if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+        window._WINIX_USER_ID = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+        console.log("✅ User ID встановлено одразу:", window._WINIX_USER_ID);
+    }
+})();
 </script>
 </body>
 </html>

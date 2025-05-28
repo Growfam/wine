@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WINIX - Система завдань</title>
-
+<script src="js/winix-init-guard.js"></script>
     <!-- Критичні залежності -->
     <script src="./js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
@@ -803,26 +803,19 @@
             closeVerificationPopup();
         }
     </script>
-// Додайте в кінець index.html для діагностики
+<!-- КРИТИЧНО: Ініціалізація User ID одразу -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('=== ДІАГНОСТИКА СИСТЕМИ ===');
-    console.log('window._WINIX_USER_ID:', window._WINIX_USER_ID);
-    console.log('window._WINIX_READY:', window._WINIX_READY);
-    console.log('localStorage telegram_user_id:', localStorage.getItem('telegram_user_id'));
-    console.log('Telegram WebApp доступний:', !!window.Telegram?.WebApp);
+// Глобальні змінні для блокування передчасних запитів
+window._WINIX_USER_ID = null;
+window._WINIX_SYSTEM_READY = false;
 
-    if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
-        console.log('Telegram user data:', window.Telegram.WebApp.initDataUnsafe.user);
+// Негайне отримання User ID
+(function() {
+    if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+        window._WINIX_USER_ID = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+        console.log("✅ User ID встановлено одразу:", window._WINIX_USER_ID);
     }
-
-    // Перевірка через 2 секунди
-    setTimeout(() => {
-        console.log('=== ПЕРЕВІРКА ЧЕРЕЗ 2 СЕКУНДИ ===');
-        console.log('window._WINIX_USER_ID:', window._WINIX_USER_ID);
-        console.log('window._WINIX_READY:', window._WINIX_READY);
-    }, 2000);
-});
+})();
 </script>
 </body>
 </html>
