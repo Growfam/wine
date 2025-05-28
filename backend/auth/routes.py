@@ -74,6 +74,13 @@ def authenticate_telegram():
                 'code': 'invalid_telegram_id_format'
             }), 400
 
+        # Переконуємося що в data є обидва поля для сумісності
+        if not data.get('telegram_id') and data.get('id'):
+            data['telegram_id'] = data['id']
+
+        if not data.get('id') and data.get('telegram_id'):
+            data['id'] = data['telegram_id']
+
         # Оновлюємо дані з нормалізованим telegram_id
         data['telegram_id'] = telegram_id
         data['id'] = telegram_id  # Для сумісності
@@ -154,15 +161,16 @@ def authenticate_telegram():
         }), 500
 
 
-@auth_bp.route('/refresh', methods=['POST'])
+@auth_bp.route('/refresh', methods=['POST', 'GET'])
+@auth_bp.route('/refresh/', methods=['POST', 'GET'])  # Підтримка trailing slash
 def refresh_token():
     """
     Оновлення JWT токена
-
-    POST /api/auth/refresh
-    Headers: Authorization: Bearer <token>
-    Body: { "token": "..." } // альтернатива
     """
+    # Ігноруємо query параметри для визначення методу
+    if request.method == 'GET' and request.args.get('t'):
+        # Це насправді POST запит з timestamp параметром
+        request.method = 'POST'
     try:
 
         logger.info("=== REFRESH TOKEN REQUEST ===")
