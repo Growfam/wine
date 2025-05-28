@@ -166,6 +166,22 @@ class TelegramAuthController:
                 logger.info(f"Довжина init_data: {len(init_data)}")
                 logger.info(f"init_data (перші 100 символів): {init_data[:100]}...")
 
+            # КРИТИЧНО: Перевіряємо наявність initData для продакшену
+            if not init_data:
+                logger.error(f"❌ initData відсутній для користувача {telegram_data.get('id')}")
+                return {
+                    'success': False,
+                    'error': 'Відсутні дані авторизації Telegram',
+                    'code': 'missing_init_data'
+                }
+
+            if not bot_token:
+                logger.error("❌ TELEGRAM_BOT_TOKEN не налаштований")
+                return {
+                    'success': False,
+                    'error': 'Сервер неправильно налаштований',
+                    'code': 'missing_bot_token'
+                }
             # ===== НОВЕ: МОЖЛИВІСТЬ ПРОПУСТИТИ ПЕРЕВІРКУ ПІДПИСУ =====
             SKIP_SIGNATURE_CHECK = os.getenv('SKIP_TELEGRAM_SIGNATURE_CHECK', 'false').lower() == 'true'
 
