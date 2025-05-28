@@ -101,12 +101,12 @@ class WalletModel:
 
         logger.info("✅ WalletModel ініціалізовано")
 
-    @staticmethod
     def validate_ton_address(address: str) -> bool:
         """
         Валідація TON адреси - більш гнучка версія
         """
         try:
+            # Додати перевірку на None/пусту адресу
             if not address or not isinstance(address, str):
                 return False
 
