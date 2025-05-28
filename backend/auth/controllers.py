@@ -388,3 +388,9 @@ def require_auth(f):
     decorated_function.__name__ = f.__name__
     return decorated_function
 
+# Alias для сумісності з системою завдань
+AuthController = TelegramAuthController
+
+# Експорт
+__all__ = ['TelegramAuthController', 'AuthController', 'AuthError', 'require_auth']
+

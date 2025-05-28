@@ -13,7 +13,7 @@ from middleware import JWT_SECRET, JWT_ALGORITHM, jwt
 logger = logging.getLogger(__name__)
 
 # Створюємо Blueprint
-auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+auth_bp = Blueprint('main_auth', __name__, url_prefix='/api/auth')
 
 
 @auth_bp.route('/telegram', methods=['POST'])

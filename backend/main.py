@@ -938,14 +938,6 @@ def register_api_routes(app):
     except Exception as e:
         registration_errors.append(f"Raffles: {e}")
 
-    # Реєстрація маршрутів авторизації (оригінальних)
-    try:
-        from auth.routes import register_auth_routes
-        register_auth_routes(app)
-        registered_successfully.append("Auth (original)")
-    except Exception as e:
-        registration_errors.append(f"Auth (original): {e}")
-
     # Реєстрація маршрутів користувачів (оригінальних)
     try:
         from users.routes import register_user_routes
