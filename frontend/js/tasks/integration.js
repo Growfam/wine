@@ -354,38 +354,42 @@ window.TasksIntegration = (function() {
      * Перевірка доступності сервера
      */
     TasksIntegration.prototype.checkServerAvailability = async function() {
-        console.log('🌐 [TASKS-INTEGRATION] === ПЕРЕВІРКА ДОСТУПНОСТІ СЕРВЕРА ===');
+    console.log('🌐 [TASKS-INTEGRATION] === ПЕРЕВІРКА ДОСТУПНОСТІ СЕРВЕРА ===');
 
-        try {
-            // Перевіряємо чи є базовий API
-            if (!window.WinixAPI && !window.TasksAPI) {
-                console.warn('⚠️ [TASKS-INTEGRATION] API модулі недоступні');
-                return false;
-            }
-
-            // Пробуємо ping
-            let response;
-            if (window.WinixAPI && window.WinixAPI.apiRequest) {
-                console.log('🔄 [TASKS-INTEGRATION] Ping через WinixAPI...');
-                response = await window.WinixAPI.apiRequest('/api/ping', 'GET', null, {
-                    suppressErrors: true,
-                    timeout: 5000
-                });
-            } else if (window.TasksAPI && window.TasksAPI.checkServerHealth) {
-                console.log('🔄 [TASKS-INTEGRATION] Ping через TasksAPI...');
-                response = await window.TasksAPI.checkServerHealth();
-            }
-
-            const isAvailable = !!(response && (response.status === 'success' || response.pong));
-            console.log(`${isAvailable ? '✅' : '❌'} [TASKS-INTEGRATION] Сервер ${isAvailable ? 'доступний' : 'недоступний'}`);
-
-            return isAvailable;
-
-        } catch (error) {
-            console.error('❌ [TASKS-INTEGRATION] Помилка перевірки сервера:', error);
+    try {
+        if (!window.WinixAPI && !window.TasksAPI) {
+            console.warn('⚠️ [TASKS-INTEGRATION] API модулі недоступні');
             return false;
         }
-    };
+
+        let response;
+        if (window.WinixAPI && window.WinixAPI.apiRequest) {
+            console.log('🔄 [TASKS-INTEGRATION] Ping через WinixAPI...');
+            response = await window.WinixAPI.apiRequest('/api/ping', 'GET', null, {
+                suppressErrors: true,
+                timeout: 5000,
+                skipHealthCheck: true
+            });
+        }
+
+        // ОНОВЛЕНА ПЕРЕВІРКА - додаємо перевірку на status === 'ok'
+        const isAvailable = !!(response && (
+            response.status === 'success' ||
+            response.status === 'ok' ||      // ДОДАНО
+            response.pong === true ||
+            response.message === 'API is running'  // ДОДАНО
+        ));
+
+        console.log(`${isAvailable ? '✅' : '❌'} [TASKS-INTEGRATION] Сервер ${isAvailable ? 'доступний' : 'недоступний'}`);
+        console.log('📊 [TASKS-INTEGRATION] Ping response:', response);
+
+        return isAvailable;
+
+    } catch (error) {
+        console.error('❌ [TASKS-INTEGRATION] Помилка перевірки сервера:', error);
+        return false;
+    }
+};
 
     /**
      * Ініціалізація Store
