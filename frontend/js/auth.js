@@ -410,22 +410,22 @@ if (!userData.initData && window.Telegram?.WebApp?.initData) {
         // Приховуємо індикатор завантаження
         if (spinner) spinner.classList.remove('show');
 
-        if (response && response.status === 'success' && response.data) {
+        if (response && response.status === 'success' && response.user) {
             // Зберігаємо дані користувача
-            window.WinixAuth.currentUser = response.data;
-            console.log("✅ AUTH: Користувача успішно авторизовано", response.data);
+            window.WinixAuth.currentUser = response.user;
+            console.log("✅ AUTH: Користувача успішно авторизовано", response.user);
 
             // Показуємо вітальне повідомлення для нових користувачів
-            if (response.data.is_new_user) {
+            if (response.user.is_new_user) {
                 showWelcomeMessage();
             }
 
             // Відправляємо подію про успішну авторизацію
             document.dispatchEvent(new CustomEvent(EVENT_AUTH_SUCCESS, {
-                detail: response.data
+                detail: response.user
             }));
 
-            return response.data;
+            return response.user;
         } else {
             throw new Error(response?.message || "Помилка авторизації");
         }
@@ -505,18 +505,18 @@ if (!userData.initData && window.Telegram?.WebApp?.initData) {
             // Приховуємо індикатор завантаження
             if (spinner) spinner.classList.remove('show');
 
-            if (response && response.status === 'success' && response.data) {
+            if (response && response.status === 'success' && response.user) {
                 // Зберігаємо дані
-                window.WinixAuth.currentUser = response.data;
-                console.log("✅ AUTH: Дані користувача успішно отримано", response.data);
+                window.WinixAuth.currentUser = response.user;
+                console.log("✅ AUTH: Дані користувача успішно отримано", response.user);
 
                 // Відправляємо подію оновлення даних
                 document.dispatchEvent(new CustomEvent(EVENT_USER_DATA_UPDATED, {
-                    detail: response.data,
+                    detail: response.user,
                     source: 'auth.js'
                 }));
 
-                return response.data;
+                return response.user;
             } else {
                 throw new Error(response?.message || "Помилка отримання даних");
             }
