@@ -338,10 +338,17 @@ window.TasksConstants = (function() {
             MIN: 1,
             MAX: 999999999999999
         },
-        WALLET_ADDRESS: {
-            LENGTH: 48,
-            PATTERN: /^[a-zA-Z0-9_-]{48}$/
-        },
+WALLET_ADDRESS: {
+    PATTERNS: {
+        USER_FRIENDLY: /^(EQ|UQ)[a-zA-Z0-9_-]{46}$/,
+        RAW_HEX: /^-?[0-9]:[0-9a-fA-F]{64}$/,
+        RAW_SHORT: /^[0-9a-fA-F]{64}$/
+    },
+    isValid: function(address) {
+        return Object.values(this.PATTERNS).some(pattern => pattern.test(address));
+    }
+},
+
         FLEX_BALANCE: {
             MIN: 0,
             MAX: 999999999999
