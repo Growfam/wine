@@ -391,6 +391,35 @@ def require_auth(f):
 # Alias для сумісності з системою завдань
 AuthController = TelegramAuthController
 
-# Експорт
-__all__ = ['TelegramAuthController', 'AuthController', 'AuthError', 'require_auth']
 
+def validate_telegram_route(telegram_data):
+    """
+    Функція валідації для сумісності з системою завдань
+    """
+    try:
+        # Використовуємо існуючу логіку
+        result = TelegramAuthController.authenticate_telegram_user(telegram_data)
+
+        if result.get('success'):
+            return {
+                'valid': True,
+                'user': result.get('user'),
+                'token': result.get('token')
+            }
+        else:
+            return {
+                'valid': False,
+                'error': result.get('error', 'Validation failed'),
+                'code': result.get('code', 'validation_failed')
+            }
+    except Exception as e:
+        logger.error(f"Validation error: {str(e)}")
+        return {
+            'valid': False,
+            'error': str(e),
+            'code': 'validation_error'
+        }
+
+
+# Оновити експорт
+__all__ = ['TelegramAuthController', 'AuthController', 'AuthError', 'require_auth', 'validate_telegram_route']

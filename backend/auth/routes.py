@@ -295,6 +295,51 @@ def validate_token():
         }), 500
 
 
+@auth_bp.route('/validate-telegram', methods=['POST'])
+def validate_telegram():
+    """
+    Валідація Telegram даних (критичний endpoint для системи завдань)
+
+    POST /api/auth/validate-telegram
+    """
+    try:
+        data = request.get_json() or {}
+
+        # Логуємо запит
+        logger.info(f"Validate-telegram запит отримано")
+
+        # Перевіряємо наявність даних
+        if not data:
+            return jsonify({
+                'valid': False,
+                'error': 'No data provided',
+                'code': 'missing_data'
+            }), 400
+
+        # Викликаємо контролер
+        result = TelegramAuthController.authenticate_telegram_user(data)
+
+        if result.get('success'):
+            return jsonify({
+                'valid': True,
+                'user': result.get('user'),
+                'token': result.get('token')
+            }), 200
+        else:
+            return jsonify({
+                'valid': False,
+                'error': result.get('error', 'Validation failed'),
+                'code': result.get('code', 'validation_failed')
+            }), 401
+
+    except Exception as e:
+        logger.error(f"Validate-telegram помилка: {str(e)}", exc_info=True)
+        return jsonify({
+            'valid': False,
+            'error': 'Internal server error',
+            'code': 'internal_error'
+        }), 500
+
 @auth_bp.route('/status', methods=['GET'])
 @require_auth
 def auth_status():
