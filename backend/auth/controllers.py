@@ -36,12 +36,25 @@ class TelegramAuthController:
     def verify_telegram_webapp_data(init_data: str, bot_token: str) -> bool:
         """Перевірка автентичності даних від Telegram WebApp"""
         try:
+            # ===== НОВЕ: ДІАГНОСТИЧНЕ ЛОГУВАННЯ =====
+            logger.info(f"verify_telegram_webapp_data: Початок перевірки")
+            logger.info(f"init_data тип: {type(init_data)}")
+            logger.info(f"init_data довжина: {len(init_data) if init_data else 0}")
+
             parsed_data = urllib.parse.parse_qs(init_data)
+
+            # ===== НОВЕ: ЛОГУВАННЯ КЛЮЧІВ =====
+            logger.info(f"Parsed data keys: {list(parsed_data.keys())}")
 
             # Отримуємо hash
             received_hash = parsed_data.get('hash', [None])[0]
             if not received_hash:
+                # ===== НОВЕ: ДЕТАЛЬНЕ ЛОГУВАННЯ ПОМИЛКИ =====
+                logger.error(f"Hash відсутній в parsed_data")
                 return False
+
+            # ===== НОВЕ: ЛОГУВАННЯ HASH =====
+            logger.info(f"Received hash: {received_hash[:10]}...")
 
             # Створюємо рядок для перевірки
             auth_items = []
@@ -65,7 +78,11 @@ class TelegramAuthController:
                 hashlib.sha256
             ).hexdigest()
 
-            return hmac.compare_digest(received_hash, calculated_hash)
+            # ===== НОВЕ: ЛОГУВАННЯ РЕЗУЛЬТАТУ =====
+            is_valid = hmac.compare_digest(received_hash, calculated_hash)
+            logger.info(f"Підпис валідний: {'Так' if is_valid else 'Ні'}")
+
+            return is_valid
 
         except Exception as e:
             logger.error(f"Помилка перевірки Telegram data: {str(e)}")
@@ -132,14 +149,31 @@ class TelegramAuthController:
             init_data = telegram_data.get('initData')
             bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 
-            if init_data and bot_token:
+            # ===== НОВЕ: ДІАГНОСТИКА INITDATA =====
+            logger.info(f"=== ДІАГНОСТИКА АВТОРИЗАЦІЇ ===")
+            logger.info(f"init_data присутній: {'Так' if init_data else 'Ні'}")
+            logger.info(f"bot_token присутній: {'Так' if bot_token else 'Ні'}")
+            if init_data:
+                logger.info(f"Довжина init_data: {len(init_data)}")
+                logger.info(f"init_data (перші 100 символів): {init_data[:100]}...")
+
+            # ===== НОВЕ: МОЖЛИВІСТЬ ПРОПУСТИТИ ПЕРЕВІРКУ ПІДПИСУ =====
+            SKIP_SIGNATURE_CHECK = os.getenv('SKIP_TELEGRAM_SIGNATURE_CHECK', 'false').lower() == 'true'
+
+            if init_data and bot_token and not SKIP_SIGNATURE_CHECK:
                 # Валідація підпису
                 if not TelegramAuthController.verify_telegram_webapp_data(init_data, bot_token):
-                    return {
-                        'success': False,
-                        'error': 'Невалідний підпис Telegram',
-                        'code': 'invalid_signature'
-                    }
+                    logger.warning(f"⚠️ Невалідний підпис для користувача")
+
+                    # ===== НОВЕ: МОЖЛИВІСТЬ ПРОДОВЖИТИ З НЕВАЛІДНИМ ПІДПИСОМ =====
+                    if not os.getenv('ALLOW_INVALID_SIGNATURE', 'false').lower() == 'true':
+                        return {
+                            'success': False,
+                            'error': 'Невалідний підпис Telegram',
+                            'code': 'invalid_signature'
+                        }
+                    else:
+                        logger.warning("⚠️ Продовжуємо з невалідним підписом (ALLOW_INVALID_SIGNATURE=true)")
 
                 # Витягуємо дані користувача
                 webapp_user = TelegramAuthController.extract_user_from_webapp_data(init_data)

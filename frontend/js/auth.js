@@ -315,6 +315,24 @@
                 telegram_id: telegramId
             };
 
+            // ===== НОВЕ: ДІАГНОСТИКА ТА ДОДАВАННЯ INITDATA =====
+            console.log('🔐 AUTH: Дані для авторизації:', {
+                hasInitData: !!userData.initData,
+                initDataLength: userData.initData ? userData.initData.length : 0,
+                telegramId: userData.telegram_id,
+                hasWebApp: !!window.Telegram.WebApp,
+                webAppInitData: window.Telegram?.WebApp?.initData ? 'Є' : 'Немає'
+            });
+
+            // Якщо є Telegram WebApp, додайте initData
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+                userData.initData = window.Telegram.WebApp.initData;
+                console.log('🔐 AUTH: initData додано з Telegram WebApp');
+                console.log('🔐 AUTH: initData довжина:', userData.initData.length);
+            } else {
+                console.warn('⚠️ AUTH: Telegram WebApp initData недоступний');
+            }
+
             // Показуємо індикатор завантаження
             const spinner = document.getElementById('loading-spinner');
             if (spinner) spinner.classList.add('show');
