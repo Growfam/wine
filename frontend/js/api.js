@@ -1120,6 +1120,19 @@ if (safeIncludes(endpoint, 'http')) {
         let response;
         let lastError = null; // ВИПРАВЛЕНО: ініціалізуємо змінну
 
+        if (endpoint.includes('wallet/')) {
+    const now = Date.now();
+    const lastWalletRequest = window._lastWalletRequestTime || 0;
+    const timeSince = now - lastWalletRequest;
+
+    if (timeSince < 2000) { // 2 секунди між запитами
+        const waitTime = 2000 - timeSince;
+        console.log(`⏳ API: Чекаємо ${waitTime}мс перед wallet запитом`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+
+    window._lastWalletRequestTime = Date.now();
+}
 
         if (url.includes('auth/telegram') || endpoint.includes('auth/telegram')) {
     console.log('🔍 API: === ДІАГНОСТИКА AUTH/TELEGRAM ЗАПИТУ ===');
