@@ -421,5 +421,27 @@ def validate_telegram_route(telegram_data):
         }
 
 
+def refresh_token_route(telegram_id=None):
+    """
+    Функція оновлення токену для сумісності з системою завдань
+    """
+    try:
+        result = TelegramAuthController.refresh_token(telegram_id)
+        return result
+    except Exception as e:
+        logger.error(f"Refresh token error: {str(e)}")
+        return {
+            'success': False,
+            'error': str(e),
+            'code': 'refresh_failed'
+        }
+
 # Оновити експорт
-__all__ = ['TelegramAuthController', 'AuthController', 'AuthError', 'require_auth', 'validate_telegram_route']
+__all__ = [
+    'TelegramAuthController',
+    'AuthController',
+    'AuthError',
+    'require_auth',
+    'validate_telegram_route',
+    'refresh_token_route'  # Додати це
+]

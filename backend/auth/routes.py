@@ -163,7 +163,6 @@ def authenticate_telegram():
 
 
 @auth_bp.route('/refresh', methods=['POST', 'GET'])
-@auth_bp.route('/refresh/', methods=['POST', 'GET'])  # Підтримка trailing slash
 def refresh_token():
     """
     Оновлення JWT токена
@@ -397,7 +396,6 @@ def logout():
 
 
 # Спеціальний endpoint для Telegram WebApp валідації (для сумісності)
-@auth_bp.route('/validate-telegram', methods=['POST', 'GET'])
 def validate_telegram_webapp():
     """
     Валідація Telegram WebApp даних (legacy endpoint)

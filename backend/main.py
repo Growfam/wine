@@ -651,9 +651,8 @@ def create_app(config_name=None):
     register_error_handlers(app)
 
     # Додаємо обробник OPTIONS запитів для CORS preflight
-    @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
     @app.route('/<path:path>', methods=['OPTIONS'])
-    def handle_options(path):
+    def handle_options(path=''):
         return '', 200
 
 
