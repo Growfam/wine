@@ -16,171 +16,53 @@ logger = logging.getLogger(__name__)
 auth_bp = Blueprint('main_auth', __name__, url_prefix='/api/auth')
 
 
-@auth_bp.route('/telegram', methods=['POST'])
+@auth_bp.route('/telegram', methods=['POST', 'OPTIONS'])
 def authenticate_telegram():
-    """
-    Основний endpoint авторизації через Telegram
+    """Основний endpoint авторизації через Telegram"""
 
-    POST /api/auth/telegram
-    Body: {
-        "initData": "...",  // Telegram WebApp data
-        "id": "123456",     // або telegram_id
-        "username": "...",
-        "first_name": "...",
-        "referrer_id": "..." // опціонально
-    }
-    """
-    # ДІАГНОСТИКА: Логуємо весь запит
-    logger.info("=" * 50)
-    logger.info("🔍 AUTH TELEGRAM REQUEST")
-    logger.info(f"Headers: {dict(request.headers)}")
-    logger.info(f"Method: {request.method}")
-    logger.info(f"Content-Type: {request.content_type}")
+    # Обробка OPTIONS для CORS
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    # КРИТИЧНЕ ЛОГУВАННЯ
+    logger.error("🚨🚨🚨 TELEGRAM AUTH REQUEST RECEIVED 🚨🚨🚨")
+    logger.error(f"Origin: {request.headers.get('Origin')}")
+    logger.error(f"Headers: {dict(request.headers)}")
 
     try:
         data = request.get_json() or {}
-        logger.info(f"Body keys: {list(data.keys())}")
-        logger.info(f"Has initData: {bool(data.get('initData'))}")
-        logger.info(f"Telegram ID: {data.get('telegram_id') or data.get('id')}")
+        logger.error(f"Body keys: {list(data.keys())}")
+        logger.error(f"Has initData: {bool(data.get('initData'))}")
 
-        # ===== ПОКРАЩЕНА ОБРОБКА TELEGRAM ID =====
-        # Пріоритет джерел telegram_id:
-        # 1. Заголовок X-Telegram-User-Id
-        # 2. Поле telegram_id в body
-        # 3. Поле id в body
+        # Отримуємо telegram_id
+        telegram_id = data.get('telegram_id') or data.get('id')
 
-        telegram_id = None
-
-        # 1. Перевіряємо заголовок
-        header_id = request.headers.get('X-Telegram-User-Id')
-        if header_id:
-            telegram_id = str(header_id).strip()
-            logger.info(f"Telegram ID з заголовка: {telegram_id}")
-
-        # 2. Перевіряємо telegram_id в body
-        if not telegram_id and data.get('telegram_id'):
-            telegram_id = str(data.get('telegram_id')).strip()
-            logger.info(f"Telegram ID з body (telegram_id): {telegram_id}")
-
-        # 3. Перевіряємо id в body
-        if not telegram_id and data.get('id'):
-            telegram_id = str(data.get('id')).strip()
-            logger.info(f"Telegram ID з body (id): {telegram_id}")
-
-        # Валідація telegram_id
-        if not telegram_id or telegram_id == 'None' or telegram_id == 'null':
-            logger.error(f"Невалідний telegram_id: {telegram_id}")
+        if not telegram_id:
+            logger.error("❌ NO TELEGRAM ID")
             return jsonify({
                 'status': 'error',
-                'message': 'Telegram ID не вказано або невалідний',
-                'code': 'missing_telegram_id'
+                'message': 'No telegram ID'
             }), 400
 
-        # Перевіряємо що це числовий ID
-        if not telegram_id.isdigit():
-            logger.error(f"Telegram ID не є числом: {telegram_id}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Telegram ID має бути числом',
-                'code': 'invalid_telegram_id_format'
-            }), 400
+        # ТИМЧАСОВО - ПРОСТО ПОВЕРТАЄМО УСПІХ
+        logger.error(f"✅ RETURNING SUCCESS FOR ID: {telegram_id}")
 
-        # Переконуємося що в data є обидва поля для сумісності
-        if not data.get('telegram_id') and data.get('id'):
-            data['telegram_id'] = data['id']
-
-        if not data.get('id') and data.get('telegram_id'):
-            data['id'] = data['telegram_id']
-
-        # Оновлюємо дані з нормалізованим telegram_id
-        data['telegram_id'] = telegram_id
-        data['id'] = telegram_id  # Для сумісності
-
-        # ===== НОВЕ: ТИМЧАСОВЕ РІШЕННЯ ДЛЯ ТЕСТУВАННЯ =====
-        ALLOW_AUTH_WITHOUT_INITDATA = os.getenv('ALLOW_AUTH_WITHOUT_INITDATA', 'false').lower() == 'true'
-
-        # Для продакшену ОБОВ'ЯЗКОВО перевіряємо initData
-        if not data.get('initData'):
-            logger.error(f"❌ Авторизація без initData заборонена для користувача {telegram_id}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Додаток доступний тільки через Telegram',
-                'code': 'missing_init_data'
-            }), 401
-
-        # Детальне логування для діагностики
-        logger.info(f"=== АВТОРИЗАЦІЯ TELEGRAM ===")
-        logger.info(f"Telegram ID: {telegram_id}")
-        logger.info(f"Username: {data.get('username', 'не вказано')}")
-        logger.info(f"First name: {data.get('first_name', 'не вказано')}")
-        logger.info(f"Has initData: {'так' if data.get('initData') else 'ні'}")
-        logger.info(f"Referrer ID: {data.get('referrer_id', 'немає')}")
-
-        # Викликаємо контролер авторизації
-        result = TelegramAuthController.authenticate_telegram_user(data)
-
-        if result.get('success'):
-            logger.info(f"✅ Успішна авторизація користувача {telegram_id}")
-
-            # Переконуємося що в відповіді є всі необхідні поля
-            response_data = {
-                'status': 'success',
-                'token': result.get('token'),
-                'expires_in': result.get('expires_in', 86400),  # 24 години за замовчуванням
-                'user': {
-                    'telegram_id': telegram_id,  # Завжди повертаємо telegram_id
-                    'id': result['user'].get('id'),  # UUID з БД якщо є
-                    'username': result['user'].get('username', ''),
-                    'balance': result['user'].get('balance', 0),
-                    'coins': result['user'].get('coins', 0),
-                    'level': result['user'].get('level', 1),
-                    'is_new_user': result['user'].get('is_new_user', False)
-                }
-            }
-
-            # Додаємо інші поля користувача якщо вони є
-            for key in ['first_name', 'last_name', 'language_code', 'referral_code']:
-                if key in result['user']:
-                    response_data['user'][key] = result['user'][key]
-
-            return jsonify(response_data), 200
-        else:
-            error_message = result.get('error', 'Помилка авторизації')
-            error_code = result.get('code', 'auth_failed')
-
-            logger.error(f"❌ Помилка авторизації для {telegram_id}: {error_message} ({error_code})")
-
-            return jsonify({
-                'status': 'error',
-                'message': error_message,
-                'code': error_code,
-                'telegram_id': telegram_id  # Для діагностики
-            }), 401
-
-    except ValueError as e:
-        logger.error(f"ValueError в authenticate_telegram: {str(e)}")
         return jsonify({
-            'status': 'error',
-            'message': 'Невірний формат даних',
-            'code': 'invalid_data_format'
-        }), 400
+            'status': 'success',
+            'token': 'test_token_' + str(telegram_id),
+            'user': {
+                'telegram_id': telegram_id,
+                'username': data.get('username', 'Test User'),
+                'balance': 100,
+                'coins': 50
+            }
+        }), 200
 
     except Exception as e:
-        logger.error(f"Критична помилка авторизації: {str(e)}", exc_info=True)
-
-        # Визначаємо чи ми в debug режимі
-        # Варіант 1: через змінну середовища
-        is_debug = os.getenv('FLASK_ENV') == 'development' or os.getenv('DEBUG', 'False').lower() == 'true'
-
-        # Варіант 2: через Flask current_app (якщо доступний)
-        # from flask import current_app
-        # is_debug = current_app.debug if current_app else False
-
+        logger.error(f"💥 CRITICAL ERROR: {str(e)}", exc_info=True)
         return jsonify({
             'status': 'error',
-            'message': 'Внутрішня помилка сервера',
-            'code': 'internal_error',
-            'details': str(e) if is_debug else None  # Деталі тільки в debug режимі
+            'message': str(e)
         }), 500
 
 

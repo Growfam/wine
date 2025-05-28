@@ -659,62 +659,17 @@ def create_app(config_name=None):
     # Додаємо after_request обробник для JS файлів і CORS заголовків
     @app.after_request
     def add_headers(response):
-        # Для POST запитів з query параметрами
-        if request.method == 'POST' and request.args:
-            # Явно вказуємо що це POST
-            response.headers['X-Original-Method'] = 'POST'
-
-        # Визначаємо дозволені origins
-        origin = request.headers.get('Origin')
-
-        # Список дозволених доменів
-        allowed_origins = [
-            'https://winixbot.com',
-            'https://web.telegram.org',
-            'http://localhost:8080',
-            'http://localhost:3000',
-            'http://127.0.0.1:8080'
-        ]
-
-        # Перевіряємо origin
-        if origin in allowed_origins:
-            response.headers['Access-Control-Allow-Origin'] = origin
-        else:
-            # Для розробки можна дозволити всі origins, але БЕЗ credentials
-            response.headers['Access-Control-Allow-Origin'] = '*'
-            # Видаляємо credentials для wildcard origin
-            response.headers.pop('Access-Control-Allow-Credentials', None)
-
-        # CORS заголовки
+        # ПРОСТИЙ CORS ДЛЯ ВСІХ
+        response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers[
-            'Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Telegram-User-Id'
-
-        # Credentials тільки для конкретних origins
-        if origin in allowed_origins:
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Telegram-User-Id'
         response.headers['Access-Control-Max-Age'] = '86400'
 
-        # Налаштування MIME типу для JS файлів
+        # Решта заголовків
         if request.path.endswith('.js'):
             response.headers['Content-Type'] = 'application/javascript'
 
-        # Налаштування заголовків безпеки
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-
-        # Content-Security-Policy для Telegram
-        response.headers[
-            'Content-Security-Policy'] = "frame-ancestors 'self' https://web.telegram.org https://telegram.org *"
-
-        # Налаштування кешування
-        if request.path.startswith('/api/'):
-            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-            response.headers['Pragma'] = 'no-cache'
-            response.headers['Expires'] = '0'
-        else:
-            response.headers['Cache-Control'] = 'public, max-age=3600'
 
         return response
 
@@ -723,31 +678,8 @@ def create_app(config_name=None):
 
 def setup_cors(app):
     """Налаштування CORS для API"""
-    # БЕЗПЕЧНА конфігурація для продакшену
-    CORS(app,
-         resources={
-             r"/api/*": {
-                 "origins": [
-                     "https://web.telegram.org",
-                     "https://winixbot.com",
-                     "https://www.winixbot.com"
-                 ],
-                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                 "allow_headers": [
-                     "Content-Type",
-                     "Authorization",
-                     "X-Telegram-User-Id",
-                     "Accept",
-                     "Origin",
-                     "Cache-Control",
-                     "X-Requested-With"
-                 ],
-                 "expose_headers": ["Content-Type", "X-CSRFToken", "Authorization"],
-                 "supports_credentials": True,
-                 "max_age": 3600  # Кешування preflight запитів на 1 годину
-             }
-         })
-    logger.info("✅ CORS налаштовано безпечно для продакшену")
+    CORS(app)
+    logger.info("✅ CORS налаштовано для всіх origins")
 
 def setup_request_handlers(app):
     """Налаштування обробників запитів для логування та локалізації"""
@@ -854,6 +786,15 @@ def setup_auth_middleware(app):
 
 def add_health_check(app):
     """Додає endpoint для перевірки стану API"""
+
+    @app.route('/api/health', methods=['GET', 'OPTIONS'])
+    def api_health_endpoint():
+        """Health check endpoint для фронтенду"""
+        return jsonify({
+            "status": "ok",
+            "message": "Server is running",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 200
 
     @app.route('/api/ping', methods=['GET', 'POST'])
     def api_ping():
