@@ -367,7 +367,7 @@ window.TasksIntegration = (function() {
             let response;
             if (window.WinixAPI && window.WinixAPI.apiRequest) {
                 console.log('🔄 [TASKS-INTEGRATION] Ping через WinixAPI...');
-                response = await window.WinixAPI.apiRequest('api/ping', 'GET', null, {
+                response = await window.WinixAPI.apiRequest('/api/ping', 'GET', null, {
                     suppressErrors: true,
                     timeout: 5000
                 });
@@ -472,22 +472,21 @@ window.TasksIntegration = (function() {
 
 
 // WalletChecker
+// В функції initializeManagers (рядок ~920)
+// WalletChecker повинен ініціалізуватися з userId
 if (window.WalletChecker) {
     console.log('  🔧 [TASKS-INTEGRATION] Ініціалізація WalletChecker...');
     console.log('  👤 [TASKS-INTEGRATION] Передаємо userId:', userId);
     try {
         this.managers.walletChecker = window.WalletChecker;
-        // ВАЖЛИВО: передаємо userId при ініціалізації
-        await this.managers.walletChecker.init(userId);
-        console.log('  ✅ [TASKS-INTEGRATION] WalletChecker ініціалізовано з userId:', userId);
+        await this.managers.walletChecker.init(userId); // Передаємо userId!
+        console.log('  ✅ [TASKS-INTEGRATION] WalletChecker ініціалізовано');
         successCount++;
     } catch (error) {
         console.warn('  ⚠️ [TASKS-INTEGRATION] Помилка WalletChecker:', error.message);
-        // Не вважаємо критичною помилкою - продовжуємо
         failureCount++;
     }
 }
-
         // FlexEarnManager
     if (window.FlexEarnManager) {
         console.log('  🔧 [TASKS-INTEGRATION] Ініціалізація FlexEarnManager...');

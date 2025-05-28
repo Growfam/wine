@@ -230,31 +230,25 @@ async function initializeTonConnect() {
     /**
      * Верифікація гаманця на бекенді
      */
-    async function verifyWalletOnBackend(wallet) {
+    // В функції verifyWalletOnBackend (рядок ~311)
+async function verifyWalletOnBackend(wallet) {
     console.log('🌐 [WalletChecker] === ВЕРИФІКАЦІЯ НА БЕКЕНДІ ===');
 
-    // ВАЖЛИВО: Отримуємо правильну адресу
     const address = wallet.account.address;
 
-// TON адреси можуть бути в різних форматах!
-if (!address) {
-    console.error('❌ [WalletChecker] Адреса гаманця відсутня');
-    throw new Error('Адреса гаманця відсутня');
-}
+    // Більш гнучка перевірка TON адрес
+    const isValidTonAddress =
+        (typeof address === 'string' && address.length > 0) &&
+        (address.startsWith('EQ') ||
+         address.startsWith('UQ') ||
+         address.startsWith('0:') ||
+         address.startsWith('-1:') ||
+         /^[0-9a-fA-F]{64}$/.test(address));
 
-// Перевіряємо різні формати TON адрес
-const isValidTonAddress =
-    address.startsWith('EQ') ||
-    address.startsWith('UQ') ||
-    address.startsWith('0:') ||
-    address.startsWith('-1:') ||
-    /^[0-9a-fA-F]{64}$/.test(address); // raw format
-
-if (!isValidTonAddress) {
-    console.error('❌ [WalletChecker] Невалідний формат адреси:', address);
-    throw new Error('Невалідний формат адреси TON гаманця');
-}
-
+    if (!isValidTonAddress) {
+        console.error('❌ [WalletChecker] Невалідний формат адреси:', address);
+        throw new Error('Невалідний формат адреси TON гаманця');
+    }
 console.log('✅ [WalletChecker] Адреса валідна:', address);
 
     const chain = wallet.account.chain || '-239';
