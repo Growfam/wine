@@ -414,50 +414,52 @@ window.TasksIntegration = (function() {
     /**
      * Встановлює обробники подій
      */
-    TasksIntegration.prototype.setupEventListeners = function() {
-        console.log('🎯 [TASKS-INTEGRATION] === setupEventListeners START ===');
+TasksIntegration.prototype.setupEventListeners = function() {
+    console.log('🎯 [TASKS-INTEGRATION] === setupEventListeners START ===');
 
-        var self = this;
+    var self = this;
 
-        // Обробники вкладок
-        var tabs = document.querySelectorAll('.main-tabs .tab-button');
-        console.log('📑 [TASKS-INTEGRATION] Знайдено вкладок:', tabs.length);
+    // Обробники вкладок
+    var tabs = document.querySelectorAll('.main-tabs .tab-button');
+    console.log('📑 [TASKS-INTEGRATION] Знайдено вкладок:', tabs.length);
 
-        tabs.forEach(function(tab) {
-            tab.addEventListener('click', function(e) {
-                e.preventDefault();
-                var tabName = tab.getAttribute('data-tab');
-                console.log('📑 [TASKS-INTEGRATION] Клік на вкладку:', tabName);
-                self.showTab(tabName);
-            });
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            var tabName = tab.getAttribute('data-tab');
+            console.log('📑 [TASKS-INTEGRATION] Клік на вкладку:', tabName);
+            self.showTab(tabName);
         });
+    });
 
-        // Глобальний обробник кліків (для динамічних елементів)
-        document.addEventListener('click', function(event) {
-            // Обробка кнопок завдань
-            if (event.target.classList.contains('task-action-button')) {
-                var taskId = event.target.getAttribute('data-task-id');
-                var action = event.target.getAttribute('data-action');
-                console.log('📋 [TASKS-INTEGRATION] Дія завдання:', action, 'ID:', taskId);
-                self.handleTaskAction(taskId, action);
-            }
+    // Глобальний обробник кліків (для динамічних елементів)
+    document.addEventListener('click', function(event) {
+        // Обробка кнопок завдань
+        if (event.target.classList.contains('task-action-button')) {
+            var taskId = event.target.getAttribute('data-task-id');
+            var action = event.target.getAttribute('data-action');
+            console.log('📋 [TASKS-INTEGRATION] Дія завдання:', action, 'ID:', taskId);
+            self.handleTaskAction(taskId, action);
+        }
 
-            // Обробка підключення гаманця
-            if (event.target.id === 'connect-wallet-button') {
-                console.log('👛 [TASKS-INTEGRATION] Клік на підключення гаманця');
-                self.handleWalletConnect();
-            }
+        // ВИПРАВЛЕННЯ: Обробка підключення гаманця по класу
+        if (event.target.classList.contains('connect-wallet-redirect')) {
+            event.preventDefault();
+            event.stopPropagation();
+            console.log('👛 [TASKS-INTEGRATION] Клік на підключення гаманця');
+            self.handleWalletConnect();
+        }
 
-            // Обробка claim бонусів
-            if (event.target.classList.contains('claim-bonus-button')) {
-                var bonusType = event.target.getAttribute('data-bonus-type');
-                console.log('🎁 [TASKS-INTEGRATION] Claim бонус:', bonusType);
-                self.handleClaimBonus(bonusType);
-            }
-        });
+        // Обробка claim бонусів
+        if (event.target.classList.contains('claim-bonus-button')) {
+            var bonusType = event.target.getAttribute('data-bonus-type');
+            console.log('🎁 [TASKS-INTEGRATION] Claim бонус:', bonusType);
+            self.handleClaimBonus(bonusType);
+        }
+    });
 
-        console.log('✅ [TASKS-INTEGRATION] === setupEventListeners COMPLETE ===');
-    };
+    console.log('✅ [TASKS-INTEGRATION] === setupEventListeners COMPLETE ===');
+};
 
     /**
      * Показує вкладку
