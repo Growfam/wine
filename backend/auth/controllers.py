@@ -167,8 +167,7 @@ class TelegramAuthController:
                 logger.info(f"init_data (перші 100 символів): {init_data[:100]}...")
 
             # ===== НОВЕ: МОЖЛИВІСТЬ ПРОПУСТИТИ ПЕРЕВІРКУ ПІДПИСУ =====
-            SKIP_SIGNATURE_CHECK = True  # ТИМЧАСОВО для тестування
-            logger.warning("⚠️ УВАГА: Перевірка підпису ВИМКНЕНА для тестування!")
+            SKIP_SIGNATURE_CHECK = os.getenv('SKIP_TELEGRAM_SIGNATURE_CHECK', 'false').lower() == 'true'
 
             if init_data and bot_token and not SKIP_SIGNATURE_CHECK:
                 # Валідація підпису
