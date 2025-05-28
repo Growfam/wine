@@ -1178,162 +1178,178 @@ if (safeIncludes(endpoint, 'http')) {
             requestOptions.signal = controller.signal;
 
             // Виконуємо запит
-            const fetchResponse = await fetch(url, requestOptions);
+           const fetchResponse = await fetch(url, requestOptions);
 
-            // Очищаємо таймаут
-            clearTimeout(timeoutId);
+// Очищаємо таймаут
+clearTimeout(timeoutId);
 
-            // ДІАГНОСТИКА: Логуємо відповідь
+// ДІАГНОСТИКА: Логуємо відповідь
 console.log(`🔍 API Response: ${fetchResponse.status} ${fetchResponse.statusText} for ${url}`);
 console.log(`🔍 Response headers:`, fetchResponse.headers);
 
-// Спробуємо отримати текст помилки
-if (!fetchResponse.ok) {
-    const errorText = await fetchResponse.text();
-    console.error(`❌ API Error response body: ${errorText}`);
+// Читаємо тіло відповіді ОДИН РАЗ
+let responseBody;
+let responseText = '';
 
-    // Спеціальна обробка для помилок авторизації
-    if (safeIncludes(url, 'auth/telegram')) {
-        console.error(`❌ AUTH endpoint error: ${response.status}`);
-        throw new Error(`Помилка авторизації: ${response.status} - ${errorText || response.statusText}`);
+// Спочатку читаємо response body
+try {
+    responseText = await fetchResponse.text();
+
+    // Логуємо помилку якщо статус не ok
+    if (!fetchResponse.ok) {
+        console.error(`❌ API Error response body:`, responseText);
+    }
+} catch (readError) {
+    console.error('❌ API: Помилка читання response body:', readError);
+    responseText = '';
+}
+
+// Приховуємо індикатор завантаження
+if (!options.hideLoader && typeof window.hideLoading === 'function') {
+    window.hideLoading();
+}
+
+// Спеціальна обробка для помилок авторизації
+if (!fetchResponse.ok && safeIncludes(url, 'auth/telegram')) {
+    console.error(`❌ AUTH endpoint error: ${fetchResponse.status}`);
+    throw new Error(`Помилка авторизації: ${fetchResponse.status} - ${responseText || fetchResponse.statusText}`);
+}
+
+// Обробка спеціальних статус-кодів
+if (fetchResponse.status === 429) {
+    // Too Many Requests - отримуємо час очікування з заголовка
+    const retryAfter = fetchResponse.headers.get('Retry-After') || 30; // секунд
+
+    // Викликаємо функцію блокування ендпоінту
+    const endpointKey = Object.keys(REQUEST_THROTTLE).find(key => safeIncludes(endpoint, key)) || 'default';
+    handleRateLimiting(endpointKey, parseInt(retryAfter));
+
+    throw new Error(`Занадто багато запитів. Спробуйте через ${retryAfter} секунд.`);
+}
+
+// Спеціальна обробка для 401 (Unauthorized) - спроба оновити токен
+if (fetchResponse.status === 401) {
+    console.warn("🔌 API: Помилка авторизації. Спроба оновлення токену...");
+
+    // Якщо залишились спроби, спробуємо оновити токен і повторити запит
+    if (retries > 0) {
+        try {
+            await refreshToken();
+
+            // Повторюємо запит з оновленим токеном
+            return apiRequest(endpoint, method, data, options, retries - 1);
+        } catch (tokenError) {
+            console.error("🔌 API: Не вдалося оновити токен:", tokenError);
+            clearAuthToken(); // Очищаємо недійсний токен
+        }
     }
 }
 
-            // Приховуємо індикатор завантаження
-            if (!options.hideLoader && typeof window.hideLoading === 'function') {
-                window.hideLoading();
+// Обробка 500+ помилок
+if (fetchResponse.status >= 500) {
+    _connectionState.isConnected = false;
+    _apiState.isHealthy = false;
+    _apiState.consecutiveFailures++;
+
+    // Показуємо banner про недоступність сервера
+    if (_apiState.consecutiveFailures >= _apiState.maxFailures) {
+        showServerUnavailableMessage();
+    }
+
+    throw new Error(`Сервер тимчасово недоступний (${fetchResponse.status}). Спробуйте пізніше.`);
+}
+
+// Покращена обробка 404 помилок
+if (fetchResponse.status === 404) {
+    // Спеціальна обробка для щоденних бонусів
+    if (safeIncludes(url, 'daily-bonus')) {
+        console.warn(`⚠️ API: Ендпоінт щоденного бонусу недоступний: ${url}`);
+
+        // Повертаємо помилку без fallback даних
+        return Promise.reject({
+            status: "error",
+            message: "Щоденні бонуси тимчасово недоступні",
+            httpStatus: 404,
+            endpoint: endpoint
+        });
+    }
+
+    // Спеціальна обробка для API ping
+    if (safeIncludes(url, '/api/ping')) {
+        console.warn(`⚠️ API: Ping ендпоінт недоступний: ${url}`);
+        return {
+            status: "error",
+            message: "API ping недоступний",
+            source: "ping_404"
+        };
+    }
+
+    // Спеціальна обробка для розіграшів
+    if (safeIncludes(url, 'raffles')) {
+        // Очищуємо кеш розіграшів, якщо такий є
+        if (window.WinixRaffles && window.WinixRaffles.participation) {
+            window.WinixRaffles.participation.clearInvalidRaffleIds();
+        }
+
+        // Витягуємо ідентифікатор розіграшу з URL
+        const raffleIdMatch = url.match(/raffles\/([^/?]+)/i);
+        if (raffleIdMatch && raffleIdMatch[1]) {
+            const raffleId = raffleIdMatch[1];
+
+            // Додаємо до списку невалідних
+            if (window.WinixRaffles && window.WinixRaffles.participation) {
+                window.WinixRaffles.participation.addInvalidRaffleId(raffleId);
             }
+        }
 
-            // Обробка спеціальних статус-кодів
-            if (fetchResponse.status === 429) {
-                // Too Many Requests - отримуємо час очікування з заголовка
-                const retryAfter = fetchResponse.headers.get('Retry-After') || 30; // секунд
+        // Показуємо користувачу більш інформативне повідомлення
+        if (typeof window.showToast === 'function') {
+            window.showToast('Розіграш не знайдено або вже завершено. Оновіть список розіграшів.', 'warning');
+        }
 
-                // Викликаємо функцію блокування ендпоінту
-                const endpointKey = Object.keys(REQUEST_THROTTLE).find(key => safeIncludes(endpoint, key)) || 'default';
-                handleRateLimiting(endpointKey, parseInt(retryAfter));
+        return Promise.reject({
+            status: 'error',
+            message: "Розіграш не знайдено. ID може бути застарілим.",
+            code: 'raffle_not_found',
+            httpStatus: 404
+        });
+    }
 
-                throw new Error(`Занадто багато запитів. Спробуйте через ${retryAfter} секунд.`);
-            }
+    // Загальна обробка 404 помилок
+    console.warn(`⚠️ API: Ресурс не знайдено: ${url}`);
+    return Promise.reject({
+        status: "error",
+        message: "Ресурс не знайдено",
+        httpStatus: 404,
+        endpoint: endpoint
+    });
+}
 
-            // Спеціальна обробка для 401 (Unauthorized) - спроба оновити токен
-            if (fetchResponse.status === 401) {
-                console.warn("🔌 API: Помилка авторизації. Спроба оновлення токену...");
+// Перевірка HTTP статусу
+if (!fetchResponse.ok) {
+    // Використовуємо вже прочитаний responseText
+    let errorMessage;
+    let errorData = {};
 
-                // Якщо залишились спроби, спробуємо оновити токен і повторити запит
-                if (retries > 0) {
-                    try {
-                        await refreshToken();
+    try {
+        const errorJson = JSON.parse(responseText);
+        errorMessage = errorJson.message || `Помилка серверу: ${fetchResponse.status}`;
+        errorData = errorJson;
+    } catch (e) {
+        errorMessage = responseText || `Помилка серверу: ${fetchResponse.status}`;
+    }
 
-                        // Повторюємо запит з оновленим токеном
-                        return apiRequest(endpoint, method, data, options, retries - 1);
-                    } catch (tokenError) {
-                        console.error("🔌 API: Не вдалося оновити токен:", tokenError);
-                        clearAuthToken(); // Очищаємо недійсний токен
-                    }
-                }
-            }
+    throw new Error(errorMessage);
+}
 
-            // Обробка 500+ помилок
-            if (fetchResponse.status >= 500) {
-                _connectionState.isConnected = false;
-                _apiState.isHealthy = false;
-                _apiState.consecutiveFailures++;
-
-                // Показуємо banner про недоступність сервера
-                if (_apiState.consecutiveFailures >= _apiState.maxFailures) {
-                    showServerUnavailableMessage();
-                }
-
-                throw new Error(`Сервер тимчасово недоступний (${fetchResponse.status}). Спробуйте пізніше.`);
-            }
-
-            // ВИПРАВЛЕНО: Покращена обробка 404 помилок
-            if (fetchResponse.status === 404) {
-                // Спеціальна обробка для щоденних бонусів
-                if (safeIncludes(url, 'daily-bonus')) {
-                    console.warn(`⚠️ API: Ендпоінт щоденного бонусу недоступний: ${url}`);
-
-                    // Повертаємо помилку без fallback даних
-                    return Promise.reject({
-                        status: "error",
-                        message: "Щоденні бонуси тимчасово недоступні",
-                        httpStatus: 404,
-                        endpoint: endpoint
-                    });
-                }
-
-                // Спеціальна обробка для API ping
-                if (safeIncludes(url, '/api/ping')) {
-                    console.warn(`⚠️ API: Ping ендпоінт недоступний: ${url}`);
-                    return {
-                        status: "error",
-                        message: "API ping недоступний",
-                        source: "ping_404"
-                    };
-                }
-
-                // Спеціальна обробка для розіграшів
-                if (safeIncludes(url, 'raffles')) {
-                    // Очищуємо кеш розіграшів, якщо такий є
-                    if (window.WinixRaffles && window.WinixRaffles.participation) {
-                        window.WinixRaffles.participation.clearInvalidRaffleIds();
-                    }
-
-                    // Витягуємо ідентифікатор розіграшу з URL
-                    const raffleIdMatch = url.match(/raffles\/([^/?]+)/i);
-                    if (raffleIdMatch && raffleIdMatch[1]) {
-                        const raffleId = raffleIdMatch[1];
-
-                        // Додаємо до списку невалідних
-                        if (window.WinixRaffles && window.WinixRaffles.participation) {
-                            window.WinixRaffles.participation.addInvalidRaffleId(raffleId);
-                        }
-                    }
-
-                    // Показуємо користувачу більш інформативне повідомлення
-                    if (typeof window.showToast === 'function') {
-                        window.showToast('Розіграш не знайдено або вже завершено. Оновіть список розіграшів.', 'warning');
-                    }
-
-                    return Promise.reject({
-                        status: 'error',
-                        message: "Розіграш не знайдено. ID може бути застарілим.",
-                        code: 'raffle_not_found',
-                        httpStatus: 404
-                    });
-                }
-
-                // Загальна обробка 404 помилок
-                console.warn(`⚠️ API: Ресурс не знайдено: ${url}`);
-                return Promise.reject({
-                    status: "error",
-                    message: "Ресурс не знайдено",
-                    httpStatus: 404,
-                    endpoint: endpoint
-                });
-            }
-
-            // Перевірка HTTP статусу
-            if (!fetchResponse.ok) {
-                // Додаємо більше інформації про помилку
-                const errorResponse = await fetchResponse.text();
-                let errorMessage;
-                let errorData = {};
-
-                try {
-                    const errorJson = JSON.parse(errorResponse);
-                    errorMessage = errorJson.message || `Помилка серверу: ${fetchResponse.status}`;
-                    errorData = errorJson;
-                } catch (e) {
-                    errorMessage = `Помилка серверу: ${fetchResponse.status}`;
-                }
-
-                throw new Error(errorMessage);
-            }
-
-            // Парсимо відповідь
-            response = await fetchResponse.json();
+// Парсимо успішну відповідь
+try {
+    response = responseText ? JSON.parse(responseText) : {};
+} catch (parseError) {
+    console.error('❌ API: Помилка парсингу JSON:', parseError);
+    console.error('📄 API: Response text:', responseText);
+    throw new Error('Помилка парсингу відповіді сервера');
+}
 
             // Скидаємо лічильник помилок для даного ендпоінту
             if (_connectionState.failedAttempts > 0) {
