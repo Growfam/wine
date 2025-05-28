@@ -1204,13 +1204,31 @@ def register_utility_routes(app):
             'auth/validate-telegram', 'user/profile', 'daily/status', 'flex/', 'tasks/', 'auth/refresh-token'
         ])]
 
+        # Знайти дублікати endpoints
+        seen_endpoints = {}
+        duplicates = []
+        for rule in app.url_map.iter_rules():
+            endpoint = rule.endpoint
+            if endpoint in seen_endpoints:
+                duplicates.append({
+                    'endpoint': endpoint,
+                    'rule1': str(seen_endpoints[endpoint]),
+                    'rule2': str(rule)
+                })
+            else:
+                seen_endpoints[endpoint] = rule
+
+        if duplicates:
+            logger.warning(f"🔴 Знайдено дублікати endpoints: {duplicates}")
+
         return jsonify({
             "total_routes": len(routes),
             "api_routes_count": len(api_routes),
             "critical_routes_count": len(critical_routes),
             "critical_routes": critical_routes[:10],  # Показуємо перші 10
             "all_api_routes": api_routes,
-            "sample_routes": routes[:20]  # Загальна вибірка
+            "sample_routes": routes[:20],  # Загальна вибірка
+            "duplicate_endpoints": duplicates
         })
 
     @app.route('/debug/quests-routes')
