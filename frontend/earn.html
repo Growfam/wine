@@ -257,24 +257,22 @@
                 <div class="main-tab-pane active" id="flex-tab">
                     <!-- Статус кошелька -->
                     <div class="wallet-status-container">
-                        <div class="wallet-status-card">
-                            <div class="wallet-icon">
-                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </div>
-                            <div class="wallet-info">
-                                <p class="wallet-status" id="wallet-connection-status">Кошелек не підключено</p>
-                                <p class="wallet-hint">Підключіть TON кошелек для доступу до Flex завдань</p>
-                            </div>
-<button class="connect-wallet-redirect"
-        onclick="if(window.WalletChecker) window.WalletChecker.connectWallet();
-                 else if(window.tonConnectUI) window.tonConnectUI.connectWallet();
-                 else alert('Система ще завантажується, спробуйте через кілька секунд');">
-    Підключити кошелек
-</button>
+                       <div class="wallet-status-card">
+    <div class="wallet-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </div>
+    <div class="wallet-info">
+        <p class="wallet-status" id="wallet-connection-status">Кошелек не підключено</p>
+        <p class="wallet-hint">Підключіть TON кошелек для доступу до Flex завдань</p>
+    </div>
+    <button class="connect-wallet-redirect" id="connect-wallet-btn">
+        Підключити кошелек
+    </button>
+</div>
                         </div>
-                    </div>
+
 
                     <!-- TON Connect кнопка (буде додана динамічно) -->
                     <div id="ton-connect-button" style="display: none;"></div>
@@ -883,6 +881,274 @@
             console.log('✅ Новий обробник додано');
         }
     });
+</script>
+<script>
+/**
+ * Глобальна система підключення гаманця з автоматичною ініціалізацією
+ */
+(function() {
+    'use strict';
+
+    console.log('🚀 [WalletConnectSystem] Ініціалізація системи підключення гаманця');
+
+    // Стан системи
+    const state = {
+        isInitializing: false,
+        isInitialized: false,
+        initAttempts: 0,
+        maxInitAttempts: 5
+    };
+
+    /**
+     * Ініціалізація WalletChecker з retry логікою
+     */
+    async function initializeWalletChecker() {
+        if (state.isInitializing || state.isInitialized) {
+            console.log('⏸️ [WalletConnectSystem] Ініціалізація вже виконується або завершена');
+            return state.isInitialized;
+        }
+
+        state.isInitializing = true;
+        state.initAttempts++;
+
+        console.log(`🔄 [WalletConnectSystem] Спроба ініціалізації ${state.initAttempts}/${state.maxInitAttempts}`);
+
+        try {
+            // Перевіряємо наявність WalletChecker
+            if (!window.WalletChecker) {
+                throw new Error('WalletChecker не завантажено');
+            }
+
+            // Перевіряємо чи вже ініціалізовано
+            if (window.WalletChecker.getStatus && window.WalletChecker.getStatus().initialized) {
+                console.log('✅ [WalletConnectSystem] WalletChecker вже ініціалізовано');
+                state.isInitialized = true;
+                state.isInitializing = false;
+                return true;
+            }
+
+            // Отримуємо userId
+            const userId = await getUserId();
+            if (!userId) {
+                throw new Error('Не вдалося отримати userId');
+            }
+
+            console.log('👤 [WalletConnectSystem] Ініціалізація з userId:', userId);
+
+            // Ініціалізуємо WalletChecker
+            await window.WalletChecker.init(userId);
+
+            state.isInitialized = true;
+            console.log('✅ [WalletConnectSystem] WalletChecker успішно ініціалізовано');
+            return true;
+
+        } catch (error) {
+            console.error('❌ [WalletConnectSystem] Помилка ініціалізації:', error);
+
+            if (state.initAttempts < state.maxInitAttempts) {
+                const delay = state.initAttempts * 1000; // Збільшуємо затримку з кожною спробою
+                console.log(`⏳ [WalletConnectSystem] Повторна спроба через ${delay}мс`);
+
+                setTimeout(() => {
+                    state.isInitializing = false;
+                    initializeWalletChecker();
+                }, delay);
+            } else {
+                console.error('❌ [WalletConnectSystem] Вичерпано всі спроби ініціалізації');
+                alert('Помилка ініціалізації системи гаманця. Оновіть сторінку.');
+            }
+
+            return false;
+        } finally {
+            state.isInitializing = false;
+        }
+    }
+
+    /**
+     * Отримання userId з різних джерел
+     */
+    async function getUserId() {
+        // Спробуємо різні джерела
+        const sources = [
+            () => window.TasksStore?.selectors?.getUserId?.(),
+            () => window.WinixAPI?.getUserId?.(),
+            () => window.TasksIntegrationInstance?.userId,
+            () => localStorage.getItem('telegram_user_id'),
+            () => localStorage.getItem('user_id'),
+            () => window.Telegram?.WebApp?.initDataUnsafe?.user?.id
+        ];
+
+        for (const source of sources) {
+            try {
+                const id = source();
+                if (id && id !== 'undefined' && id !== 'null') {
+                    return parseInt(id);
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+
+        // Якщо нічого не знайдено, чекаємо на ініціалізацію системи
+        console.log('⏳ [WalletConnectSystem] UserId не знайдено, чекаємо на систему...');
+
+        return new Promise((resolve) => {
+            let attempts = 0;
+            const checkInterval = setInterval(() => {
+                attempts++;
+
+                for (const source of sources) {
+                    try {
+                        const id = source();
+                        if (id && id !== 'undefined' && id !== 'null') {
+                            clearInterval(checkInterval);
+                            resolve(parseInt(id));
+                            return;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+
+                if (attempts > 20) { // 10 секунд
+                    clearInterval(checkInterval);
+                    resolve(null);
+                }
+            }, 500);
+        });
+    }
+
+    /**
+     * Підключення гаманця з перевірками
+     */
+    async function connectWallet() {
+        console.log('🔌 [WalletConnectSystem] Запит на підключення гаманця');
+
+        try {
+            // Спочатку переконуємось що система ініціалізована
+            if (!state.isInitialized) {
+                console.log('🔄 [WalletConnectSystem] Система не ініціалізована, запускаємо ініціалізацію');
+
+                const button = document.getElementById('connect-wallet-btn');
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = 'Ініціалізація...';
+                }
+
+                const initialized = await initializeWalletChecker();
+
+                if (!initialized) {
+                    throw new Error('Не вдалося ініціалізувати систему');
+                }
+
+                // Даємо додатковий час на завершення всіх процесів
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            // Перевіряємо стан WalletChecker
+            const status = window.WalletChecker?.getStatus?.();
+            console.log('📊 [WalletConnectSystem] Статус WalletChecker:', status);
+
+            if (!status?.initialized) {
+                throw new Error('WalletChecker не готовий');
+            }
+
+            // Викликаємо підключення
+            await window.WalletChecker.connectWallet();
+
+        } catch (error) {
+            console.error('❌ [WalletConnectSystem] Помилка підключення:', error);
+
+            // Fallback на прямий виклик tonConnectUI
+            if (window.tonConnectUI && window.tonConnectUI.connectWallet) {
+                console.log('🔄 [WalletConnectSystem] Використовуємо tonConnectUI напряму');
+                try {
+                    await window.tonConnectUI.connectWallet();
+                } catch (fallbackError) {
+                    console.error('❌ [WalletConnectSystem] Помилка fallback:', fallbackError);
+                    alert('Не вдалося відкрити вікно підключення гаманця. Спробуйте пізніше.');
+                }
+            } else {
+                alert('Система підключення гаманця ще завантажується. Спробуйте через кілька секунд.');
+            }
+        } finally {
+            // Відновлюємо кнопку
+            const button = document.getElementById('connect-wallet-btn');
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Підключити кошелек';
+            }
+        }
+    }
+
+    /**
+     * Обробник кліку на кнопку
+     */
+    function handleConnectClick(event) {
+        event.preventDefault();
+        connectWallet();
+    }
+
+    /**
+     * Налаштування обробників подій
+     */
+    function setupEventHandlers() {
+        // Знаходимо кнопку
+        const button = document.getElementById('connect-wallet-btn');
+        if (button) {
+            // Видаляємо всі попередні обробники
+            button.removeEventListener('click', handleConnectClick);
+            // Додаємо новий
+            button.addEventListener('click', handleConnectClick);
+            console.log('✅ [WalletConnectSystem] Обробник кнопки встановлено');
+        }
+
+        // Також додаємо обробник через делегування як backup
+        document.addEventListener('click', function(e) {
+            if (e.target.id === 'connect-wallet-btn' || e.target.classList.contains('connect-wallet-redirect')) {
+                if (e.target !== button) { // Уникаємо подвійного виклику
+                    e.preventDefault();
+                    connectWallet();
+                }
+            }
+        });
+    }
+
+    /**
+     * Автоматична ініціалізація при завантаженні
+     */
+    function autoInit() {
+        console.log('🤖 [WalletConnectSystem] Автоматична ініціалізація');
+
+        // Налаштовуємо обробники
+        setupEventHandlers();
+
+        // Запускаємо ініціалізацію в фоні
+        setTimeout(() => {
+            initializeWalletChecker().then(success => {
+                if (success) {
+                    console.log('✅ [WalletConnectSystem] Система готова до роботи');
+                }
+            });
+        }, 1000);
+    }
+
+    // Робимо функцію доступною глобально
+    window.connectWalletSafe = connectWallet;
+
+    // Запускаємо автоматичну ініціалізацію
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', autoInit);
+    } else {
+        autoInit();
+    }
+
+    // Додатково запускаємо після повного завантаження
+    window.addEventListener('load', function() {
+        setTimeout(autoInit, 100);
+    });
+
+})();
 </script>
 </body>
 </html>
