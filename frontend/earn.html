@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WINIX - Система завдань</title>
-<script src="js/winix-init-guard.js"></script>
+
     <!-- Критичні залежності -->
     <script src="./js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
@@ -652,7 +652,6 @@
     </div>
 
     <!-- Завантаження скриптів у правильному порядку -->
-
     <script src="./js/api-init.js"></script>
     <script src="./js/api.js"></script>
     <script src="./js/auth.js"></script>
@@ -803,19 +802,5 @@
             closeVerificationPopup();
         }
     </script>
-<!-- КРИТИЧНО: Ініціалізація User ID одразу -->
-<script>
-// Глобальні змінні для блокування передчасних запитів
-window._WINIX_USER_ID = null;
-window._WINIX_SYSTEM_READY = false;
-
-// Негайне отримання User ID
-(function() {
-    if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
-        window._WINIX_USER_ID = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-        console.log("✅ User ID встановлено одразу:", window._WINIX_USER_ID);
-    }
-})();
-</script>
 </body>
 </html>

@@ -234,14 +234,8 @@
      * Ініціалізація системи авторизації
      * @returns {Promise<Object>} Об'єкт з даними користувача
      */
-   async function init() {
+    async function init() {
     console.log("🔐 AUTH: Запуск ініціалізації");
-
-    // КРИТИЧНО: Чекаємо готовності системи
-    if (!window._WINIX_READY) {
-        console.log("⏳ AUTH: Чекаємо готовності системи...");
-        await window.WinixInit.waitForReady();
-    }
 
     const now = Date.now();
     if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL) {
@@ -255,12 +249,19 @@
     _lastRequestTime = now;
 
     // Перевіряємо Telegram ID
-    const telegramId = window._WINIX_USER_ID || getTelegramUserId();
-
-    if (!telegramId || telegramId === 'undefined') {
+    const telegramId = getTelegramUserId();
+    if (!telegramId) {
         blockAccess();
-        return Promise.reject(new Error('No valid Telegram ID'));
+        return Promise.reject(new Error('No Telegram ID'));
     }
+
+    // Перевіряємо наявність API модуля
+    if (!hasApiModule()) {
+        console.error("⚠️ AUTH: API модуль недоступний");
+        showError(getLocalizedText('authError'));
+        return Promise.reject(new Error('API module not available'));
+    }
+
  try {
     // Готуємо дані для авторизації
     const authData = {
