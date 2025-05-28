@@ -1173,6 +1173,22 @@ if (safeIncludes(endpoint, 'http')) {
             // Очищаємо таймаут
             clearTimeout(timeoutId);
 
+            // ДІАГНОСТИКА: Логуємо відповідь
+console.log(`🔍 API Response: ${response.status} ${response.statusText} for ${url}`);
+console.log(`🔍 Response headers:`, response.headers);
+
+// Спробуємо отримати текст помилки
+if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`❌ API Error response body: ${errorText}`);
+
+    // Спеціальна обробка для помилок авторизації
+    if (safeIncludes(url, 'auth/telegram')) {
+        console.error(`❌ AUTH endpoint error: ${response.status}`);
+        throw new Error(`Помилка авторизації: ${response.status} - ${errorText || response.statusText}`);
+    }
+}
+
             // Приховуємо індикатор завантаження
             if (!options.hideLoader && typeof window.hideLoading === 'function') {
                 window.hideLoading();

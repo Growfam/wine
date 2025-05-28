@@ -723,15 +723,31 @@ def create_app(config_name=None):
 
 def setup_cors(app):
     """Налаштування CORS для API"""
-    # Оновлена конфігурація CORS для кращої сумісності з реферальною системою
+    # БЕЗПЕЧНА конфігурація для продакшену
     CORS(app,
-         resources={r"/*": {"origins": "*"}},
-         supports_credentials=True,
-         expose_headers=["Content-Type", "X-CSRFToken", "Authorization"],
-         allow_headers=["Content-Type", "X-Requested-With", "Authorization",
-                        "X-Telegram-User-Id", "Accept", "Origin", "Cache-Control"])
-    logger.info("✅ CORS налаштовано")
-
+         resources={
+             r"/api/*": {
+                 "origins": [
+                     "https://web.telegram.org",
+                     "https://winixbot.com",
+                     "https://www.winixbot.com"
+                 ],
+                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                 "allow_headers": [
+                     "Content-Type",
+                     "Authorization",
+                     "X-Telegram-User-Id",
+                     "Accept",
+                     "Origin",
+                     "Cache-Control",
+                     "X-Requested-With"
+                 ],
+                 "expose_headers": ["Content-Type", "X-CSRFToken", "Authorization"],
+                 "supports_credentials": True,
+                 "max_age": 3600  # Кешування preflight запитів на 1 годину
+             }
+         })
+    logger.info("✅ CORS налаштовано безпечно для продакшену")
 
 def setup_request_handlers(app):
     """Налаштування обробників запитів для логування та локалізації"""
@@ -838,6 +854,15 @@ def setup_auth_middleware(app):
 
 def add_health_check(app):
     """Додає endpoint для перевірки стану API"""
+
+    @app.route('/api/ping', methods=['GET', 'POST'])
+    def api_ping():
+        """Простий ping endpoint для швидкої перевірки"""
+        return jsonify({
+            "status": "ok",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "message": "API is running"
+        })
 
     @app.route('/api/health', methods=['GET'])
     def health_check():
