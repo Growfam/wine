@@ -231,72 +231,86 @@ async function initializeTonConnect() {
      * Верифікація гаманця на бекенді
      */
     async function verifyWalletOnBackend(wallet) {
-        console.log('🌐 [WalletChecker] === ВЕРИФІКАЦІЯ НА БЕКЕНДІ ===');
+    console.log('🌐 [WalletChecker] === ВЕРИФІКАЦІЯ НА БЕКЕНДІ ===');
 
-        const address = wallet.account.address;
-        const chain = wallet.account.chain || '-239'; // -239 для mainnet
-        const publicKey = wallet.account.publicKey;
+    // ВАЖЛИВО: Отримуємо правильну адресу
+    const address = wallet.account.address;
 
-        console.log('📊 [WalletChecker] Дані для верифікації:', {
-            address,
-            chain,
-            provider: wallet.device.appName
-        });
+    // Перевіряємо що це валідна TON адреса
+    if (!address || (!address.startsWith('EQ') && !address.startsWith('UQ'))) {
+        console.error('❌ [WalletChecker] Невалідна адреса гаманця:', address);
+        throw new Error('Невалідна адреса TON гаманця');
+    }
 
-        try {
-            // Перевіряємо статус на бекенді
-            const statusResponse = await window.TasksAPI.wallet.checkStatus(state.userId);
+    const chain = wallet.account.chain || '-239';
+    const publicKey = wallet.account.publicKey;
 
-            if (statusResponse.connected && statusResponse.address === address) {
-                console.log('✅ [WalletChecker] Гаманець вже зареєстрований');
+    console.log('📊 [WalletChecker] Дані для верифікації:', {
+        userId: state.userId,
+        address: address,  // <-- ЦЕ МАЄ БУТИ TON АДРЕСА!
+        chain: chain,
+        provider: wallet.device.appName
+    });
 
-                // Оновлюємо стан в сторі
-                updateWalletState(wallet, statusResponse);
+    try {
+        // Спочатку перевіряємо статус
+        const statusResponse = await window.TasksAPI.wallet.checkStatus(state.userId);
 
-                // Перевіряємо баланс FLEX
-                await checkFlexBalance(address);
+        if (statusResponse.connected && statusResponse.address === address) {
+            console.log('✅ [WalletChecker] Гаманець вже зареєстрований');
+            updateWalletState(wallet, statusResponse);
+            await checkFlexBalance(address);
+            return;
+        }
 
-                return;
-            }
+        // Реєструємо гаманець - userId в URL, адреса в body
+        console.log('🔄 [WalletChecker] Реєстрація гаманця на сервері...');
 
-            // Якщо гаманець не зареєстрований або інший - реєструємо
-            console.log('🔄 [WalletChecker] Реєстрація гаманця на сервері...');
-
-            const connectResponse = await window.TasksAPI.wallet.connect(state.userId, {
-                address: address,
+        const connectResponse = await window.TasksAPI.wallet.connect(
+            state.userId,  // userId для URL
+            {
+                address: address,  // TON адреса в body!
                 chain: chain,
                 publicKey: publicKey,
                 provider: wallet.device.appName,
                 timestamp: Date.now()
-            });
+            }
+        );
 
-            console.log('✅ [WalletChecker] Відповідь від сервера:', connectResponse);
+        console.log('✅ [WalletChecker] Відповідь від сервера:', connectResponse);
 
-            if (connectResponse.success) {
-                // Оновлюємо стан
-                updateWalletState(wallet, connectResponse);
+        if (connectResponse.success) {
+            updateWalletState(wallet, connectResponse);
 
-                // Якщо це перше підключення - показуємо бонус
-                if (connectResponse.firstConnection) {
-                    console.log('🎁 [WalletChecker] Перше підключення! Бонус нарахований');
-                    showFirstConnectionBonus(connectResponse.bonus);
-                }
-
-                // Перевіряємо баланс FLEX
-                await checkFlexBalance(address);
-            } else {
-                throw new Error(connectResponse.message || 'Failed to connect wallet');
+            if (connectResponse.firstConnection) {
+                console.log('🎁 [WalletChecker] Перше підключення! Бонус нарахований');
+                showFirstConnectionBonus(connectResponse.bonus);
             }
 
-        } catch (error) {
-            console.error('❌ [WalletChecker] Помилка верифікації на бекенді:', error);
+            await checkFlexBalance(address);
+        } else {
+            throw new Error(connectResponse.message || 'Failed to connect wallet');
+        }
+
+    } catch (error) {
+        console.error('❌ [WalletChecker] Помилка верифікації на бекенді:', error);
+
+        // Якщо помилка про невалідну адресу - показуємо детальніше
+        if (error.message.includes('Невалідна адреса')) {
+            window.TasksUtils?.showToast(
+                'Невалідна адреса TON гаманця. Переконайтесь що гаманець підключений правильно.',
+                'error'
+            );
+        } else {
             window.TasksUtils?.showToast(
                 error.message || 'Помилка підключення гаманця',
                 'error'
             );
-            throw error;
         }
+
+        throw error;
     }
+}
 
     /**
      * Оновити стан гаманця в Store

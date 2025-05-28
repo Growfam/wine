@@ -394,23 +394,35 @@ validateTelegram: async (initData) => {
             });
         },
 
-        connect: async (userId, walletData) => {
-            console.log('🔌 [TasksAPI] Підключення гаманця:', userId);
+connect: async (userId, walletData) => {
+    console.log('🔌 [TasksAPI] Підключення гаманця:', userId);
+    console.log('📦 [TasksAPI] Дані гаманця:', walletData);
 
-            if (!userId) {
-                throw new APIError('User ID не вказано', 400);
-            }
+    if (!userId) {
+        throw new APIError('User ID не вказано', 400);
+    }
 
-            if (!walletData || !walletData.address) {
-                throw new APIError('Дані гаманця невірні', 400);
-            }
+    if (!walletData || !walletData.address) {
+        throw new APIError('Адреса гаманця не вказана', 400);
+    }
 
-            return apiCall(`wallet/connect/${userId}`, {
-                method: 'POST',
-                body: walletData
-            });
-        },
+    // ВАЖЛИВО: Перевіряємо що адреса це справді TON адреса
+    if (!walletData.address.startsWith('EQ') && !walletData.address.startsWith('UQ')) {
+        throw new APIError('Невалідна адреса TON гаманця', 400);
+    }
 
+    // userId в URL, адреса в body
+    return apiCall(`wallet/connect/${userId}`, {
+        method: 'POST',
+        body: {
+            address: walletData.address,  // ОСЬ ЦЕ БЛЯТЬ ВАЖЛИВО!
+            chain: walletData.chain || '-239',
+            publicKey: walletData.publicKey,
+            provider: walletData.provider,
+            timestamp: Date.now()
+        }
+    });
+},
         disconnect: async (userId) => {
             console.log('🔌 [TasksAPI] Відключення гаманця:', userId);
 
