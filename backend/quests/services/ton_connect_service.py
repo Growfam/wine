@@ -21,7 +21,7 @@ TON_API_KEY = os.getenv('TON_API_KEY', '')
 TON_TESTNET_API_URL = os.getenv('TON_TESTNET_API_URL', 'https://testnet.toncenter.com/api/v2')
 
 # Конфігурація FLEX токенів
-FLEX_CONTRACT_ADDRESS = os.getenv('FLEX_CONTRACT_ADDRESS', 'EQD-cvR0Nz6XAyRBpDeWFVyaIrVrQlm7Q_1nglcuSvJhYk4h')
+FLEX_CONTRACT_ADDRESS = os.getenv('FLEX_CONTRACT_ADDRESS', 'EQDhUF0N3vntW2LJCensf58-fDOSqTAzWBZqa2_E8Jq8ukU3')
 FLEX_DECIMALS = int(os.getenv('FLEX_DECIMALS', '9'))
 
 # Конфігурація кешування
@@ -233,25 +233,163 @@ class TONConnectService:
             raise
 
     async def _get_flex_balance(self, address: str) -> int:
-        """Отримання балансу FLEX токенів"""
+        """Отримання балансу FLEX токенів з блокчейну"""
         try:
-            # Для спрощення поки що повертаємо симульований баланс
-            # В реальній реалізації тут буде запит до смарт-контракту FLEX
+            logger.info(f"🔍 Отримання реального балансу FLEX для {address}")
 
-            # Симулюємо запит до контракту
-            await asyncio.sleep(0.1)  # Імітація мережевого запиту
+            # Перевіряємо чи маємо адресу контракту FLEX
+            if not self.flex_token.contract_address:
+                logger.error("FLEX контракт не налаштовано")
+                return 0
 
-            # Тимчасова логіка: генеруємо баланс на основі адреси
-            import hashlib
-            address_hash = hashlib.md5(address.encode()).hexdigest()
-            balance = int(address_hash[:8], 16) % 1_000_000  # 0-1M FLEX
+            # Спочатку отримуємо адресу jetton wallet для користувача
+            jetton_wallet_address = await self._get_jetton_wallet_address(
+                jetton_master=self.flex_token.contract_address,
+                owner_address=address
+            )
 
-            logger.debug(f"🔥 FLEX баланс для {address}: {balance:,}")
+            if not jetton_wallet_address:
+                logger.warning(f"Jetton wallet не знайдено для {address}")
+                return 0
+
+            # Тепер отримуємо баланс з jetton wallet
+            balance = await self._get_jetton_balance(jetton_wallet_address)
+
+            logger.info(f"✅ FLEX баланс для {address}: {balance:,}")
             return balance
 
         except Exception as e:
             logger.error(f"❌ Помилка отримання FLEX балансу: {str(e)}")
-            raise
+            return 0
+
+    async def _get_jetton_wallet_address(self, jetton_master: str, owner_address: str) -> Optional[str]:
+        """Отримання адреси jetton wallet для власника"""
+        try:
+            url = f"{self.base_url}/runGetMethod"
+
+            # Параметри для виклику get_wallet_address
+            params = {
+                "address": jetton_master,
+                "method": "get_wallet_address",
+                "stack": [
+                    {
+                        "type": "slice",
+                        "value": owner_address
+                    }
+                ]
+            }
+
+            if self.api_key:
+                params["api_key"] = self.api_key
+
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT)) as session:
+                async with session.post(url, json=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+
+                        if data.get('ok') and data.get('result'):
+                            # Отримуємо адресу з результату
+                            stack = data['result'].get('stack', [])
+                            if stack and len(stack) > 0:
+                                # Адреса в форматі slice
+                                jetton_wallet = stack[0].get('value')
+                                if jetton_wallet:
+                                    logger.debug(f"Знайдено jetton wallet: {jetton_wallet}")
+                                    return jetton_wallet
+
+                        logger.warning(f"Невірна відповідь від API: {data}")
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"API помилка {response.status}: {error_text}")
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Помилка отримання jetton wallet: {str(e)}")
+            return None
+
+    async def _get_jetton_balance(self, jetton_wallet_address: str) -> int:
+        """Отримання балансу з jetton wallet"""
+        try:
+            url = f"{self.base_url}/runGetMethod"
+
+            # Параметри для виклику get_wallet_data
+            params = {
+                "address": jetton_wallet_address,
+                "method": "get_wallet_data",
+                "stack": []
+            }
+
+            if self.api_key:
+                params["api_key"] = self.api_key
+
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT)) as session:
+                async with session.post(url, json=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+
+                        if data.get('ok') and data.get('result'):
+                            stack = data['result'].get('stack', [])
+                            # get_wallet_data повертає: balance, owner, jetton_master, jetton_wallet_code
+                            if stack and len(stack) >= 1:
+                                # Баланс - перший елемент
+                                balance_str = stack[0].get('value', '0')
+
+                                try:
+                                    # Конвертуємо з рядка в число
+                                    raw_balance = int(balance_str)
+
+                                    # FLEX має 9 decimals, але ми хочемо ціле число
+                                    # Тому ділимо на 10^9 щоб отримати цілі FLEX
+                                    balance = raw_balance // (10 ** self.flex_token.decimals)
+
+                                    logger.debug(f"Raw FLEX balance: {raw_balance}, converted: {balance}")
+                                    return balance
+
+                                except (ValueError, TypeError) as e:
+                                    logger.error(f"Помилка конвертації балансу: {balance_str}, {e}")
+                                    return 0
+
+                        logger.warning(f"Невірна відповідь від API: {data}")
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"API помилка {response.status}: {error_text}")
+
+            return 0
+
+        except Exception as e:
+            logger.error(f"Помилка отримання балансу з wallet: {str(e)}")
+            return 0
+
+    async def _call_get_method(self, address: str, method: str, stack: list = None) -> Optional[Dict[str, Any]]:
+        """Універсальний метод для виклику get методів смарт-контрактів"""
+        try:
+            url = f"{self.base_url}/runGetMethod"
+
+            params = {
+                "address": address,
+                "method": method,
+                "stack": stack or []
+            }
+
+            if self.api_key:
+                params["api_key"] = self.api_key
+
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT)) as session:
+                async with session.post(url, json=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get('ok'):
+                            return data.get('result')
+
+                    error_text = await response.text()
+                    logger.error(f"API помилка при виклику {method}: {error_text}")
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Помилка виклику get методу {method}: {str(e)}")
+            return None
 
     def get_wallet_balance_sync(self, address: str, force_refresh: bool = False) -> Optional[TONBalance]:
         """
