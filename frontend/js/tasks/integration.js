@@ -1,6 +1,7 @@
 /**
  * Головний інтеграційний модуль для системи завдань WINIX
  * Використовує підхід реферальної системи - простий і надійний
+ * ВИПРАВЛЕНА ВЕРСІЯ з динамічним завантаженням балансу
  */
 window.TasksIntegration = (function() {
     'use strict';
@@ -317,7 +318,7 @@ window.TasksIntegration = (function() {
     };
 
     /**
-     * Завантажує початкові дані
+     * Завантажує початкові дані - ВИПРАВЛЕНА ВЕРСІЯ
      */
     TasksIntegration.prototype.loadInitialData = function() {
         var self = this;
@@ -326,17 +327,107 @@ window.TasksIntegration = (function() {
         // Завантажуємо дані паралельно
         var promises = [];
 
+        // Профіль користувача
+        if (window.TasksAPI && window.TasksAPI.user && window.TasksAPI.user.getProfile) {
+            promises.push(
+                window.TasksAPI.user.getProfile(this.userId)
+                    .then(function(response) {
+                        console.log('👤 [TASKS-INTEGRATION] Профіль отримано:', response);
+
+                        if (response.status === 'success' && response.data) {
+                            // Оновлюємо баланс з профілю якщо є
+                            if (response.data.balance) {
+                                self.updateBalanceDisplay(response.data.balance);
+
+                                if (window.TasksStore) {
+                                    window.TasksStore.actions.updateBalance(response.data.balance);
+                                }
+                            }
+
+                            // Оновлюємо дані користувача
+                            if (window.TasksStore && response.data.user) {
+                                window.TasksStore.actions.setUser(response.data.user);
+                            }
+                        } else if (response.data) {
+                            // Якщо структура відповіді інша
+                            if (response.data.winix !== undefined || response.data.tickets !== undefined) {
+                                self.updateBalanceDisplay(response.data);
+
+                                if (window.TasksStore) {
+                                    window.TasksStore.actions.updateBalance(response.data);
+                                }
+                            }
+                        }
+
+                        return response;
+                    })
+                    .catch(function(error) {
+                        console.error('❌ [TASKS-INTEGRATION] Помилка отримання профілю:', error);
+                        return null;
+                    })
+            );
+        }
+
         // Баланс користувача
         if (window.TasksAPI && window.TasksAPI.user && window.TasksAPI.user.getBalance) {
             promises.push(
                 window.TasksAPI.user.getBalance(this.userId)
-                    .then(function(balance) {
-                        console.log('💰 [TASKS-INTEGRATION] Баланс отримано:', balance);
-                        self.updateBalanceDisplay(balance);
-                        return balance;
+                    .then(function(response) {
+                        console.log('💰 [TASKS-INTEGRATION] Баланс отримано:', response);
+
+                        // Перевіряємо різні формати відповіді
+                        if (response.status === 'success' && response.balance) {
+                            self.updateBalanceDisplay(response.balance);
+
+                            // Оновлюємо в Store
+                            if (window.TasksStore) {
+                                window.TasksStore.actions.updateBalance(response.balance);
+                            }
+                        } else if (response.status === 'success' && response.data && response.data.balance) {
+                            self.updateBalanceDisplay(response.data.balance);
+
+                            // Оновлюємо в Store
+                            if (window.TasksStore) {
+                                window.TasksStore.actions.updateBalance(response.data.balance);
+                            }
+                        } else if (response.data && response.data.balance) {
+                            self.updateBalanceDisplay(response.data.balance);
+
+                            // Оновлюємо в Store
+                            if (window.TasksStore) {
+                                window.TasksStore.actions.updateBalance(response.data.balance);
+                            }
+                        } else if (response.winix !== undefined || response.tickets !== undefined) {
+                            // Якщо відповідь вже містить баланс напряму
+                            self.updateBalanceDisplay(response);
+
+                            // Оновлюємо в Store
+                            if (window.TasksStore) {
+                                window.TasksStore.actions.updateBalance(response);
+                            }
+                        } else if (response.balance) {
+                            // Ще один варіант структури
+                            self.updateBalanceDisplay(response.balance);
+
+                            // Оновлюємо в Store
+                            if (window.TasksStore) {
+                                window.TasksStore.actions.updateBalance(response.balance);
+                            }
+                        }
+
+                        return response;
                     })
                     .catch(function(error) {
                         console.error('❌ [TASKS-INTEGRATION] Помилка отримання балансу:', error);
+
+                        // Встановлюємо дефолтні значення
+                        const defaultBalance = { winix: 0, tickets: 0 };
+                        self.updateBalanceDisplay(defaultBalance);
+
+                        if (window.TasksStore) {
+                            window.TasksStore.actions.updateBalance(defaultBalance);
+                        }
+
                         return null;
                     })
             );
@@ -346,9 +437,20 @@ window.TasksIntegration = (function() {
         if (window.TasksAPI && window.TasksAPI.wallet && window.TasksAPI.wallet.checkStatus) {
             promises.push(
                 window.TasksAPI.wallet.checkStatus(this.userId)
-                    .then(function(status) {
-                        console.log('👛 [TASKS-INTEGRATION] Статус гаманця:', status);
-                        return status;
+                    .then(function(response) {
+                        console.log('👛 [TASKS-INTEGRATION] Статус гаманця:', response);
+
+                        // Якщо гаманець підключений і є FLEX баланс
+                        if (response.status === 'success' && response.data) {
+                            if (response.data.balance && response.data.balance.flex !== undefined) {
+                                // Оновлюємо FLEX баланс в Store
+                                if (window.TasksStore) {
+                                    window.TasksStore.actions.setFlexBalance(response.data.balance.flex);
+                                }
+                            }
+                        }
+
+                        return response;
                     })
                     .catch(function(error) {
                         console.error('❌ [TASKS-INTEGRATION] Помилка перевірки гаманця:', error);
@@ -361,9 +463,9 @@ window.TasksIntegration = (function() {
         if (window.TasksAPI && window.TasksAPI.tasks && window.TasksAPI.tasks.getList) {
             promises.push(
                 window.TasksAPI.tasks.getList(this.userId, 'all')
-                    .then(function(tasks) {
-                        console.log('📋 [TASKS-INTEGRATION] Завдання отримано:', tasks);
-                        return tasks;
+                    .then(function(response) {
+                        console.log('📋 [TASKS-INTEGRATION] Завдання отримано:', response);
+                        return response;
                     })
                     .catch(function(error) {
                         console.error('❌ [TASKS-INTEGRATION] Помилка отримання завдань:', error);
@@ -372,11 +474,50 @@ window.TasksIntegration = (function() {
             );
         }
 
+        // Запускаємо періодичне оновлення балансу
+        this.startBalanceUpdates();
+
         return Promise.all(promises)
             .then(function(results) {
                 console.log('✅ [TASKS-INTEGRATION] Початкові дані завантажено');
+                console.log('📊 [TASKS-INTEGRATION] Результати:', results);
                 return results;
             });
+    };
+
+    /**
+     * Запуск періодичного оновлення балансу
+     */
+    TasksIntegration.prototype.startBalanceUpdates = function() {
+        var self = this;
+        console.log('⏰ [TASKS-INTEGRATION] Запуск періодичного оновлення балансу');
+
+        // Оновлюємо баланс кожні 30 секунд
+        setInterval(function() {
+            if (self.userId && window.TasksAPI && window.TasksAPI.user && window.TasksAPI.user.getBalance) {
+                window.TasksAPI.user.getBalance(self.userId)
+                    .then(function(response) {
+                        console.log('🔄 [TASKS-INTEGRATION] Періодичне оновлення балансу:', response);
+
+                        if (response.status === 'success' && response.balance) {
+                            self.updateBalanceDisplay(response.balance);
+
+                            if (window.TasksStore) {
+                                window.TasksStore.actions.updateBalance(response.balance);
+                            }
+                        } else if (response.winix !== undefined || response.tickets !== undefined) {
+                            self.updateBalanceDisplay(response);
+
+                            if (window.TasksStore) {
+                                window.TasksStore.actions.updateBalance(response);
+                            }
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('❌ [TASKS-INTEGRATION] Помилка періодичного оновлення:', error);
+                    });
+            }
+        }, 30000); // 30 секунд
     };
 
     /**
@@ -384,28 +525,56 @@ window.TasksIntegration = (function() {
      */
     TasksIntegration.prototype.updateBalanceDisplay = function(balance) {
         console.log('💰 [TASKS-INTEGRATION] === updateBalanceDisplay START ===');
+        console.log('📊 [TASKS-INTEGRATION] Отриманий баланс:', balance);
 
         if (!balance) return;
 
         // Оновлюємо WINIX
         var winixElement = document.getElementById('user-winix');
         if (winixElement && balance.winix !== undefined) {
-            winixElement.textContent = balance.winix;
-            console.log('💎 [TASKS-INTEGRATION] WINIX оновлено:', balance.winix);
+            var winixValue = parseInt(balance.winix) || 0;
+            winixElement.textContent = winixValue.toLocaleString();
+
+            // Додаємо анімацію якщо значення змінилось
+            if (winixElement.textContent !== winixValue.toString()) {
+                winixElement.classList.add('updating');
+                setTimeout(function() {
+                    winixElement.classList.remove('updating');
+                }, 800);
+            }
+
+            console.log('💎 [TASKS-INTEGRATION] WINIX оновлено:', winixValue);
         }
 
         // Оновлюємо Tickets
         var ticketsElement = document.getElementById('user-tickets');
         if (ticketsElement && balance.tickets !== undefined) {
-            ticketsElement.textContent = balance.tickets;
-            console.log('🎟️ [TASKS-INTEGRATION] Tickets оновлено:', balance.tickets);
+            var ticketsValue = parseInt(balance.tickets) || 0;
+            ticketsElement.textContent = ticketsValue.toLocaleString();
+
+            // Додаємо анімацію якщо значення змінилось
+            if (ticketsElement.textContent !== ticketsValue.toString()) {
+                ticketsElement.classList.add('updating');
+                setTimeout(function() {
+                    ticketsElement.classList.remove('updating');
+                }, 800);
+            }
+
+            console.log('🎟️ [TASKS-INTEGRATION] Tickets оновлено:', ticketsValue);
         }
 
-        // Оновлюємо FLEX
+        // Оновлюємо FLEX якщо є
         var flexElement = document.getElementById('user-flex');
         if (flexElement && balance.flex !== undefined) {
-            flexElement.textContent = balance.flex;
-            console.log('💎 [TASKS-INTEGRATION] FLEX оновлено:', balance.flex);
+            var flexValue = parseInt(balance.flex) || 0;
+            flexElement.textContent = flexValue.toLocaleString();
+            console.log('💎 [TASKS-INTEGRATION] FLEX оновлено:', flexValue);
+        }
+
+        // Оновлюємо FLEX баланс в статусі гаманця
+        var walletFlexElement = document.getElementById('wallet-flex-balance');
+        if (walletFlexElement && balance.flex !== undefined) {
+            walletFlexElement.textContent = parseInt(balance.flex).toLocaleString() || '0';
         }
 
         console.log('✅ [TASKS-INTEGRATION] === updateBalanceDisplay COMPLETE ===');
@@ -414,52 +583,71 @@ window.TasksIntegration = (function() {
     /**
      * Встановлює обробники подій
      */
-TasksIntegration.prototype.setupEventListeners = function() {
-    console.log('🎯 [TASKS-INTEGRATION] === setupEventListeners START ===');
+    TasksIntegration.prototype.setupEventListeners = function() {
+        console.log('🎯 [TASKS-INTEGRATION] === setupEventListeners START ===');
 
-    var self = this;
+        var self = this;
 
-    // Обробники вкладок
-    var tabs = document.querySelectorAll('.main-tabs .tab-button');
-    console.log('📑 [TASKS-INTEGRATION] Знайдено вкладок:', tabs.length);
+        // Обробники вкладок
+        var tabs = document.querySelectorAll('.main-tabs .tab-button');
+        console.log('📑 [TASKS-INTEGRATION] Знайдено вкладок:', tabs.length);
 
-    tabs.forEach(function(tab) {
-        tab.addEventListener('click', function(e) {
-            e.preventDefault();
-            var tabName = tab.getAttribute('data-tab');
-            console.log('📑 [TASKS-INTEGRATION] Клік на вкладку:', tabName);
-            self.showTab(tabName);
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                var tabName = tab.getAttribute('data-tab');
+                console.log('📑 [TASKS-INTEGRATION] Клік на вкладку:', tabName);
+                self.showTab(tabName);
+            });
         });
-    });
 
-    // Глобальний обробник кліків (для динамічних елементів)
-    document.addEventListener('click', function(event) {
-        // Обробка кнопок завдань
-        if (event.target.classList.contains('task-action-button')) {
-            var taskId = event.target.getAttribute('data-task-id');
-            var action = event.target.getAttribute('data-action');
-            console.log('📋 [TASKS-INTEGRATION] Дія завдання:', action, 'ID:', taskId);
-            self.handleTaskAction(taskId, action);
-        }
+        // Глобальний обробник кліків (для динамічних елементів)
+        document.addEventListener('click', function(event) {
+            // Обробка кнопок завдань
+            if (event.target.classList.contains('task-action-button')) {
+                var taskId = event.target.getAttribute('data-task-id');
+                var action = event.target.getAttribute('data-action');
+                console.log('📋 [TASKS-INTEGRATION] Дія завдання:', action, 'ID:', taskId);
+                self.handleTaskAction(taskId, action);
+            }
 
-        // ВИПРАВЛЕННЯ: Обробка підключення гаманця по класу
-        if (event.target.classList.contains('connect-wallet-redirect')) {
-            event.preventDefault();
-            event.stopPropagation();
-            console.log('👛 [TASKS-INTEGRATION] Клік на підключення гаманця');
-            self.handleWalletConnect();
-        }
+            // ВИПРАВЛЕННЯ: Обробка підключення гаманця по класу
+            if (event.target.classList.contains('connect-wallet-redirect')) {
+                event.preventDefault();
+                event.stopPropagation();
+                console.log('👛 [TASKS-INTEGRATION] Клік на підключення гаманця');
+                self.handleWalletConnect();
+            }
 
-        // Обробка claim бонусів
-        if (event.target.classList.contains('claim-bonus-button')) {
-            var bonusType = event.target.getAttribute('data-bonus-type');
-            console.log('🎁 [TASKS-INTEGRATION] Claim бонус:', bonusType);
-            self.handleClaimBonus(bonusType);
-        }
-    });
+            // Обробка claim бонусів
+            if (event.target.classList.contains('claim-bonus-button')) {
+                var bonusType = event.target.getAttribute('data-bonus-type');
+                console.log('🎁 [TASKS-INTEGRATION] Claim бонус:', bonusType);
+                self.handleClaimBonus(bonusType);
+            }
+        });
 
-    console.log('✅ [TASKS-INTEGRATION] === setupEventListeners COMPLETE ===');
-};
+        // Підписуємось на події оновлення балансу
+        document.addEventListener('balance-updated', function(event) {
+            console.log('📈 [TASKS-INTEGRATION] Подія оновлення балансу:', event.detail);
+            if (event.detail && event.detail.balance) {
+                self.updateBalanceDisplay(event.detail.balance);
+            }
+        });
+
+        // Підписуємось на події завершення завдань
+        document.addEventListener('task-completed', function(event) {
+            console.log('✅ [TASKS-INTEGRATION] Завдання виконано:', event.detail);
+            if (event.detail && event.detail.reward) {
+                // Оновлюємо баланс після отримання винагороди
+                setTimeout(function() {
+                    self.loadInitialData();
+                }, 1000);
+            }
+        });
+
+        console.log('✅ [TASKS-INTEGRATION] === setupEventListeners COMPLETE ===');
+    };
 
     /**
      * Показує вкладку
