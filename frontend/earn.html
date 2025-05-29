@@ -1324,5 +1324,26 @@
 
         })();
     </script>
+<script>
+    // Ініціалізація системи завдань
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 [MAIN] Запуск ініціалізації системи завдань...');
+
+        // Даємо час на завантаження всіх модулів
+        setTimeout(function() {
+            if (window.initTasksSystem) {
+                window.initTasksSystem()
+                    .then(function(integration) {
+                        console.log('✅ [MAIN] Система завдань ініціалізована успішно');
+                    })
+                    .catch(function(error) {
+                        console.error('❌ [MAIN] Помилка ініціалізації системи завдань:', error);
+                    });
+            } else {
+                console.error('❌ [MAIN] window.initTasksSystem не знайдено');
+            }
+        }, 500);
+    });
+</script>
 </body>
 </html>
