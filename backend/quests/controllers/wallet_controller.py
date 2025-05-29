@@ -189,8 +189,13 @@ class WalletController:
                     "error_code": "MISSING_WALLET_DATA"
                 }, 400
 
-            # Отримуємо адресу - БЕЗ ВАЛІДАЦІЇ, довіряємо TON Connect
-            address = str(wallet_data.get('address', '')).strip()
+            # Отримуємо адресу в user-friendly форматі
+            if 'addressFriendly' in wallet_data and wallet_data['addressFriendly']:
+                address = wallet_data['addressFriendly']
+                logger.info(f"Використовуємо user-friendly адресу: {address}")
+            else:
+                address = wallet_data['address']
+                logger.warning(f"User-friendly адреса відсутня, використовуємо raw: {address}")
 
             if not address:
                 logger.error("Адреса гаманця відсутня в даних")
@@ -214,7 +219,7 @@ class WalletController:
                 'ipAddress': request.remote_addr if request else ''
             }
 
-            logger.debug(f"Санітизовані дані гаманця: {sanitized_data}")
+            logger.info(f"Отримані дані гаманця: {wallet_data}")
 
             # Підключаємо гаманець
             result = wallet_model.connect_wallet(telegram_id, sanitized_data)

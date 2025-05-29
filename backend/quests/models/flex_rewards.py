@@ -233,6 +233,10 @@ class FlexRewardsModel:
                     logger.warning(f"Адреса гаманця не знайдена для {telegram_id}")
                     return 0
 
+                logger.info(f"📍 Використовуємо адресу для API: {wallet_address}")
+                logger.info(
+                    f"📍 Формат адреси: {'user-friendly' if wallet_address.startswith('UQ') or wallet_address.startswith('EQ') else 'raw'}")
+
             # Імпортуємо TON Connect сервіс
             try:
                 from quests.services.ton_connect_service import ton_connect_service

@@ -210,6 +210,8 @@ class TONConnectService:
                 'address': address,
                 'api_key': self.api_key
             }
+            logger.info(f"💎 Запит балансу TON для адреси: {address}")
+            logger.debug(f"💎 API URL: {url}")
 
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT)) as session:
                 async with session.get(url, params=params) as response:
@@ -278,6 +280,7 @@ class TONConnectService:
                     }
                 ]
             }
+            logger.debug(f"📤 API запит: {params}")
 
             if self.api_key:
                 params["api_key"] = self.api_key
@@ -355,6 +358,11 @@ class TONConnectService:
                         error_text = await response.text()
                         logger.error(f"API помилка {response.status}: {error_text}")
 
+                        if response.status == 400:
+                            logger.error(f"❌ Можлива проблема з форматом адреси: {jetton_wallet_address}")
+                        elif response.status == 404:
+                            logger.error(f"❌ Jetton wallet не знайдено для адреси")
+
             return 0
 
         except Exception as e:
@@ -406,6 +414,17 @@ class TONConnectService:
             return None
 
         try:
+            logger.info(f"🔄 Синхронний запит балансу для: {address}")
+
+            # Перевірка формату адреси
+            if address.startswith('0:') or address.startswith('-1:'):
+                logger.warning(f"⚠️ Отримано raw адресу: {address}")
+                logger.warning("⚠️ TON API потребує user-friendly формат (UQ... або EQ...)")
+            elif address.startswith('UQ') or address.startswith('EQ'):
+                logger.info(f"✅ Використовується user-friendly адреса: {address}")
+            else:
+                logger.warning(f"❓ Невідомий формат адреси: {address}")
+
             # Безпечний запуск асинхронної функції
             try:
                 loop = asyncio.get_running_loop()
@@ -555,6 +574,18 @@ class TONConnectService:
             logger.error(f"❌ Помилка обробки транзакцій: {str(e)}")
 
         return processed
+
+    def is_user_friendly_address(self, address: str) -> bool:
+        """Перевірка чи адреса в user-friendly форматі"""
+        if not address:
+            return False
+        return address.startswith('UQ') or address.startswith('EQ')
+
+    def is_raw_address(self, address: str) -> bool:
+        """Перевірка чи адреса в raw форматі"""
+        if not address:
+            return False
+        return address.startswith('0:') or address.startswith('-1:')
 
     def validate_address(self, address: str) -> bool:
         """
