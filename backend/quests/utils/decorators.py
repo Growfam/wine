@@ -227,26 +227,29 @@ def validate_csrf_token(token: str, session_token: str) -> bool:
     return secrets.compare_digest(token, session_token)
 
 
-# === JWT ФУНКЦІЇ ===
-
 def generate_jwt_token(user_data: Dict[str, Any], expires_in: Optional[int] = None) -> str:
     """Генерація JWT токену з покращеною безпекою"""
     try:
         now = datetime.now(timezone.utc)
         exp_time = expires_in or JWT_EXPIRATION
 
+        # Отримуємо telegram_id
+        telegram_id = str(user_data.get('telegram_id', user_data.get('id')))
+
         payload = {
-            'user_id': str(user_data.get('telegram_id', user_data.get('id'))),
+            'telegram_id': telegram_id,  # ВАЖЛИВО: додайте це поле!
+            'user_id': telegram_id,  # для сумісності
             'username': user_data.get('username', ''),
             'first_name': user_data.get('first_name', ''),
             'last_name': user_data.get('last_name', ''),
             'exp': now + timedelta(seconds=exp_time),
             'iat': now,
             'nbf': now,
-            'jti': secrets.token_urlsafe(16),  # JWT ID
+            'jti': secrets.token_urlsafe(16),
             'iss': 'winix-api',
             'aud': 'winix-client',
             'scope': user_data.get('scope', 'user'),
+            'role': user_data.get('role', 'authenticated'),  # додайте роль
             'ip': get_real_ip()
         }
 
