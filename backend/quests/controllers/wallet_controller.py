@@ -153,7 +153,7 @@ class WalletController:
             }, 500
 
     @staticmethod
-    @secure_endpoint(max_requests=10, window_seconds=300)
+    @secure_endpoint(max_requests=30, window_seconds=300)
     def connect_wallet(telegram_id: str) -> Tuple[Dict[str, Any], int]:
         """
         Підключення TON гаманця з автоматичним бонусом через Transaction Service
