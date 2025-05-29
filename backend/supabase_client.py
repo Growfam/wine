@@ -22,6 +22,7 @@ from typing import Dict, Any, List, Optional, Callable, TypeVar, Union
 from contextlib import contextmanager
 from requests.exceptions import RequestException, Timeout, ConnectTimeout, ReadTimeout
 from supabase import create_client, Client
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Відключаємо попередження PyCharm для Supabase
@@ -34,8 +35,21 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Завантаження змінних середовища
-load_dotenv()
+current_file = Path(__file__).resolve()  # /Users/.../WINIX/backend/supabase_client.py
+backend_dir = current_file.parent         # /Users/.../WINIX/backend/
+project_root = backend_dir.parent         # /Users/.../WINIX/
+
+# Шлях до .env файлу
+env_path = project_root / '.env'
+
+# Завантажуємо .env з явно вказаним шляхом
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"✅ .env завантажено з: {env_path}")
+else:
+    print(f"❌ .env не знайдено в: {env_path}")
+    # Спробуємо стандартний спосіб
+    load_dotenv()
 
 # Дані підключення з .env
 SUPABASE_URL = os.getenv("SUPABASE_URL")
