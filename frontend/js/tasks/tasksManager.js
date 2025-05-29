@@ -126,8 +126,8 @@ window.TasksManager = (function() {
             console.log('[TasksManager] Отримано завдання:', response);
 
             // Обробляємо та зберігаємо завдання по типах
-            if (response.tasks) {
-                processTasks(response.tasks);
+            if (response.data && response.data.tasks) {
+            processTasks(response.data.tasks);
             }
 
             state.lastUpdate = Date.now();
@@ -152,55 +152,51 @@ window.TasksManager = (function() {
     /**
      * Обробити завдання
      */
-    function processTasks(tasksData) {
-        console.log('[TasksManager] Обробка завдань...');
 
-        // Розподіляємо завдання по типах
-        const tasksByType = {
-            social: [],
-            limited: [],
-            partner: []
-        };
+function processTasks(tasksData) {
+    console.log('[TasksManager] Обробка завдань:', tasksData);
 
-        // Обробляємо кожне завдання
-        Object.entries(tasksData).forEach(([taskId, task]) => {
-            // Додаємо ID до об'єкта завдання
-            task.id = taskId;
-
-            // Перевіряємо валідність завдання
-            const validation = window.TasksServices?.Validation?.validateTask(task);
-            if (validation && !validation.valid) {
-                console.error(`[TasksManager] Невалідне завдання ${taskId}:`, validation.errors);
-                return;
+    // API вже повертає завдання згруповані по типах
+    if (tasksData.social || tasksData.limited || tasksData.partner) {
+        // Просто зберігаємо кожен тип в Store
+        Object.entries(tasksData).forEach(([type, tasksList]) => {
+            // Конвертуємо масив завдань в об'єкт для Store
+            const tasksObject = {};
+            if (Array.isArray(tasksList)) {
+                tasksList.forEach(task => {
+                    tasksObject[task.id] = task;
+                });
             }
-
-            // Перевіряємо чи завдання вже виконано
-            if (window.TaskVerification?.isTaskCompleted(taskId)) {
-                task.status = window.TasksConstants.TASK_STATUS.COMPLETED;
-            }
-
-            // Розподіляємо по типах
-            const taskType = task.type || 'social';
-            if (tasksByType[taskType]) {
-                tasksByType[taskType].push(task);
-            }
-
-            console.log(`[TasksManager] Завдання ${taskId}:`, {
-                тип: taskType,
-                платформа: task.platform,
-                статус: task.status
-            });
-        });
-
-        // Зберігаємо в сторі
-        Object.entries(tasksByType).forEach(([type, tasks]) => {
-            window.TasksStore.actions.setTasks(type, tasks);
-            console.log(`[TasksManager] Збережено ${tasks.length} завдань типу ${type}`);
+            window.TasksStore.actions.setTasks(type, tasksObject);
+            console.log(`[TasksManager] Збережено ${Object.keys(tasksObject).length} завдань типу ${type}`);
         });
 
         // Оновлюємо UI
         updateTasksUI();
+        return;
     }
+
+    // Якщо дані в іншому форматі - використовуємо старий код
+    const tasksByType = {
+        social: {},
+        limited: {},
+        partner: {}
+    };
+
+    Object.entries(tasksData).forEach(([taskId, task]) => {
+        task.id = taskId;
+        const taskType = task.type || 'social';
+        if (tasksByType[taskType]) {
+            tasksByType[taskType][taskId] = task;
+        }
+    });
+
+    Object.entries(tasksByType).forEach(([type, tasks]) => {
+        window.TasksStore.actions.setTasks(type, tasks);
+    });
+
+    updateTasksUI();
+}
 
     /**
      * Оновити UI завдань
