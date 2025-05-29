@@ -204,7 +204,19 @@ class WalletModel:
                     'error_code': 'INVALID_WALLET_DATA'
                 }
 
-            address = wallet_data['address']
+            # Отримуємо адресу в user-friendly форматі
+            if 'addressFriendly' in wallet_data and wallet_data['addressFriendly']:
+                address = wallet_data['addressFriendly']
+                logger.info(f"Використовуємо user-friendly адресу: {address}")
+            else:
+                address = wallet_data['address']
+                logger.warning(f"User-friendly адреса відсутня, використовуємо raw: {address}")
+                if not address:
+                    return {
+                        'success': False,
+                        'message': 'Адреса гаманця відсутня',
+                        'error_code': 'MISSING_ADDRESS'
+                    }
 
             # Перевіряємо чи гаманець вже підключений до іншого користувача
             existing_wallet = self._get_wallet_by_address(address)
