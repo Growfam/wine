@@ -10,7 +10,7 @@ window.TasksAPI = (function() {
 
     // Базова конфігурація API
     const API_CONFIG = {
-        baseUrl: '',
+        baseUrl: 'https://winixbot.com',
         timeout: 15000,
         retryAttempts: 3,
         retryDelay: 1000
