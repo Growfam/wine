@@ -475,41 +475,42 @@ window.TasksIntegration = (function() {
     /**
      * Оновлює відображення балансу - СПРОЩЕНА ВЕРСІЯ БЕЗ КОНВЕРТАЦІЇ
      */
-    TasksIntegration.prototype.updateBalanceDisplay = function(data) {
-        console.log('💰 [TASKS-INTEGRATION] === updateBalanceDisplay START ===');
-        console.log('📊 [TASKS-INTEGRATION] Отримані дані:', data);
+    /**
+ * Оновлює відображення балансу - ВИПРАВЛЕНА ВЕРСІЯ ДЛЯ ПРАВИЛЬНИХ ID
+ */
+TasksIntegration.prototype.updateBalanceDisplay = function(data) {
+    console.log('💰 [TASKS-INTEGRATION] === updateBalanceDisplay START ===');
+    console.log('📊 [TASKS-INTEGRATION] Отримані дані:', data);
 
-        if (!data) {
-            console.warn('⚠️ [TASKS-INTEGRATION] Дані відсутні');
-            return;
-        }
+    if (!data) {
+        console.warn('⚠️ [TASKS-INTEGRATION] Дані відсутні');
+        return;
+    }
 
-        // Використовуємо дані напряму без конвертації
-        var balance = parseInt(data.balance) || 0;
-        var coins = parseInt(data.coins) || 0;
+    // Використовуємо дані напряму без конвертації
+    var balance = parseInt(data.balance) || 0;
+    var coins = parseInt(data.coins) || 0;
 
-        // Оновлюємо balance
-        var balanceElement = document.getElementById('user-balance');
-        if (balanceElement) {
-            balanceElement.textContent = balance.toLocaleString();
-            console.log('💎 [TASKS-INTEGRATION] Balance оновлено:', balance);
-        }
+    // Оновлюємо Winix (balance) - використовуємо user-tokens
+    var tokensElement = document.getElementById('user-tokens');
+    if (tokensElement) {
+        tokensElement.textContent = balance.toLocaleString();
+        console.log('💎 [TASKS-INTEGRATION] Winix (balance) оновлено:', balance);
+    } else {
+        console.warn('⚠️ [TASKS-INTEGRATION] Елемент #user-tokens не знайдено');
+    }
 
-        // Оновлюємо coins
-        var coinsElement = document.getElementById('user-coins');
-        if (coinsElement) {
-            coinsElement.textContent = coins.toLocaleString();
-            console.log('🎟️ [TASKS-INTEGRATION] Coins оновлено:', coins);
-        }
+    // Оновлюємо Tickets (coins) - використовуємо user-coins
+    var coinsElement = document.getElementById('user-coins');
+    if (coinsElement) {
+        coinsElement.textContent = coins.toLocaleString();
+        console.log('🎟️ [TASKS-INTEGRATION] Tickets (coins) оновлено:', coins);
+    } else {
+        console.warn('⚠️ [TASKS-INTEGRATION] Елемент #user-coins не знайдено');
+    }
 
-        // Для сумісності з core.js (якщо ці елементи ще існують)
-        var tokensElement = document.getElementById('user-tokens');
-        if (tokensElement) {
-            tokensElement.textContent = balance.toLocaleString();
-        }
-
-        console.log('✅ [TASKS-INTEGRATION] === updateBalanceDisplay COMPLETE ===');
-    };
+    console.log('✅ [TASKS-INTEGRATION] === updateBalanceDisplay COMPLETE ===');
+};
 
     /**
      * Встановлює обробники подій
