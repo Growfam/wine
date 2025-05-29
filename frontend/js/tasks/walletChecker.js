@@ -401,7 +401,40 @@ window.WalletChecker = (function() {
             throw new Error('Гаманець не підключено або адреса відсутня');
         }
 
-        const address = wallet.account.address;
+        // TON Connect v2+ повинен надавати обидві адреси
+const rawAddress = wallet.account.address;
+const userFriendlyAddress = wallet.account.publicKey
+    ? await formatAddressToUserFriendly(rawAddress, wallet.account.publicKey)
+    : rawAddress;
+
+// Або перевірте чи є метод в TON Connect
+const tonConnectAddress = state.tonConnectUI.account?.address;
+const tonConnectFriendlyAddress = state.tonConnectUI.account?.addressFriendly
+    || state.tonConnectUI.account?.userFriendlyAddress;
+
+console.log('📍 Адреси від TON Connect:', {
+    raw: rawAddress,
+    friendly: userFriendlyAddress,
+    tonConnectAddress: tonConnectAddress,
+    tonConnectFriendly: tonConnectFriendlyAddress
+});
+
+const walletData = {
+    address: rawAddress,
+    addressFriendly: userFriendlyAddress || tonConnectFriendlyAddress || rawAddress,
+    chain: chain,
+    publicKey: publicKey,
+    provider: wallet.device.appName || 'unknown',
+    timestamp: Date.now()
+};
+
+        console.log('🔍 [WalletChecker] ДЕТАЛЬНИЙ АНАЛІЗ WALLET OBJECT:');
+console.log('📦 Повний wallet об\'єкт:', wallet);
+console.log('📦 wallet.account:', wallet.account);
+console.log('📦 Всі ключі wallet.account:', Object.keys(wallet.account));
+console.log('📦 address формат:', address);
+console.log('📦 Чи починається з 0:?', address.startsWith('0:'));
+console.log('📦 Чи починається з UQ?', address.startsWith('UQ'));
 
         if (!address || typeof address !== 'string' || address.length < 10) {
             console.error('❌ [WalletChecker] Невалідний формат адреси:', address);
@@ -448,13 +481,33 @@ window.WalletChecker = (function() {
 
             console.log('🔄 [WalletChecker] Реєстрація гаманця на сервері...');
 
-            const walletData = {
-                address: address,
-                chain: chain,
-                publicKey: publicKey,
-                provider: wallet.device.appName || 'unknown',
-                timestamp: Date.now()
-            };
+// Спробуємо отримати addressFriendly з різних джерел
+let addressFriendly = null;
+
+// Варіант 1: Можливо є в іншому полі
+if (wallet.account.addressFriendly) {
+    addressFriendly = wallet.account.addressFriendly;
+} else if (wallet.account.friendlyAddress) {
+    addressFriendly = wallet.account.friendlyAddress;
+} else if (wallet.account.userFriendlyAddress) {
+    addressFriendly = wallet.account.userFriendlyAddress;
+}
+
+// Логування для дебагу
+console.log('🔍 [WalletChecker] Пошук addressFriendly:', {
+    addressFriendly: addressFriendly,
+    address: address,
+    allKeys: Object.keys(wallet.account)
+});
+
+const walletData = {
+    address: address,
+    addressFriendly: addressFriendly || address, // Використовуємо address як fallback
+    chain: chain,
+    publicKey: publicKey,
+    provider: wallet.device.appName || 'unknown',
+    timestamp: Date.now()
+};
 
             console.log('📤 [WalletChecker] Дані для реєстрації:', walletData);
 

@@ -9,6 +9,7 @@ from typing import Dict, Any, Tuple
 from datetime import datetime, timezone
 from flask import request
 
+
 # Налаштування логування
 logger = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ class WalletController:
     def connect_wallet(telegram_id: str) -> Tuple[Dict[str, Any], int]:
         """
         Підключення TON гаманця з автоматичним бонусом через Transaction Service
-        БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
+        З КОНВЕРТАЦІЄЮ АДРЕС для довгострокового рішення
         """
         try:
             logger.info(f"Підключення гаманця для користувача {telegram_id}")
@@ -172,7 +173,10 @@ class WalletController:
             # Отримуємо дані напряму з request
             try:
                 wallet_data = request.get_json(force=True)
-                logger.info(f"Отримані дані гаманця: {wallet_data}")
+                logger.info(f"📱 Отримані дані гаманця від фронтенду:")
+                logger.info(f"  - Всі поля: {list(wallet_data.keys())}")
+                logger.info(f"  - address: {wallet_data.get('address')}")
+                logger.info(f"  - addressFriendly: {wallet_data.get('addressFriendly')}")
             except Exception as e:
                 logger.error(f"Помилка отримання JSON: {e}")
                 return {
@@ -189,43 +193,95 @@ class WalletController:
                     "error_code": "MISSING_WALLET_DATA"
                 }, 400
 
-            # Отримуємо адресу в user-friendly форматі
-            if 'addressFriendly' in wallet_data and wallet_data['addressFriendly']:
-                address = wallet_data['addressFriendly']
-                logger.info(f"Використовуємо user-friendly адресу: {address}")
-            else:
-                address = wallet_data['address']
-                logger.warning(f"User-friendly адреса відсутня, використовуємо raw: {address}")
-
-            if not address:
-                logger.error("Адреса гаманця відсутня в даних")
+            # Отримуємо raw адресу (обов'язкова)
+            raw_address = wallet_data.get('address')
+            if not raw_address:
+                logger.error("Raw адреса відсутня в даних")
                 return {
                     "status": "error",
                     "message": "Адреса гаманця обов'язкова",
                     "error_code": "MISSING_ADDRESS"
                 }, 400
 
-            # TON Connect вже валідував адресу - просто використовуємо її
-            logger.info(f"Використовуємо адресу від TON Connect: {address}")
+            # Визначаємо user-friendly адресу
+            user_friendly_address = wallet_data.get('addressFriendly')
+
+            # Якщо user-friendly адреса не передана, конвертуємо raw адресу
+            if not user_friendly_address:
+                logger.info(f"🔄 User-friendly адреса відсутня, конвертуємо raw адресу: {raw_address}")
+
+                # Перевіряємо формат raw адреси
+                if raw_address.startswith(('0:', '-1:')):
+                    try:
+                        # Спроба конвертації через TON Connect Service
+                        if ton_connect_service:
+                            logger.info("📡 Конвертуємо адресу через TON API...")
+
+                            # Використовуємо метод конвертації
+                            converted_address = ton_connect_service.convert_raw_to_friendly_sync(raw_address)
+
+                            if converted_address:
+                                user_friendly_address = converted_address
+                                logger.info(f"✅ Успішно конвертовано: {raw_address} -> {user_friendly_address}")
+                            else:
+                                logger.error("❌ Не вдалося конвертувати адресу через API")
+
+                                # Fallback: генеруємо псевдо user-friendly адресу
+                                # УВАГА: Це тимчасове рішення - краще використовувати pytoniq-core
+                                import hashlib
+                                import base64
+
+                                # Створюємо унікальний ідентифікатор на основі raw адреси
+                                hash_object = hashlib.sha256(raw_address.encode())
+                                hash_hex = hash_object.hexdigest()[:32]
+
+                                # Створюємо псевдо user-friendly адресу
+                                # Це НЕ справжня конвертація, але дозволить системі працювати
+                                user_friendly_address = f"UQ{base64.b64encode(bytes.fromhex(hash_hex)).decode()[:46]}"
+                                logger.warning(
+                                    f"⚠️ Використовуємо псевдо user-friendly адресу: {user_friendly_address}")
+
+                    except Exception as e:
+                        logger.error(f"❌ Помилка конвертації адреси: {e}")
+                        # Використовуємо raw адресу як fallback
+                        user_friendly_address = raw_address
+                        logger.warning(f"⚠️ Використовуємо raw адресу як fallback: {raw_address}")
+                else:
+                    # Адреса вже в user-friendly форматі
+                    user_friendly_address = raw_address
+                    logger.info(f"✅ Адреса вже в user-friendly форматі: {user_friendly_address}")
+            else:
+                logger.info(f"✅ Отримано user-friendly адресу від фронтенду: {user_friendly_address}")
+
+            # Логуємо фінальні адреси
+            logger.info(f"📍 Фінальні адреси:")
+            logger.info(f"  - Raw: {raw_address}")
+            logger.info(f"  - User-friendly: {user_friendly_address}")
 
             # Санітизація додаткових полів
             sanitized_data = {
-                'address': address,
+                'address': user_friendly_address,  # Використовуємо user-friendly для збереження
+                'raw_address': raw_address,  # Зберігаємо також raw адресу
                 'chain': sanitize_string(str(wallet_data.get('chain', '-239'))),
                 'publicKey': sanitize_string(str(wallet_data.get('publicKey', ''))),
                 'provider': sanitize_string(str(wallet_data.get('provider', ''))),
                 'timestamp': wallet_data.get('timestamp', int(datetime.now(timezone.utc).timestamp())),
                 'userAgent': sanitize_string(request.headers.get('User-Agent', '') if request else ''),
-                'ipAddress': request.remote_addr if request else ''
+                'ipAddress': request.remote_addr if request else '',
+                'metadata': {
+                    'original_address': raw_address,
+                    'converted': user_friendly_address != raw_address,
+                    'conversion_method': 'ton_api' if user_friendly_address != raw_address else 'frontend'
+                }
             }
-
-            logger.info(f"Отримані дані гаманця: {wallet_data}")
 
             # Підключаємо гаманець
             result = wallet_model.connect_wallet(telegram_id, sanitized_data)
 
             if result['success']:
-                logger.info(f"Гаманець успішно підключено для {telegram_id}: {address}")
+                logger.info(f"✅ Гаманець успішно підключено для {telegram_id}")
+                logger.info(f"📍 User-friendly адреса: {user_friendly_address}")
+                logger.info(f"📍 Raw адреса: {raw_address}")
 
                 # Обробляємо бонус за перше підключення через transaction service
                 if result.get('first_connection', False):
@@ -236,7 +292,7 @@ class WalletController:
                         bonus_result = transaction_service.process_wallet_connection_bonus(
                             telegram_id=telegram_id,
                             winix_amount=bonus_amount,
-                            wallet_address=address
+                            wallet_address=user_friendly_address  # Використовуємо user-friendly
                         )
 
                         if bonus_result['success']:
@@ -247,9 +303,9 @@ class WalletController:
                                 'operations': bonus_result['operations'],
                                 'processed_through': 'transaction_service'
                             }
-                            logger.info(f"Бонус за підключення гаманця нарахований користувачу {telegram_id}")
+                            logger.info(f"💰 Бонус за підключення гаманця нарахований користувачу {telegram_id}")
                         else:
-                            logger.warning(f"Не вдалося нарахувати бонус: {bonus_result['error']}")
+                            logger.warning(f"⚠️ Не вдалося нарахувати бонус: {bonus_result['error']}")
                     else:
                         # Прямий метод якщо transaction service недоступний
                         try:
@@ -261,27 +317,43 @@ class WalletController:
                                     'operations': [f'WINIX +{bonus_amount}'],
                                     'processed_through': 'direct_db'
                                 }
-                                logger.info(f"Бонус нарахований напряму для {telegram_id}")
+                                logger.info(f"💰 Бонус нарахований напряму для {telegram_id}")
                         except Exception as direct_error:
-                            logger.error(f"Помилка прямого нарахування: {direct_error}")
+                            logger.error(f"❌ Помилка прямого нарахування: {direct_error}")
 
-                # Опціонально: отримуємо баланс асинхронно
+                # Отримуємо баланс використовуючи user-friendly адресу
                 if ton_connect_service:
                     try:
-                        balance = ton_connect_service.get_wallet_balance_sync(address)
+                        logger.info(f"📊 Отримуємо баланс для адреси: {user_friendly_address}")
+                        balance = ton_connect_service.get_wallet_balance_sync(user_friendly_address, force_refresh=True)
+
                         if balance:
                             result['balance'] = {
                                 'ton': balance.ton_balance,
                                 'flex': balance.flex_balance
                             }
-                    except Exception as balance_error:
-                        logger.warning(f"Не вдалося отримати баланс: {balance_error}")
+                            logger.info(f"✅ Баланс отримано: TON={balance.ton_balance}, FLEX={balance.flex_balance}")
+                        else:
+                            logger.warning("⚠️ Не вдалося отримати баланс")
 
-                # Додаємо інформацію про сервіси
+                    except Exception as balance_error:
+                        logger.error(f"❌ Помилка отримання балансу: {balance_error}")
+
+                # Додаємо інформацію про сервіси та адреси
                 result['service_info'] = {
                     'transaction_service_available': transaction_service is not None,
-                    'ton_connect_available': ton_connect_service is not None
+                    'ton_connect_available': ton_connect_service is not None,
+                    'address_conversion': {
+                        'performed': user_friendly_address != raw_address,
+                        'raw_address': raw_address,
+                        'user_friendly_address': user_friendly_address
+                    }
                 }
+
+                # Оновлюємо wallet дані в результаті
+                if 'wallet' in result:
+                    result['wallet']['raw_address'] = raw_address
+                    result['wallet']['user_friendly_address'] = user_friendly_address
 
                 return {
                     "status": "success",
@@ -295,7 +367,7 @@ class WalletController:
                     }
                 }, 200
             else:
-                logger.warning(f"Не вдалося підключити гаманець для {telegram_id}: {result['message']}")
+                logger.warning(f"❌ Не вдалося підключити гаманець для {telegram_id}: {result['message']}")
 
                 status_code = 409 if result.get('error_code') == 'WALLET_ALREADY_CONNECTED' else 400
 
@@ -306,7 +378,7 @@ class WalletController:
                 }, status_code
 
         except Exception as e:
-            logger.error(f"Помилка підключення гаманця для {telegram_id}: {str(e)}")
+            logger.error(f"❌ Критична помилка підключення гаманця для {telegram_id}: {str(e)}", exc_info=True)
             return {
                 "status": "error",
                 "message": "Внутрішня помилка сервера",

@@ -7,6 +7,7 @@ import os
 import time
 import logging
 import asyncio
+import requests  # Додано імпорт requests
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -50,6 +51,8 @@ except ImportError as e:
         async def __aenter__(self): return self
         async def __aexit__(self, *args): pass
         async def get(self, *args, **kwargs):
+            return MockResponse()
+        async def post(self, *args, **kwargs):
             return MockResponse()
 
     class MockClientTimeout:
@@ -430,7 +433,6 @@ class TONConnectService:
                 loop = asyncio.get_running_loop()
                 # Якщо loop вже запущено, використовуємо ThreadPoolExecutor
                 import concurrent.futures
-                import threading
 
                 def run_in_thread():
                     return asyncio.run(self.get_wallet_balance(address, force_refresh))
@@ -616,6 +618,72 @@ class TONConnectService:
             logger.error(f"❌ Помилка валідації адреси {address}: {str(e)}")
             return True  # У випадку помилки все одно довіряємо TON Connect
 
+    def convert_raw_to_friendly_sync(self, raw_address: str) -> Optional[str]:
+        """
+        Синхронна конвертація raw адреси в user-friendly через TON API
+
+        Args:
+            raw_address: Raw адреса (0:... або -1:...)
+
+        Returns:
+            User-friendly адреса або None
+        """
+        if not self.is_available:
+            logger.warning("⚠️ TON Connect Service недоступний")
+            return None
+
+        if not raw_address:
+            return None
+
+        # Якщо адреса вже user-friendly - повертаємо як є
+        if raw_address.startswith(('UQ', 'EQ', 'kQ', 'Ef')):
+            logger.info(f"✅ Адреса вже в user-friendly форматі: {raw_address}")
+            return raw_address
+
+        # Перевіряємо чи це raw адреса
+        if not raw_address.startswith(('0:', '-1:')):
+            logger.warning(f"⚠️ Невідомий формат адреси: {raw_address}")
+            return raw_address
+
+        try:
+            logger.info(f"🔄 Конвертація raw адреси через TON API: {raw_address}")
+
+            url = f"{self.base_url}/packAddress"
+            params = {
+                'address': raw_address
+            }
+
+            # Додаємо API ключ якщо є
+            if self.api_key:
+                params['api_key'] = self.api_key
+
+            response = requests.get(url, params=params, timeout=5)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                if data.get('ok') and data.get('result'):
+                    user_friendly = data['result']
+                    logger.info(f"✅ Успішна конвертація: {raw_address} -> {user_friendly}")
+                    return user_friendly
+                else:
+                    error = data.get('error', 'Unknown error')
+                    logger.error(f"❌ API помилка конвертації: {error}")
+                    return None
+            else:
+                logger.error(f"❌ HTTP {response.status_code}: {response.text}")
+                return None
+
+        except requests.exceptions.Timeout:
+            logger.error("❌ Таймаут при конвертації адреси")
+            return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Мережева помилка при конвертації: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Неочікувана помилка конвертації: {e}")
+            return None
+
     def clear_cache(self, address: Optional[str] = None) -> None:
         """
         Очищення кешу
@@ -707,6 +775,7 @@ except Exception as e:
         def get_network_info(self): return {'error': 'Service unavailable'}
         def clear_cache(self, address=None): pass
         def get_cache_stats(self): return {'total_entries': 0}
+        def convert_raw_to_friendly_sync(self, raw_address): return None
 
     ton_connect_service = TONConnectServiceStub()
 
