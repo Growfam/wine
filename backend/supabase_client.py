@@ -48,6 +48,11 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 
+logger.info(f"📊 SUPABASE_URL: {'✅ Є' if SUPABASE_URL else '❌ Немає'}")
+logger.info(f"📊 SUPABASE_ANON_KEY: {'✅ Є' if SUPABASE_KEY else '❌ Немає'}")
+logger.info(f"📊 SUPABASE_SERVICE_KEY: {'✅ Є' if SUPABASE_SERVICE_KEY else '❌ Немає'}")
+
+
 # Константи для кешування та запитів
 CACHE_TIMEOUT = int(os.getenv("CACHE_TIMEOUT", "300"))  # 5 хвилин за замовчуванням
 CACHE_ENABLED = os.getenv("CACHE_ENABLED", "True").lower() == "true"
