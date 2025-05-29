@@ -1,7 +1,7 @@
 /**
  * Головний інтеграційний модуль для системи завдань WINIX
  * Використовує підхід реферальної системи - простий і надійний
- * ВИПРАВЛЕНА ВЕРСІЯ з динамічним завантаженням балансу
+ * ВИПРАВЛЕНА ВЕРСІЯ з правильною обробкою балансу
  */
 window.TasksIntegration = (function() {
     'use strict';
@@ -334,28 +334,52 @@ window.TasksIntegration = (function() {
                     .then(function(response) {
                         console.log('👤 [TASKS-INTEGRATION] Профіль отримано:', response);
 
-                        if (response.status === 'success' && response.data) {
-                            // Оновлюємо баланс з профілю якщо є
-                            if (response.data.balance) {
-                                self.updateBalanceDisplay(response.data.balance);
+                        if (response && response.status === 'success' && response.data) {
+                            // Використовуємо трансформований баланс
+                            if (response.data.transformedBalance) {
+                                console.log('💰 [TASKS-INTEGRATION] Використовуємо transformedBalance:', response.data.transformedBalance);
+                                self.updateBalanceDisplay(response.data.transformedBalance);
 
                                 if (window.TasksStore) {
-                                    window.TasksStore.actions.updateBalance(response.data.balance);
+                                    window.TasksStore.actions.updateBalance(response.data.transformedBalance);
+                                }
+                            }
+                            // Fallback на баланс у кореневому об'єкті
+                            else if (response.balance) {
+                                console.log('💰 [TASKS-INTEGRATION] Використовуємо response.balance:', response.balance);
+                                self.updateBalanceDisplay(response.balance);
+
+                                if (window.TasksStore) {
+                                    window.TasksStore.actions.updateBalance(response.balance);
+                                }
+                            }
+                            // Другий fallback на старий формат
+                            else if (response.data.balance !== undefined && response.data.coins !== undefined) {
+                                console.log('💰 [TASKS-INTEGRATION] Використовуємо старий формат (balance/coins)');
+                                const balance = {
+                                    winix: response.data.balance || 0,
+                                    tickets: response.data.coins || 0
+                                };
+                                self.updateBalanceDisplay(balance);
+
+                                if (window.TasksStore) {
+                                    window.TasksStore.actions.updateBalance(balance);
                                 }
                             }
 
                             // Оновлюємо дані користувача
-                            if (window.TasksStore && response.data.user) {
-                                window.TasksStore.actions.setUser(response.data.user);
-                            }
-                        } else if (response.data) {
-                            // Якщо структура відповіді інша
-                            if (response.data.winix !== undefined || response.data.tickets !== undefined) {
-                                self.updateBalanceDisplay(response.data);
-
-                                if (window.TasksStore) {
-                                    window.TasksStore.actions.updateBalance(response.data);
-                                }
+                            if (window.TasksStore) {
+                                const userData = {
+                                    id: self.userId,
+                                    telegramId: self.userId,
+                                    username: response.data.username || 'User',
+                                    balance: response.data.transformedBalance || response.balance || {
+                                        winix: response.data.balance || 0,
+                                        tickets: response.data.coins || 0
+                                    }
+                                };
+                                console.log('👤 [TASKS-INTEGRATION] Оновлення даних користувача:', userData);
+                                window.TasksStore.actions.setUser(userData);
                             }
                         }
 
@@ -363,55 +387,50 @@ window.TasksIntegration = (function() {
                     })
                     .catch(function(error) {
                         console.error('❌ [TASKS-INTEGRATION] Помилка отримання профілю:', error);
+                        // Встановлюємо дефолтні значення
+                        const defaultBalance = { winix: 0, tickets: 0 };
+                        self.updateBalanceDisplay(defaultBalance);
                         return null;
                     })
             );
         }
 
-        // Баланс користувача
+        // Баланс користувача - окремий запит
         if (window.TasksAPI && window.TasksAPI.user && window.TasksAPI.user.getBalance) {
             promises.push(
                 window.TasksAPI.user.getBalance(this.userId)
                     .then(function(response) {
-                        console.log('💰 [TASKS-INTEGRATION] Баланс отримано:', response);
+                        console.log('💰 [TASKS-INTEGRATION] Баланс отримано (окремий запит):', response);
 
-                        // Перевіряємо різні формати відповіді
-                        if (response.status === 'success' && response.balance) {
+                        // Використовуємо трансформований баланс
+                        if (response && response.balance) {
+                            console.log('💰 [TASKS-INTEGRATION] Використовуємо response.balance:', response.balance);
                             self.updateBalanceDisplay(response.balance);
 
-                            // Оновлюємо в Store
                             if (window.TasksStore) {
                                 window.TasksStore.actions.updateBalance(response.balance);
                             }
-                        } else if (response.status === 'success' && response.data && response.data.balance) {
+                        }
+                        // Fallback на дані в data
+                        else if (response && response.data && response.data.balance) {
+                            console.log('💰 [TASKS-INTEGRATION] Використовуємо response.data.balance:', response.data.balance);
                             self.updateBalanceDisplay(response.data.balance);
 
-                            // Оновлюємо в Store
                             if (window.TasksStore) {
                                 window.TasksStore.actions.updateBalance(response.data.balance);
                             }
-                        } else if (response.data && response.data.balance) {
-                            self.updateBalanceDisplay(response.data.balance);
+                        }
+                        // Fallback на старий формат
+                        else if (response && response.data && (response.data.balance !== undefined || response.data.coins !== undefined)) {
+                            console.log('💰 [TASKS-INTEGRATION] Конвертуємо старий формат');
+                            const balance = {
+                                winix: response.data.balance || 0,
+                                tickets: response.data.coins || 0
+                            };
+                            self.updateBalanceDisplay(balance);
 
-                            // Оновлюємо в Store
                             if (window.TasksStore) {
-                                window.TasksStore.actions.updateBalance(response.data.balance);
-                            }
-                        } else if (response.winix !== undefined || response.tickets !== undefined) {
-                            // Якщо відповідь вже містить баланс напряму
-                            self.updateBalanceDisplay(response);
-
-                            // Оновлюємо в Store
-                            if (window.TasksStore) {
-                                window.TasksStore.actions.updateBalance(response);
-                            }
-                        } else if (response.balance) {
-                            // Ще один варіант структури
-                            self.updateBalanceDisplay(response.balance);
-
-                            // Оновлюємо в Store
-                            if (window.TasksStore) {
-                                window.TasksStore.actions.updateBalance(response.balance);
+                                window.TasksStore.actions.updateBalance(balance);
                             }
                         }
 
@@ -499,17 +518,20 @@ window.TasksIntegration = (function() {
                     .then(function(response) {
                         console.log('🔄 [TASKS-INTEGRATION] Періодичне оновлення балансу:', response);
 
-                        if (response.status === 'success' && response.balance) {
+                        // Використовуємо трансформований баланс
+                        if (response && response.balance) {
                             self.updateBalanceDisplay(response.balance);
 
                             if (window.TasksStore) {
                                 window.TasksStore.actions.updateBalance(response.balance);
                             }
-                        } else if (response.winix !== undefined || response.tickets !== undefined) {
-                            self.updateBalanceDisplay(response);
+                        }
+                        // Fallback на дані в data
+                        else if (response && response.data && response.data.balance) {
+                            self.updateBalanceDisplay(response.data.balance);
 
                             if (window.TasksStore) {
-                                window.TasksStore.actions.updateBalance(response);
+                                window.TasksStore.actions.updateBalance(response.data.balance);
                             }
                         }
                     })
@@ -521,60 +543,91 @@ window.TasksIntegration = (function() {
     };
 
     /**
-     * Оновлює відображення балансу
+     * Оновлює відображення балансу - ВИПРАВЛЕНА ВЕРСІЯ
      */
     TasksIntegration.prototype.updateBalanceDisplay = function(balance) {
         console.log('💰 [TASKS-INTEGRATION] === updateBalanceDisplay START ===');
         console.log('📊 [TASKS-INTEGRATION] Отриманий баланс:', balance);
 
-        if (!balance) return;
+        if (!balance) {
+            console.warn('⚠️ [TASKS-INTEGRATION] Баланс відсутній');
+            return;
+        }
+
+        // Визначаємо значення в залежності від формату
+        var winixValue = 0;
+        var ticketsValue = 0;
+
+        // Новий формат (winix/tickets)
+        if (balance.winix !== undefined || balance.tickets !== undefined) {
+            winixValue = parseInt(balance.winix) || 0;
+            ticketsValue = parseInt(balance.tickets) || 0;
+            console.log('✅ [TASKS-INTEGRATION] Використовуємо формат winix/tickets');
+        }
+        // Старий формат (balance/coins) - конвертуємо
+        else if (balance.balance !== undefined || balance.coins !== undefined) {
+            winixValue = parseInt(balance.balance) || 0;
+            ticketsValue = parseInt(balance.coins) || 0;
+            console.log('⚠️ [TASKS-INTEGRATION] Конвертуємо старий формат balance/coins');
+        }
+        // Якщо баланс це число - вважаємо що це winix
+        else if (typeof balance === 'number') {
+            winixValue = parseInt(balance) || 0;
+            console.log('⚠️ [TASKS-INTEGRATION] Баланс це число, використовуємо як winix');
+        }
 
         // Оновлюємо WINIX
         var winixElement = document.getElementById('user-winix');
-        if (winixElement && balance.winix !== undefined) {
-            var winixValue = parseInt(balance.winix) || 0;
+        if (winixElement) {
+            var oldWinixValue = parseInt(winixElement.textContent.replace(/\D/g, '')) || 0;
             winixElement.textContent = winixValue.toLocaleString();
 
             // Додаємо анімацію якщо значення змінилось
-            if (winixElement.textContent !== winixValue.toString()) {
+            if (oldWinixValue !== winixValue) {
                 winixElement.classList.add('updating');
                 setTimeout(function() {
                     winixElement.classList.remove('updating');
                 }, 800);
             }
 
-            console.log('💎 [TASKS-INTEGRATION] WINIX оновлено:', winixValue);
+            console.log('💎 [TASKS-INTEGRATION] WINIX оновлено:', oldWinixValue, '->', winixValue);
+        } else {
+            console.warn('⚠️ [TASKS-INTEGRATION] Елемент #user-winix не знайдено');
         }
 
         // Оновлюємо Tickets
         var ticketsElement = document.getElementById('user-tickets');
-        if (ticketsElement && balance.tickets !== undefined) {
-            var ticketsValue = parseInt(balance.tickets) || 0;
+        if (ticketsElement) {
+            var oldTicketsValue = parseInt(ticketsElement.textContent.replace(/\D/g, '')) || 0;
             ticketsElement.textContent = ticketsValue.toLocaleString();
 
             // Додаємо анімацію якщо значення змінилось
-            if (ticketsElement.textContent !== ticketsValue.toString()) {
+            if (oldTicketsValue !== ticketsValue) {
                 ticketsElement.classList.add('updating');
                 setTimeout(function() {
                     ticketsElement.classList.remove('updating');
                 }, 800);
             }
 
-            console.log('🎟️ [TASKS-INTEGRATION] Tickets оновлено:', ticketsValue);
+            console.log('🎟️ [TASKS-INTEGRATION] Tickets оновлено:', oldTicketsValue, '->', ticketsValue);
+        } else {
+            console.warn('⚠️ [TASKS-INTEGRATION] Елемент #user-tickets не знайдено');
         }
 
         // Оновлюємо FLEX якщо є
-        var flexElement = document.getElementById('user-flex');
-        if (flexElement && balance.flex !== undefined) {
+        if (balance.flex !== undefined) {
             var flexValue = parseInt(balance.flex) || 0;
-            flexElement.textContent = flexValue.toLocaleString();
-            console.log('💎 [TASKS-INTEGRATION] FLEX оновлено:', flexValue);
-        }
+            var flexElement = document.getElementById('user-flex');
+            if (flexElement) {
+                flexElement.textContent = flexValue.toLocaleString();
+                console.log('💎 [TASKS-INTEGRATION] FLEX оновлено:', flexValue);
+            }
 
-        // Оновлюємо FLEX баланс в статусі гаманця
-        var walletFlexElement = document.getElementById('wallet-flex-balance');
-        if (walletFlexElement && balance.flex !== undefined) {
-            walletFlexElement.textContent = parseInt(balance.flex).toLocaleString() || '0';
+            // Оновлюємо FLEX баланс в статусі гаманця
+            var walletFlexElement = document.getElementById('wallet-flex-balance');
+            if (walletFlexElement) {
+                walletFlexElement.textContent = flexValue.toLocaleString();
+            }
         }
 
         console.log('✅ [TASKS-INTEGRATION] === updateBalanceDisplay COMPLETE ===');
@@ -789,12 +842,12 @@ window.TasksIntegration = (function() {
      * Обробка зміни стану Store
      */
     TasksIntegration.prototype.handleStateChange = function(state, prevState, action) {
-        console.log('🔄 [TASKS-INTEGRATION] Store state змінився');
+        console.log('🔄 [TASKS-INTEGRATION] Store state змінився:', action ? action.type : 'unknown');
 
         // Оновлюємо баланс якщо змінився
         if (state && prevState && state.user && prevState.user) {
             if (state.user.balance !== prevState.user.balance) {
-                console.log('💰 [TASKS-INTEGRATION] Баланс змінився');
+                console.log('💰 [TASKS-INTEGRATION] Баланс змінився в Store');
                 this.updateBalanceDisplay(state.user.balance);
             }
         }
