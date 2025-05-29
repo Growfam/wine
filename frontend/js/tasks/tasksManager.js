@@ -110,44 +110,48 @@ window.TasksManager = (function() {
             throw error;
         }
     }
-
     /**
-     * Завантажити всі завдання
-     */
-    async function loadAllTasks() {
-        console.log('[TasksManager] === ЗАВАНТАЖЕННЯ ВСІХ ЗАВДАНЬ ===');
+ * ВИПРАВЛЕННЯ: Додано детальне логування та перевірки
+ */
+async function loadAllTasks() {
+    console.log('[TasksManager] === ЗАВАНТАЖЕННЯ ВСІХ ЗАВДАНЬ ===');
+    console.log('[TasksManager] User ID:', state.userId);
 
-        state.isLoading = true;
-        window.TasksStore.actions.setTasksLoading(true);
-
-        try {
-            // Завантажуємо завдання з API
-            const response = await window.TasksAPI.tasks.getList(state.userId, 'all');
-            console.log('[TasksManager] Отримано завдання:', response);
-
-            // Обробляємо та зберігаємо завдання по типах
-            if (response.data && response.data.tasks) {
-            processTasks(response.data.tasks);
-            }
-
-            state.lastUpdate = Date.now();
-            console.log('[TasksManager] Завдання завантажено та оброблено');
-
-            // Відстежуємо подію
-            window.TasksServices?.Analytics?.trackEvent('Tasks', 'loaded', 'all', response.tasks ? Object.keys(response.tasks).length : 0);
-
-        } catch (error) {
-            console.error('[TasksManager] Помилка завантаження завдань:', error);
-            window.TasksUtils.showToast('Помилка завантаження завдань', 'error');
-
-            // Відстежуємо помилку
-            window.TasksServices?.Analytics?.trackError(error, 'loadAllTasks');
-
-        } finally {
-            state.isLoading = false;
-            window.TasksStore.actions.setTasksLoading(false);
-        }
+    // Перевірка userId
+    if (!state.userId) {
+        console.error('[TasksManager] ❌ User ID відсутній! Не можу завантажити завдання.');
+        return;
     }
+
+    state.isLoading = true;
+    window.TasksStore.actions.setTasksLoading(true);
+
+    try {
+        console.log('[TasksManager] 📡 Виконання запиту до API...');
+        console.log('[TasksManager] URL буде: /api/tasks/list/' + state.userId + '?type=all');
+
+        // Запит до API
+        const response = await window.TasksAPI.tasks.getList(state.userId, 'all');
+        console.log('[TasksManager] 📥 Відповідь від API:', response);
+
+        // Перевірка структури відповіді
+        if (response && response.status === 'success' && response.data && response.data.tasks) {
+            console.log('[TasksManager] ✅ Дані отримано, обробляємо...');
+            processTasks(response.data.tasks);
+        } else {
+            console.error('[TasksManager] ❌ Невірний формат відповіді:', response);
+            window.TasksUtils.showToast('Немає доступних завдань', 'info');
+        }
+
+        state.lastUpdate = Date.now();
+    } catch (error) {
+        console.error('[TasksManager] ❌ Помилка завантаження:', error);
+        window.TasksUtils.showToast('Помилка завантаження завдань', 'error');
+    } finally {
+        state.isLoading = false;
+        window.TasksStore.actions.setTasksLoading(false);
+    }
+}
 
     /**
      * Обробити завдання
@@ -156,9 +160,9 @@ window.TasksManager = (function() {
 function processTasks(tasksData) {
     console.log('[TasksManager] Обробка завдань:', tasksData);
 
-    // API вже повертає завдання згруповані по типах
+    // Перевіряємо чи дані вже у правильному форматі
     if (tasksData.social || tasksData.limited || tasksData.partner) {
-        // Просто зберігаємо кожен тип в Store
+        // Дані вже згруповані по типах
         Object.entries(tasksData).forEach(([type, tasksList]) => {
             // Конвертуємо масив завдань в об'єкт для Store
             const tasksObject = {};
@@ -166,35 +170,56 @@ function processTasks(tasksData) {
                 tasksList.forEach(task => {
                     tasksObject[task.id] = task;
                 });
+            } else if (typeof tasksList === 'object') {
+                // Якщо вже об'єкт, просто копіюємо
+                Object.assign(tasksObject, tasksList);
             }
+
             window.TasksStore.actions.setTasks(type, tasksObject);
             console.log(`[TasksManager] Збережено ${Object.keys(tasksObject).length} завдань типу ${type}`);
         });
+    } else if (Array.isArray(tasksData)) {
+        // Якщо це масив, групуємо по типах
+        const tasksByType = {
+            social: {},
+            limited: {},
+            partner: {}
+        };
 
-        // Оновлюємо UI
-        updateTasksUI();
-        return;
+        tasksData.forEach(task => {
+            const taskType = task.type || 'social';
+            if (tasksByType[taskType]) {
+                tasksByType[taskType][task.id] = task;
+            }
+        });
+
+        // Зберігаємо в Store
+        Object.entries(tasksByType).forEach(([type, tasks]) => {
+            window.TasksStore.actions.setTasks(type, tasks);
+            console.log(`[TasksManager] Збережено ${Object.keys(tasks).length} завдань типу ${type}`);
+        });
+    } else {
+        // Старий формат - об'єкт з ключами task_id
+        const tasksByType = {
+            social: {},
+            limited: {},
+            partner: {}
+        };
+
+        Object.entries(tasksData).forEach(([taskId, task]) => {
+            task.id = taskId;
+            const taskType = task.type || 'social';
+            if (tasksByType[taskType]) {
+                tasksByType[taskType][taskId] = task;
+            }
+        });
+
+        Object.entries(tasksByType).forEach(([type, tasks]) => {
+            window.TasksStore.actions.setTasks(type, tasks);
+        });
     }
 
-    // Якщо дані в іншому форматі - використовуємо старий код
-    const tasksByType = {
-        social: {},
-        limited: {},
-        partner: {}
-    };
-
-    Object.entries(tasksData).forEach(([taskId, task]) => {
-        task.id = taskId;
-        const taskType = task.type || 'social';
-        if (tasksByType[taskType]) {
-            tasksByType[taskType][taskId] = task;
-        }
-    });
-
-    Object.entries(tasksByType).forEach(([type, tasks]) => {
-        window.TasksStore.actions.setTasks(type, tasks);
-    });
-
+    // Оновлюємо UI
     updateTasksUI();
 }
 
