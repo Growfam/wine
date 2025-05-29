@@ -229,7 +229,7 @@ window.FlexEarnManager = (function() {
         }
     }
 
-    /**
+   /**
      * Показати блок підключення кошелька
      */
     function showWalletConnect() {
@@ -237,6 +237,7 @@ window.FlexEarnManager = (function() {
 
         const statusContainer = document.querySelector('.wallet-status-container');
         const tasksContainer = document.getElementById('flex-tasks');
+        const connectedStatus = document.getElementById('wallet-connected-status');
 
         if (statusContainer) {
             statusContainer.style.display = 'block';
@@ -248,6 +249,11 @@ window.FlexEarnManager = (function() {
         if (tasksContainer) {
             tasksContainer.style.display = 'none';
             console.log('✅ [FlexEarn] Контейнер завдань приховано');
+        }
+
+        // Приховуємо статус підключеного гаманця
+        if (connectedStatus) {
+            connectedStatus.style.display = 'none';
         }
 
         // Оновлюємо статус
@@ -276,6 +282,20 @@ window.FlexEarnManager = (function() {
             console.log('✅ [FlexEarn] Контейнер завдань показано');
         } else {
             console.error('❌ [FlexEarn] Елемент #flex-tasks не знайдено');
+        }
+
+        // Показуємо статус підключеного гаманця якщо є адреса
+        if (state.walletAddress) {
+            const connectedStatus = document.getElementById('wallet-connected-status');
+            if (connectedStatus) {
+                connectedStatus.style.display = 'block';
+
+                const addressDisplay = document.getElementById('wallet-address-display');
+                if (addressDisplay) {
+                    const formattedAddress = `${state.walletAddress.slice(0, 8)}...${state.walletAddress.slice(-6)}`;
+                    addressDisplay.textContent = formattedAddress;
+                }
+            }
         }
     }
 

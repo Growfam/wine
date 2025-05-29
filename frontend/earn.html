@@ -18,8 +18,9 @@
     <link rel="stylesheet" href="css/referrals/winix-icons.css">
 
     <!-- Стилі для системи завдань -->
-    <link rel="stylesheet" href="css/earn/styles.css">
+   <link rel="stylesheet" href="css/earn/styles.css">
     <link rel="stylesheet" href="css/earn/flex-earn.css">
+    <link rel="stylesheet" href="css/earn/wallet-status.css">
     <link rel="stylesheet" href="css/earn/daily-bonus.css">
     <link rel="stylesheet" href="css/earn/tasks.css">
     <link rel="stylesheet" href="css/earn/tasks-cards.css">
@@ -270,6 +271,27 @@
     <button class="connect-wallet-redirect" id="connect-wallet-btn">
         Підключити кошелек
     </button>
+                           <div class="wallet-connected-status" id="wallet-connected-status" style="display: none;">
+    <div class="wallet-status-header">
+        <div class="wallet-status-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <div class="wallet-status-info">
+            <span class="wallet-status-label">Гаманець підключено</span>
+            <span class="wallet-address" id="wallet-address-display">...</span>
+        </div>
+        <button class="wallet-disconnect-btn" id="wallet-disconnect-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M16 17L21 12L16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Відключити
+        </button>
+    </div>
+</div>
 </div>
                         </div>
 
