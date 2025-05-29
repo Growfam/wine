@@ -1,6 +1,7 @@
 /**
  * Redux-подібний стор для системи завдань WINIX
  * Централізоване управління станом
+ * ВИПРАВЛЕНА ВЕРСІЯ з правильною обробкою балансу
  */
 
 window.TasksStore = (function() {
@@ -30,7 +31,8 @@ window.TasksStore = (function() {
             chainId: null,
             provider: null,
             lastCheck: null,
-            checking: false
+            checking: false,
+            flexBalance: 0
         },
 
         // Flex Earn
@@ -202,7 +204,7 @@ window.TasksStore = (function() {
     }
 
     /**
-     * User Reducer
+     * User Reducer - ВИПРАВЛЕНО для правильної обробки балансу
      */
     function userReducer(state = initialState.user, action) {
         switch(action.type) {
@@ -212,9 +214,34 @@ window.TasksStore = (function() {
 
             case ActionTypes.UPDATE_BALANCE:
                 console.log('  💰 [TasksStore] Оновлення балансу');
+                console.log('    📊 Поточний баланс:', state.balance);
+                console.log('    📊 Новий баланс:', action.payload);
+
+                // Обробляємо різні формати балансу
+                let newBalance = { ...state.balance };
+
+                // Якщо payload містить winix/tickets - використовуємо напряму
+                if (action.payload.winix !== undefined || action.payload.tickets !== undefined) {
+                    newBalance.winix = action.payload.winix !== undefined ? action.payload.winix : state.balance.winix;
+                    newBalance.tickets = action.payload.tickets !== undefined ? action.payload.tickets : state.balance.tickets;
+                    console.log('    ✅ Використовуємо формат winix/tickets');
+                }
+                // Якщо payload містить balance/coins - конвертуємо
+                else if (action.payload.balance !== undefined || action.payload.coins !== undefined) {
+                    newBalance.winix = action.payload.balance !== undefined ? action.payload.balance : state.balance.winix;
+                    newBalance.tickets = action.payload.coins !== undefined ? action.payload.coins : state.balance.tickets;
+                    console.log('    ⚠️ Конвертуємо формат balance/coins в winix/tickets');
+                }
+                // Якщо payload містить flex - оновлюємо
+                if (action.payload.flex !== undefined) {
+                    newBalance.flex = action.payload.flex;
+                }
+
+                console.log('    📊 Фінальний баланс:', newBalance);
+
                 return {
                     ...state,
-                    balance: { ...state.balance, ...action.payload },
+                    balance: newBalance,
                     lastSync: Date.now()
                 };
 
@@ -247,6 +274,7 @@ window.TasksStore = (function() {
                 return {
                     ...state,
                     address: action.payload.address,
+                    addressFriendly: action.payload.addressFriendly,
                     chainId: action.payload.chainId,
                     provider: action.payload.provider
                 };
@@ -260,6 +288,13 @@ window.TasksStore = (function() {
                 return {
                     ...initialState.wallet,
                     lastCheck: Date.now()
+                };
+
+            case ActionTypes.SET_FLEX_BALANCE:
+                console.log('  💎 [TasksStore] Встановлення FLEX балансу в гаманці');
+                return {
+                    ...state,
+                    flexBalance: action.payload
                 };
 
             case ActionTypes.HYDRATE_STATE:
@@ -553,13 +588,16 @@ window.TasksStore = (function() {
         // User selectors
         getUserId: () => state.user.id,
         getUserBalance: () => state.user.balance,
+        getWinixBalance: () => state.user.balance.winix,
+        getTicketsBalance: () => state.user.balance.tickets,
 
         // Wallet selectors
         isWalletConnected: () => state.wallet.connected,
         getWalletAddress: () => state.wallet.address,
+        getWalletFlexBalance: () => state.wallet.flexBalance,
 
         // Flex selectors
-        getFlexBalance: () => state.flexEarn.flexBalance,
+        getFlexBalance: () => state.flexEarn.flexBalance || state.wallet.flexBalance,
         getFlexLevel: (level) => state.flexEarn.levels[level],
         isFlexLevelClaimed: (level) => state.flexEarn.levels[level]?.claimed || false,
         isFlexLevelAvailable: (level) => state.flexEarn.levels[level]?.available || false,
@@ -583,12 +621,15 @@ window.TasksStore = (function() {
     };
 
     /**
-     * Action creators
+     * Action creators - оновлено для правильної обробки балансу
      */
     const actions = {
         // User actions
         setUser: (userData) => dispatch({ type: ActionTypes.SET_USER, payload: userData }),
-        updateBalance: (balances) => dispatch({ type: ActionTypes.UPDATE_BALANCE, payload: balances }),
+        updateBalance: (balances) => {
+            console.log('🎯 [TasksStore] Action creator updateBalance викликано з:', balances);
+            return dispatch({ type: ActionTypes.UPDATE_BALANCE, payload: balances });
+        },
 
         // Wallet actions
         setWalletConnected: (connected) => dispatch({ type: ActionTypes.SET_WALLET_CONNECTED, payload: connected }),

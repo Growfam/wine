@@ -1,6 +1,7 @@
 /**
  * API модуль для системи завдань WINIX - ВИПРАВЛЕНА ВЕРСІЯ
  * Правильна передача raw та user-friendly адрес для wallet endpoints
+ * Додано трансформацію балансу з backend формату
  */
 window.TasksAPI = (function() {
     'use strict';
@@ -225,6 +226,30 @@ window.TasksAPI = (function() {
         return executeRequest();
     }
 
+    // Функція трансформації балансу з backend формату в frontend формат
+    function transformBalance(data) {
+        console.log('🔄 [TasksAPI] Трансформація балансу:', data);
+
+        // Якщо вже у правильному форматі
+        if (data && data.winix !== undefined && data.tickets !== undefined) {
+            return data;
+        }
+
+        // Трансформуємо balance/coins в winix/tickets
+        if (data && (data.balance !== undefined || data.coins !== undefined)) {
+            return {
+                winix: data.balance || 0,
+                tickets: data.coins || 0
+            };
+        }
+
+        // Повертаємо дефолтні значення
+        return {
+            winix: 0,
+            tickets: 0
+        };
+    }
+
     // API методи для User
     const user = {
         getProfile: function(userId) {
@@ -232,7 +257,23 @@ window.TasksAPI = (function() {
             if (!userId) {
                 return Promise.reject(new Error('User ID не вказано'));
             }
-            return apiRequest(API_CONFIG.baseUrl + '/api/user/' + userId);
+            return apiRequest(API_CONFIG.baseUrl + '/api/user/' + userId)
+                .then(function(response) {
+                    console.log('👤 [TasksAPI] Профіль отримано (raw):', response);
+
+                    // Трансформуємо дані балансу
+                    if (response && response.data) {
+                        // Трансформуємо баланс у форматі data
+                        response.data.transformedBalance = transformBalance(response.data);
+
+                        // Зберігаємо також у кореневому об'єкті для сумісності
+                        response.balance = response.data.transformedBalance;
+
+                        console.log('👤 [TasksAPI] Профіль після трансформації:', response);
+                    }
+
+                    return response;
+                });
         },
 
         getBalance: function(userId) {
@@ -240,7 +281,31 @@ window.TasksAPI = (function() {
             if (!userId) {
                 return Promise.reject(new Error('User ID не вказано'));
             }
-            return apiRequest(API_CONFIG.baseUrl + '/api/user/' + userId + '/balance');
+            return apiRequest(API_CONFIG.baseUrl + '/api/user/' + userId + '/balance')
+                .then(function(response) {
+                    console.log('💰 [TasksAPI] Баланс отримано (raw):', response);
+
+                    // Трансформуємо відповідь
+                    if (response) {
+                        // Шукаємо дані балансу в різних місцях
+                        let balanceData = response.data || response;
+
+                        // Трансформуємо баланс
+                        const transformedBalance = transformBalance(balanceData);
+
+                        // Додаємо трансформований баланс у різні місця для сумісності
+                        response.balance = transformedBalance;
+
+                        if (!response.data) {
+                            response.data = {};
+                        }
+                        response.data.balance = transformedBalance;
+
+                        console.log('💰 [TasksAPI] Баланс після трансформації:', response);
+                    }
+
+                    return response;
+                });
         },
 
         updateBalance: function(userId, balances) {
@@ -248,9 +313,16 @@ window.TasksAPI = (function() {
             if (!userId || !balances) {
                 return Promise.reject(new Error('Невірні параметри'));
             }
+
+            // Трансформуємо назад для backend якщо потрібно
+            const backendData = {
+                balance: balances.winix || balances.balance || 0,
+                coins: balances.tickets || balances.coins || 0
+            };
+
             return apiRequest(API_CONFIG.baseUrl + '/api/user/' + userId + '/update-balance', {
                 method: 'POST',
-                body: JSON.stringify(balances)
+                body: JSON.stringify(backendData)
             });
         }
     };
@@ -588,6 +660,7 @@ window.TasksAPI = (function() {
         apiRequest: apiRequest,
         getAuthToken: getAuthToken,
         getUserId: getUserId,
+        transformBalance: transformBalance,
 
         // API методи
         auth: auth,
