@@ -1,6 +1,6 @@
 /**
  * Модуль перевірки TON гаманця для системи завдань WINIX
- * ВИПРАВЛЕНА ВЕРСІЯ - з правильним відображенням статусу та відключенням
+ * ВИПРАВЛЕНА ВЕРСІЯ - з правильною обробкою raw та user-friendly адрес
  */
 
 window.WalletChecker = (function() {
@@ -322,6 +322,76 @@ window.WalletChecker = (function() {
     }
 
     /**
+     * Отримати адреси з wallet об'єкта
+     */
+    function extractWalletAddresses(wallet) {
+        console.log('🔍 [WalletChecker] === ВИТЯГУЄМО АДРЕСИ З WALLET ===');
+
+        // Детальний дебаг wallet об'єкта
+        console.log('📦 Повний wallet об\'єкт:', wallet);
+        console.log('📦 wallet.account:', wallet.account);
+        console.log('📦 Всі ключі wallet.account:', Object.keys(wallet.account || {}));
+
+        if (!wallet || !wallet.account) {
+            console.error('❌ [WalletChecker] Wallet або account відсутні');
+            return null;
+        }
+
+        const rawAddress = wallet.account.address;
+
+        if (!rawAddress) {
+            console.error('❌ [WalletChecker] Raw адреса відсутня');
+            return null;
+        }
+
+        console.log('📍 Raw адреса:', rawAddress);
+        console.log('📍 Формат адреси:', {
+            isRaw: rawAddress.startsWith('0:') || rawAddress.startsWith('-1:'),
+            isUserFriendly: rawAddress.startsWith('UQ') || rawAddress.startsWith('EQ')
+        });
+
+        // Шукаємо user-friendly адресу в різних можливих полях
+        let userFriendlyAddress = null;
+
+        // Список можливих полів де може бути user-friendly адреса
+        const possibleFields = [
+            'addressFriendly',
+            'friendlyAddress',
+            'userFriendlyAddress',
+            'address_friendly',
+            'user_friendly_address'
+        ];
+
+        for (const field of possibleFields) {
+            if (wallet.account[field]) {
+                userFriendlyAddress = wallet.account[field];
+                console.log(`✅ User-friendly адреса знайдена в полі '${field}':`, userFriendlyAddress);
+                break;
+            }
+        }
+
+        // Якщо user-friendly не знайдено, перевіряємо чи raw адреса вже в user-friendly форматі
+        if (!userFriendlyAddress) {
+            if (rawAddress.startsWith('UQ') || rawAddress.startsWith('EQ')) {
+                console.log('✅ Raw адреса вже в user-friendly форматі');
+                userFriendlyAddress = rawAddress;
+            } else {
+                console.warn('⚠️ User-friendly адреса не знайдена, буде використана raw адреса');
+            }
+        }
+
+        const result = {
+            raw: rawAddress,
+            userFriendly: userFriendlyAddress || rawAddress,
+            needsConversion: !userFriendlyAddress && (rawAddress.startsWith('0:') || rawAddress.startsWith('-1:'))
+        };
+
+        console.log('📊 Результат витягування адрес:', result);
+
+        return result;
+    }
+
+    /**
      * Перевірка підключення гаманця
      */
     async function checkWalletConnection() {
@@ -343,12 +413,19 @@ window.WalletChecker = (function() {
             if (isConnected) {
                 const wallet = state.tonConnectUI.wallet;
                 console.log('✅ [WalletChecker] Гаманець підключено');
-                console.log('📍 [WalletChecker] Адреса:', wallet.account.address);
+
+                const addresses = extractWalletAddresses(wallet);
+
+                if (!addresses) {
+                    throw new Error('Не вдалося отримати адреси гаманця');
+                }
+
+                console.log('📍 [WalletChecker] Адреси:', addresses);
                 console.log('🏷️ [WalletChecker] Провайдер:', wallet.device.appName);
 
-                state.lastWalletAddress = wallet.account.address;
+                state.lastWalletAddress = addresses.userFriendly;
 
-                showWalletConnectedStatus(wallet.account.address);
+                showWalletConnectedStatus(addresses.userFriendly);
 
                 await rateLimit();
                 await verifyWalletOnBackend(wallet);
@@ -396,59 +473,21 @@ window.WalletChecker = (function() {
     async function verifyWalletOnBackend(wallet) {
         console.log('🌐 [WalletChecker] === ВЕРИФІКАЦІЯ НА БЕКЕНДІ ===');
 
-        if (!wallet || !wallet.account || !wallet.account.address) {
-            console.error('❌ [WalletChecker] Wallet або адреса відсутні');
-            throw new Error('Гаманець не підключено або адреса відсутня');
+        const addresses = extractWalletAddresses(wallet);
+
+        if (!addresses) {
+            console.error('❌ [WalletChecker] Не вдалося отримати адреси');
+            throw new Error('Адреси гаманця відсутні');
         }
-
-        // TON Connect v2+ повинен надавати обидві адреси
-const rawAddress = wallet.account.address;
-const userFriendlyAddress = wallet.account.publicKey
-    ? await formatAddressToUserFriendly(rawAddress, wallet.account.publicKey)
-    : rawAddress;
-
-// Або перевірте чи є метод в TON Connect
-const tonConnectAddress = state.tonConnectUI.account?.address;
-const tonConnectFriendlyAddress = state.tonConnectUI.account?.addressFriendly
-    || state.tonConnectUI.account?.userFriendlyAddress;
-
-console.log('📍 Адреси від TON Connect:', {
-    raw: rawAddress,
-    friendly: userFriendlyAddress,
-    tonConnectAddress: tonConnectAddress,
-    tonConnectFriendly: tonConnectFriendlyAddress
-});
-
-const walletData = {
-    address: rawAddress,
-    addressFriendly: userFriendlyAddress || tonConnectFriendlyAddress || rawAddress,
-    chain: chain,
-    publicKey: publicKey,
-    provider: wallet.device.appName || 'unknown',
-    timestamp: Date.now()
-};
-
-        console.log('🔍 [WalletChecker] ДЕТАЛЬНИЙ АНАЛІЗ WALLET OBJECT:');
-console.log('📦 Повний wallet об\'єкт:', wallet);
-console.log('📦 wallet.account:', wallet.account);
-console.log('📦 Всі ключі wallet.account:', Object.keys(wallet.account));
-console.log('📦 address формат:', address);
-console.log('📦 Чи починається з 0:?', address.startsWith('0:'));
-console.log('📦 Чи починається з UQ?', address.startsWith('UQ'));
-
-        if (!address || typeof address !== 'string' || address.length < 10) {
-            console.error('❌ [WalletChecker] Невалідний формат адреси:', address);
-            throw new Error('Невалідний формат адреси TON гаманця');
-        }
-
-        console.log('✅ [WalletChecker] Адреса для верифікації:', address);
 
         const chain = wallet.account.chain || '-239';
         const publicKey = wallet.account.publicKey || '';
 
         console.log('📊 [WalletChecker] Дані для верифікації:', {
             userId: state.userId,
-            address: address,
+            rawAddress: addresses.raw,
+            userFriendlyAddress: addresses.userFriendly,
+            needsConversion: addresses.needsConversion,
             chain: chain,
             provider: wallet.device.appName
         });
@@ -456,24 +495,27 @@ console.log('📦 Чи починається з UQ?', address.startsWith('UQ'))
         try {
             await rateLimit();
 
-            if (state.walletCache && state.walletCache.address === address) {
+            // Перевіряємо кеш
+            if (state.walletCache && state.walletCache.address === addresses.userFriendly) {
                 console.log('📦 [WalletChecker] Використовуємо кешовані дані гаманця');
                 updateWalletState(wallet, state.walletCache);
-                await checkFlexBalance(address);
+                await checkFlexBalance(addresses.userFriendly);
                 return;
             }
 
+            // Перевіряємо статус на сервері
             const statusResponse = await window.TasksAPI.wallet.checkStatus(state.userId);
             console.log('📊 [WalletChecker] Статус відповідь:', statusResponse);
 
-            if (statusResponse.data && statusResponse.data.connected && statusResponse.data.address === address) {
+            if (statusResponse.data && statusResponse.data.connected &&
+                (statusResponse.data.address === addresses.userFriendly || statusResponse.data.address === addresses.raw)) {
                 console.log('✅ [WalletChecker] Гаманець вже зареєстрований');
 
                 state.walletCache = statusResponse.data;
                 updateWalletState(wallet, statusResponse.data);
 
                 await rateLimit();
-                await checkFlexBalance(address);
+                await checkFlexBalance(addresses.userFriendly);
                 return;
             }
 
@@ -481,33 +523,15 @@ console.log('📦 Чи починається з UQ?', address.startsWith('UQ'))
 
             console.log('🔄 [WalletChecker] Реєстрація гаманця на сервері...');
 
-// Спробуємо отримати addressFriendly з різних джерел
-let addressFriendly = null;
-
-// Варіант 1: Можливо є в іншому полі
-if (wallet.account.addressFriendly) {
-    addressFriendly = wallet.account.addressFriendly;
-} else if (wallet.account.friendlyAddress) {
-    addressFriendly = wallet.account.friendlyAddress;
-} else if (wallet.account.userFriendlyAddress) {
-    addressFriendly = wallet.account.userFriendlyAddress;
-}
-
-// Логування для дебагу
-console.log('🔍 [WalletChecker] Пошук addressFriendly:', {
-    addressFriendly: addressFriendly,
-    address: address,
-    allKeys: Object.keys(wallet.account)
-});
-
-const walletData = {
-    address: address,
-    addressFriendly: addressFriendly || address, // Використовуємо address як fallback
-    chain: chain,
-    publicKey: publicKey,
-    provider: wallet.device.appName || 'unknown',
-    timestamp: Date.now()
-};
+            // Формуємо дані для відправки на сервер
+            const walletData = {
+                address: addresses.raw,  // Відправляємо raw адресу
+                addressFriendly: addresses.userFriendly,  // Відправляємо user-friendly адресу
+                chain: chain,
+                publicKey: publicKey,
+                provider: wallet.device.appName || 'unknown',
+                timestamp: Date.now()
+            };
 
             console.log('📤 [WalletChecker] Дані для реєстрації:', walletData);
 
@@ -525,7 +549,7 @@ const walletData = {
                 }
 
                 await rateLimit();
-                await checkFlexBalance(address);
+                await checkFlexBalance(addresses.userFriendly);
             } else {
                 throw new Error(connectResponse.message || 'Failed to connect wallet');
             }
@@ -568,9 +592,11 @@ const walletData = {
         store.actions.setWalletConnected(true);
 
         const walletData = serverData.wallet || serverData;
+        const addresses = extractWalletAddresses(wallet);
 
         store.actions.setWalletAddress({
-            address: wallet.account.address,
+            address: walletData.address || addresses.userFriendly,
+            rawAddress: walletData.raw_address || addresses.raw,
             chainId: wallet.account.chain,
             provider: wallet.device.appName,
             connected_at: walletData.connected_at,
@@ -581,7 +607,7 @@ const walletData = {
             store.actions.setFlexBalance(serverData.balance.flex);
         }
 
-        showWalletConnectedStatus(wallet.account.address);
+        showWalletConnectedStatus(walletData.address || addresses.userFriendly);
     }
 
     /**
@@ -589,11 +615,12 @@ const walletData = {
      */
     async function checkFlexBalance(address) {
         console.log('💎 [WalletChecker] === ПЕРЕВІРКА БАЛАНСУ FLEX ===');
+        console.log('📍 [WalletChecker] Адреса для перевірки:', address);
 
         try {
             const response = await window.TasksAPI.flex.getBalance(state.userId, address);
 
-            console.log('💰 [WalletChecker] Баланс FLEX:', response);
+            console.log('💰 [WalletChecker] Відповідь балансу FLEX:', response);
 
             if (response.balance !== undefined) {
                 const balance = parseInt(response.balance);
@@ -789,7 +816,10 @@ const walletData = {
 
             updateConnectButton(false);
 
-            state.lastWalletAddress = wallet.account.address;
+            const addresses = extractWalletAddresses(wallet);
+            if (addresses) {
+                state.lastWalletAddress = addresses.userFriendly;
+            }
 
             try {
                 await rateLimit();
@@ -821,15 +851,16 @@ const walletData = {
     function showFirstConnectionBonus(bonus) {
         console.log('🎁 [WalletChecker] === БОНУС ЗА ПЕРШЕ ПІДКЛЮЧЕННЯ ===');
 
-        if (!bonus || (!bonus.winix && !bonus.tickets)) {
+        if (!bonus || (!bonus.winix && !bonus.tickets && !bonus.amount)) {
             console.warn('⚠️ [WalletChecker] Бонус не наданий');
             return;
         }
 
         let message = 'Вітаємо! Бонус за підключення гаманця: ';
-        if (bonus.winix || bonus.amount) {
-            const amount = bonus.winix || bonus.amount;
-            message += `+${amount} WINIX`;
+        const winixAmount = bonus.winix || bonus.amount || 0;
+
+        if (winixAmount > 0) {
+            message += `+${winixAmount} WINIX`;
         }
         if (bonus.tickets) {
             message += ` та +${bonus.tickets} tickets`;
@@ -838,10 +869,9 @@ const walletData = {
         window.TasksUtils.showToast(message, 'success', 5000);
 
         const currentBalance = window.TasksStore.selectors.getUserBalance();
-        const winixBonus = bonus.winix || bonus.amount || 0;
 
         window.TasksStore.actions.updateBalance({
-            winix: currentBalance.winix + winixBonus,
+            winix: currentBalance.winix + winixAmount,
             tickets: currentBalance.tickets + (bonus.tickets || 0)
         });
 

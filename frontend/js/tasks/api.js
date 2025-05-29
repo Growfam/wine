@@ -1,6 +1,6 @@
 /**
  * API модуль для системи завдань WINIX - ВИПРАВЛЕНА ВЕРСІЯ
- * Правильна передача JSON даних для wallet endpoints
+ * Правильна передача raw та user-friendly адрес для wallet endpoints
  */
 window.TasksAPI = (function() {
     'use strict';
@@ -255,7 +255,7 @@ window.TasksAPI = (function() {
         }
     };
 
-    // API методи для Wallet - ВИПРАВЛЕНО
+    // API методи для Wallet - ВИПРАВЛЕНО з підтримкою raw та user-friendly адрес
     const wallet = {
         checkStatus: function(userId) {
             console.log('👛 [TasksAPI] Перевірка статусу гаманця:', userId);
@@ -266,24 +266,41 @@ window.TasksAPI = (function() {
         },
 
         connect: function(userId, walletData) {
-            console.log('🔌 [TasksAPI] Підключення гаманця:', userId);
+            console.log('🔌 [TasksAPI] === ПІДКЛЮЧЕННЯ ГАМАНЦЯ ===');
+            console.log('📊 [TasksAPI] userId:', userId);
             console.log('📊 [TasksAPI] Дані гаманця:', walletData);
 
-            if (!userId || !walletData || !walletData.address) {
+            if (!userId || !walletData) {
                 console.error('❌ [TasksAPI] Невірні параметри підключення гаманця');
                 return Promise.reject(new Error('Невірні параметри'));
             }
 
-            // Формуємо правильну структуру даних
+            // Перевіряємо наявність адреси
+            if (!walletData.address) {
+                console.error('❌ [TasksAPI] Адреса гаманця відсутня');
+                return Promise.reject(new Error('Адреса гаманця обов\'язкова'));
+            }
+
+            // Формуємо правильну структуру даних з обома адресами
             const requestData = {
-                address: walletData.address,
+                address: walletData.address,               // Raw адреса (обов'язкова)
+                addressFriendly: walletData.addressFriendly || walletData.address,  // User-friendly адреса
                 chain: walletData.chain || '-239',
                 publicKey: walletData.publicKey || '',
                 provider: walletData.provider || '',
                 timestamp: walletData.timestamp || Date.now()
             };
 
-            console.log('📤 [TasksAPI] Дані для відправки:', requestData);
+            // Додаткова інформація про адреси для дебагу
+            console.log('📍 [TasksAPI] Адреси для відправки:', {
+                raw: requestData.address,
+                userFriendly: requestData.addressFriendly,
+                areEqual: requestData.address === requestData.addressFriendly,
+                rawFormat: requestData.address.startsWith('0:') || requestData.address.startsWith('-1:'),
+                friendlyFormat: requestData.addressFriendly.startsWith('UQ') || requestData.addressFriendly.startsWith('EQ')
+            });
+
+            console.log('📤 [TasksAPI] Фінальні дані для відправки:', requestData);
 
             return apiRequest(API_CONFIG.baseUrl + '/api/wallet/connect/' + userId, {
                 method: 'POST',
@@ -300,17 +317,86 @@ window.TasksAPI = (function() {
                 method: 'POST',
                 body: JSON.stringify({})
             });
+        },
+
+        verify: function(userId, verificationData) {
+            console.log('🔍 [TasksAPI] Верифікація гаманця:', userId);
+            if (!userId || !verificationData) {
+                return Promise.reject(new Error('Невірні параметри'));
+            }
+            return apiRequest(API_CONFIG.baseUrl + '/api/wallet/verify/' + userId, {
+                method: 'POST',
+                body: JSON.stringify(verificationData)
+            });
+        },
+
+        getBalance: function(userId) {
+            console.log('💰 [TasksAPI] Отримання балансу гаманця:', userId);
+            if (!userId) {
+                return Promise.reject(new Error('User ID не вказано'));
+            }
+            return apiRequest(API_CONFIG.baseUrl + '/api/wallet/balance/' + userId);
+        },
+
+        getTransactions: function(userId, limit, beforeLt) {
+            console.log('📋 [TasksAPI] Отримання транзакцій гаманця:', userId);
+            if (!userId) {
+                return Promise.reject(new Error('User ID не вказано'));
+            }
+
+            let url = API_CONFIG.baseUrl + '/api/wallet/transactions/' + userId;
+            const params = [];
+
+            if (limit) {
+                params.push('limit=' + limit);
+            }
+            if (beforeLt) {
+                params.push('before_lt=' + beforeLt);
+            }
+
+            if (params.length > 0) {
+                url += '?' + params.join('&');
+            }
+
+            return apiRequest(url);
         }
     };
 
     // API методи для Flex
     const flex = {
         getBalance: function(userId, walletAddress) {
-            console.log('💎 [TasksAPI] Отримання балансу FLEX:', userId);
-            if (!userId || !walletAddress) {
-                return Promise.reject(new Error('Невірні параметри'));
+            console.log('💎 [TasksAPI] === ОТРИМАННЯ БАЛАНСУ FLEX ===');
+            console.log('📊 [TasksAPI] userId:', userId);
+            console.log('📊 [TasksAPI] walletAddress:', walletAddress);
+
+            if (!userId) {
+                console.error('❌ [TasksAPI] User ID не вказано');
+                return Promise.reject(new Error('User ID не вказано'));
             }
-            return apiRequest(API_CONFIG.baseUrl + '/api/flex/balance/' + userId + '?wallet=' + walletAddress);
+
+            if (!walletAddress) {
+                console.error('❌ [TasksAPI] Адреса гаманця не вказана');
+                return Promise.reject(new Error('Адреса гаманця не вказана'));
+            }
+
+            // Перевіряємо формат адреси
+            const isRawAddress = walletAddress.startsWith('0:') || walletAddress.startsWith('-1:');
+            const isUserFriendly = walletAddress.startsWith('UQ') || walletAddress.startsWith('EQ');
+
+            console.log('📍 [TasksAPI] Формат адреси:', {
+                address: walletAddress,
+                isRaw: isRawAddress,
+                isUserFriendly: isUserFriendly,
+                length: walletAddress.length
+            });
+
+            // Кодуємо адресу для URL
+            const encodedAddress = encodeURIComponent(walletAddress);
+            const url = API_CONFIG.baseUrl + '/api/flex/balance/' + userId + '?wallet=' + encodedAddress;
+
+            console.log('🌐 [TasksAPI] URL для запиту балансу:', url);
+
+            return apiRequest(url);
         },
 
         claimReward: function(userId, level) {
@@ -320,8 +406,16 @@ window.TasksAPI = (function() {
             }
             return apiRequest(API_CONFIG.baseUrl + '/api/flex/claim/' + userId, {
                 method: 'POST',
-                body: JSON.stringify({ level: level, timestamp: Date.now() })
+                body: JSON.stringify({
+                    level: level,
+                    timestamp: Date.now()
+                })
             });
+        },
+
+        getLevels: function() {
+            console.log('📊 [TasksAPI] Отримання рівнів FLEX');
+            return apiRequest(API_CONFIG.baseUrl + '/api/flex/levels');
         }
     };
 
@@ -344,6 +438,20 @@ window.TasksAPI = (function() {
                 method: 'POST',
                 body: JSON.stringify({ timestamp: Date.now() })
             });
+        },
+
+        getHistory: function(userId, limit) {
+            console.log('📜 [TasksAPI] Отримання історії щоденних бонусів:', userId);
+            if (!userId) {
+                return Promise.reject(new Error('User ID не вказано'));
+            }
+
+            let url = API_CONFIG.baseUrl + '/api/daily/history/' + userId;
+            if (limit) {
+                url += '?limit=' + limit;
+            }
+
+            return apiRequest(url);
         }
     };
 
@@ -397,21 +505,33 @@ window.TasksAPI = (function() {
                 return Promise.reject(new Error('Невірні параметри'));
             }
             return apiRequest(API_CONFIG.baseUrl + '/api/tasks/claim/' + userId + '/' + taskId, {
-                method: 'POST'
+                method: 'POST',
+                body: JSON.stringify({ timestamp: Date.now() })
             });
+        },
+
+        getProgress: function(userId) {
+            console.log('📈 [TasksAPI] Отримання прогресу завдань:', userId);
+            if (!userId) {
+                return Promise.reject(new Error('User ID не вказано'));
+            }
+            return apiRequest(API_CONFIG.baseUrl + '/api/tasks/progress/' + userId);
         }
     };
 
     // API методи для Verification
     const verify = {
         telegram: function(userId, channelUsername) {
-            console.log('📱 [TasksAPI] Верифікація Telegram підписки:', userId);
+            console.log('📱 [TasksAPI] Верифікація Telegram підписки:', userId, channelUsername);
             if (!userId || !channelUsername) {
                 return Promise.reject(new Error('Невірні параметри'));
             }
             return apiRequest(API_CONFIG.baseUrl + '/api/verify/telegram/' + userId, {
                 method: 'POST',
-                body: JSON.stringify({ channelUsername: channelUsername })
+                body: JSON.stringify({
+                    channelUsername: channelUsername,
+                    timestamp: Date.now()
+                })
             });
         },
 
