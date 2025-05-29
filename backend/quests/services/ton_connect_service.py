@@ -7,7 +7,6 @@ import os
 import time
 import logging
 import asyncio
-import requests  # Додано імпорт requests
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -621,67 +620,45 @@ class TONConnectService:
     def convert_raw_to_friendly_sync(self, raw_address: str) -> Optional[str]:
         """
         Синхронна конвертація raw адреси в user-friendly через TON API
-
-        Args:
-            raw_address: Raw адреса (0:... або -1:...)
-
-        Returns:
-            User-friendly адреса або None
         """
-        if not self.is_available:
-            logger.warning("⚠️ TON Connect Service недоступний")
-            return None
-
-        if not raw_address:
-            return None
-
-        # Якщо адреса вже user-friendly - повертаємо як є
-        if raw_address.startswith(('UQ', 'EQ', 'kQ', 'Ef')):
-            logger.info(f"✅ Адреса вже в user-friendly форматі: {raw_address}")
-            return raw_address
-
-        # Перевіряємо чи це raw адреса
-        if not raw_address.startswith(('0:', '-1:')):
-            logger.warning(f"⚠️ Невідомий формат адреси: {raw_address}")
+        if not raw_address or not raw_address.startswith(('0:', '-1:')):
             return raw_address
 
         try:
-            logger.info(f"🔄 Конвертація raw адреси через TON API: {raw_address}")
+            import requests
 
+            # Використовуємо TON API для конвертації
             url = f"{self.base_url}/packAddress"
             params = {
-                'address': raw_address
+                'address': raw_address,
+                'api_key': self.api_key
             }
 
-            # Додаємо API ключ якщо є
-            if self.api_key:
-                params['api_key'] = self.api_key
+            logger.info(f"🔄 Відправляємо запит на конвертацію адреси: {url}")
+            logger.info(f"📤 Параметри: {params}")
 
             response = requests.get(url, params=params, timeout=5)
 
+            logger.info(f"📥 Статус відповіді: {response.status_code}")
+
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"📦 Відповідь API: {data}")
 
                 if data.get('ok') and data.get('result'):
                     user_friendly = data['result']
-                    logger.info(f"✅ Успішна конвертація: {raw_address} -> {user_friendly}")
+                    logger.info(f"✅ Конвертація успішна: {raw_address} -> {user_friendly}")
                     return user_friendly
                 else:
-                    error = data.get('error', 'Unknown error')
-                    logger.error(f"❌ API помилка конвертації: {error}")
-                    return None
-            else:
-                logger.error(f"❌ HTTP {response.status_code}: {response.text}")
-                return None
+                    logger.error(f"❌ API повернув помилку: {data}")
 
-        except requests.exceptions.Timeout:
-            logger.error("❌ Таймаут при конвертації адреси")
+            else:
+                logger.error(f"❌ HTTP помилка: {response.status_code} - {response.text}")
+
             return None
-        except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Мережева помилка при конвертації: {e}")
-            return None
+
         except Exception as e:
-            logger.error(f"❌ Неочікувана помилка конвертації: {e}")
+            logger.error(f"❌ Помилка конвертації адреси: {e}")
             return None
 
     def clear_cache(self, address: Optional[str] = None) -> None:
