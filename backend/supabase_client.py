@@ -23,12 +23,23 @@ import json
 import uuid
 import functools
 import warnings
-from datetime import datetime, timezone, timedelta  # ✅ ДОДАНО timedelta для стейкінгу
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Callable, TypeVar, Union
 from contextlib import contextmanager
 from requests.exceptions import RequestException, Timeout, ConnectTimeout, ReadTimeout
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from pathlib import Path
+
+
+# Знайти кореневу директорію проекту
+# Якщо supabase_client.py в backend/, то піднімаємось на рівень вище
+current_dir = Path(__file__).resolve().parent  # backend/
+root_dir = current_dir.parent  # коренева папка проекту
+
+# Завантажити .env з кореневої папки
+env_path = root_dir / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Відключаємо попередження PyCharm для Supabase
 warnings.filterwarnings("ignore", category=UserWarning, module="supabase")
