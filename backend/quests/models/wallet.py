@@ -1,7 +1,7 @@
 """
 Модель гаманця для системи завдань WINIX
 Управління TON гаманцями користувачів
-БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
+ВИПРАВЛЕНА ВЕРСІЯ - зберігаємо обидві адреси (raw та user-friendly)
 """
 import logging
 from datetime import datetime, timezone, timedelta
@@ -168,6 +168,11 @@ class WalletModel:
                 if response.data:
                     wallet = response.data[0]
                     logger.info(f"Знайдено гаманець для {telegram_id}: {wallet['address']}")
+
+                    # Додаємо user-friendly адресу якщо вона не основна
+                    if 'raw_address' in wallet and wallet['raw_address']:
+                        wallet['user_friendly_address'] = wallet['address']
+
                     return wallet
 
                 logger.info(f"Гаманець для користувача {telegram_id} не знайдено")
@@ -181,7 +186,7 @@ class WalletModel:
 
     def connect_wallet(self, telegram_id: str, wallet_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Підключення гаманця користувача БЕЗ ВАЛІДАЦІЇ
+        Підключення гаманця користувача з підтримкою обох форматів адрес
 
         Args:
             telegram_id: ID користувача в Telegram
@@ -204,19 +209,20 @@ class WalletModel:
                     'error_code': 'INVALID_WALLET_DATA'
                 }
 
-            # Отримуємо адресу в user-friendly форматі
-            if 'addressFriendly' in wallet_data and wallet_data['addressFriendly']:
-                address = wallet_data['addressFriendly']
-                logger.info(f"Використовуємо user-friendly адресу: {address}")
-            else:
-                address = wallet_data['address']
-                logger.warning(f"User-friendly адреса відсутня, використовуємо raw: {address}")
-                if not address:
-                    return {
-                        'success': False,
-                        'message': 'Адреса гаманця відсутня',
-                        'error_code': 'MISSING_ADDRESS'
-                    }
+            # Отримуємо адреси
+            address = wallet_data['address']  # Це має бути user-friendly адреса
+            raw_address = wallet_data.get('raw_address')  # Raw адреса якщо передана
+
+            logger.info(f"📍 Адреси для збереження:")
+            logger.info(f"  - address (user-friendly): {address}")
+            logger.info(f"  - raw_address: {raw_address}")
+
+            if not address:
+                return {
+                    'success': False,
+                    'message': 'Адреса гаманця відсутня',
+                    'error_code': 'MISSING_ADDRESS'
+                }
 
             # Перевіряємо чи гаманець вже підключений до іншого користувача
             existing_wallet = self._get_wallet_by_address(address)
@@ -241,23 +247,24 @@ class WalletModel:
 
             wallet_record = {
                 'telegram_id': telegram_id,
-                'address': address,  # user-friendly адреса
-                'raw_address': wallet_data.get('raw_address'),  # ✅ ПРАВИЛЬНО
+                'address': address,  # Зберігаємо user-friendly адресу як основну
+                'raw_address': raw_address,  # Зберігаємо raw адресу окремо
                 'chain_id': wallet_data.get('chain', self.TON_MAINNET_CHAIN),
                 'public_key': wallet_data.get('publicKey'),
                 'provider': self.normalize_provider(wallet_data.get('provider', '')),
                 'status': WalletStatus.CONNECTED.value,
                 'connected_at': now.isoformat(),
                 'last_activity': now.isoformat(),
-                'metadata': {
-                    'connection_timestamp': wallet_data.get('timestamp', int(now.timestamp())),
-                    'user_agent': wallet_data.get('userAgent', ''),
-                    'ip_address': wallet_data.get('ipAddress', ''),
-                    'app_version': wallet_data.get('appVersion', '')
-                },
+                'metadata': wallet_data.get('metadata', {}),
                 'created_at': now.isoformat(),
                 'updated_at': now.isoformat()
             }
+
+            # Додаткове логування
+            logger.info(f"📦 Дані для збереження в БД:")
+            logger.info(f"  - address: {wallet_record['address']}")
+            logger.info(f"  - raw_address: {wallet_record['raw_address']}")
+            logger.info(f"  - provider: {wallet_record['provider']}")
 
             def create_wallet():
                 response = supabase.table(self.TABLE_NAME) \
@@ -292,6 +299,7 @@ class WalletModel:
             # Логуємо подію
             self._log_wallet_event(telegram_id, 'connect', {
                 'address': address,
+                'raw_address': raw_address,
                 'provider': wallet_record['provider'],
                 'first_connection': is_first_connection
             })
@@ -458,6 +466,7 @@ class WalletModel:
                 return {
                     'connected': True,
                     'address': wallet['address'],
+                    'raw_address': wallet.get('raw_address'),
                     'provider': wallet['provider'],
                     'status': wallet['status'],
                     'connected_at': wallet['connected_at'],
@@ -467,6 +476,7 @@ class WalletModel:
                 return {
                     'connected': False,
                     'address': None,
+                    'raw_address': None,
                     'provider': None,
                     'status': WalletStatus.DISCONNECTED.value,
                     'verified': False
@@ -477,6 +487,7 @@ class WalletModel:
             return {
                 'connected': False,
                 'address': None,
+                'raw_address': None,
                 'provider': None,
                 'status': WalletStatus.DISCONNECTED.value,
                 'verified': False,

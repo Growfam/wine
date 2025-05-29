@@ -1,7 +1,7 @@
 """
 Контролер для управління TON гаманцями користувачів
 API endpoints для підключення, відключення та верифікації гаманців
-БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
+ВИПРАВЛЕНА ВЕРСІЯ - з правильною обробкою raw та user-friendly адрес
 """
 
 import logging
@@ -158,7 +158,7 @@ class WalletController:
     def connect_wallet(telegram_id: str) -> Tuple[Dict[str, Any], int]:
         """
         Підключення TON гаманця з автоматичним бонусом через Transaction Service
-        З КОНВЕРТАЦІЄЮ АДРЕС для довгострокового рішення
+        ВИПРАВЛЕНА ВЕРСІЯ - правильна обробка raw та user-friendly адрес
         """
         try:
             logger.info(f"Підключення гаманця для користувача {telegram_id}")
@@ -175,7 +175,7 @@ class WalletController:
                 wallet_data = request.get_json(force=True)
                 logger.info(f"📱 Отримані дані гаманця від фронтенду:")
                 logger.info(f"  - Всі поля: {list(wallet_data.keys())}")
-                logger.info(f"  - address: {wallet_data.get('address')}")
+                logger.info(f"  - address (raw): {wallet_data.get('address')}")
                 logger.info(f"  - addressFriendly: {wallet_data.get('addressFriendly')}")
             except Exception as e:
                 logger.error(f"Помилка отримання JSON: {e}")
@@ -193,8 +193,10 @@ class WalletController:
                     "error_code": "MISSING_WALLET_DATA"
                 }, 400
 
-            # Отримуємо raw адресу (обов'язкова)
+            # Отримуємо обидві адреси
             raw_address = wallet_data.get('address')
+            user_friendly_address = wallet_data.get('addressFriendly')
+
             if not raw_address:
                 logger.error("Raw адреса відсутня в даних")
                 return {
@@ -203,49 +205,33 @@ class WalletController:
                     "error_code": "MISSING_ADDRESS"
                 }, 400
 
-            # Визначаємо user-friendly адресу
-            user_friendly_address = wallet_data.get('addressFriendly')
+            # Логування для дебагу
+            logger.info(f"🔍 Аналіз адрес:")
+            logger.info(f"  - Raw адреса: {raw_address}")
+            logger.info(f"  - User-friendly адреса з фронту: {user_friendly_address}")
+            logger.info(f"  - Raw формат?: {raw_address.startswith(('0:', '-1:'))}")
+            logger.info(f"  - Friendly формат?: {raw_address.startswith(('UQ', 'EQ'))}")
 
-            # Якщо user-friendly адреса не передана, конвертуємо raw адресу
+            # Визначаємо яку адресу використовувати
             if not user_friendly_address:
-                logger.info(f"🔄 User-friendly адреса відсутня, конвертуємо raw адресу: {raw_address}")
-
-                # Перевіряємо формат raw адреси
+                # Якщо user-friendly не передана, перевіряємо чи потрібна конвертація
                 if raw_address.startswith(('0:', '-1:')):
-                    try:
-                        # Спроба конвертації через TON Connect Service
-                        if ton_connect_service:
-                            logger.info("📡 Конвертуємо адресу через TON API...")
+                    # Це справжня raw адреса, потрібна конвертація
+                    logger.info(f"🔄 User-friendly адреса відсутня, конвертуємо raw адресу: {raw_address}")
 
-                            # Використовуємо метод конвертації
-                            converted_address = ton_connect_service.convert_raw_to_friendly_sync(raw_address)
+                    if ton_connect_service:
+                        converted_address = ton_connect_service.convert_raw_to_friendly_sync(raw_address)
 
-                            if converted_address:
-                                user_friendly_address = converted_address
-                                logger.info(f"✅ Успішно конвертовано: {raw_address} -> {user_friendly_address}")
-                            else:
-                                logger.error("❌ Не вдалося конвертувати адресу через API")
-
-                                # Fallback: генеруємо псевдо user-friendly адресу
-                                # УВАГА: Це тимчасове рішення - краще використовувати pytoniq-core
-                                import hashlib
-                                import base64
-
-                                # Створюємо унікальний ідентифікатор на основі raw адреси
-                                hash_object = hashlib.sha256(raw_address.encode())
-                                hash_hex = hash_object.hexdigest()[:32]
-
-                                # Створюємо псевдо user-friendly адресу
-                                # Це НЕ справжня конвертація, але дозволить системі працювати
-                                user_friendly_address = f"UQ{base64.b64encode(bytes.fromhex(hash_hex)).decode()[:46]}"
-                                logger.warning(
-                                    f"⚠️ Використовуємо псевдо user-friendly адресу: {user_friendly_address}")
-
-                    except Exception as e:
-                        logger.error(f"❌ Помилка конвертації адреси: {e}")
-                        # Використовуємо raw адресу як fallback
+                        if converted_address:
+                            user_friendly_address = converted_address
+                            logger.info(f"✅ Успішно конвертовано: {raw_address} -> {user_friendly_address}")
+                        else:
+                            logger.warning(f"❌ Не вдалося конвертувати адресу через API")
+                            # Використовуємо raw як fallback
+                            user_friendly_address = raw_address
+                    else:
+                        logger.warning("TON Connect Service недоступний для конвертації")
                         user_friendly_address = raw_address
-                        logger.warning(f"⚠️ Використовуємо raw адресу як fallback: {raw_address}")
                 else:
                     # Адреса вже в user-friendly форматі
                     user_friendly_address = raw_address
@@ -253,15 +239,33 @@ class WalletController:
             else:
                 logger.info(f"✅ Отримано user-friendly адресу від фронтенду: {user_friendly_address}")
 
-            # Логуємо фінальні адреси
-            logger.info(f"📍 Фінальні адреси:")
+            # Фінальна перевірка
+            logger.info(f"📍 Фінальні адреси для збереження:")
             logger.info(f"  - Raw: {raw_address}")
-            logger.info(f"  - User-friendly: {user_friendly_address}")
+            logger.info(f"  - User-friendly (для API): {user_friendly_address}")
+
+            # Перевіряємо чи гаманець вже підключений до іншого користувача
+            existing_wallet = wallet_model._get_wallet_by_address(user_friendly_address)
+            if existing_wallet and existing_wallet['telegram_id'] != telegram_id:
+                logger.warning(f"Гаманець {user_friendly_address} вже підключений до користувача {existing_wallet['telegram_id']}")
+                return {
+                    'success': False,
+                    'message': 'Цей гаманець вже підключений до іншого акаунта',
+                    'error_code': 'WALLET_ALREADY_CONNECTED'
+                }, 409
+
+            # Перевіряємо чи у користувача вже є підключений гаманець
+            current_wallet = wallet_model.get_user_wallet(telegram_id)
+            is_first_connection = current_wallet is None
+
+            # Відключаємо попередній гаманець якщо є
+            if current_wallet:
+                wallet_model._disconnect_wallet_internal(telegram_id, current_wallet['id'])
 
             # Санітизація додаткових полів
             sanitized_data = {
-                'address': user_friendly_address,  # Використовуємо user-friendly для збереження
-                'raw_address': raw_address,  # Зберігаємо також raw адресу
+                'address': user_friendly_address,  # Зберігаємо user-friendly для API
+                'raw_address': raw_address,        # Зберігаємо raw для історії
                 'chain': sanitize_string(str(wallet_data.get('chain', '-239'))),
                 'publicKey': sanitize_string(str(wallet_data.get('publicKey', ''))),
                 'provider': sanitize_string(str(wallet_data.get('provider', ''))),
@@ -271,16 +275,17 @@ class WalletController:
                 'metadata': {
                     'original_address': raw_address,
                     'converted': user_friendly_address != raw_address,
-                    'conversion_method': 'ton_api' if user_friendly_address != raw_address else 'frontend'
+                    'conversion_method': 'frontend' if wallet_data.get('addressFriendly') else 'backend'
                 }
             }
+
+            # Додатковий дебаг
             logger.info("=" * 50)
-            logger.info("🔍 ДЕТАЛЬНИЙ ДЕБАГ АДРЕС:")
-            logger.info(f"1. Raw адреса з фронту: {raw_address}")
-            logger.info(f"2. User-friendly адреса: {user_friendly_address}")
-            logger.info(f"3. Адреси однакові?: {raw_address == user_friendly_address}")
-            logger.info(f"4. sanitized_data['address']: {sanitized_data['address']}")
-            logger.info(f"5. sanitized_data['raw_address']: {sanitized_data.get('raw_address')}")
+            logger.info("🔍 ДЕТАЛЬНИЙ ДЕБАГ ДАНИХ ДЛЯ ЗБЕРЕЖЕННЯ:")
+            logger.info(f"1. sanitized_data['address'] (user-friendly): {sanitized_data['address']}")
+            logger.info(f"2. sanitized_data['raw_address']: {sanitized_data.get('raw_address')}")
+            logger.info(f"3. Конвертація виконана?: {sanitized_data['metadata']['converted']}")
+            logger.info(f"4. Метод конвертації: {sanitized_data['metadata']['conversion_method']}")
             logger.info("=" * 50)
 
             # Підключаємо гаманець
@@ -288,8 +293,7 @@ class WalletController:
 
             if result['success']:
                 logger.info(f"✅ Гаманець успішно підключено для {telegram_id}")
-                logger.info(f"📍 User-friendly адреса: {user_friendly_address}")
-                logger.info(f"📍 Raw адреса: {raw_address}")
+                logger.info(f"📍 Збережена адреса (user-friendly): {user_friendly_address}")
 
                 # Обробляємо бонус за перше підключення через transaction service
                 if result.get('first_connection', False):
@@ -674,7 +678,7 @@ class WalletController:
 
             # Отримуємо баланс
             balance = ton_connect_service.get_wallet_balance_sync(
-                wallet['address'],
+                wallet['address'],  # Використовуємо збережену user-friendly адресу
                 force_refresh=force_refresh
             )
 
@@ -771,7 +775,9 @@ class WalletController:
             try:
                 transactions = loop.run_until_complete(
                     ton_connect_service.get_wallet_transactions(
-                        wallet['address'], limit, before_lt
+                        wallet['address'],  # Використовуємо збережену user-friendly адресу
+                        limit,
+                        before_lt
                     )
                 )
             finally:

@@ -1,6 +1,6 @@
 """
 Сервіс для роботи з TON Connect та TON блокчейном
-БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect UI
+ВИПРАВЛЕНА ВЕРСІЯ - з правильною обробкою адрес та балансів
 """
 
 import os
@@ -102,7 +102,7 @@ class FlexTokenInfo:
 
 
 class TONConnectService:
-    """Сервіс для роботи з TON Connect та блокчейном БЕЗ ВАЛІДАЦІЇ"""
+    """Сервіс для роботи з TON Connect та блокчейном"""
 
     def __init__(self, network: TONNetwork = TONNetwork.MAINNET):
         """
@@ -128,16 +128,17 @@ class TONConnectService:
         if not HAS_AIOHTTP:
             logger.warning("⚠️ aiohttp недоступний - сервіс працює в режимі заглушки")
         else:
-            logger.info(f"✅ TONConnectService ініціалізовано для мережі {network.value} (без валідації)")
+            logger.info(f"✅ TONConnectService ініціалізовано для мережі {network.value}")
             logger.info(f"📡 API URL: {self.base_url}")
             logger.info(f"💎 FLEX Contract: {self.flex_token.contract_address}")
+            logger.info(f"🔑 API Key налаштовано: {'Так' if self.api_key else 'Ні'}")
 
     async def get_wallet_balance(self, address: str, force_refresh: bool = False) -> Optional[TONBalance]:
         """
         Отримання балансу гаманця (TON + FLEX)
 
         Args:
-            address: Адреса гаманця
+            address: Адреса гаманця (має бути user-friendly)
             force_refresh: Примусове оновлення (пропуск кешу)
 
         Returns:
@@ -149,6 +150,18 @@ class TONConnectService:
 
         try:
             logger.info(f"📊 Отримання балансу для адреси {address}")
+
+            # Перевіряємо формат адреси
+            if address.startswith(('0:', '-1:')):
+                logger.warning(f"⚠️ Отримано raw адресу {address}, потрібна user-friendly адреса!")
+                # Спробуємо конвертувати
+                converted = await self._convert_address_async(address)
+                if converted:
+                    logger.info(f"✅ Адресу конвертовано: {address} -> {converted}")
+                    address = converted
+                else:
+                    logger.error(f"❌ Не вдалося конвертувати raw адресу")
+                    return None
 
             # Перевіряємо кеш
             cache_key = f"balance_{address}"
@@ -194,7 +207,7 @@ class TONConnectService:
                 'timestamp': time.time()
             }
 
-            logger.info(f"✅ Баланс отримано: TON={balance.ton_balance:.4f}, FLEX={balance.flex_balance:,}")
+            logger.info(f"✅ Баланс отримано для {address}: TON={balance.ton_balance:.4f}, FLEX={balance.flex_balance:,}")
             return balance
 
         except Exception as e:
@@ -212,8 +225,8 @@ class TONConnectService:
                 'address': address,
                 'api_key': self.api_key
             }
+
             logger.info(f"💎 Запит балансу TON для адреси: {address}")
-            logger.debug(f"💎 API URL: {url}")
 
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT)) as session:
                 async with session.get(url, params=params) as response:
@@ -230,7 +243,13 @@ class TONConnectService:
                         else:
                             raise Exception(f"API помилка: {data.get('error', 'Unknown error')}")
                     else:
-                        raise Exception(f"HTTP {response.status}: {await response.text()}")
+                        error_text = await response.text()
+                        logger.error(f"HTTP {response.status}: {error_text}")
+
+                        if response.status == 400:
+                            logger.error(f"❌ Невірний формат адреси: {address}")
+
+                        raise Exception(f"HTTP {response.status}")
 
         except Exception as e:
             logger.error(f"❌ Помилка отримання TON балансу: {str(e)}")
@@ -239,7 +258,7 @@ class TONConnectService:
     async def _get_flex_balance(self, address: str) -> int:
         """Отримання балансу FLEX токенів з блокчейну"""
         try:
-            logger.info(f"🔍 Отримання реального балансу FLEX для {address}")
+            logger.info(f"🔍 Отримання балансу FLEX для {address}")
 
             # Перевіряємо чи маємо адресу контракту FLEX
             if not self.flex_token.contract_address:
@@ -282,10 +301,11 @@ class TONConnectService:
                     }
                 ]
             }
-            logger.debug(f"📤 API запит: {params}")
 
             if self.api_key:
                 params["api_key"] = self.api_key
+
+            logger.debug(f"📤 Запит jetton wallet для власника {owner_address}")
 
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT)) as session:
                 async with session.post(url, json=params) as response:
@@ -360,53 +380,40 @@ class TONConnectService:
                         error_text = await response.text()
                         logger.error(f"API помилка {response.status}: {error_text}")
 
-                        if response.status == 400:
-                            logger.error(f"❌ Можлива проблема з форматом адреси: {jetton_wallet_address}")
-                        elif response.status == 404:
-                            logger.error(f"❌ Jetton wallet не знайдено для адреси")
-
             return 0
 
         except Exception as e:
             logger.error(f"Помилка отримання балансу з wallet: {str(e)}")
             return 0
 
-    async def _call_get_method(self, address: str, method: str, stack: list = None) -> Optional[Dict[str, Any]]:
-        """Універсальний метод для виклику get методів смарт-контрактів"""
+    async def _convert_address_async(self, raw_address: str) -> Optional[str]:
+        """Асинхронна конвертація raw адреси в user-friendly"""
         try:
-            url = f"{self.base_url}/runGetMethod"
-
+            url = f"{self.base_url}/packAddress"
             params = {
-                "address": address,
-                "method": method,
-                "stack": stack or []
+                'address': raw_address,
+                'api_key': self.api_key
             }
 
-            if self.api_key:
-                params["api_key"] = self.api_key
-
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT)) as session:
-                async with session.post(url, json=params) as response:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                async with session.get(url, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        if data.get('ok'):
-                            return data.get('result')
-
-                    error_text = await response.text()
-                    logger.error(f"API помилка при виклику {method}: {error_text}")
+                        if data.get('ok') and data.get('result'):
+                            return data['result']
 
             return None
 
         except Exception as e:
-            logger.error(f"Помилка виклику get методу {method}: {str(e)}")
+            logger.error(f"Помилка конвертації адреси: {e}")
             return None
 
     def get_wallet_balance_sync(self, address: str, force_refresh: bool = False) -> Optional[TONBalance]:
         """
-        БЕЗПЕЧНА синхронна версія отримання балансу
+        Синхронна версія отримання балансу
 
         Args:
-            address: Адреса гаманця
+            address: Адреса гаманця (має бути user-friendly)
             force_refresh: Примусове оновлення
 
         Returns:
@@ -420,8 +427,10 @@ class TONConnectService:
 
             # Перевірка формату адреси
             if address.startswith('0:') or address.startswith('-1:'):
-                logger.warning(f"⚠️ Отримано raw адресу: {address}")
-                logger.warning("⚠️ TON API потребує user-friendly формат (UQ... або EQ...)")
+                logger.error(f"❌ Отримано raw адресу: {address}")
+                logger.error("❌ TON API потребує user-friendly формат (UQ... або EQ...)")
+                logger.error("❌ Переконайтеся, що в БД зберігається user-friendly адреса!")
+                return None
             elif address.startswith('UQ') or address.startswith('EQ'):
                 logger.info(f"✅ Використовується user-friendly адреса: {address}")
             else:
@@ -446,6 +455,45 @@ class TONConnectService:
 
         except Exception as e:
             logger.error(f"❌ Помилка синхронного отримання балансу: {str(e)}")
+            return None
+
+    def convert_raw_to_friendly_sync(self, raw_address: str) -> Optional[str]:
+        """
+        Синхронна конвертація raw адреси в user-friendly через TON API
+        """
+        if not raw_address or not raw_address.startswith(('0:', '-1:')):
+            return raw_address
+
+        try:
+            import requests
+
+            # Використовуємо TON API для конвертації
+            url = f"{self.base_url}/packAddress"
+            params = {
+                'address': raw_address,
+                'api_key': self.api_key
+            }
+
+            logger.info(f"🔄 Конвертація адреси через TON API: {raw_address}")
+
+            response = requests.get(url, params=params, timeout=5)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                if data.get('ok') and data.get('result'):
+                    user_friendly = data['result']
+                    logger.info(f"✅ Конвертація успішна: {raw_address} -> {user_friendly}")
+                    return user_friendly
+                else:
+                    logger.error(f"❌ API повернув помилку: {data}")
+            else:
+                logger.error(f"❌ HTTP помилка: {response.status_code} - {response.text}")
+
+            return None
+
+        except Exception as e:
+            logger.error(f"❌ Помилка конвертації адреси: {e}")
             return None
 
     async def verify_wallet_ownership(self, address: str, signature: str, message: str) -> bool:
@@ -617,50 +665,6 @@ class TONConnectService:
             logger.error(f"❌ Помилка валідації адреси {address}: {str(e)}")
             return True  # У випадку помилки все одно довіряємо TON Connect
 
-    def convert_raw_to_friendly_sync(self, raw_address: str) -> Optional[str]:
-        """
-        Синхронна конвертація raw адреси в user-friendly через TON API
-        """
-        if not raw_address or not raw_address.startswith(('0:', '-1:')):
-            return raw_address
-
-        try:
-            import requests
-
-            # Використовуємо TON API для конвертації
-            url = f"{self.base_url}/packAddress"
-            params = {
-                'address': raw_address,
-                'api_key': self.api_key
-            }
-
-            logger.info(f"🔄 Відправляємо запит на конвертацію адреси: {url}")
-            logger.info(f"📤 Параметри: {params}")
-
-            response = requests.get(url, params=params, timeout=5)
-
-            logger.info(f"📥 Статус відповіді: {response.status_code}")
-
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"📦 Відповідь API: {data}")
-
-                if data.get('ok') and data.get('result'):
-                    user_friendly = data['result']
-                    logger.info(f"✅ Конвертація успішна: {raw_address} -> {user_friendly}")
-                    return user_friendly
-                else:
-                    logger.error(f"❌ API повернув помилку: {data}")
-
-            else:
-                logger.error(f"❌ HTTP помилка: {response.status_code} - {response.text}")
-
-            return None
-
-        except Exception as e:
-            logger.error(f"❌ Помилка конвертації адреси: {e}")
-            return None
-
     def clear_cache(self, address: Optional[str] = None) -> None:
         """
         Очищення кешу
@@ -739,7 +743,7 @@ class TONConnectService:
 # Ініціалізація глобального сервісу з безпечною обробкою
 try:
     ton_connect_service = TONConnectService()
-    logger.info("✅ TONConnectService створено (без валідації)")
+    logger.info("✅ TONConnectService створено")
 except Exception as e:
     logger.error(f"❌ Помилка створення TONConnectService: {e}")
     # Заглушка
