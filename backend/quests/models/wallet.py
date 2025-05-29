@@ -242,7 +242,7 @@ class WalletModel:
             wallet_record = {
                 'telegram_id': telegram_id,
                 'address': address,  # user-friendly адреса
-                'raw_address': wallet_data.get('address'),  # зберігаємо raw теж
+                'raw_address': wallet_data.get('raw_address'),  # ✅ ПРАВИЛЬНО
                 'chain_id': wallet_data.get('chain', self.TON_MAINNET_CHAIN),
                 'public_key': wallet_data.get('publicKey'),
                 'provider': self.normalize_provider(wallet_data.get('provider', '')),

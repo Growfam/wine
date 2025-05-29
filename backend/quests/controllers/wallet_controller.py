@@ -274,6 +274,14 @@ class WalletController:
                     'conversion_method': 'ton_api' if user_friendly_address != raw_address else 'frontend'
                 }
             }
+            logger.info("=" * 50)
+            logger.info("🔍 ДЕТАЛЬНИЙ ДЕБАГ АДРЕС:")
+            logger.info(f"1. Raw адреса з фронту: {raw_address}")
+            logger.info(f"2. User-friendly адреса: {user_friendly_address}")
+            logger.info(f"3. Адреси однакові?: {raw_address == user_friendly_address}")
+            logger.info(f"4. sanitized_data['address']: {sanitized_data['address']}")
+            logger.info(f"5. sanitized_data['raw_address']: {sanitized_data.get('raw_address')}")
+            logger.info("=" * 50)
 
             # Підключаємо гаманець
             result = wallet_model.connect_wallet(telegram_id, sanitized_data)
