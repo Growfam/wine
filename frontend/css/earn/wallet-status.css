@@ -1,36 +1,242 @@
 /**
  * Стилі для статусу гаманця WINIX
- * Золотий дизайн з анімаціями
+ * iOS 18 Premium Style - Purple/Gold Theme
  */
 
-/* Статус підключеного гаманця */
-.wallet-connected-status {
-    background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 165, 0, 0.1));
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 1.5rem;
-    padding: 1.25rem;
+/* ======== КОНТЕЙНЕР НЕ ПІДКЛЮЧЕНОГО ГАМАНЦЯ ======== */
+.wallet-status-container {
+    background: linear-gradient(135deg,
+        rgba(139, 92, 246, 0.12) 0%,
+        rgba(255, 215, 0, 0.08) 50%,
+        rgba(139, 92, 246, 0.12) 100%);
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    border-radius: 2rem;
+    padding: 2rem;
     margin-bottom: 1.5rem;
-    border: 1px solid rgba(255, 215, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow:
-        0 8px 32px rgba(255, 215, 0, 0.15),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        0 20px 50px rgba(0, 0, 0, 0.3),
+        0 10px 25px rgba(0, 0, 0, 0.2),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1);
     position: relative;
     overflow: hidden;
-    animation: fadeIn 0.5s ease-out;
+    animation: containerSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes fadeIn {
+@keyframes containerSlideIn {
     from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateY(-20px) scale(0.95);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
     }
 }
 
+/* Ефект світіння позаду */
+.wallet-status-container::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 30% 30%,
+        rgba(255, 215, 0, 0.15),
+        transparent 50%);
+    animation: walletGlow 8s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.wallet-status-container::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 70% 70%,
+        rgba(139, 92, 246, 0.15),
+        transparent 50%);
+    animation: walletGlow 8s ease-in-out infinite reverse;
+    pointer-events: none;
+}
+
+@keyframes walletGlow {
+    0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.5; }
+    50% { transform: rotate(180deg) scale(1.2); opacity: 1; }
+}
+
+/* ======== КАРТКА СТАТУСУ ======== */
+.wallet-status-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+/* Іконка гаманця */
+.wallet-icon {
+    width: 5rem;
+    height: 5rem;
+    background: linear-gradient(135deg, #FFD700, #FFA500, #FFD700);
+    background-size: 200% 200%;
+    animation: goldShimmer 3s ease-in-out infinite;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+        0 8px 32px rgba(255, 215, 0, 0.5),
+        0 4px 16px rgba(255, 215, 0, 0.3),
+        inset 0 2px 4px rgba(255, 255, 255, 0.5);
+    position: relative;
+    transform-style: preserve-3d;
+}
+
+@keyframes goldShimmer {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.wallet-icon::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.3));
+    transform: translateZ(10px);
+}
+
+.wallet-icon svg {
+    width: 2.5rem;
+    height: 2.5rem;
+    color: white;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    z-index: 1;
+}
+
+/* Інформація про гаманець */
+.wallet-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.wallet-status {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.02em;
+}
+
+.wallet-hint {
+    font-size: 0.9375rem;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.5;
+    max-width: 300px;
+}
+
+/* Кнопка підключення */
+.connect-wallet-redirect {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    background-size: 200% 200%;
+    animation: buttonGradient 3s ease-in-out infinite;
+    border: none;
+    color: #1a1a2e;
+    padding: 1rem 2.5rem;
+    border-radius: 2rem;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 700;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+        0 6px 24px rgba(255, 215, 0, 0.4),
+        0 3px 12px rgba(255, 165, 0, 0.3),
+        inset 0 1px 2px rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+@keyframes buttonGradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.connect-wallet-redirect::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #FFD700, #FFA500, #FF6B6B, #FFA500, #FFD700);
+    border-radius: 2rem;
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+    filter: blur(8px);
+}
+
+.connect-wallet-redirect:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow:
+        0 12px 32px rgba(255, 215, 0, 0.5),
+        0 6px 16px rgba(255, 165, 0, 0.4),
+        inset 0 1px 2px rgba(255, 255, 255, 0.6);
+}
+
+.connect-wallet-redirect:hover::before {
+    opacity: 1;
+}
+
+.connect-wallet-redirect:active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* ======== СТАТУС ПІДКЛЮЧЕНОГО ГАМАНЦЯ ======== */
+.wallet-connected-status {
+    background: linear-gradient(135deg,
+        rgba(76, 175, 80, 0.12) 0%,
+        rgba(255, 215, 0, 0.08) 50%,
+        rgba(76, 175, 80, 0.12) 100%);
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    border-radius: 2rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.3),
+        0 10px 25px rgba(0, 0, 0, 0.2),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+    animation: connectedSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes connectedSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Декоративні елементи */
 .wallet-connected-status::before {
     content: '';
     position: absolute;
@@ -38,231 +244,336 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 20% 50%, rgba(255, 215, 0, 0.1), transparent 70%);
-    animation: wallet-shimmer 5s ease-in-out infinite;
+    background: radial-gradient(circle at 20% 50%,
+        rgba(76, 175, 80, 0.1),
+        transparent 70%);
+    animation: connectedShimmer 5s ease-in-out infinite;
 }
 
-@keyframes wallet-shimmer {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+@keyframes connectedShimmer {
+    0%, 100% { transform: translateX(0); opacity: 0.5; }
+    50% { transform: translateX(100px); opacity: 1; }
 }
 
 .wallet-status-header {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 1.25rem;
     position: relative;
     z-index: 1;
 }
 
+/* Іконка підключеного гаманця */
 .wallet-status-icon {
-    width: 3rem;
-    height: 3rem;
-    background: linear-gradient(135deg, #FFD700, #FFA500);
-    border-radius: 50%;
+    width: 3.5rem;
+    height: 3.5rem;
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    border-radius: 1.25rem;
     display: flex;
     align-items: center;
     justify-content: center;
     box-shadow:
-        0 4px 16px rgba(255, 215, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    animation: wallet-icon-glow 3s ease-in-out infinite;
+        0 6px 24px rgba(76, 175, 80, 0.5),
+        0 3px 12px rgba(76, 175, 80, 0.3),
+        inset 0 1px 2px rgba(255, 255, 255, 0.3);
+    position: relative;
+    animation: iconPulse 3s ease-in-out infinite;
     flex-shrink: 0;
 }
 
-.wallet-status-icon svg {
-    width: 1.5rem;
-    height: 1.5rem;
-    color: white;
-}
-
-@keyframes wallet-icon-glow {
+@keyframes iconPulse {
     0%, 100% {
         transform: scale(1);
-        box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
+        box-shadow: 0 6px 24px rgba(76, 175, 80, 0.5);
     }
     50% {
         transform: scale(1.05);
-        box-shadow: 0 6px 24px rgba(255, 215, 0, 0.6);
+        box-shadow: 0 8px 32px rgba(76, 175, 80, 0.7);
     }
 }
 
+.wallet-status-icon::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 1.25rem;
+    background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.2));
+}
+
+.wallet-status-icon svg {
+    width: 2rem;
+    height: 2rem;
+    color: white;
+    z-index: 1;
+    position: relative;
+}
+
+/* Інформація про адресу */
 .wallet-status-info {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    min-width: 0; /* Для корректного обрезания длинного текста */
+    gap: 0.375rem;
+    min-width: 0;
 }
 
 .wallet-status-label {
     font-size: 0.875rem;
-    color: rgba(255, 215, 0, 0.9);
-    font-weight: 500;
+    color: #4CAF50;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
 }
 
 .wallet-address {
-    font-size: 1rem;
+    font-size: 1.125rem;
     color: #ffffff;
-    font-weight: 600;
+    font-weight: 700;
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Courier New', monospace;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    background: linear-gradient(90deg, #ffffff, rgba(255, 255, 255, 0.7));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
+/* Баланс FLEX */
+.wallet-balance-info {
+    padding: 0.75rem 1rem;
+    background: rgba(255, 215, 0, 0.1);
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+.wallet-balance-info span:first-child {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.875rem;
+}
+
+#wallet-flex-balance {
+    color: #FFD700;
+    font-size: 1.125rem;
+    font-weight: 700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+/* Кнопка відключення */
 .wallet-disconnect-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #ffffff;
-    padding: 0.625rem 1.25rem;
-    border-radius: 1.25rem;
+    background: linear-gradient(135deg,
+        rgba(244, 67, 54, 0.1),
+        rgba(211, 47, 47, 0.05));
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    color: #f44336;
+    padding: 0.75rem 1.5rem;
+    border-radius: 1.5rem;
     cursor: pointer;
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 0.5rem;
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .wallet-disconnect-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.3);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+    background: linear-gradient(135deg, #f44336, #d32f2f);
+    color: white;
+    border-color: transparent;
+    transform: translateY(-1px) scale(1.02);
+    box-shadow:
+        0 6px 20px rgba(244, 67, 54, 0.4),
+        0 3px 10px rgba(244, 67, 54, 0.3);
 }
 
 .wallet-disconnect-btn:active {
-    transform: translateY(0);
+    transform: translateY(0) scale(0.98);
 }
 
 .wallet-disconnect-btn svg {
-    width: 1rem;
-    height: 1rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    transition: transform 0.3s ease;
 }
 
-/* Золотые акценты для TON Connect кнопки */
+.wallet-disconnect-btn:hover svg {
+    transform: translateX(2px);
+}
+
+/* TON Connect кнопка override */
 #ton-connect-button {
     margin-bottom: 1.5rem;
 }
 
-#ton-connect-button > div {
-    width: 100% !important;
-}
-
 #ton-connect-button button {
-    background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+    background: linear-gradient(135deg, #b366ff, #8b5cf6) !important;
     border: none !important;
+    border-radius: 2rem !important;
+    padding: 1rem 2.5rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
     box-shadow:
-        0 4px 16px rgba(255, 215, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-    width: 100% !important;
-    padding: 0.875rem 2rem !important;
-    font-weight: 600 !important;
+        0 6px 24px rgba(179, 102, 255, 0.4),
+        0 3px 12px rgba(139, 92, 246, 0.3),
+        inset 0 1px 2px rgba(255, 255, 255, 0.3) !important;
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
 #ton-connect-button button:hover {
-    transform: translateY(-2px) !important;
+    transform: translateY(-2px) scale(1.02) !important;
     box-shadow:
-        0 6px 20px rgba(255, 215, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+        0 12px 32px rgba(179, 102, 255, 0.5),
+        0 6px 16px rgba(139, 92, 246, 0.4),
+        inset 0 1px 2px rgba(255, 255, 255, 0.4) !important;
 }
 
-#ton-connect-button button:active {
-    transform: translateY(0) !important;
-}
-
-/* Переопределение стилей TON Connect для золотой темы */
-.tc-button {
-    background: linear-gradient(135deg, #FFD700, #FFA500) !important;
-    border: none !important;
-}
-
-.tc-button:hover {
-    background: linear-gradient(135deg, #FFC700, #FF9500) !important;
-}
-
-/* Анимация для смены состояний */
-.wallet-status-container,
-.wallet-connected-status {
-    transition: opacity 0.3s ease-in-out;
-}
-
+/* Анімації переходів */
 .wallet-status-container.hiding,
 .wallet-connected-status.hiding {
-    opacity: 0;
+    animation: fadeOut 0.3s ease-out forwards;
 }
 
-/* Адаптивность */
-@media (max-width: 540px) {
-    .wallet-status-header {
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-
-    .wallet-status-info {
-        width: 100%;
-        order: 2;
-    }
-
-    .wallet-disconnect-btn {
-        width: 100%;
-        justify-content: center;
-        order: 3;
-        margin-top: 0.5rem;
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: scale(0.95);
     }
 }
 
-@media (max-width: 400px) {
-    .wallet-connected-status {
-        padding: 1rem;
-    }
-
-    .wallet-status-icon {
-        width: 2.5rem;
-        height: 2.5rem;
-    }
-
-    .wallet-status-icon svg {
-        width: 1.25rem;
-        height: 1.25rem;
-    }
-
-    .wallet-address {
-        font-size: 0.875rem;
-    }
-
-    .wallet-disconnect-btn {
-        padding: 0.5rem 1rem;
-        font-size: 0.8125rem;
-    }
-}
-
-/* Темная тема совместимость */
-@media (prefers-color-scheme: dark) {
-    .wallet-connected-status {
-        background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.15));
-        border-color: rgba(255, 215, 0, 0.4);
-    }
-}
-
-/* Анимация появления завдань после подключения */
+/* Анімація появи завдань */
 #flex-tasks {
-    animation: tasksAppear 0.6s ease-out 0.3s both;
+    animation: tasksAppear 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
 }
 
 @keyframes tasksAppear {
     from {
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(30px) scale(0.95);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ======== АДАПТИВНІСТЬ ======== */
+@media (max-width: 600px) {
+    .wallet-status-container,
+    .wallet-connected-status {
+        padding: 1.25rem;
+        border-radius: 1.5rem;
+    }
+
+    .wallet-icon {
+        width: 4rem;
+        height: 4rem;
+    }
+
+    .wallet-icon svg {
+        width: 2rem;
+        height: 2rem;
+    }
+
+    .wallet-status {
+        font-size: 1.125rem;
+    }
+
+    .wallet-hint {
+        font-size: 0.875rem;
+    }
+
+    .connect-wallet-redirect {
+        padding: 0.875rem 2rem;
+        font-size: 0.9375rem;
+    }
+
+    .wallet-status-header {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .wallet-status-icon {
+        width: 3rem;
+        height: 3rem;
+    }
+
+    .wallet-status-icon svg {
+        width: 1.5rem;
+        height: 1.5rem;
+    }
+
+    .wallet-address {
+        font-size: 1rem;
+    }
+
+    .wallet-disconnect-btn {
+        width: 100%;
+        justify-content: center;
+        margin-top: 0.75rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .wallet-status-container,
+    .wallet-connected-status {
+        padding: 1rem;
+    }
+
+    .wallet-icon {
+        width: 3.5rem;
+        height: 3.5rem;
+    }
+
+    .wallet-status {
+        font-size: 1rem;
+    }
+
+    .connect-wallet-redirect {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.875rem;
+    }
+
+    .wallet-disconnect-btn {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.8125rem;
+    }
+}
+
+/* Темна тема сумісність */
+@media (prefers-color-scheme: dark) {
+    .wallet-status-container {
+        background: linear-gradient(135deg,
+            rgba(139, 92, 246, 0.15) 0%,
+            rgba(255, 215, 0, 0.1) 50%,
+            rgba(139, 92, 246, 0.15) 100%);
+    }
+
+    .wallet-connected-status {
+        background: linear-gradient(135deg,
+            rgba(76, 175, 80, 0.15) 0%,
+            rgba(255, 215, 0, 0.1) 50%,
+            rgba(76, 175, 80, 0.15) 100%);
+    }
+}
+
+/* Додаткові ефекти для iOS 18 */
+@supports (-webkit-backdrop-filter: blur(40px)) {
+    .wallet-status-container,
+    .wallet-connected-status {
+        -webkit-backdrop-filter: blur(40px) saturate(200%);
+        background: linear-gradient(135deg,
+            rgba(255, 255, 255, 0.05) 0%,
+            rgba(255, 255, 255, 0.02) 100%);
     }
 }
