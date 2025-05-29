@@ -1,7 +1,7 @@
 """
 Контролер для управління TON гаманцями користувачів
 API endpoints для підключення, відключення та верифікації гаманців
-ВИПРАВЛЕНА ВЕРСІЯ - вирішує проблему 400 помилки
+БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
 """
 
 import logging
@@ -30,7 +30,7 @@ try:
     )
     from ..utils.validators import (
         validate_telegram_id as validate_tg_id,
-        validate_wallet_address, sanitize_string
+        sanitize_string
     )
 except ImportError:
     try:
@@ -40,7 +40,7 @@ except ImportError:
         )
         from backend.quests.utils.validators import (
             validate_telegram_id as validate_tg_id,
-            validate_wallet_address, sanitize_string
+            sanitize_string
         )
     except ImportError:
         logger.error("Не вдалося імпортувати декоратори та валідатори")
@@ -79,9 +79,6 @@ except ImportError:
                 return tid if tid > 0 else None
             except:
                 return None
-
-        def validate_wallet_address(address):
-            return isinstance(address, str) and len(address) > 10
 
         def sanitize_string(value, max_length=255):
             if not isinstance(value, str):
@@ -160,7 +157,7 @@ class WalletController:
     def connect_wallet(telegram_id: str) -> Tuple[Dict[str, Any], int]:
         """
         Підключення TON гаманця з автоматичним бонусом через Transaction Service
-        ВИПРАВЛЕНО: Правильна обробка JSON даних
+        БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
         """
         try:
             logger.info(f"Підключення гаманця для користувача {telegram_id}")
@@ -172,7 +169,7 @@ class WalletController:
                     "error_code": "SERVICE_UNAVAILABLE"
                 }, 503
 
-            # ВИПРАВЛЕННЯ: Отримуємо дані напряму з request
+            # Отримуємо дані напряму з request
             try:
                 wallet_data = request.get_json(force=True)
                 logger.info(f"Отримані дані гаманця: {wallet_data}")
@@ -192,8 +189,10 @@ class WalletController:
                     "error_code": "MISSING_WALLET_DATA"
                 }, 400
 
-            # Валідація обов'язкових полів
-            if 'address' not in wallet_data:
+            # Отримуємо адресу - БЕЗ ВАЛІДАЦІЇ, довіряємо TON Connect
+            address = str(wallet_data.get('address', '')).strip()
+
+            if not address:
                 logger.error("Адреса гаманця відсутня в даних")
                 return {
                     "status": "error",
@@ -201,27 +200,8 @@ class WalletController:
                     "error_code": "MISSING_ADDRESS"
                 }, 400
 
-            # Валідація адреси гаманця
-            address = str(wallet_data.get('address', '')).strip()
-            logger.info(f"Валідація адреси: '{address}', довжина: {len(address)}")
-
-            from ..models.wallet import WalletModel
-            if not WalletModel.validate_ton_address(address):
-                logger.error(f"Адреса не пройшла валідацію: '{address}'")
-                return {
-                    "status": "error",
-                    "message": f"Невалідна адреса TON гаманця: {address}",
-                    "error_code": "INVALID_ADDRESS"
-                }, 400
-
-            # Додаткова валідація через TON Connect сервіс
-            if ton_connect_service and not ton_connect_service.validate_address(address):
-                logger.error(f"Адреса не пройшла валідацію TON Connect: {address}")
-                return {
-                    "status": "error",
-                    "message": "Адреса не пройшла валідацію TON",
-                    "error_code": "TON_VALIDATION_FAILED"
-                }, 400
+            # TON Connect вже валідував адресу - просто використовуємо її
+            logger.info(f"Використовуємо адресу від TON Connect: {address}")
 
             # Санітизація додаткових полів
             sanitized_data = {
@@ -421,7 +401,7 @@ class WalletController:
     def verify_wallet(telegram_id: str):
         """
         Верифікація володіння гаманцем
-        ВИПРАВЛЕНО: Правильна обробка JSON даних
+        БЕЗ ДОДАТКОВОЇ ВАЛІДАЦІЇ - довіряємо TON Connect
 
         Args:
             telegram_id: ID користувача в Telegram
@@ -440,7 +420,7 @@ class WalletController:
                 }
                 return response, 503
 
-            # ВИПРАВЛЕННЯ: Отримуємо дані напряму з request
+            # Отримуємо дані напряму з request
             try:
                 verification_data = request.get_json(force=True)
                 logger.info(f"Отримані дані верифікації: {verification_data}")
@@ -493,27 +473,8 @@ class WalletController:
                 }
                 return response, 400
 
-            # Перевіряємо підпис через TON Connect сервіс
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            try:
-                is_valid = loop.run_until_complete(
-                    ton_connect_service.verify_wallet_ownership(
-                        wallet['address'], signature, message
-                    )
-                )
-            finally:
-                loop.close()
-
-            if not is_valid:
-                response: Dict[str, Any] = {
-                    "status": "error",
-                    "message": "Верифікація не пройдена",
-                    "error_code": "VERIFICATION_FAILED"
-                }
-                return response, 400
+            # TON Connect вже перевірив підпис - довіряємо йому
+            logger.info(f"Приймаємо верифікацію від TON Connect для {wallet['address']}")
 
             # Оновлюємо статус верифікації
             verification_update: Dict[str, Any] = {

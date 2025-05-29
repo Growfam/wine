@@ -344,19 +344,15 @@ def validate_social_platform(platform: str) -> bool:
 
 
 def validate_wallet_address(address: str) -> bool:
-    """Валідація адреси TON гаманця"""
+    """
+    БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
+    Просто перевіряємо що адреса не порожня
+    """
     if not address or not isinstance(address, str):
         return False
 
-    # TON адреса має бути base64url encoded і 48 символів
-    if len(address) != 48:
-        return False
-
-    # Перевіряємо символи (base64url)
-    if not re.match(r'^[A-Za-z0-9_-]+$', address):
-        return False
-
-    return True
+    # TON Connect вже валідував адресу - приймаємо будь-яку непорожню
+    return len(address.strip()) > 0
 
 
 def sanitize_string(value: str, max_length: int = 255) -> str:

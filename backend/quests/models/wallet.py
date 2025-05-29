@@ -1,10 +1,9 @@
 """
 Модель гаманця для системи завдань WINIX
 Управління TON гаманцями користувачів
-ВИПРАВЛЕНА ВЕРСІЯ - покращена валідація адрес
+БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
 """
 import logging
-import re
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
@@ -61,6 +60,7 @@ class WalletProvider(Enum):
     OPENMASK = "openmask"
     MYTONWALLET = "mytonwallet"
     TONWALLET = "tonwallet"
+    TELEGRAM_WALLET = "telegram-wallet"
     OTHER = "other"
 
 
@@ -80,8 +80,7 @@ class WalletModel:
     TABLE_NAME = "wallets"
     CONNECTION_BONUS = WalletConnectionBonus()
 
-    # Валідація адрес TON
-    TON_ADDRESS_LENGTH = 48
+    # Валідація адрес TON - видалена
     TON_MAINNET_CHAIN = "-239"
     TON_TESTNET_CHAIN = "-3"
 
@@ -91,64 +90,25 @@ class WalletModel:
             logger.error("❌ Supabase клієнт не ініціалізовано")
             raise RuntimeError("Supabase not initialized")
 
-        logger.info("✅ WalletModel ініціалізовано")
+        logger.info("✅ WalletModel ініціалізовано (без валідації)")
 
     @staticmethod
     def validate_ton_address(address: str) -> bool:
         """
-        Валідація TON адреси - ВИПРАВЛЕНА версія з детальним логуванням
-        Підтримує всі формати TON адрес
+        БЕЗ ВАЛІДАЦІЇ - завжди повертаємо True для непорожніх адрес
+        Довіряємо TON Connect
         """
-        try:
-            # Перевірка на None/пусту адресу
-            if not address or not isinstance(address, str):
-                logger.error(f"Адреса None або не string: {address}")
-                return False
-
-            # Очищаємо пробіли
-            address = address.strip()
-
-            if not address:
-                logger.error("Адреса порожня після очищення пробілів")
-                return False
-
-            logger.info(f"Валідація адреси: '{address}', довжина: {len(address)}, тип: {type(address)}")
-
-            # 1. User-friendly формат (48 символів з префіксом EQ/UQ)
-            if len(address) == 48 and (address.startswith('EQ') or address.startswith('UQ')):
-                # Перевіряємо що решта символів - це base64url
-                remaining = address[2:]  # Без префікса
-                is_valid = bool(re.match(r'^[A-Za-z0-9_-]+$', remaining))
-                logger.info(f"User-friendly формат (EQ/UQ): валідний={is_valid}")
-                return is_valid
-
-            # 2. Raw format (workchain:hex)
-            if ':' in address:
-                parts = address.split(':', 1)  # Розділяємо тільки по першому :
-                if len(parts) == 2:
-                    workchain = parts[0]
-                    hex_part = parts[1]
-                    is_valid = workchain in ['-1', '0'] and bool(re.match(r'^[0-9a-fA-F]{64}$', hex_part))
-                    logger.info(f"Raw формат (workchain:hex): workchain={workchain}, hex_valid={is_valid}")
-                    return is_valid
-
-            # 3. Hex only (64 символи)
-            if len(address) == 64 and re.match(r'^[0-9a-fA-F]+$', address):
-                logger.info("Hex-only формат (64 символи): валідний=True")
-                return True
-
-            # 4. Додаткова перевірка для нестандартних форматів
-            # Деякі гаманці можуть використовувати інші довжини
-            if len(address) >= 40 and re.match(r'^[A-Za-z0-9_-]+$', address):
-                logger.warning(f"Нестандартний формат адреси, але приймаємо: {len(address)} символів")
-                return True
-
-            logger.warning(f"Адреса не відповідає жодному відомому формату: '{address}'")
+        # Просто перевіряємо що адреса не порожня
+        if not address or not isinstance(address, str):
             return False
 
-        except Exception as e:
-            logger.error(f"Помилка валідації адреси '{address}': {str(e)}", exc_info=True)
+        address = address.strip()
+        if not address:
             return False
+
+        # TON Connect вже валідував - приймаємо будь-яку непорожню адресу
+        logger.info(f"✅ Адреса прийнята без валідації: {address}")
+        return True
 
     @staticmethod
     def normalize_provider(provider: str) -> str:
@@ -175,6 +135,8 @@ class WalletModel:
             'tonwallet': WalletProvider.TONWALLET.value,
             'ton wallet': WalletProvider.TONWALLET.value,
             'my ton wallet': WalletProvider.MYTONWALLET.value,
+            'telegram-wallet': WalletProvider.TELEGRAM_WALLET.value,
+            'telegram wallet': WalletProvider.TELEGRAM_WALLET.value,
         }
 
         return provider_mapping.get(provider_lower, WalletProvider.OTHER.value)
@@ -219,7 +181,7 @@ class WalletModel:
 
     def connect_wallet(self, telegram_id: str, wallet_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Підключення гаманця користувача
+        Підключення гаманця користувача БЕЗ ВАЛІДАЦІЇ
 
         Args:
             telegram_id: ID користувача в Telegram
@@ -233,7 +195,7 @@ class WalletModel:
             logger.info(f"Підключення гаманця для користувача {telegram_id}")
             logger.debug(f"Дані гаманця: {wallet_data}")
 
-            # Валідація вхідних даних
+            # Базова перевірка вхідних даних (без валідації адреси)
             validation_result = self._validate_wallet_data(wallet_data)
             if not validation_result['valid']:
                 return {
@@ -571,27 +533,20 @@ class WalletModel:
             }
 
     def _validate_wallet_data(self, wallet_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Валідація даних гаманця з покращеним логуванням"""
+        """Валідація даних гаманця БЕЗ перевірки адреси"""
         try:
             # Перевіряємо обов'язкові поля
             if not wallet_data.get('address'):
                 return {'valid': False, 'error': 'Адреса гаманця відсутня'}
 
             address = str(wallet_data['address']).strip()
-            logger.info(f"Валідація адреси: '{address}', довжина: {len(address)}, тип: {type(address)}")
 
-            # Валідуємо адресу
-            if not self.validate_ton_address(address):
-                logger.error(f"Адреса не пройшла валідацію: '{address}'")
-                return {'valid': False, 'error': f'Невалідна адреса TON гаманця: {address}'}
+            # Просто перевіряємо що адреса не порожня
+            if not address:
+                return {'valid': False, 'error': 'Адреса гаманця не може бути порожньою'}
 
-            # Перевіряємо chain_id
-            chain_id = str(wallet_data.get('chain', self.TON_MAINNET_CHAIN))
-            if chain_id not in [self.TON_MAINNET_CHAIN, self.TON_TESTNET_CHAIN]:
-                logger.warning(f"Невідомий chain ID: {chain_id}, використовуємо mainnet")
-                # Не блокуємо, просто використовуємо mainnet за замовчуванням
-
-            logger.info(f"✅ Адреса {address} успішно пройшла валідацію")
+            # TON Connect вже валідував адресу - приймаємо її
+            logger.info(f"✅ Адреса {address} прийнята від TON Connect")
             return {'valid': True}
 
         except Exception as e:

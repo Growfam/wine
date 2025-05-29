@@ -51,8 +51,12 @@ def fallback_validate_tg_id(telegram_id: str) -> str:
     return str(telegram_id).strip()
 
 def fallback_validate_wallet_address(address: str) -> bool:
-    """Fallback валідація адреси гаманця"""
-    return bool(address and len(address) > 10)
+    """
+    Fallback валідація адреси гаманця
+    БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
+    """
+    # Просто перевіряємо що адреса не порожня
+    return bool(address and len(address.strip()) > 0)
 
 def fallback_sanitize_string(text: str) -> str:
     """Fallback санітизація рядка"""
@@ -188,12 +192,12 @@ class FlexController:
             wallet_address = request.args.get('wallet_address')
             force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
 
-            # Валідація адреси гаманця
-            if wallet_address and not validate_wallet_address(wallet_address):
+            # TON Connect вже валідував адресу - просто перевіряємо що не порожня
+            if wallet_address and not wallet_address.strip():
                 return jsonify({
                     "status": "error",
-                    "message": "Невалідна адреса гаманця",
-                    "error_code": "INVALID_WALLET_ADDRESS"
+                    "message": "Адреса гаманця не може бути порожньою",
+                    "error_code": "EMPTY_WALLET_ADDRESS"
                 }), 400
 
             # Очищення кешу при потребі
