@@ -1,0 +1,268 @@
+/**
+ * Стилі для статусу гаманця WINIX
+ * Золотий дизайн з анімаціями
+ */
+
+/* Статус підключеного гаманця */
+.wallet-connected-status {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 165, 0, 0.1));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.5rem;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    box-shadow:
+        0 8px 32px rgba(255, 215, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.wallet-connected-status::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 20% 50%, rgba(255, 215, 0, 0.1), transparent 70%);
+    animation: wallet-shimmer 5s ease-in-out infinite;
+}
+
+@keyframes wallet-shimmer {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+.wallet-status-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.wallet-status-icon {
+    width: 3rem;
+    height: 3rem;
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+        0 4px 16px rgba(255, 215, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    animation: wallet-icon-glow 3s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+.wallet-status-icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
+    color: white;
+}
+
+@keyframes wallet-icon-glow {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 6px 24px rgba(255, 215, 0, 0.6);
+    }
+}
+
+.wallet-status-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0; /* Для корректного обрезания длинного текста */
+}
+
+.wallet-status-label {
+    font-size: 0.875rem;
+    color: rgba(255, 215, 0, 0.9);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.wallet-address {
+    font-size: 1rem;
+    color: #ffffff;
+    font-weight: 600;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Courier New', monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wallet-disconnect-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    padding: 0.625rem 1.25rem;
+    border-radius: 1.25rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    flex-shrink: 0;
+}
+
+.wallet-disconnect-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
+
+.wallet-disconnect-btn:active {
+    transform: translateY(0);
+}
+
+.wallet-disconnect-btn svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Золотые акценты для TON Connect кнопки */
+#ton-connect-button {
+    margin-bottom: 1.5rem;
+}
+
+#ton-connect-button > div {
+    width: 100% !important;
+}
+
+#ton-connect-button button {
+    background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+    border: none !important;
+    box-shadow:
+        0 4px 16px rgba(255, 215, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    width: 100% !important;
+    padding: 0.875rem 2rem !important;
+    font-weight: 600 !important;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+#ton-connect-button button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow:
+        0 6px 20px rgba(255, 215, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+}
+
+#ton-connect-button button:active {
+    transform: translateY(0) !important;
+}
+
+/* Переопределение стилей TON Connect для золотой темы */
+.tc-button {
+    background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+    border: none !important;
+}
+
+.tc-button:hover {
+    background: linear-gradient(135deg, #FFC700, #FF9500) !important;
+}
+
+/* Анимация для смены состояний */
+.wallet-status-container,
+.wallet-connected-status {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.wallet-status-container.hiding,
+.wallet-connected-status.hiding {
+    opacity: 0;
+}
+
+/* Адаптивность */
+@media (max-width: 540px) {
+    .wallet-status-header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .wallet-status-info {
+        width: 100%;
+        order: 2;
+    }
+
+    .wallet-disconnect-btn {
+        width: 100%;
+        justify-content: center;
+        order: 3;
+        margin-top: 0.5rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .wallet-connected-status {
+        padding: 1rem;
+    }
+
+    .wallet-status-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+
+    .wallet-status-icon svg {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+
+    .wallet-address {
+        font-size: 0.875rem;
+    }
+
+    .wallet-disconnect-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.8125rem;
+    }
+}
+
+/* Темная тема совместимость */
+@media (prefers-color-scheme: dark) {
+    .wallet-connected-status {
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.15));
+        border-color: rgba(255, 215, 0, 0.4);
+    }
+}
+
+/* Анимация появления завдань после подключения */
+#flex-tasks {
+    animation: tasksAppear 0.6s ease-out 0.3s both;
+}
+
+@keyframes tasksAppear {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
