@@ -65,12 +65,16 @@ _cache: Dict[str, Dict[str, Any]] = {}
 
 # Ініціалізація клієнта з виправленнями
 try:
-    if SUPABASE_URL and SUPABASE_KEY:
+    if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+        supabase: Optional[Client] = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        logger.info("✅ Успішне підключення до Supabase з Service Role Key")
+    elif SUPABASE_URL and SUPABASE_KEY:
+        # Fallback на anon key якщо service key відсутній
         supabase: Optional[Client] = create_client(SUPABASE_URL, SUPABASE_KEY)
-        logger.info("✅ Успішне підключення до Supabase")
+        logger.warning("⚠️ Використовується ANON KEY - можливі проблеми з RLS")
     else:
         supabase = None
-        logger.error("❌ Відсутні змінні середовища SUPABASE_URL або SUPABASE_ANON_KEY")
+        logger.error("❌ Відсутні змінні середовища SUPABASE")
 except Exception as e:
     logger.error(f"❌ Помилка підключення до Supabase: {str(e)}", exc_info=True)
     supabase = None
