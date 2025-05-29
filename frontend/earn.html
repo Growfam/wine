@@ -18,9 +18,9 @@
     <link rel="stylesheet" href="css/referrals/winix-icons.css">
 
     <!-- Стилі для системи завдань -->
-   <link rel="stylesheet" href="css/earn/styles.css">
+    <link rel="stylesheet" href="css/earn/styles.css">
     <link rel="stylesheet" href="css/earn/flex-earn.css">
-     <link rel="stylesheet" href="css/earn/flex-grid-override.css">
+    <link rel="stylesheet" href="css/earn/flex-grid-override.css">
     <link rel="stylesheet" href="css/earn/wallet-status.css">
     <link rel="stylesheet" href="css/earn/daily-bonus.css">
     <link rel="stylesheet" href="css/earn/tasks.css">
@@ -174,102 +174,183 @@
             background: #f8f9fa;
         }
 
-    /* Виправлення для сітки Flex завдань 2x2 */
-    #flex-tasks {
-        display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
-        grid-auto-rows: minmax(280px, auto);
-        gap: 20px !important;
-        padding: 10px !important;
-        width: 100% !important;
-        box-sizing: border-box;
-    }
-
-    /* Виправлення для карток */
-    #flex-tasks .flex-task-card {
-        width: 100% !important;
-        margin: 0 !important;
-        display: flex !important;
-        flex-direction: column !important;
-        min-height: 280px !important;
-        box-sizing: border-box;
-        transform-origin: center center;
-    }
-
-    /* П'ята картка на всю ширину */
-    #flex-tasks .flex-task-card:nth-child(5) {
-        grid-column: 1 / -1 !important;
-    }
-
-    /* Запобігання перекриттю при ховері */
-    #flex-tasks .flex-task-card:hover {
-        transform: translateY(-5px) scale(1.02) !important;
-        z-index: 100 !important;
-        position: relative !important;
-    }
-
-    /* Для мобільних */
-    @media (max-width: 600px) {
+        /* Виправлення для сітки Flex завдань 2x2 */
         #flex-tasks {
-            grid-template-columns: 1fr !important;
-            gap: 15px !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            grid-auto-rows: minmax(280px, auto);
+            gap: 20px !important;
+            padding: 10px !important;
+            width: 100% !important;
+            box-sizing: border-box;
         }
 
+        /* Виправлення для карток */
+        #flex-tasks .flex-task-card {
+            width: 100% !important;
+            margin: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            min-height: 280px !important;
+            box-sizing: border-box;
+            transform-origin: center center;
+        }
+
+        /* П'ята картка на всю ширину */
         #flex-tasks .flex-task-card:nth-child(5) {
-            grid-column: 1 !important;
+            grid-column: 1 / -1 !important;
         }
-    }
 
-    /* Додаткове виправлення для контейнера */
-    .flex-tasks-container {
-        display: block !important;
-        width: 100% !important;
-        animation: none !important;
-    }
+        /* Запобігання перекриттю при ховері */
+        #flex-tasks .flex-task-card:hover {
+            transform: translateY(-5px) scale(1.02) !important;
+            z-index: 100 !important;
+            position: relative !important;
+        }
 
-    /* Видалення анімацій що можуть заважати */
-    #flex-tasks .flex-task-card {
-        animation-delay: 0s !important;
-    }
-</style>
+        /* Для мобільних */
+        @media (max-width: 600px) {
+            #flex-tasks {
+                grid-template-columns: 1fr !important;
+                gap: 15px !important;
+            }
+
+            #flex-tasks .flex-task-card:nth-child(5) {
+                grid-column: 1 !important;
+            }
+        }
+
+        /* Додаткове виправлення для контейнера */
+        .flex-tasks-container {
+            display: block !important;
+            width: 100% !important;
+            animation: none !important;
+        }
+
+        /* Видалення анімацій що можуть заважати */
+        #flex-tasks .flex-task-card {
+            animation-delay: 0s !important;
+        }
+
+        /* ФІКС для статусу гаманця */
+        .wallet-status-container {
+            padding: 20px;
+            background: #16213e;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .wallet-status-card {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .wallet-connected-status {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .wallet-status-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .wallet-status-icon {
+            width: 24px;
+            height: 24px;
+            color: #27ae60;
+        }
+
+        .wallet-status-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .wallet-status-label {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .wallet-address {
+            color: #999;
+            font-size: 14px;
+            font-family: monospace;
+        }
+
+        .wallet-disconnect-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .wallet-disconnect-btn:hover {
+            background: #c0392b;
+        }
+
+        /* Оновлення балансів */
+        .balance-value.updating {
+            animation: pulse 0.8s ease-in-out;
+            color: #27ae60;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
 </head>
 <body>
     <!-- SVG фільтри та спрайт для іконок -->
     <svg class="winix-filters" style="display: none;">
-      <defs>
-        <!-- Золоте світіння -->
-        <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-          <feFlood flood-color="#FFD700" flood-opacity="0.5" result="color" />
-          <feComposite in="color" in2="blur" operator="in" result="glow" />
-          <feMerge>
-            <feMergeNode in="glow" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
+        <defs>
+            <!-- Золоте світіння -->
+            <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                <feFlood flood-color="#FFD700" flood-opacity="0.5" result="color" />
+                <feComposite in="color" in2="blur" operator="in" result="glow" />
+                <feMerge>
+                    <feMergeNode in="glow" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
 
-        <!-- Фіолетове світіння -->
-        <filter id="purple-glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-          <feFlood flood-color="#b366ff" flood-opacity="0.5" result="color" />
-          <feComposite in="color" in2="blur" operator="in" result="glow" />
-          <feMerge>
-            <feMergeNode in="glow" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
+            <!-- Фіолетове світіння -->
+            <filter id="purple-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                <feFlood flood-color="#b366ff" flood-opacity="0.5" result="color" />
+                <feComposite in="color" in2="blur" operator="in" result="glow" />
+                <feMerge>
+                    <feMergeNode in="glow" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
 
-        <!-- Градієнти -->
-        <linearGradient id="purple-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#b366ff" />
-          <stop offset="100%" stop-color="#8b5cf6" />
-        </linearGradient>
+            <!-- Градієнти -->
+            <linearGradient id="purple-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#b366ff" />
+                <stop offset="100%" stop-color="#8b5cf6" />
+            </linearGradient>
 
-        <linearGradient id="gold-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#FFD700" />
-          <stop offset="100%" stop-color="#FFA000" />
-        </linearGradient>
-      </defs>
+            <linearGradient id="gold-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FFD700" />
+                <stop offset="100%" stop-color="#FFA000" />
+            </linearGradient>
+        </defs>
     </svg>
 
     <div class="container">
@@ -315,45 +396,50 @@
             <div class="tab-content">
                 <!-- ВКЛАДКА 1: FLEX EARN -->
                 <div class="main-tab-pane active" id="flex-tab">
-                    <!-- Статус кошелька -->
-                    <div class="wallet-status-container">
-                       <div class="wallet-status-card">
-    <div class="wallet-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-    </div>
-    <div class="wallet-info">
-        <p class="wallet-status" id="wallet-connection-status">Кошелек не підключено</p>
-        <p class="wallet-hint">Підключіть TON кошелек для доступу до Flex завдань</p>
-    </div>
-    <button class="connect-wallet-redirect" id="connect-wallet-btn">
-        Підключити кошелек
-    </button>
-                           <div class="wallet-connected-status" id="wallet-connected-status" style="display: none;">
-    <div class="wallet-status-header">
-        <div class="wallet-status-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        </div>
-        <div class="wallet-status-info">
-            <span class="wallet-status-label">Гаманець підключено</span>
-            <span class="wallet-address" id="wallet-address-display">...</span>
-        </div>
-        <button class="wallet-disconnect-btn" id="wallet-disconnect-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M16 17L21 12L16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Відключити
-        </button>
-    </div>
-</div>
-</div>
+                    <!-- Статус підключеного гаманця (показується коли гаманець підключено) -->
+                    <div class="wallet-connected-status" id="wallet-connected-status" style="display: none;">
+                        <div class="wallet-status-header">
+                            <div class="wallet-status-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <div class="wallet-status-info">
+                                <span class="wallet-status-label">Гаманець підключено</span>
+                                <span class="wallet-address" id="wallet-address-display">...</span>
+                            </div>
+                            <button class="wallet-disconnect-btn" id="wallet-disconnect-btn" onclick="disconnectWallet()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M16 17L21 12L16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Відключити
+                            </button>
                         </div>
+                        <div class="wallet-balance-info" style="margin-top: 10px;">
+                            <span style="color: #999;">FLEX баланс: </span>
+                            <span id="wallet-flex-balance" style="font-weight: bold;">0</span>
+                        </div>
+                    </div>
 
+                    <!-- Статус кошелька (показується коли гаманець НЕ підключено) -->
+                    <div class="wallet-status-container" id="wallet-not-connected" style="display: none;">
+                        <div class="wallet-status-card">
+                            <div class="wallet-icon">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M21 8.5C21 7.83696 20.7366 7.20107 20.2678 6.73223C19.7989 6.26339 19.163 6 18.5 6H5.5C4.83696 6 4.20107 6.26339 3.73223 6.73223C3.26339 7.20107 3 7.83696 3 8.5M21 8.5V15.5C21 16.163 20.7366 16.7989 20.2678 17.2678C19.7989 17.7366 19.163 18 18.5 18H5.5C4.83696 18 4.20107 17.7366 3.73223 17.2678C3.26339 16.7989 3 16.163 3 15.5V8.5M21 8.5L12 13L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <div class="wallet-info">
+                                <p class="wallet-status" id="wallet-connection-status">Кошелек не підключено</p>
+                                <p class="wallet-hint">Підключіть TON кошелек для доступу до Flex завдань</p>
+                            </div>
+                            <button class="connect-wallet-redirect" id="connect-wallet-btn" onclick="connectWalletSafe()">
+                                Підключити кошелек
+                            </button>
+                        </div>
+                    </div>
 
                     <!-- TON Connect кнопка (буде додана динамічно) -->
                     <div id="ton-connect-button" style="display: none;"></div>
@@ -372,7 +458,7 @@
                                 </div>
                                 <div class="task-info">
                                     <h3 class="task-title">Flex Holder Bronze</h3>
-                                    <p class="task-requirement">Тримайте 10,000 FLEX токенів</p>
+                                    <p class="task-requirement">Тримайте 500,000 FLEX токенів</p>
                                 </div>
                             </div>
                             <div class="task-rewards">
@@ -381,7 +467,7 @@
                                         <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
                                         <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
-                                    <span class="reward-text">25 winix щодня</span>
+                                    <span class="reward-text">100 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -395,7 +481,7 @@
                                 <div class="progress-bar">
                                     <div class="progress-fill bronze-progress" style="width: 0%"></div>
                                 </div>
-                                <p class="progress-text">0 / 10,000 FLEX</p>
+                                <p class="progress-text">0 / 500,000 FLEX</p>
                             </div>
                             <button class="claim-button bronze-claim" disabled>
                                 <span class="button-text">Недостатньо FLEX</span>
@@ -413,7 +499,7 @@
                                 </div>
                                 <div class="task-info">
                                     <h3 class="task-title">Flex Holder Silver</h3>
-                                    <p class="task-requirement">Тримайте 50,000 FLEX токенів</p>
+                                    <p class="task-requirement">Тримайте 1,000,000 FLEX токенів</p>
                                 </div>
                             </div>
                             <div class="task-rewards">
@@ -422,21 +508,21 @@
                                         <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
                                         <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
-                                    <span class="reward-text">75 winix щодня</span>
+                                    <span class="reward-text">350 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
                                         <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
                                         <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
-                                    <span class="reward-text">2 tickets щодня</span>
+                                    <span class="reward-text">3 tickets щодня</span>
                                 </div>
                             </div>
                             <div class="task-progress">
                                 <div class="progress-bar">
                                     <div class="progress-fill silver-progress" style="width: 0%"></div>
                                 </div>
-                                <p class="progress-text">0 / 50,000 FLEX</p>
+                                <p class="progress-text">0 / 1,000,000 FLEX</p>
                             </div>
                             <button class="claim-button silver-claim" disabled>
                                 <span class="button-text">Недостатньо FLEX</span>
@@ -454,7 +540,7 @@
                                 </div>
                                 <div class="task-info">
                                     <h3 class="task-title">Flex Holder Gold</h3>
-                                    <p class="task-requirement">Тримайте 150,000 FLEX токенів</p>
+                                    <p class="task-requirement">Тримайте 2,500,000 FLEX токенів</p>
                                 </div>
                             </div>
                             <div class="task-rewards">
@@ -463,21 +549,21 @@
                                         <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
                                         <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
-                                    <span class="reward-text">150 winix щодня</span>
+                                    <span class="reward-text">500 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
                                         <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
                                         <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
-                                    <span class="reward-text">4 tickets щодня</span>
+                                    <span class="reward-text">5 tickets щодня</span>
                                 </div>
                             </div>
                             <div class="task-progress">
                                 <div class="progress-bar">
                                     <div class="progress-fill gold-progress" style="width: 0%"></div>
                                 </div>
-                                <p class="progress-text">0 / 150,000 FLEX</p>
+                                <p class="progress-text">0 / 2,500,000 FLEX</p>
                             </div>
                             <button class="claim-button gold-claim" disabled>
                                 <span class="button-text">Недостатньо FLEX</span>
@@ -495,7 +581,7 @@
                                 </div>
                                 <div class="task-info">
                                     <h3 class="task-title">Flex Holder Platinum</h3>
-                                    <p class="task-requirement">Тримайте 500,000 FLEX токенів</p>
+                                    <p class="task-requirement">Тримайте 5,000,000 FLEX токенів</p>
                                 </div>
                             </div>
                             <div class="task-rewards">
@@ -504,21 +590,21 @@
                                         <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
                                         <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
-                                    <span class="reward-text">300 winix щодня</span>
+                                    <span class="reward-text">700 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
                                         <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
                                         <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
-                                    <span class="reward-text">10 tickets щодня</span>
+                                    <span class="reward-text">7 tickets щодня</span>
                                 </div>
                             </div>
                             <div class="task-progress">
                                 <div class="progress-bar">
                                     <div class="progress-fill platinum-progress" style="width: 0%"></div>
                                 </div>
-                                <p class="progress-text">0 / 500,000 FLEX</p>
+                                <p class="progress-text">0 / 5,000,000 FLEX</p>
                             </div>
                             <button class="claim-button platinum-claim" disabled>
                                 <span class="button-text">Недостатньо FLEX</span>
@@ -537,7 +623,7 @@
                                 </div>
                                 <div class="task-info">
                                     <h3 class="task-title">Flex Holder Diamond</h3>
-                                    <p class="task-requirement">Тримайте 1,000,000 FLEX токенів</p>
+                                    <p class="task-requirement">Тримайте 10,000,000 FLEX токенів</p>
                                 </div>
                             </div>
                             <div class="task-rewards">
@@ -546,21 +632,21 @@
                                         <circle cx="12" cy="12" r="9" stroke="#b366ff" stroke-width="1.5"/>
                                         <path d="M12 7V17M9 10H15M9 14H15" stroke="#b366ff" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
-                                    <span class="reward-text">500 winix щодня</span>
+                                    <span class="reward-text">1000 winix щодня</span>
                                 </div>
                                 <div class="reward-item">
                                     <svg class="reward-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
                                         <path d="M2 9V7C2 6.44772 2.44772 6 3 6H21C21.5523 6 22 6.44772 22 7V9C20.8954 9 20 9.89543 20 11C20 12.1046 20.8954 13 22 13V15C22 15.5523 21.5523 16 21 16H3C2.44772 16 2 15.5523 2 15V13C3.10457 13 4 12.1046 4 11C4 9.89543 3.10457 9 2 9Z" stroke="#FFD700" stroke-width="1.5"/>
                                         <path d="M9 6V16" stroke="#FFD700" stroke-width="1.5" stroke-dasharray="2 2"/>
                                     </svg>
-                                    <span class="reward-text">15 tickets щодня</span>
+                                    <span class="reward-text">10 tickets щодня</span>
                                 </div>
                             </div>
                             <div class="task-progress">
                                 <div class="progress-bar">
                                     <div class="progress-fill diamond-progress" style="width: 0%"></div>
                                 </div>
-                                <p class="progress-text">0 / 1,000,000 FLEX</p>
+                                <p class="progress-text">0 / 10,000,000 FLEX</p>
                             </div>
                             <button class="claim-button diamond-claim" disabled>
                                 <span class="button-text">Недостатньо FLEX</span>
@@ -785,20 +871,105 @@
             // Ініціалізація Telegram WebApp
             window.Telegram.WebApp.ready();
             window.Telegram.WebApp.expand();
-        });
-    </script>
-<script src="js/tasks/api.js"></script>
 
-<!-- 4.4. Валідатори та сервіси (залежать від api, store) -->
-<script src="js/tasks/telegramValidator.js"></script>
-<script src="js/tasks/services.js"></script>
+            // Оновлюємо балансси з Store коли він готовий
+            setTimeout(updateUIFromStore, 1000);
+        });
+
+        // Функція оновлення UI з Store
+        function updateUIFromStore() {
+            if (window.TasksStore) {
+                const state = window.TasksStore.getState();
+
+                // Оновлюємо user ID
+                const userIdEl = document.getElementById('header-user-id');
+                if (userIdEl && state.user.telegram_id) {
+                    userIdEl.textContent = state.user.telegram_id;
+                }
+
+                // Оновлюємо баланси
+                const winixEl = document.getElementById('user-winix');
+                const ticketsEl = document.getElementById('user-tickets');
+
+                if (winixEl) {
+                    winixEl.textContent = state.user.balance.winix || 0;
+                }
+
+                if (ticketsEl) {
+                    ticketsEl.textContent = state.user.balance.tickets || 0;
+                }
+
+                // Оновлюємо статус гаманця
+                updateWalletUI(state.wallet);
+
+                // Підписуємось на зміни
+                window.TasksStore.subscribe((newState) => {
+                    // Оновлюємо баланси
+                    if (winixEl) {
+                        winixEl.textContent = newState.user.balance.winix || 0;
+                    }
+                    if (ticketsEl) {
+                        ticketsEl.textContent = newState.user.balance.tickets || 0;
+                    }
+
+                    // Оновлюємо статус гаманця
+                    updateWalletUI(newState.wallet);
+                });
+            }
+        }
+
+        // Функція оновлення UI гаманця
+        function updateWalletUI(walletState) {
+            const connectedDiv = document.getElementById('wallet-connected-status');
+            const notConnectedDiv = document.getElementById('wallet-not-connected');
+            const flexTasksDiv = document.getElementById('flex-tasks');
+
+            if (walletState.connected && walletState.address) {
+                // Показуємо підключений стан
+                if (connectedDiv) connectedDiv.style.display = 'block';
+                if (notConnectedDiv) notConnectedDiv.style.display = 'none';
+                if (flexTasksDiv) flexTasksDiv.style.display = 'grid';
+
+                // Оновлюємо адресу
+                const addressEl = document.getElementById('wallet-address-display');
+                if (addressEl) {
+                    const shortAddress = `${walletState.address.slice(0, 8)}...${walletState.address.slice(-6)}`;
+                    addressEl.textContent = shortAddress;
+                }
+
+                // Оновлюємо FLEX баланс
+                const flexBalanceEl = document.getElementById('wallet-flex-balance');
+                if (flexBalanceEl && walletState.flexBalance !== undefined) {
+                    flexBalanceEl.textContent = walletState.flexBalance.toLocaleString();
+                }
+            } else {
+                // Показуємо непідключений стан
+                if (connectedDiv) connectedDiv.style.display = 'none';
+                if (notConnectedDiv) notConnectedDiv.style.display = 'block';
+                if (flexTasksDiv) flexTasksDiv.style.display = 'none';
+            }
+        }
+
+        // Функція відключення гаманця
+        async function disconnectWallet() {
+            if (window.WalletChecker) {
+                await window.WalletChecker.disconnectWallet();
+            }
+        }
+    </script>
+
+    <script src="js/tasks/api.js"></script>
+
+    <!-- 4.4. Валідатори та сервіси (залежать від api, store) -->
+    <script src="js/tasks/telegramValidator.js"></script>
+    <script src="js/tasks/services.js"></script>
 
     <!-- 6. Основні модулі функціональності -->
-<script src="js/tasks/walletChecker.js"></script>
-<script src="js/tasks/taskVerification.js"></script>
-<script src="js/tasks/flexEarn.js"></script>
-<script src="js/tasks/dailyBonus.js"></script>
-<script src="js/tasks/tasksManager.js"></script>
+    <script src="js/tasks/walletChecker.js"></script>
+    <script src="js/tasks/taskVerification.js"></script>
+    <script src="js/tasks/flexEarn.js"></script>
+    <script src="js/tasks/dailyBonus.js"></script>
+    <script src="js/tasks/tasksManager.js"></script>
 
     <!-- 7. Фінальна інтеграція -->
     <script src="js/tasks/integration.js"></script>
@@ -884,299 +1055,274 @@
             closeVerificationPopup();
         }
     </script>
-<script>
-    // Додайте після ініціалізації для дебагу
-    window.addEventListener('load', async () => {
-        console.log('🔍 [DEBUG] Перевірка доступності API...');
 
-        try {
-            const response = await fetch('/api/ping');
-            console.log('✅ [DEBUG] API відповідь:', response.status);
+    <script>
+        /**
+         * Глобальна система підключення гаманця з автоматичною ініціалізацією
+         */
+        (function() {
+            'use strict';
 
-            if (!response.ok) {
-                console.error('❌ [DEBUG] API недоступний:', response.statusText);
-            }
-        } catch (error) {
-            console.error('❌ [DEBUG] Помилка підключення до API:', error);
-        }
+            console.log('🚀 [WalletConnectSystem] Ініціалізація системи підключення гаманця');
 
-        // Перевірка даних користувача
-        setTimeout(() => {
-            const userId = window.TasksStore?.selectors?.getUserId();
-            const balance = window.TasksStore?.selectors?.getUserBalance();
+            // Стан системи
+            const state = {
+                isInitializing: false,
+                isInitialized: false,
+                initAttempts: 0,
+                maxInitAttempts: 5
+            };
 
-            console.log('🔍 [DEBUG] User ID:', userId);
-            console.log('🔍 [DEBUG] Balance:', balance);
-        }, 3000);
-    });
-</script>
-<script>
-/**
- * Глобальна система підключення гаманця з автоматичною ініціалізацією
- */
-(function() {
-    'use strict';
-
-    console.log('🚀 [WalletConnectSystem] Ініціалізація системи підключення гаманця');
-
-    // Стан системи
-    const state = {
-        isInitializing: false,
-        isInitialized: false,
-        initAttempts: 0,
-        maxInitAttempts: 5
-    };
-
-    /**
-     * Ініціалізація WalletChecker з retry логікою
-     */
-    async function initializeWalletChecker() {
-        if (state.isInitializing || state.isInitialized) {
-            console.log('⏸️ [WalletConnectSystem] Ініціалізація вже виконується або завершена');
-            return state.isInitialized;
-        }
-
-        state.isInitializing = true;
-        state.initAttempts++;
-
-        console.log(`🔄 [WalletConnectSystem] Спроба ініціалізації ${state.initAttempts}/${state.maxInitAttempts}`);
-
-        try {
-            // Перевіряємо наявність WalletChecker
-            if (!window.WalletChecker) {
-                throw new Error('WalletChecker не завантажено');
-            }
-
-            // Перевіряємо чи вже ініціалізовано
-            if (window.WalletChecker.getStatus && window.WalletChecker.getStatus().initialized) {
-                console.log('✅ [WalletConnectSystem] WalletChecker вже ініціалізовано');
-                state.isInitialized = true;
-                state.isInitializing = false;
-                return true;
-            }
-
-            // Отримуємо userId
-            const userId = await getUserId();
-            if (!userId) {
-                throw new Error('Не вдалося отримати userId');
-            }
-
-            console.log('👤 [WalletConnectSystem] Ініціалізація з userId:', userId);
-
-            // Ініціалізуємо WalletChecker
-            await window.WalletChecker.init(userId);
-
-            state.isInitialized = true;
-            console.log('✅ [WalletConnectSystem] WalletChecker успішно ініціалізовано');
-            return true;
-
-        } catch (error) {
-            console.error('❌ [WalletConnectSystem] Помилка ініціалізації:', error);
-
-            if (state.initAttempts < state.maxInitAttempts) {
-                const delay = state.initAttempts * 1000; // Збільшуємо затримку з кожною спробою
-                console.log(`⏳ [WalletConnectSystem] Повторна спроба через ${delay}мс`);
-
-                setTimeout(() => {
-                    state.isInitializing = false;
-                    initializeWalletChecker();
-                }, delay);
-            } else {
-                console.error('❌ [WalletConnectSystem] Вичерпано всі спроби ініціалізації');
-                alert('Помилка ініціалізації системи гаманця. Оновіть сторінку.');
-            }
-
-            return false;
-        } finally {
-            state.isInitializing = false;
-        }
-    }
-
-    /**
-     * Отримання userId з різних джерел
-     */
-    async function getUserId() {
-        // Спробуємо різні джерела
-        const sources = [
-            () => window.TasksStore?.selectors?.getUserId?.(),
-            () => window.WinixAPI?.getUserId?.(),
-            () => window.TasksIntegrationInstance?.userId,
-            () => localStorage.getItem('telegram_user_id'),
-            () => localStorage.getItem('user_id'),
-            () => window.Telegram?.WebApp?.initDataUnsafe?.user?.id
-        ];
-
-        for (const source of sources) {
-            try {
-                const id = source();
-                if (id && id !== 'undefined' && id !== 'null') {
-                    return parseInt(id);
+            /**
+             * Ініціалізація WalletChecker з retry логікою
+             */
+            async function initializeWalletChecker() {
+                if (state.isInitializing || state.isInitialized) {
+                    console.log('⏸️ [WalletConnectSystem] Ініціалізація вже виконується або завершена');
+                    return state.isInitialized;
                 }
-            } catch (e) {
-                continue;
+
+                state.isInitializing = true;
+                state.initAttempts++;
+
+                console.log(`🔄 [WalletConnectSystem] Спроба ініціалізації ${state.initAttempts}/${state.maxInitAttempts}`);
+
+                try {
+                    // Перевіряємо наявність WalletChecker
+                    if (!window.WalletChecker) {
+                        throw new Error('WalletChecker не завантажено');
+                    }
+
+                    // Перевіряємо чи вже ініціалізовано
+                    if (window.WalletChecker.getStatus && window.WalletChecker.getStatus().initialized) {
+                        console.log('✅ [WalletConnectSystem] WalletChecker вже ініціалізовано');
+                        state.isInitialized = true;
+                        state.isInitializing = false;
+                        return true;
+                    }
+
+                    // Отримуємо userId
+                    const userId = await getUserId();
+                    if (!userId) {
+                        throw new Error('Не вдалося отримати userId');
+                    }
+
+                    console.log('👤 [WalletConnectSystem] Ініціалізація з userId:', userId);
+
+                    // Ініціалізуємо WalletChecker
+                    await window.WalletChecker.init(userId);
+
+                    state.isInitialized = true;
+                    console.log('✅ [WalletConnectSystem] WalletChecker успішно ініціалізовано');
+                    return true;
+
+                } catch (error) {
+                    console.error('❌ [WalletConnectSystem] Помилка ініціалізації:', error);
+
+                    if (state.initAttempts < state.maxInitAttempts) {
+                        const delay = state.initAttempts * 1000; // Збільшуємо затримку з кожною спробою
+                        console.log(`⏳ [WalletConnectSystem] Повторна спроба через ${delay}мс`);
+
+                        setTimeout(() => {
+                            state.isInitializing = false;
+                            initializeWalletChecker();
+                        }, delay);
+                    } else {
+                        console.error('❌ [WalletConnectSystem] Вичерпано всі спроби ініціалізації');
+                        alert('Помилка ініціалізації системи гаманця. Оновіть сторінку.');
+                    }
+
+                    return false;
+                } finally {
+                    state.isInitializing = false;
+                }
             }
-        }
 
-        // Якщо нічого не знайдено, чекаємо на ініціалізацію системи
-        console.log('⏳ [WalletConnectSystem] UserId не знайдено, чекаємо на систему...');
-
-        return new Promise((resolve) => {
-            let attempts = 0;
-            const checkInterval = setInterval(() => {
-                attempts++;
+            /**
+             * Отримання userId з різних джерел
+             */
+            async function getUserId() {
+                // Спробуємо різні джерела
+                const sources = [
+                    () => window.TasksStore?.selectors?.getUserId?.(),
+                    () => window.WinixAPI?.getUserId?.(),
+                    () => window.TasksIntegrationInstance?.userId,
+                    () => localStorage.getItem('telegram_user_id'),
+                    () => localStorage.getItem('user_id'),
+                    () => window.Telegram?.WebApp?.initDataUnsafe?.user?.id
+                ];
 
                 for (const source of sources) {
                     try {
                         const id = source();
                         if (id && id !== 'undefined' && id !== 'null') {
-                            clearInterval(checkInterval);
-                            resolve(parseInt(id));
-                            return;
+                            return parseInt(id);
                         }
                     } catch (e) {
                         continue;
                     }
                 }
 
-                if (attempts > 20) { // 10 секунд
-                    clearInterval(checkInterval);
-                    resolve(null);
+                // Якщо нічого не знайдено, чекаємо на ініціалізацію системи
+                console.log('⏳ [WalletConnectSystem] UserId не знайдено, чекаємо на систему...');
+
+                return new Promise((resolve) => {
+                    let attempts = 0;
+                    const checkInterval = setInterval(() => {
+                        attempts++;
+
+                        for (const source of sources) {
+                            try {
+                                const id = source();
+                                if (id && id !== 'undefined' && id !== 'null') {
+                                    clearInterval(checkInterval);
+                                    resolve(parseInt(id));
+                                    return;
+                                }
+                            } catch (e) {
+                                continue;
+                            }
+                        }
+
+                        if (attempts > 20) { // 10 секунд
+                            clearInterval(checkInterval);
+                            resolve(null);
+                        }
+                    }, 500);
+                });
+            }
+
+            /**
+             * Підключення гаманця з перевірками
+             */
+            async function connectWallet() {
+                console.log('🔌 [WalletConnectSystem] Запит на підключення гаманця');
+
+                try {
+                    // Спочатку переконуємось що система ініціалізована
+                    if (!state.isInitialized) {
+                        console.log('🔄 [WalletConnectSystem] Система не ініціалізована, запускаємо ініціалізацію');
+
+                        const button = document.getElementById('connect-wallet-btn');
+                        if (button) {
+                            button.disabled = true;
+                            button.textContent = 'Ініціалізація...';
+                        }
+
+                        const initialized = await initializeWalletChecker();
+
+                        if (!initialized) {
+                            throw new Error('Не вдалося ініціалізувати систему');
+                        }
+
+                        // Даємо додатковий час на завершення всіх процесів
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+
+                    // Перевіряємо стан WalletChecker
+                    const status = window.WalletChecker?.getStatus?.();
+                    console.log('📊 [WalletConnectSystem] Статус WalletChecker:', status);
+
+                    if (!status?.initialized) {
+                        throw new Error('WalletChecker не готовий');
+                    }
+
+                    // Викликаємо підключення
+                    await window.WalletChecker.connectWallet();
+
+                } catch (error) {
+                    console.error('❌ [WalletConnectSystem] Помилка підключення:', error);
+
+                    // Fallback на прямий виклик tonConnectUI
+                    if (window.tonConnectUI && window.tonConnectUI.connectWallet) {
+                        console.log('🔄 [WalletConnectSystem] Використовуємо tonConnectUI напряму');
+                        try {
+                            await window.tonConnectUI.connectWallet();
+                        } catch (fallbackError) {
+                            console.error('❌ [WalletConnectSystem] Помилка fallback:', fallbackError);
+                            alert('Не вдалося відкрити вікно підключення гаманця. Спробуйте пізніше.');
+                        }
+                    } else {
+                        alert('Система підключення гаманця ще завантажується. Спробуйте через кілька секунд.');
+                    }
+                } finally {
+                    // Відновлюємо кнопку
+                    const button = document.getElementById('connect-wallet-btn');
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = 'Підключити кошелек';
+                    }
                 }
-            }, 500);
-        });
-    }
+            }
 
-    /**
-     * Підключення гаманця з перевірками
-     */
-    async function connectWallet() {
-        console.log('🔌 [WalletConnectSystem] Запит на підключення гаманця');
+            /**
+             * Обробник кліку на кнопку
+             */
+            function handleConnectClick(event) {
+                event.preventDefault();
+                connectWallet();
+            }
 
-        try {
-            // Спочатку переконуємось що система ініціалізована
-            if (!state.isInitialized) {
-                console.log('🔄 [WalletConnectSystem] Система не ініціалізована, запускаємо ініціалізацію');
-
+            /**
+             * Налаштування обробників подій
+             */
+            function setupEventHandlers() {
+                // Знаходимо кнопку
                 const button = document.getElementById('connect-wallet-btn');
                 if (button) {
-                    button.disabled = true;
-                    button.textContent = 'Ініціалізація...';
+                    // Видаляємо всі попередні обробники
+                    button.removeEventListener('click', handleConnectClick);
+                    // Додаємо новий
+                    button.addEventListener('click', handleConnectClick);
+                    console.log('✅ [WalletConnectSystem] Обробник кнопки встановлено');
                 }
 
-                const initialized = await initializeWalletChecker();
-
-                if (!initialized) {
-                    throw new Error('Не вдалося ініціалізувати систему');
-                }
-
-                // Даємо додатковий час на завершення всіх процесів
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Також додаємо обробник через делегування як backup
+                document.addEventListener('click', function(e) {
+                    if (e.target.id === 'connect-wallet-btn' || e.target.classList.contains('connect-wallet-redirect')) {
+                        if (e.target !== button) { // Уникаємо подвійного виклику
+                            e.preventDefault();
+                            connectWallet();
+                        }
+                    }
+                });
             }
 
-            // Перевіряємо стан WalletChecker
-            const status = window.WalletChecker?.getStatus?.();
-            console.log('📊 [WalletConnectSystem] Статус WalletChecker:', status);
+            /**
+             * Автоматична ініціалізація при завантаженні
+             */
+            function autoInit() {
+                console.log('🤖 [WalletConnectSystem] Автоматична ініціалізація');
 
-            if (!status?.initialized) {
-                throw new Error('WalletChecker не готовий');
+                // Налаштовуємо обробники
+                setupEventHandlers();
+
+                // Запускаємо ініціалізацію в фоні
+                setTimeout(() => {
+                    initializeWalletChecker().then(success => {
+                        if (success) {
+                            console.log('✅ [WalletConnectSystem] Система готова до роботи');
+                        }
+                    });
+                }, 1000);
             }
 
-            // Викликаємо підключення
-            await window.WalletChecker.connectWallet();
+            // Робимо функцію доступною глобально
+            window.connectWalletSafe = connectWallet;
 
-        } catch (error) {
-            console.error('❌ [WalletConnectSystem] Помилка підключення:', error);
-
-            // Fallback на прямий виклик tonConnectUI
-            if (window.tonConnectUI && window.tonConnectUI.connectWallet) {
-                console.log('🔄 [WalletConnectSystem] Використовуємо tonConnectUI напряму');
-                try {
-                    await window.tonConnectUI.connectWallet();
-                } catch (fallbackError) {
-                    console.error('❌ [WalletConnectSystem] Помилка fallback:', fallbackError);
-                    alert('Не вдалося відкрити вікно підключення гаманця. Спробуйте пізніше.');
-                }
+            // Запускаємо автоматичну ініціалізацію
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', autoInit);
             } else {
-                alert('Система підключення гаманця ще завантажується. Спробуйте через кілька секунд.');
+                autoInit();
             }
-        } finally {
-            // Відновлюємо кнопку
-            const button = document.getElementById('connect-wallet-btn');
-            if (button) {
-                button.disabled = false;
-                button.textContent = 'Підключити кошелек';
-            }
-        }
-    }
 
-    /**
-     * Обробник кліку на кнопку
-     */
-    function handleConnectClick(event) {
-        event.preventDefault();
-        connectWallet();
-    }
-
-    /**
-     * Налаштування обробників подій
-     */
-    function setupEventHandlers() {
-        // Знаходимо кнопку
-        const button = document.getElementById('connect-wallet-btn');
-        if (button) {
-            // Видаляємо всі попередні обробники
-            button.removeEventListener('click', handleConnectClick);
-            // Додаємо новий
-            button.addEventListener('click', handleConnectClick);
-            console.log('✅ [WalletConnectSystem] Обробник кнопки встановлено');
-        }
-
-        // Також додаємо обробник через делегування як backup
-        document.addEventListener('click', function(e) {
-            if (e.target.id === 'connect-wallet-btn' || e.target.classList.contains('connect-wallet-redirect')) {
-                if (e.target !== button) { // Уникаємо подвійного виклику
-                    e.preventDefault();
-                    connectWallet();
-                }
-            }
-        });
-    }
-
-    /**
-     * Автоматична ініціалізація при завантаженні
-     */
-    function autoInit() {
-        console.log('🤖 [WalletConnectSystem] Автоматична ініціалізація');
-
-        // Налаштовуємо обробники
-        setupEventHandlers();
-
-        // Запускаємо ініціалізацію в фоні
-        setTimeout(() => {
-            initializeWalletChecker().then(success => {
-                if (success) {
-                    console.log('✅ [WalletConnectSystem] Система готова до роботи');
-                }
+            // Додатково запускаємо після повного завантаження
+            window.addEventListener('load', function() {
+                setTimeout(autoInit, 100);
             });
-        }, 1000);
-    }
 
-    // Робимо функцію доступною глобально
-    window.connectWalletSafe = connectWallet;
-
-    // Запускаємо автоматичну ініціалізацію
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', autoInit);
-    } else {
-        autoInit();
-    }
-
-    // Додатково запускаємо після повного завантаження
-    window.addEventListener('load', function() {
-        setTimeout(autoInit, 100);
-    });
-
-})();
-</script>
+        })();
+    </script>
 </body>
 </html>
