@@ -1,12 +1,13 @@
 """
 Контролер для управління TON гаманцями користувачів
 API endpoints для підключення, відключення та верифікації гаманців
-ОНОВЛЕНО: Інтеграція з Transaction Service для бонусів за підключення
+ВИПРАВЛЕНА ВЕРСІЯ - вирішує проблему 400 помилки
 """
 
 import logging
 from typing import Dict, Any, Tuple
 from datetime import datetime, timezone
+from flask import request
 
 # Налаштування логування
 logger = logging.getLogger(__name__)
@@ -105,13 +106,6 @@ except ImportError:
             DISCONNECTED = "disconnected"
             PENDING = "pending"
 
-# Імпорт Flask
-try:
-    from flask import request
-except ImportError:
-    logger.error("Flask недоступний")
-    request = None
-
 
 class WalletController:
     """Контролер для управління гаманцями з підтримкою транзакцій"""
@@ -162,17 +156,11 @@ class WalletController:
             }, 500
 
     @staticmethod
-    @secure_endpoint(max_requests=10, window_seconds=300)  # Обмеження: 10 підключень за 5 хвилин
-    @validate_json(required_fields=['address'])
+    @secure_endpoint(max_requests=10, window_seconds=300)
     def connect_wallet(telegram_id: str) -> Tuple[Dict[str, Any], int]:
         """
         Підключення TON гаманця з автоматичним бонусом через Transaction Service
-
-        Args:
-            telegram_id: ID користувача в Telegram
-
-        Returns:
-            Результат підключення та HTTP код
+        ВИПРАВЛЕНО: Правильна обробка JSON даних
         """
         try:
             logger.info(f"Підключення гаманця для користувача {telegram_id}")
@@ -184,27 +172,51 @@ class WalletController:
                     "error_code": "SERVICE_UNAVAILABLE"
                 }, 503
 
-            # Отримуємо дані з запиту
-            wallet_data = get_json_data()
+            # ВИПРАВЛЕННЯ: Отримуємо дані напряму з request
+            try:
+                wallet_data = request.get_json(force=True)
+                logger.info(f"Отримані дані гаманця: {wallet_data}")
+            except Exception as e:
+                logger.error(f"Помилка отримання JSON: {e}")
+                return {
+                    "status": "error",
+                    "message": "Невірний формат даних",
+                    "error_code": "INVALID_JSON"
+                }, 400
+
             if not wallet_data:
+                logger.error("Дані гаманця відсутні")
                 return {
                     "status": "error",
                     "message": "Дані гаманця відсутні",
                     "error_code": "MISSING_WALLET_DATA"
                 }, 400
 
-            # Валідація адреси гаманця
-            address = wallet_data.get('address', '').strip()
-            from ..models.wallet import WalletModel
-            if not WalletModel.validate_ton_address(address):
+            # Валідація обов'язкових полів
+            if 'address' not in wallet_data:
+                logger.error("Адреса гаманця відсутня в даних")
                 return {
                     "status": "error",
-                    "message": "Невалідна адреса TON гаманця",
+                    "message": "Адреса гаманця обов'язкова",
+                    "error_code": "MISSING_ADDRESS"
+                }, 400
+
+            # Валідація адреси гаманця
+            address = str(wallet_data.get('address', '')).strip()
+            logger.info(f"Валідація адреси: '{address}', довжина: {len(address)}")
+
+            from ..models.wallet import WalletModel
+            if not WalletModel.validate_ton_address(address):
+                logger.error(f"Адреса не пройшла валідацію: '{address}'")
+                return {
+                    "status": "error",
+                    "message": f"Невалідна адреса TON гаманця: {address}",
                     "error_code": "INVALID_ADDRESS"
                 }, 400
 
             # Додаткова валідація через TON Connect сервіс
             if ton_connect_service and not ton_connect_service.validate_address(address):
+                logger.error(f"Адреса не пройшла валідацію TON Connect: {address}")
                 return {
                     "status": "error",
                     "message": "Адреса не пройшла валідацію TON",
@@ -214,9 +226,9 @@ class WalletController:
             # Санітизація додаткових полів
             sanitized_data = {
                 'address': address,
-                'chain': sanitize_string(wallet_data.get('chain', '-239')),
-                'publicKey': sanitize_string(wallet_data.get('publicKey', '')),
-                'provider': sanitize_string(wallet_data.get('provider', '')),
+                'chain': sanitize_string(str(wallet_data.get('chain', '-239'))),
+                'publicKey': sanitize_string(str(wallet_data.get('publicKey', ''))),
+                'provider': sanitize_string(str(wallet_data.get('provider', ''))),
                 'timestamp': wallet_data.get('timestamp', int(datetime.now(timezone.utc).timestamp())),
                 'userAgent': sanitize_string(request.headers.get('User-Agent', '') if request else ''),
                 'ipAddress': request.remote_addr if request else ''
@@ -250,26 +262,9 @@ class WalletController:
                                 'operations': bonus_result['operations'],
                                 'processed_through': 'transaction_service'
                             }
-                            logger.info(f"Бонус за підключення гаманця нарахований користувачу {telegram_id} через transaction service")
+                            logger.info(f"Бонус за підключення гаманця нарахований користувачу {telegram_id}")
                         else:
-                            logger.warning(f"Не вдалося нарахувати бонус через transaction service: {bonus_result['error']}")
-
-                            # Fallback до прямого нарахування
-                            try:
-                                from supabase_client import update_balance
-                                if update_balance(telegram_id, bonus_amount):
-                                    result['bonus'] = {
-                                        'amount': bonus_amount,
-                                        'currency': 'WINIX',
-                                        'operations': [f'WINIX +{bonus_amount}'],
-                                        'processed_through': 'direct_db',
-                                        'fallback': True
-                                    }
-                                    logger.info(f"Бонус за підключення гаманця нарахований користувачу {telegram_id} (fallback)")
-                                else:
-                                    logger.error("Fallback нарахування бонусу також не вдалося")
-                            except Exception as fallback_error:
-                                logger.error(f"Помилка fallback нарахування: {fallback_error}")
+                            logger.warning(f"Не вдалося нарахувати бонус: {bonus_result['error']}")
                     else:
                         # Прямий метод якщо transaction service недоступний
                         try:
@@ -279,12 +274,9 @@ class WalletController:
                                     'amount': bonus_amount,
                                     'currency': 'WINIX',
                                     'operations': [f'WINIX +{bonus_amount}'],
-                                    'processed_through': 'direct_db',
-                                    'transaction_service_unavailable': True
+                                    'processed_through': 'direct_db'
                                 }
-                                logger.info(f"Бонус за підключення гаманця нарахований користувачу {telegram_id} (прямий метод)")
-                            else:
-                                logger.error("Не вдалося нарахувати бонус прямим методом")
+                                logger.info(f"Бонус нарахований напряму для {telegram_id}")
                         except Exception as direct_error:
                             logger.error(f"Помилка прямого нарахування: {direct_error}")
 
@@ -298,7 +290,7 @@ class WalletController:
                                 'flex': balance.flex_balance
                             }
                     except Exception as balance_error:
-                        logger.warning(f"Не вдалося отримати баланс для {address}: {balance_error}")
+                        logger.warning(f"Не вдалося отримати баланс: {balance_error}")
 
                 # Додаємо інформацію про сервіси
                 result['service_info'] = {
@@ -391,7 +383,7 @@ class WalletController:
                         logger.info(f"Відключення гаманця зареєстровано: {disconnect_result.get('transaction_id')}")
 
                     except Exception as e:
-                        logger.warning(f"Не вдалося зареєструвати відключення гаманця: {e}")
+                        logger.warning(f"Не вдалося зареєструвати відключення: {e}")
 
                 # Очищаємо кеш балансу
                 if ton_connect_service:
@@ -426,10 +418,10 @@ class WalletController:
 
     @staticmethod
     @secure_endpoint(max_requests=5, window_seconds=300)
-    @validate_json(required_fields=['signature', 'message'])
     def verify_wallet(telegram_id: str):
         """
         Верифікація володіння гаманцем
+        ВИПРАВЛЕНО: Правильна обробка JSON даних
 
         Args:
             telegram_id: ID користувача в Telegram
@@ -448,13 +440,33 @@ class WalletController:
                 }
                 return response, 503
 
-            # Отримуємо дані верифікації
-            verification_data = get_json_data()
+            # ВИПРАВЛЕННЯ: Отримуємо дані напряму з request
+            try:
+                verification_data = request.get_json(force=True)
+                logger.info(f"Отримані дані верифікації: {verification_data}")
+            except Exception as e:
+                logger.error(f"Помилка отримання JSON: {e}")
+                response: Dict[str, Any] = {
+                    "status": "error",
+                    "message": "Невірний формат даних",
+                    "error_code": "INVALID_JSON"
+                }
+                return response, 400
+
             if not verification_data:
                 response: Dict[str, Any] = {
                     "status": "error",
                     "message": "Дані верифікації відсутні",
                     "error_code": "MISSING_VERIFICATION_DATA"
+                }
+                return response, 400
+
+            # Перевіряємо обов'язкові поля
+            if 'signature' not in verification_data or 'message' not in verification_data:
+                response: Dict[str, Any] = {
+                    "status": "error",
+                    "message": "Відсутні обов'язкові поля: signature, message",
+                    "error_code": "MISSING_REQUIRED_FIELDS"
                 }
                 return response, 400
 
@@ -469,9 +481,9 @@ class WalletController:
                 return response, 404
 
             # Санітизуємо дані
-            signature = sanitize_string(verification_data.get('signature', ''))
-            message = sanitize_string(verification_data.get('message', ''))
-            verification_type = sanitize_string(verification_data.get('type', 'ownership'))
+            signature = sanitize_string(str(verification_data.get('signature', '')))
+            message = sanitize_string(str(verification_data.get('message', '')))
+            verification_type = sanitize_string(str(verification_data.get('type', 'ownership')))
 
             if not signature or not message:
                 response: Dict[str, Any] = {
@@ -521,7 +533,7 @@ class WalletController:
                     try:
                         from ..models.transaction import TransactionAmount, TransactionType
 
-                        # Створюємо запис про верифікацію (нульова винагорода)
+                        # Створюємо запис про верифікацію
                         verification_log_result = transaction_service.process_reward(
                             telegram_id=telegram_id,
                             reward_amount=TransactionAmount(winix=0, tickets=0, flex=0),
@@ -539,11 +551,10 @@ class WalletController:
                             }
                         )
 
-                        logger.info(
-                            f"Верифікація гаманця зареєстрована: {verification_log_result.get('transaction_id')}")
+                        logger.info(f"Верифікація зареєстрована: {verification_log_result.get('transaction_id')}")
 
                     except Exception as e:
-                        logger.warning(f"Не вдалося зареєструвати верифікацію гаманця: {e}")
+                        logger.warning(f"Не вдалося зареєструвати верифікацію: {e}")
 
                 response: Dict[str, Any] = {
                     "status": "success",
@@ -751,7 +762,7 @@ class WalletController:
     @public_endpoint(max_requests=50, window_seconds=300)
     def get_wallet_statistics() -> Tuple[Dict[str, Any], int]:
         """
-        Отримання статистики гаманців (публічна)
+        Отримання загальної статистики гаманців (публічна)
 
         Returns:
             Статистика та HTTP код
@@ -883,7 +894,6 @@ class WalletController:
                         "status": "unhealthy",
                         "error": str(e)
                     }
-                    # Не впливає на загальне здоров'я wallet сервісу
             else:
                 health_status['transaction_service'] = {
                     "status": "unavailable",
@@ -914,13 +924,12 @@ class WalletController:
                 overall_healthy = False
 
             # Перевірка бази даних
-            supabase = None  # Ініціалізуємо змінну перед try блоком
+            supabase = None
             try:
                 from supabase_client import supabase
                 if supabase:
                     try:
-                        # Використовуємо простіший запит без execute()
-                        supabase.table("wallets").select("id").limit(1)  # type: ignore
+                        supabase.table("wallets").select("id").limit(1)
                         health_status['database'] = {
                             "status": "healthy",
                             "connection": "active"
@@ -938,7 +947,7 @@ class WalletController:
                     }
                     overall_healthy = False
             except ImportError:
-                supabase = None  # Явно встановлюємо None при ImportError
+                supabase = None
                 health_status['database'] = {
                     "status": "unavailable",
                     "error": "Supabase client not available"

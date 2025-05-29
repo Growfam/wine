@@ -1,7 +1,6 @@
 /**
  * Модуль перевірки TON гаманця для системи завдань WINIX
- * Інтеграція з TON Connect та сервером
- * ОСТАТОЧНА ВИПРАВЛЕНА ВЕРСІЯ
+ * ВИПРАВЛЕНА ВЕРСІЯ - вирішує проблему 400 помилки
  */
 
 window.WalletChecker = (function() {
@@ -20,7 +19,9 @@ window.WalletChecker = (function() {
         isConnecting: false,
         initPromise: null,
         lastApiCallTime: 0,
-        apiCallDelay: 2000 // Затримка між API викликами для уникнення 429
+        apiCallDelay: 2000, // Затримка між API викликами для уникнення 429
+        walletCache: null, // Кеш даних гаманця
+        lastWalletAddress: null // Остання відома адреса
     };
 
     // Конфігурація
@@ -92,8 +93,6 @@ window.WalletChecker = (function() {
 
             // Налаштовуємо слухачі подій
             setupEventListeners();
-
-            // НЕ викликаємо checkWalletConnection одразу - це викликає помилки API
 
             // Запускаємо періодичну перевірку з затримкою
             setTimeout(() => {
@@ -303,6 +302,9 @@ window.WalletChecker = (function() {
                 console.log('📍 [WalletChecker] Адреса:', wallet.account.address);
                 console.log('🏷️ [WalletChecker] Провайдер:', wallet.device.appName);
 
+                // Зберігаємо адресу для майбутнього використання
+                state.lastWalletAddress = wallet.account.address;
+
                 // Затримка перед API викликом
                 await rateLimit();
 
@@ -314,6 +316,10 @@ window.WalletChecker = (function() {
 
             } else {
                 console.log('❌ [WalletChecker] Гаманець не підключено');
+
+                // Очищаємо кеш
+                state.walletCache = null;
+                state.lastWalletAddress = null;
 
                 // Оновлюємо стан
                 store.actions.setWalletConnected(false);
@@ -334,7 +340,11 @@ window.WalletChecker = (function() {
                 state.apiCallDelay = Math.min(state.apiCallDelay * 2, 60000); // Макс 1 хвилина
             }
 
-            store.actions.setError('Помилка перевірки гаманця');
+            // Не показуємо помилку користувачу для 400/429
+            if (!error.message?.includes('400') && !error.message?.includes('429')) {
+                store.actions.setError('Помилка перевірки гаманця');
+            }
+
             return false;
 
         } finally {
@@ -344,7 +354,7 @@ window.WalletChecker = (function() {
     }
 
     /**
-     * Верифікація гаманця на бекенді
+     * Верифікація гаманця на бекенді - ВИПРАВЛЕНА ВЕРСІЯ
      */
     async function verifyWalletOnBackend(wallet) {
         console.log('🌐 [WalletChecker] === ВЕРИФІКАЦІЯ НА БЕКЕНДІ ===');
@@ -357,24 +367,16 @@ window.WalletChecker = (function() {
 
         const address = wallet.account.address;
 
-        // Валідація TON адреси
-        const isValidTonAddress =
-            (typeof address === 'string' && address.length > 0) &&
-            (address.startsWith('EQ') ||
-             address.startsWith('UQ') ||
-             address.startsWith('0:') ||
-             address.startsWith('-1:') ||
-             /^[0-9a-fA-F]{64}$/.test(address));
-
-        if (!isValidTonAddress) {
+        // Базова валідація TON адреси
+        if (!address || typeof address !== 'string' || address.length < 10) {
             console.error('❌ [WalletChecker] Невалідний формат адреси:', address);
             throw new Error('Невалідний формат адреси TON гаманця');
         }
 
-        console.log('✅ [WalletChecker] Адреса валідна:', address);
+        console.log('✅ [WalletChecker] Адреса для верифікації:', address);
 
         const chain = wallet.account.chain || '-239';
-        const publicKey = wallet.account.publicKey;
+        const publicKey = wallet.account.publicKey || '';
 
         console.log('📊 [WalletChecker] Дані для верифікації:', {
             userId: state.userId,
@@ -387,12 +389,25 @@ window.WalletChecker = (function() {
             // Затримка перед API викликом
             await rateLimit();
 
+            // Перевірка кешу
+            if (state.walletCache && state.walletCache.address === address) {
+                console.log('📦 [WalletChecker] Використовуємо кешовані дані гаманця');
+                updateWalletState(wallet, state.walletCache);
+                await checkFlexBalance(address);
+                return;
+            }
+
             // Спочатку перевіряємо статус
             const statusResponse = await window.TasksAPI.wallet.checkStatus(state.userId);
+            console.log('📊 [WalletChecker] Статус відповідь:', statusResponse);
 
-            if (statusResponse.connected && statusResponse.address === address) {
+            if (statusResponse.data && statusResponse.data.connected && statusResponse.data.address === address) {
                 console.log('✅ [WalletChecker] Гаманець вже зареєстрований');
-                updateWalletState(wallet, statusResponse);
+
+                // Кешуємо дані
+                state.walletCache = statusResponse.data;
+
+                updateWalletState(wallet, statusResponse.data);
 
                 // Затримка перед наступним викликом
                 await rateLimit();
@@ -406,25 +421,30 @@ window.WalletChecker = (function() {
             // Реєструємо гаманець
             console.log('🔄 [WalletChecker] Реєстрація гаманця на сервері...');
 
-            const connectResponse = await window.TasksAPI.wallet.connect(
-                state.userId,
-                {
-                    address: address,
-                    chain: chain,
-                    publicKey: publicKey,
-                    provider: wallet.device.appName,
-                    timestamp: Date.now()
-                }
-            );
+            // Формуємо дані для відправки
+            const walletData = {
+                address: address,
+                chain: chain,
+                publicKey: publicKey,
+                provider: wallet.device.appName || 'unknown',
+                timestamp: Date.now()
+            };
+
+            console.log('📤 [WalletChecker] Дані для реєстрації:', walletData);
+
+            const connectResponse = await window.TasksAPI.wallet.connect(state.userId, walletData);
 
             console.log('✅ [WalletChecker] Відповідь від сервера:', connectResponse);
 
-            if (connectResponse.success) {
-                updateWalletState(wallet, connectResponse);
+            if (connectResponse.status === 'success') {
+                // Кешуємо дані
+                state.walletCache = connectResponse.data.wallet;
 
-                if (connectResponse.firstConnection) {
+                updateWalletState(wallet, connectResponse.data);
+
+                if (connectResponse.data && connectResponse.data.first_connection) {
                     console.log('🎁 [WalletChecker] Перше підключення! Бонус нарахований');
-                    showFirstConnectionBonus(connectResponse.bonus);
+                    showFirstConnectionBonus(connectResponse.data.bonus);
                 }
 
                 // Затримка перед перевіркою балансу
@@ -437,19 +457,28 @@ window.WalletChecker = (function() {
         } catch (error) {
             console.error('❌ [WalletChecker] Помилка верифікації на бекенді:', error);
 
-            // Не показуємо toast для кожної помилки, особливо 400/429
+            // Якщо помилка 400 з даними про те що гаманець вже підключений
+            if (error.data && error.data.error_code === 'WALLET_ALREADY_CONNECTED') {
+                console.log('⚠️ [WalletChecker] Гаманець вже підключений до іншого акаунта');
+                window.TasksUtils?.showToast('Цей гаманець вже підключений до іншого акаунта', 'error');
+                // Відключаємо гаманець в UI
+                await disconnectWallet();
+                return;
+            }
+
+            // Обробка помилки невалідної адреси
+            if (error.data && error.data.error_code === 'INVALID_ADDRESS') {
+                console.error('❌ [WalletChecker] Невалідна адреса гаманця');
+                window.TasksUtils?.showToast('Невалідна адреса TON гаманця', 'error');
+                return;
+            }
+
+            // Не показуємо toast для кожної помилки 400/429
             if (!error.message?.includes('400') && !error.message?.includes('429')) {
-                if (error.message.includes('Невалідна адреса')) {
-                    window.TasksUtils?.showToast(
-                        'Невалідна адреса TON гаманця. Переконайтесь що гаманець підключений правильно.',
-                        'error'
-                    );
-                } else {
-                    window.TasksUtils?.showToast(
-                        error.message || 'Помилка підключення гаманця',
-                        'error'
-                    );
-                }
+                window.TasksUtils?.showToast(
+                    error.message || 'Помилка підключення гаманця',
+                    'error'
+                );
             }
 
             throw error;
@@ -466,15 +495,21 @@ window.WalletChecker = (function() {
 
         // Оновлюємо стан підключення
         store.actions.setWalletConnected(true);
+
+        // Використовуємо дані з сервера якщо є, інакше з wallet
+        const walletData = serverData.wallet || serverData;
+
         store.actions.setWalletAddress({
             address: wallet.account.address,
             chainId: wallet.account.chain,
-            provider: wallet.device.appName
+            provider: wallet.device.appName,
+            connected_at: walletData.connected_at,
+            status: walletData.status
         });
 
         // Якщо сервер повернув додаткові дані
-        if (serverData.flexBalance !== undefined) {
-            store.actions.setFlexBalance(serverData.flexBalance);
+        if (serverData.balance && serverData.balance.flex !== undefined) {
+            store.actions.setFlexBalance(serverData.balance.flex);
         }
 
         // Показуємо Flex завдання
@@ -712,6 +747,10 @@ window.WalletChecker = (function() {
 
             console.log('✅ [WalletChecker] Гаманець відключено');
 
+            // Очищаємо кеш
+            state.walletCache = null;
+            state.lastWalletAddress = null;
+
             // Оновлюємо стан
             window.TasksStore.actions.disconnectWallet();
 
@@ -747,6 +786,9 @@ window.WalletChecker = (function() {
             // Оновлюємо UI
             updateConnectButton(false);
 
+            // Зберігаємо адресу
+            state.lastWalletAddress = wallet.account.address;
+
             // Верифікуємо на бекенді з затримкою
             try {
                 await rateLimit();
@@ -756,12 +798,19 @@ window.WalletChecker = (function() {
 
                 // НЕ відключаємо гаманець автоматично при помилці 400/429
                 if (!error.message?.includes('400') && !error.message?.includes('429')) {
-                    await disconnectWallet();
+                    // Тільки при критичних помилках
+                    if (error.message?.includes('Network error') || error.message?.includes('500')) {
+                        await disconnectWallet();
+                    }
                 }
             }
 
         } else {
             console.log('❌ [WalletChecker] Гаманець відключено');
+
+            // Очищаємо кеш
+            state.walletCache = null;
+            state.lastWalletAddress = null;
 
             // Оновлюємо стан
             window.TasksStore.actions.disconnectWallet();
@@ -782,15 +831,22 @@ window.WalletChecker = (function() {
 
         // Показуємо повідомлення
         let message = 'Вітаємо! Бонус за підключення гаманця: ';
-        if (bonus.winix) message += `+${bonus.winix} WINIX`;
-        if (bonus.tickets) message += ` та +${bonus.tickets} tickets`;
+        if (bonus.winix || bonus.amount) {
+            const amount = bonus.winix || bonus.amount;
+            message += `+${amount} WINIX`;
+        }
+        if (bonus.tickets) {
+            message += ` та +${bonus.tickets} tickets`;
+        }
 
         window.TasksUtils.showToast(message, 'success', 5000);
 
         // Оновлюємо баланси
         const currentBalance = window.TasksStore.selectors.getUserBalance();
+        const winixBonus = bonus.winix || bonus.amount || 0;
+
         window.TasksStore.actions.updateBalance({
-            winix: currentBalance.winix + (bonus.winix || 0),
+            winix: currentBalance.winix + winixBonus,
             tickets: currentBalance.tickets + (bonus.tickets || 0)
         });
 
@@ -871,7 +927,9 @@ window.WalletChecker = (function() {
             lastCheck: state.lastCheckTime,
             connectionAttempts: state.connectionAttempts,
             userId: state.userId,
-            isConnecting: state.isConnecting
+            isConnecting: state.isConnecting,
+            lastWalletAddress: state.lastWalletAddress,
+            hasCachedData: !!state.walletCache
         };
     }
 
@@ -895,6 +953,8 @@ window.WalletChecker = (function() {
         state.connectionAttempts = 0;
         state.isConnecting = false;
         state.initPromise = null;
+        state.walletCache = null;
+        state.lastWalletAddress = null;
 
         console.log('✅ [WalletChecker] Модуль знищено');
     }
