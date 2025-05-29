@@ -20,6 +20,7 @@
     <!-- Стилі для системи завдань -->
    <link rel="stylesheet" href="css/earn/styles.css">
     <link rel="stylesheet" href="css/earn/flex-earn.css">
+     <link rel="stylesheet" href="css/earn/flex-grid-override.css">
     <link rel="stylesheet" href="css/earn/wallet-status.css">
     <link rel="stylesheet" href="css/earn/daily-bonus.css">
     <link rel="stylesheet" href="css/earn/tasks.css">
@@ -172,7 +173,65 @@
         .error-container button:hover {
             background: #f8f9fa;
         }
-    </style>
+
+    /* Виправлення для сітки Flex завдань 2x2 */
+    #flex-tasks {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        grid-auto-rows: minmax(280px, auto);
+        gap: 20px !important;
+        padding: 10px !important;
+        width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    /* Виправлення для карток */
+    #flex-tasks .flex-task-card {
+        width: 100% !important;
+        margin: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 280px !important;
+        box-sizing: border-box;
+        transform-origin: center center;
+    }
+
+    /* П'ята картка на всю ширину */
+    #flex-tasks .flex-task-card:nth-child(5) {
+        grid-column: 1 / -1 !important;
+    }
+
+    /* Запобігання перекриттю при ховері */
+    #flex-tasks .flex-task-card:hover {
+        transform: translateY(-5px) scale(1.02) !important;
+        z-index: 100 !important;
+        position: relative !important;
+    }
+
+    /* Для мобільних */
+    @media (max-width: 600px) {
+        #flex-tasks {
+            grid-template-columns: 1fr !important;
+            gap: 15px !important;
+        }
+
+        #flex-tasks .flex-task-card:nth-child(5) {
+            grid-column: 1 !important;
+        }
+    }
+
+    /* Додаткове виправлення для контейнера */
+    .flex-tasks-container {
+        display: block !important;
+        width: 100% !important;
+        animation: none !important;
+    }
+
+    /* Видалення анімацій що можуть заважати */
+    #flex-tasks .flex-task-card {
+        animation-delay: 0s !important;
+    }
+</style>
 </head>
 <body>
     <!-- SVG фільтри та спрайт для іконок -->

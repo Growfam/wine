@@ -1,0 +1,147 @@
+/**
+ * Override стилі для сітки Flex завдань
+ * Цей файл має бути підключений ПІСЛЯ flex-earn.css
+ */
+
+/* Скидання стилів контейнера */
+.flex-tasks-container,
+#flex-tasks {
+    /* Видаляємо всі попередні стилі */
+    all: unset;
+
+    /* Застосовуємо Grid */
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: minmax(280px, auto);
+    gap: 20px !important;
+    padding: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Базові стилі для всіх карток */
+.flex-task-card {
+    /* Скидання */
+    margin: 0 !important;
+    width: 100% !important;
+
+    /* Основні стилі */
+    background: rgba(139, 92, 246, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid rgba(179, 102, 255, 0.2);
+    box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
+
+    /* Флекс для внутрішнього вмісту */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+
+    /* Розміри */
+    min-height: 280px !important;
+    box-sizing: border-box !important;
+
+    /* Анімації */
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+/* Спеціальне розташування для 5-ї картки */
+.flex-task-card:nth-child(5) {
+    grid-column: 1 / -1 !important;
+    max-width: none !important;
+}
+
+/* Hover ефекти з високим z-index */
+.flex-task-card:hover {
+    transform: translateY(-5px) scale(1.02) !important;
+    z-index: 999 !important;
+    box-shadow:
+        0 12px 40px rgba(179, 102, 255, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Внутрішні елементи карток */
+.task-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+}
+
+.task-icon {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    flex-shrink: 0 !important;
+}
+
+.task-info {
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+
+.task-title {
+    font-size: 0.9375rem !important;
+    line-height: 1.2 !important;
+}
+
+.task-requirement {
+    font-size: 0.75rem !important;
+    line-height: 1.2 !important;
+}
+
+.task-rewards {
+    margin-bottom: 0.75rem !important;
+}
+
+.claim-button {
+    margin-top: auto !important;
+}
+
+/* Таблет */
+@media (max-width: 768px) and (min-width: 541px) {
+    .flex-tasks-container,
+    #flex-tasks {
+        gap: 15px !important;
+        padding: 8px !important;
+    }
+
+    .flex-task-card {
+        min-height: 260px !important;
+        padding: 1rem !important;
+    }
+}
+
+/* Мобільні */
+@media (max-width: 540px) {
+    .flex-tasks-container,
+    #flex-tasks {
+        grid-template-columns: 1fr !important;
+        gap: 15px !important;
+        padding: 5px !important;
+    }
+
+    .flex-task-card:nth-child(5) {
+        grid-column: 1 !important;
+    }
+
+    .flex-task-card {
+        min-height: auto !important;
+    }
+}
+
+/* Видалення конфліктних анімацій */
+.flex-task-card {
+    animation: none !important;
+}
+
+/* Додатковий простір для анімацій */
+#flex-tab {
+    overflow: visible !important;
+    padding-bottom: 20px !important;
+}
