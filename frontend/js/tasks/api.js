@@ -1,6 +1,6 @@
 /**
- * API модуль для системи завдань WINIX - Спрощена версія
- * Використовує підхід реферальної системи
+ * API модуль для системи завдань WINIX - ВИПРАВЛЕНА ВЕРСІЯ
+ * Правильна передача JSON даних для wallet endpoints
  */
 window.TasksAPI = (function() {
     'use strict';
@@ -129,8 +129,18 @@ window.TasksAPI = (function() {
             method: fetchOptions.method || 'GET',
             hasAuth: !!token,
             userId: userId,
-            headers: fetchOptions.headers
+            headers: fetchOptions.headers,
+            hasBody: !!fetchOptions.body
         });
+
+        // Логуємо body якщо є
+        if (fetchOptions.body) {
+            try {
+                console.log('📤 [TasksAPI] Request Body:', JSON.parse(fetchOptions.body));
+            } catch (e) {
+                console.log('📤 [TasksAPI] Request Body (raw):', fetchOptions.body);
+            }
+        }
 
         let retryCount = 0;
 
@@ -152,7 +162,8 @@ window.TasksAPI = (function() {
                     console.log('📊 [TasksAPI] Response details:', {
                         status: response.status,
                         statusText: response.statusText,
-                        ok: response.ok
+                        ok: response.ok,
+                        headers: response.headers
                     });
 
                     // Перевіряємо відповідь
@@ -162,11 +173,27 @@ window.TasksAPI = (function() {
                             statusText: response.statusText
                         });
 
-                        // Створюємо детальну помилку
-                        const error = new Error('HTTP ' + response.status + ': ' + response.statusText);
-                        error.status = response.status;
-                        error.statusText = response.statusText;
-                        throw error;
+                        // Спробуємо отримати деталі помилки з відповіді
+                        return response.text().then(function(text) {
+                            console.error('📄 [TasksAPI] Response body:', text);
+
+                            // Спробуємо парсити як JSON
+                            try {
+                                const errorData = JSON.parse(text);
+                                const error = new Error(errorData.message || 'HTTP ' + response.status + ': ' + response.statusText);
+                                error.status = response.status;
+                                error.statusText = response.statusText;
+                                error.data = errorData;
+                                throw error;
+                            } catch (e) {
+                                // Якщо не JSON, повертаємо як є
+                                const error = new Error('HTTP ' + response.status + ': ' + response.statusText);
+                                error.status = response.status;
+                                error.statusText = response.statusText;
+                                error.responseText = text;
+                                throw error;
+                            }
+                        });
                     }
 
                     // Спробуємо парсити JSON відповідь
@@ -228,7 +255,7 @@ window.TasksAPI = (function() {
         }
     };
 
-    // API методи для Wallet
+    // API методи для Wallet - ВИПРАВЛЕНО
     const wallet = {
         checkStatus: function(userId) {
             console.log('👛 [TasksAPI] Перевірка статусу гаманця:', userId);
@@ -240,18 +267,27 @@ window.TasksAPI = (function() {
 
         connect: function(userId, walletData) {
             console.log('🔌 [TasksAPI] Підключення гаманця:', userId);
+            console.log('📊 [TasksAPI] Дані гаманця:', walletData);
+
             if (!userId || !walletData || !walletData.address) {
+                console.error('❌ [TasksAPI] Невірні параметри підключення гаманця');
                 return Promise.reject(new Error('Невірні параметри'));
             }
+
+            // Формуємо правильну структуру даних
+            const requestData = {
+                address: walletData.address,
+                chain: walletData.chain || '-239',
+                publicKey: walletData.publicKey || '',
+                provider: walletData.provider || '',
+                timestamp: walletData.timestamp || Date.now()
+            };
+
+            console.log('📤 [TasksAPI] Дані для відправки:', requestData);
+
             return apiRequest(API_CONFIG.baseUrl + '/api/wallet/connect/' + userId, {
                 method: 'POST',
-                body: JSON.stringify({
-                    address: walletData.address,
-                    chain: walletData.chain || '-239',
-                    publicKey: walletData.publicKey,
-                    provider: walletData.provider,
-                    timestamp: Date.now()
-                })
+                body: JSON.stringify(requestData)
             });
         },
 
