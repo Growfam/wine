@@ -1,7 +1,5 @@
 """
-🔥 WINIX Supabase Client - Enhanced Edition v2.2 (FIXED + STAKING COMPLETE)
-Модуль для взаємодії з Supabase API з повною підтримкою WINIX Quests System + STAKING.
-
+WINIX Supabase Client
 Забезпечує:
 - Надійний доступ до даних з retry логікою
 - Розумне кешування з автоочищенням
@@ -10,10 +8,6 @@
 - Backward compatibility з існуючою системою
 - Ідеальну сумісність з новими таблицями
 - Виправлені всі IDE помилки та попередження
-- ПОВНУ ПІДТРИМКУ СТЕЙКІНГУ
-
-Автор: ростік 🇺🇦
-Версія: 2.3.0 (WINIX Enhanced + Perfect Compatibility + STAKING FIXED)
 """
 
 import os
@@ -29,17 +23,6 @@ from contextlib import contextmanager
 from requests.exceptions import RequestException, Timeout, ConnectTimeout, ReadTimeout
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from pathlib import Path
-
-
-# Знайти кореневу директорію проекту
-# Якщо supabase_client.py в backend/, то піднімаємось на рівень вище
-current_dir = Path(__file__).resolve().parent  # backend/
-root_dir = current_dir.parent  # коренева папка проекту
-
-# Завантажити .env з кореневої папки
-env_path = root_dir / '.env'
-load_dotenv(dotenv_path=env_path)
 
 # Відключаємо попередження PyCharm для Supabase
 warnings.filterwarnings("ignore", category=UserWarning, module="supabase")
