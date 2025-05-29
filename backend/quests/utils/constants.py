@@ -650,8 +650,8 @@ VALIDATION_RULES = {
     },
     "wallet_address": {
         "type": "string",
-        "length": 48,
-        "pattern": "^[a-zA-Z0-9_-]+$"
+        "min_length": 20,  # Мінімальна довжина замість фіксованої
+        "max_length": 100,  # Максимальна довжина для різних форматів
     },
     "amount": {
         "type": "number",

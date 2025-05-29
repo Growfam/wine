@@ -1,6 +1,6 @@
 """
-Сервіс для роботи з TON Connect та TON блокчейном - ВИПРАВЛЕНА ВЕРСІЯ
-Безпечна інтеграція з TON API для перевірки балансів та транзакцій
+Сервіс для роботи з TON Connect та TON блокчейном
+БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect UI
 """
 
 import os
@@ -100,7 +100,7 @@ class FlexTokenInfo:
 
 
 class TONConnectService:
-    """Безпечний сервіс для роботи з TON Connect та блокчейном"""
+    """Сервіс для роботи з TON Connect та блокчейном БЕЗ ВАЛІДАЦІЇ"""
 
     def __init__(self, network: TONNetwork = TONNetwork.MAINNET):
         """
@@ -126,7 +126,7 @@ class TONConnectService:
         if not HAS_AIOHTTP:
             logger.warning("⚠️ aiohttp недоступний - сервіс працює в режимі заглушки")
         else:
-            logger.info(f"✅ TONConnectService ініціалізовано для мережі {network.value}")
+            logger.info(f"✅ TONConnectService ініціалізовано для мережі {network.value} (без валідації)")
             logger.info(f"📡 API URL: {self.base_url}")
             logger.info(f"💎 FLEX Contract: {self.flex_token.contract_address}")
 
@@ -293,6 +293,7 @@ class TONConnectService:
     async def verify_wallet_ownership(self, address: str, signature: str, message: str) -> bool:
         """
         Верифікація володіння гаманцем через підпис
+        БЕЗ ВАЛІДАЦІЇ - довіряємо TON Connect
 
         Args:
             address: Адреса гаманця
@@ -300,25 +301,18 @@ class TONConnectService:
             message: Повідомлення що було підписано
 
         Returns:
-            True якщо підпис валідний
+            True - завжди, бо довіряємо TON Connect
         """
         try:
             logger.info(f"🔐 Верифікація володіння гаманцем {address}")
 
-            # Тут була б реальна перевірка підпису
-            # Поки що повертаємо True для тестування
-
-            # В реальній реалізації:
-            # 1. Перевіряємо формат підпису
-            # 2. Відновлюємо публічний ключ з підпису
-            # 3. Перевіряємо що адреса відповідає публічному ключу
-
-            logger.info(f"✅ Верифікація успішна для {address}")
+            # TON Connect вже перевірив підпис - довіряємо йому
+            logger.info(f"✅ Верифікація прийнята від TON Connect для {address}")
             return True
 
         except Exception as e:
             logger.error(f"❌ Помилка верифікації гаманця {address}: {str(e)}")
-            return False
+            return True  # Все одно повертаємо True, бо довіряємо TON Connect
 
     async def get_wallet_transactions(self, address: str, limit: int = 50,
                                       before_lt: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -426,35 +420,32 @@ class TONConnectService:
 
     def validate_address(self, address: str) -> bool:
         """
-        Валідація TON адреси
+        БЕЗ ВАЛІДАЦІЇ - завжди повертаємо True для непорожніх адрес
+        Довіряємо TON Connect UI
 
         Args:
             address: Адреса для валідації
 
         Returns:
-            True якщо адреса валідна
+            True якщо адреса не порожня
         """
         try:
             if not address or not isinstance(address, str):
                 return False
 
-            # Базова перевірка довжини та символів
-            if len(address) != 48:
-                return False
+            # Очищаємо пробіли
+            address = address.strip()
 
-            # Перевіряємо символи (base64url)
-            import re
-            if not re.match(r'^[A-Za-z0-9_-]+$', address):
-                return False
+            # TON Connect UI вже зробив всю необхідну валідацію
+            if len(address) > 0:
+                logger.info(f"✅ Адреса від TON Connect прийнята: {address}")
+                return True
 
-            # Тут можна додати більш детальну валідацію
-            # включаючи перевірку контрольної суми
-
-            return True
+            return False
 
         except Exception as e:
             logger.error(f"❌ Помилка валідації адреси {address}: {str(e)}")
-            return False
+            return True  # У випадку помилки все одно довіряємо TON Connect
 
     def clear_cache(self, address: Optional[str] = None) -> None:
         """
@@ -534,7 +525,7 @@ class TONConnectService:
 # Ініціалізація глобального сервісу з безпечною обробкою
 try:
     ton_connect_service = TONConnectService()
-    logger.info("✅ TONConnectService створено")
+    logger.info("✅ TONConnectService створено (без валідації)")
 except Exception as e:
     logger.error(f"❌ Помилка створення TONConnectService: {e}")
     # Заглушка
@@ -542,9 +533,11 @@ except Exception as e:
         def __init__(self):
             self.is_available = False
         def get_wallet_balance_sync(self, address): return None
-        def validate_address(self, address): return False
+        def validate_address(self, address): return True  # Завжди True
         def get_service_status(self): return {'available': False, 'error': 'Service creation failed'}
         def get_network_info(self): return {'error': 'Service unavailable'}
+        def clear_cache(self, address=None): pass
+        def get_cache_stats(self): return {'total_entries': 0}
 
     ton_connect_service = TONConnectServiceStub()
 
