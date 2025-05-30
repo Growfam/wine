@@ -491,10 +491,23 @@ class DailyBonusManager:
 
             data = status.to_db_dict()
 
+            # ВАЖЛИВО: Переконуємось що дати правильні
+            if status.last_claim_date:
+                data['next_available_date'] = format_datetime(
+                    status.last_claim_date + timedelta(hours=20)
+                )
+
             # Використовуємо upsert для створення або оновлення
-            response = supabase.table('daily_bonus_status').upsert(data, on_conflict='user_id').execute()
+            response = supabase.table('daily_bonus_status').upsert(
+                data,
+                on_conflict='user_id'
+            ).execute()
 
             logger.info(f"Saved daily bonus status for {status.user_id}")
+
+            # Очищаємо кеш
+            self._status_cache.pop(status.user_id, None)
+
             return True
 
         except Exception as e:
@@ -535,6 +548,98 @@ class DailyBonusManager:
             logger.error(f"Error loading daily bonus history: {e}")
             return []
 
+    def verify_and_sync_status(self, user_id: str) -> bool:
+        """
+        Перевіряє та синхронізує статус з фактичними записами
+        КРИТИЧНО: Викликати перед кожним claim!
+        """
+        try:
+            from supabase_client import supabase
+
+            # Отримуємо фактичні дані з daily_bonus_entries
+            entries_response = supabase.table('daily_bonus_entries').select('*').eq(
+                'user_id', user_id
+            ).order('claim_date', desc=True).execute()
+
+            if not entries_response.data:
+                return True  # Немає записів - все ок
+
+            # Рахуємо фактичні показники
+            total_entries = len(entries_response.data)
+            last_entry = entries_response.data[0]
+            last_claim_date = parse_datetime(last_entry['claim_date'])
+
+            # Отримуємо поточний статус
+            status_response = supabase.table('daily_bonus_status').select('*').eq(
+                'user_id', user_id
+            ).execute()
+
+            if not status_response.data:
+                # Створюємо новий статус
+                logger.warning(f"Статус не знайдено для {user_id}, створюємо новий")
+                new_status = {
+                    'user_id': user_id,
+                    'last_claim_date': format_datetime(last_claim_date),
+                    'total_days_claimed': total_entries,
+                    'current_day_number': last_entry.get('day_number', 1),
+                    'current_streak': 0,
+                    'longest_streak': 0,
+                    'next_available_date': format_datetime(last_claim_date + timedelta(hours=20)),
+                    'created_at': format_datetime(datetime.now(timezone.utc)),
+                    'updated_at': format_datetime(datetime.now(timezone.utc))
+                }
+                supabase.table('daily_bonus_status').insert(new_status).execute()
+                return True
+
+            status = status_response.data[0]
+
+            # Перевіряємо синхронізацію
+            needs_sync = False
+            status_last_claim = parse_datetime(status['last_claim_date']) if status.get('last_claim_date') else None
+
+            if status.get('total_days_claimed') != total_entries:
+                logger.warning(
+                    f"Неузгодженість кількості днів: статус={status.get('total_days_claimed')}, записів={total_entries}")
+                needs_sync = True
+
+            if status_last_claim != last_claim_date:
+                logger.warning(f"Неузгодженість дат: статус={status_last_claim}, остання={last_claim_date}")
+                needs_sync = True
+
+            if needs_sync:
+                # Синхронізуємо
+                update_data = {
+                    'last_claim_date': format_datetime(last_claim_date),
+                    'total_days_claimed': total_entries,
+                    'current_day_number': last_entry.get('day_number', total_entries),
+                    'next_available_date': format_datetime(last_claim_date + timedelta(hours=20)),
+                    'updated_at': format_datetime(datetime.now(timezone.utc))
+                }
+
+                # Перераховуємо серію
+                now = datetime.now(timezone.utc)
+                days_since_last = (now.date() - last_claim_date.date()).days
+
+                if days_since_last <= 1:
+                    update_data['current_streak'] = min(total_entries, 30)
+                else:
+                    update_data['current_streak'] = 0
+
+                # Зберігаємо виправлений статус
+                supabase.table('daily_bonus_status').update(update_data).eq(
+                    'user_id', user_id
+                ).execute()
+
+                logger.info(f"Статус синхронізовано для {user_id}")
+
+                # Очищаємо кеш
+                self._status_cache.pop(user_id, None)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Помилка синхронізації статусу: {e}", exc_info=True)
+            return False
 
 # Глобальний менеджер
 daily_bonus_manager = DailyBonusManager()
