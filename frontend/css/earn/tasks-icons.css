@@ -1,4 +1,5 @@
 /* WINIX Tasks Icons - Преміальні SVG іконки для системи завдань */
+/* iOS 18 Premium Style - Purple Theme */
 
 /* ======== БАЗОВА КОНФІГУРАЦІЯ ======== */
 .winix-icon {
@@ -6,6 +7,13 @@
     width: 24px;
     height: 24px;
     position: relative;
+    filter: drop-shadow(0 0 3px rgba(179, 102, 255, 0.5));
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.winix-icon:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 6px rgba(179, 102, 255, 0.8));
 }
 
 .winix-icon svg {
@@ -14,66 +22,119 @@
     display: block;
 }
 
-/* ======== ІКОНКИ ПЛАТФОРМ ======== */
+/* ======== ІКОНКИ ПЛАТФОРМ - ПРЕМІАЛЬНІ ======== */
 
 /* Telegram */
 .icon-telegram {
     background: linear-gradient(135deg, #0088cc, #0077b5);
     border-radius: 50%;
-    padding: 0.5rem;
-    box-shadow: 0 4px 16px rgba(0, 136, 204, 0.3);
+    padding: 0.625rem;
+    box-shadow:
+        0 6px 24px rgba(0, 136, 204, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: platform-pulse 3s ease-in-out infinite;
 }
 
 .icon-telegram svg {
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
 }
 
 /* YouTube */
 .icon-youtube {
     background: linear-gradient(135deg, #ff0000, #cc0000);
     border-radius: 50%;
-    padding: 0.5rem;
-    box-shadow: 0 4px 16px rgba(255, 0, 0, 0.3);
+    padding: 0.625rem;
+    box-shadow:
+        0 6px 24px rgba(255, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: platform-pulse 3s ease-in-out infinite 0.3s;
 }
 
 .icon-youtube svg {
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
 }
 
 /* Twitter */
 .icon-twitter {
     background: linear-gradient(135deg, #1DA1F2, #1a91da);
     border-radius: 50%;
-    padding: 0.5rem;
-    box-shadow: 0 4px 16px rgba(29, 161, 242, 0.3);
+    padding: 0.625rem;
+    box-shadow:
+        0 6px 24px rgba(29, 161, 242, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: platform-pulse 3s ease-in-out infinite 0.6s;
 }
 
 .icon-twitter svg {
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
 }
 
 /* Discord */
 .icon-discord {
     background: linear-gradient(135deg, #7289DA, #5865F2);
     border-radius: 50%;
-    padding: 0.5rem;
-    box-shadow: 0 4px 16px rgba(114, 137, 218, 0.3);
+    padding: 0.625rem;
+    box-shadow:
+        0 6px 24px rgba(114, 137, 218, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: platform-pulse 3s ease-in-out infinite 0.9s;
 }
 
 .icon-discord svg {
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
 }
 
-/* ======== ІКОНКИ ВИНАГОРОД ======== */
+@keyframes platform-pulse {
+    0%, 100% {
+        box-shadow:
+            0 6px 24px rgba(var(--platform-color, 179, 102, 255), 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    50% {
+        box-shadow:
+            0 10px 32px rgba(var(--platform-color, 179, 102, 255), 0.6),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+}
+
+/* ======== ІКОНКИ ВИНАГОРОД - ПРЕМІАЛЬНІ ======== */
 
 /* WINIX токен */
 .icon-winix {
     width: 20px;
     height: 20px;
+    position: relative;
+}
+
+.icon-winix::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    background: linear-gradient(135deg, #b366ff, #8b5cf6, #b366ff);
+    border-radius: 50%;
+    opacity: 0.5;
+    filter: blur(4px);
+    animation: winix-glow 3s linear infinite;
+}
+
+@keyframes winix-glow {
+    0%, 100% {
+        opacity: 0.3;
+        transform: scale(0.9);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+    }
 }
 
 .icon-winix svg {
-    filter: drop-shadow(0 0 3px rgba(179, 102, 255, 0.5));
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 4px rgba(179, 102, 255, 0.6));
     animation: pulse-purple 3s infinite ease-in-out;
 }
 
@@ -81,101 +142,199 @@
 .icon-tickets {
     width: 20px;
     height: 20px;
+    position: relative;
+}
+
+.icon-tickets::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    background: linear-gradient(135deg, #FFD700, #FFA500, #FFD700);
+    border-radius: 50%;
+    opacity: 0.5;
+    filter: blur(4px);
+    animation: tickets-glow 3s linear infinite;
+}
+
+@keyframes tickets-glow {
+    0%, 100% {
+        opacity: 0.3;
+        transform: scale(0.9);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+    }
 }
 
 .icon-tickets svg {
-    filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.5));
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
     animation: pulse-gold 3s infinite ease-in-out;
 }
 
-/* ======== ІКОНКИ СТАТУСІВ ======== */
+/* ======== ІКОНКИ СТАТУСІВ - ПРЕМІАЛЬНІ ======== */
 
 /* Виконано */
 .icon-completed {
-    width: 20px;
-    height: 20px;
-    background: #4CAF50;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #4CAF50, #45a049);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow:
+        0 6px 24px rgba(76, 175, 80, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    animation: completed-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes completed-bounce {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
 }
 
 .icon-completed svg {
-    width: 14px;
-    height: 14px;
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
+    width: 16px;
+    height: 16px;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
 }
 
 /* В процесі */
 .icon-in-progress {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     animation: rotate 2s linear infinite;
+    position: relative;
+}
+
+.icon-in-progress::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    background: conic-gradient(
+        from 0deg,
+        transparent 0deg,
+        #FFA500 90deg,
+        transparent 180deg
+    );
+    border-radius: 50%;
+    animation: rotate 1s linear infinite;
+    opacity: 0.5;
+    filter: blur(3px);
 }
 
 .icon-in-progress svg {
-    filter: drop-shadow(0 0 3px rgba(255, 165, 0, 0.5));
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 4px rgba(255, 165, 0, 0.6));
 }
 
 /* Гаряче */
 .icon-hot {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     animation: pulse-hot 1.5s infinite ease-in-out;
 }
 
 .icon-hot svg {
-    filter: drop-shadow(0 0 3px rgba(244, 67, 54, 0.7));
+    filter: drop-shadow(0 0 5px rgba(244, 67, 54, 0.8));
 }
 
 /* Нове */
 .icon-new {
-    width: 20px;
-    height: 20px;
-    animation: pulse-new 2s infinite ease-in-out;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+        0 6px 24px rgba(76, 175, 80, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    animation: new-pulse 2s infinite ease-in-out;
 }
 
 .icon-new svg {
-    filter: drop-shadow(0 0 3px rgba(76, 175, 80, 0.7));
+    width: 16px;
+    height: 16px;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
 }
 
-/* ======== ІКОНКИ ДЛЯ DAILY BONUS ======== */
+/* ======== ІКОНКИ ДЛЯ DAILY BONUS - ПРЕМІАЛЬНІ ======== */
 
 /* Вогонь (серія) */
 .icon-streak {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
+    position: relative;
 }
 
 .icon-streak svg {
-    filter: drop-shadow(0 0 4px rgba(255, 82, 82, 0.6));
+    filter: drop-shadow(0 0 6px rgba(255, 82, 82, 0.7));
     animation: flame-flicker 2s infinite alternate;
 }
 
 /* Зірка */
 .icon-star {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
+    position: relative;
+}
+
+.icon-star::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 150%;
+    height: 150%;
+    background: radial-gradient(circle, rgba(255, 215, 0, 0.3), transparent 60%);
+    animation: star-glow 3s ease-in-out infinite;
+}
+
+@keyframes star-glow {
+    0%, 100% {
+        opacity: 0.5;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    50% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
 }
 
 .icon-star svg {
-    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.7));
     animation: star-sparkle 3s infinite ease-in-out;
 }
 
 /* Таймер */
 .icon-timer {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
+    position: relative;
 }
 
 .icon-timer svg {
-    filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
     animation: timer-pulse 2s infinite ease-in-out;
 }
 
-/* ======== ІКОНКИ НАВІГАЦІЇ ======== */
+/* ======== ІКОНКИ НАВІГАЦІЇ - ПРЕМІАЛЬНІ ======== */
 
 /* Flex Earn */
 .flex-icon {
@@ -189,55 +348,83 @@
     display: inline-block;
     vertical-align: middle;
     margin-right: 0.5rem;
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+    animation: flex-shine 3s linear infinite;
 }
 
-/* ======== АНІМАЦІЇ ======== */
-
-/* Пульсація фіолетова */
-@keyframes pulse-purple {
+@keyframes flex-shine {
     0%, 100% {
-        filter: drop-shadow(0 0 3px rgba(179, 102, 255, 0.5));
-        transform: scale(1);
+        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
     }
     50% {
-        filter: drop-shadow(0 0 6px rgba(179, 102, 255, 0.8));
-        transform: scale(1.05);
+        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.9));
     }
 }
 
-/* Пульсація золота */
+/* ======== ПРЕМІАЛЬНІ АНІМАЦІЇ ======== */
+
+/* Пульсація для іконок */
+@keyframes pulse-icon {
+    0% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); opacity: 0.9; }
+}
+
+/* Пульсація для золотих елементів */
 @keyframes pulse-gold {
-    0%, 100% {
-        filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.5));
+    0% {
+        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
         transform: scale(1);
     }
     50% {
-        filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.8));
+        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.9));
         transform: scale(1.05);
+    }
+    100% {
+        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+        transform: scale(1);
+    }
+}
+
+/* Пульсація для фіолетових елементів */
+@keyframes pulse-purple {
+    0% {
+        filter: drop-shadow(0 0 4px rgba(179, 102, 255, 0.6));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 8px rgba(179, 102, 255, 0.9));
+        transform: scale(1.05);
+    }
+    100% {
+        filter: drop-shadow(0 0 4px rgba(179, 102, 255, 0.6));
+        transform: scale(1);
     }
 }
 
 /* Пульсація гарячого */
 @keyframes pulse-hot {
     0%, 100% {
-        filter: drop-shadow(0 0 3px rgba(244, 67, 54, 0.7));
+        filter: drop-shadow(0 0 5px rgba(244, 67, 54, 0.8));
         transform: scale(1);
     }
     50% {
-        filter: drop-shadow(0 0 6px rgba(244, 67, 54, 1));
+        filter: drop-shadow(0 0 10px rgba(244, 67, 54, 1));
         transform: scale(1.1);
     }
 }
 
 /* Пульсація нового */
-@keyframes pulse-new {
+@keyframes new-pulse {
     0%, 100% {
-        filter: drop-shadow(0 0 3px rgba(76, 175, 80, 0.7));
-        transform: scale(1);
+        box-shadow:
+            0 6px 24px rgba(76, 175, 80, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }
     50% {
-        filter: drop-shadow(0 0 6px rgba(76, 175, 80, 1));
-        transform: scale(1.05);
+        box-shadow:
+            0 10px 32px rgba(76, 175, 80, 0.6),
+            inset 0 1px 0 rgba(255, 255, 255, 0.4);
     }
 }
 
@@ -254,23 +441,23 @@
 /* Мерехтіння вогню */
 @keyframes flame-flicker {
     0% {
-        filter: drop-shadow(0 0 4px rgba(255, 82, 82, 0.6));
+        filter: drop-shadow(0 0 6px rgba(255, 82, 82, 0.7));
         transform: scale(1) translateY(0);
     }
     25% {
-        filter: drop-shadow(0 0 6px rgba(255, 165, 0, 0.8));
-        transform: scale(1.05) translateY(-1px);
+        filter: drop-shadow(0 0 10px rgba(255, 165, 0, 0.9));
+        transform: scale(1.05) translateY(-2px);
     }
     50% {
-        filter: drop-shadow(0 0 5px rgba(255, 82, 82, 0.7));
+        filter: drop-shadow(0 0 8px rgba(255, 82, 82, 0.8));
         transform: scale(0.98) translateY(0);
     }
     75% {
-        filter: drop-shadow(0 0 7px rgba(255, 165, 0, 0.9));
+        filter: drop-shadow(0 0 12px rgba(255, 165, 0, 1));
         transform: scale(1.02) translateY(-1px);
     }
     100% {
-        filter: drop-shadow(0 0 4px rgba(255, 82, 82, 0.6));
+        filter: drop-shadow(0 0 6px rgba(255, 82, 82, 0.7));
         transform: scale(1) translateY(0);
     }
 }
@@ -278,19 +465,19 @@
 /* Мерехтіння зірки */
 @keyframes star-sparkle {
     0%, 100% {
-        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+        filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.7));
         transform: scale(1) rotate(0deg);
     }
     25% {
-        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 1));
+        filter: drop-shadow(0 0 12px rgba(255, 215, 0, 1));
         transform: scale(1.1) rotate(5deg);
     }
     50% {
-        filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.8));
+        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
         transform: scale(1) rotate(-5deg);
     }
     75% {
-        filter: drop-shadow(0 0 10px rgba(255, 215, 0, 1));
+        filter: drop-shadow(0 0 15px rgba(255, 215, 0, 1));
         transform: scale(1.15) rotate(3deg);
     }
 }
@@ -298,12 +485,12 @@
 /* Пульсація таймера */
 @keyframes timer-pulse {
     0%, 100% {
-        filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
-        transform: scale(1);
+        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+        transform: scale(1) rotate(0deg);
     }
     50% {
-        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.8));
-        transform: scale(1.05);
+        filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.9));
+        transform: scale(1.05) rotate(5deg);
     }
 }
 
@@ -317,10 +504,10 @@
 .glow-active::after {
     content: '';
     position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
     background: linear-gradient(45deg, #b366ff, #8b5cf6, #b366ff);
     border-radius: inherit;
     opacity: 0;
@@ -331,6 +518,16 @@
 
 .glow-active:hover::after {
     opacity: 0.7;
+    animation: glow-rotate 3s linear infinite;
+}
+
+@keyframes glow-rotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* Градієнтна обводка */
@@ -343,14 +540,14 @@
 .gradient-border::before {
     content: '';
     position: absolute;
-    top: -1px;
-    left: -1px;
-    right: -1px;
-    bottom: -1px;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
     background: linear-gradient(45deg, #b366ff, #8b5cf6, #FFD700, #8b5cf6);
     border-radius: inherit;
     z-index: -1;
-    opacity: 0.5;
+    opacity: 0.6;
     animation: gradient-rotate 3s linear infinite;
 }
 
@@ -372,7 +569,19 @@
 
     .icon-streak,
     .icon-star {
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
+    }
+
+    .icon-completed,
+    .icon-new {
+        width: 20px;
+        height: 20px;
+    }
+
+    .icon-completed svg,
+    .icon-new svg {
+        width: 14px;
+        height: 14px;
     }
 }
