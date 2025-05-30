@@ -1,6 +1,7 @@
 /**
  * Менеджер завдань для системи WINIX
  * Управління всіма типами завдань
+ * ПОВНІСТЮ ВИПРАВЛЕНА ВЕРСІЯ
  */
 
 window.TasksManager = (function() {
@@ -18,10 +19,10 @@ window.TasksManager = (function() {
         lastUpdate: null
     };
 
-    // Конфігурація
+    // Конфігурація - ВИПРАВЛЕНО: додано 'daily'
     const config = {
         updateIntervalMs: window.TasksConstants?.TIMERS?.AUTO_CHECK_INTERVAL || 5 * 60 * 1000,
-        taskTypes: ['social', 'limited', 'partner'],
+        taskTypes: ['social', 'limited', 'partner', 'daily'], // ДОДАНО 'daily'
         platforms: {
             telegram: {
                 name: 'Telegram',
@@ -110,121 +111,129 @@ window.TasksManager = (function() {
             throw error;
         }
     }
+
     /**
- * ВИПРАВЛЕННЯ: Додано детальне логування та перевірки
- */
-async function loadAllTasks() {
-    console.log('[TasksManager] === ЗАВАНТАЖЕННЯ ВСІХ ЗАВДАНЬ ===');
-    console.log('[TasksManager] User ID:', state.userId);
+     * Завантажити всі завдання - ВИПРАВЛЕНО
+     */
+    async function loadAllTasks() {
+        console.log('[TasksManager] === ЗАВАНТАЖЕННЯ ВСІХ ЗАВДАНЬ ===');
+        console.log('[TasksManager] User ID:', state.userId);
 
-    // Перевірка userId
-    if (!state.userId) {
-        console.error('[TasksManager] ❌ User ID відсутній! Не можу завантажити завдання.');
-        return;
-    }
-
-    state.isLoading = true;
-    window.TasksStore.actions.setTasksLoading(true);
-
-    try {
-        console.log('[TasksManager] 📡 Виконання запиту до API...');
-        console.log('[TasksManager] URL буде: /api/tasks/list/' + state.userId + '?type=all');
-
-        // Запит до API
-        const response = await window.TasksAPI.tasks.getList(state.userId, 'all');
-        console.log('[TasksManager] 📥 Відповідь від API:', response);
-
-        // Перевірка структури відповіді
-        if (response && response.status === 'success' && response.data && response.data.tasks) {
-            console.log('[TasksManager] ✅ Дані отримано, обробляємо...');
-            processTasks(response.data.tasks);
-        } else {
-            console.error('[TasksManager] ❌ Невірний формат відповіді:', response);
-            window.TasksUtils.showToast('Немає доступних завдань', 'info');
+        // Перевірка userId
+        if (!state.userId) {
+            console.error('[TasksManager] ❌ User ID відсутній! Не можу завантажити завдання.');
+            return;
         }
 
-        state.lastUpdate = Date.now();
-    } catch (error) {
-        console.error('[TasksManager] ❌ Помилка завантаження:', error);
-        window.TasksUtils.showToast('Помилка завантаження завдань', 'error');
-    } finally {
-        state.isLoading = false;
-        window.TasksStore.actions.setTasksLoading(false);
+        state.isLoading = true;
+        window.TasksStore.actions.setTasksLoading(true);
+
+        try {
+            console.log('[TasksManager] 📡 Виконання запиту до API...');
+            console.log('[TasksManager] URL буде: /api/tasks/list/' + state.userId + '?type=all');
+
+            // Запит до API
+            const response = await window.TasksAPI.tasks.getList(state.userId, 'all');
+            console.log('[TasksManager] 📥 Відповідь від API:', response);
+
+            // Перевірка структури відповіді
+            if (response && response.status === 'success' && response.data && response.data.tasks) {
+                console.log('[TasksManager] ✅ Дані отримано, обробляємо...');
+                processTasks(response.data.tasks);
+            } else {
+                console.error('[TasksManager] ❌ Невірний формат відповіді:', response);
+                window.TasksUtils.showToast('Немає доступних завдань', 'info');
+            }
+
+            state.lastUpdate = Date.now();
+        } catch (error) {
+            console.error('[TasksManager] ❌ Помилка завантаження:', error);
+            window.TasksUtils.showToast('Помилка завантаження завдань', 'error');
+        } finally {
+            state.isLoading = false;
+            window.TasksStore.actions.setTasksLoading(false);
+        }
     }
-}
 
     /**
-     * Обробити завдання
+     * Обробити завдання - ВИПРАВЛЕНО з автоматичним оновленням UI
      */
+    function processTasks(tasksData) {
+        console.log('[TasksManager] Обробка завдань:', tasksData);
 
-function processTasks(tasksData) {
-    console.log('[TasksManager] Обробка завдань:', tasksData);
+        // Перевіряємо чи дані вже у правильному форматі
+        if (tasksData.social || tasksData.limited || tasksData.partner || tasksData.daily) {
+            // Дані вже згруповані по типах
+            Object.entries(tasksData).forEach(([type, tasksList]) => {
+                // Конвертуємо масив завдань в об'єкт для Store
+                const tasksObject = {};
+                if (Array.isArray(tasksList)) {
+                    tasksList.forEach(task => {
+                        task.type = task.type || type; // Додаємо тип якщо відсутній
+                        tasksObject[task.id] = task;
+                    });
+                } else if (typeof tasksList === 'object') {
+                    // Якщо вже об'єкт, просто копіюємо
+                    Object.entries(tasksList).forEach(([id, task]) => {
+                        task.type = type;
+                        tasksObject[id] = task;
+                    });
+                }
 
-    // Перевіряємо чи дані вже у правильному форматі
-    if (tasksData.social || tasksData.limited || tasksData.partner) {
-        // Дані вже згруповані по типах
-        Object.entries(tasksData).forEach(([type, tasksList]) => {
-            // Конвертуємо масив завдань в об'єкт для Store
-            const tasksObject = {};
-            if (Array.isArray(tasksList)) {
-                tasksList.forEach(task => {
-                    tasksObject[task.id] = task;
-                });
-            } else if (typeof tasksList === 'object') {
-                // Якщо вже об'єкт, просто копіюємо
-                Object.assign(tasksObject, tasksList);
-            }
+                window.TasksStore.actions.setTasks(type, tasksObject);
+                console.log(`[TasksManager] Збережено ${Object.keys(tasksObject).length} завдань типу ${type}`);
+            });
+        } else if (Array.isArray(tasksData)) {
+            // Якщо це масив, групуємо по типах
+            const tasksByType = {
+                social: {},
+                limited: {},
+                partner: {},
+                daily: {}
+            };
 
-            window.TasksStore.actions.setTasks(type, tasksObject);
-            console.log(`[TasksManager] Збережено ${Object.keys(tasksObject).length} завдань типу ${type}`);
-        });
-    } else if (Array.isArray(tasksData)) {
-        // Якщо це масив, групуємо по типах
-        const tasksByType = {
-            social: {},
-            limited: {},
-            partner: {}
-        };
+            tasksData.forEach(task => {
+                const taskType = task.type || 'social';
+                if (tasksByType[taskType]) {
+                    tasksByType[taskType][task.id] = task;
+                }
+            });
 
-        tasksData.forEach(task => {
-            const taskType = task.type || 'social';
-            if (tasksByType[taskType]) {
-                tasksByType[taskType][task.id] = task;
-            }
-        });
+            // Зберігаємо в Store
+            Object.entries(tasksByType).forEach(([type, tasks]) => {
+                window.TasksStore.actions.setTasks(type, tasks);
+                console.log(`[TasksManager] Збережено ${Object.keys(tasks).length} завдань типу ${type}`);
+            });
+        } else {
+            // Старий формат - об'єкт з ключами task_id
+            const tasksByType = {
+                social: {},
+                limited: {},
+                partner: {},
+                daily: {}
+            };
 
-        // Зберігаємо в Store
-        Object.entries(tasksByType).forEach(([type, tasks]) => {
-            window.TasksStore.actions.setTasks(type, tasks);
-            console.log(`[TasksManager] Збережено ${Object.keys(tasks).length} завдань типу ${type}`);
-        });
-    } else {
-        // Старий формат - об'єкт з ключами task_id
-        const tasksByType = {
-            social: {},
-            limited: {},
-            partner: {}
-        };
+            Object.entries(tasksData).forEach(([taskId, task]) => {
+                task.id = taskId;
+                const taskType = task.type || 'social';
+                if (tasksByType[taskType]) {
+                    tasksByType[taskType][taskId] = task;
+                }
+            });
 
-        Object.entries(tasksData).forEach(([taskId, task]) => {
-            task.id = taskId;
-            const taskType = task.type || 'social';
-            if (tasksByType[taskType]) {
-                tasksByType[taskType][taskId] = task;
-            }
-        });
+            Object.entries(tasksByType).forEach(([type, tasks]) => {
+                window.TasksStore.actions.setTasks(type, tasks);
+            });
+        }
 
-        Object.entries(tasksByType).forEach(([type, tasks]) => {
-            window.TasksStore.actions.setTasks(type, tasks);
-        });
+        // ВАЖЛИВО: Викликаємо оновлення UI після обробки даних
+        setTimeout(() => {
+            updateTasksUI();
+        }, 100);
     }
 
-    // Оновлюємо UI
-    updateTasksUI();
-}
-
     /**
-     * Оновити UI завдань
+     * Оновити UI завдань - ВИПРАВЛЕНО
      */
     function updateTasksUI() {
         console.log('[TasksManager] === ОНОВЛЕННЯ UI ЗАВДАНЬ ===');
@@ -243,6 +252,16 @@ function processTasks(tasksData) {
             case 'partner':
                 updatePartnerTasks();
                 break;
+            case 'daily':
+                // Daily оброблюється окремо через DailyBonusManager
+                console.log('[TasksManager] Daily вкладка - обробляється DailyBonusManager');
+                break;
+            default:
+                // Якщо поточна вкладка не з завдань, оновлюємо всі
+                console.log('[TasksManager] Оновлюємо всі типи завдань');
+                updateSocialTasks();
+                updateLimitedTasks();
+                updatePartnerTasks();
         }
     }
 
@@ -253,7 +272,10 @@ function processTasks(tasksData) {
         console.log('[TasksManager] Оновлення соціальних завдань');
 
         const container = document.getElementById('social-tab');
-        if (!container) return;
+        if (!container) {
+            console.warn('[TasksManager] Контейнер social-tab не знайдено');
+            return;
+        }
 
         const tasks = window.TasksStore.getState().tasks.social;
         console.log(`[TasksManager] Знайдено ${Object.keys(tasks).length} соціальних завдань`);
@@ -284,7 +306,10 @@ function processTasks(tasksData) {
         console.log('[TasksManager] Оновлення лімітованих завдань');
 
         const container = document.getElementById('limited-tab');
-        if (!container) return;
+        if (!container) {
+            console.warn('[TasksManager] Контейнер limited-tab не знайдено');
+            return;
+        }
 
         const tasks = window.TasksStore.getState().tasks.limited;
         console.log(`[TasksManager] Знайдено ${Object.keys(tasks).length} лімітованих завдань`);
@@ -315,7 +340,10 @@ function processTasks(tasksData) {
         console.log('[TasksManager] Оновлення партнерських завдань');
 
         const container = document.getElementById('partner-tab');
-        if (!container) return;
+        if (!container) {
+            console.warn('[TasksManager] Контейнер partner-tab не знайдено');
+            return;
+        }
 
         const tasks = window.TasksStore.getState().tasks.partner;
         console.log(`[TasksManager] Знайдено ${Object.keys(tasks).length} партнерських завдань`);
@@ -634,7 +662,7 @@ function processTasks(tasksData) {
     }
 
     /**
-     * Налаштувати обробники подій
+     * Налаштувати обробники подій - ВИПРАВЛЕНО
      */
     function setupEventHandlers() {
         console.log('[TasksManager] Налаштування обробників подій');
@@ -643,6 +671,26 @@ function processTasks(tasksData) {
         document.addEventListener('tab-switched', (e) => {
             console.log('[TasksManager] Перемикання вкладки:', e.detail);
             updateTasksUI();
+        });
+
+        // Обробник кліків на картках завдань (делегування)
+        document.addEventListener('click', (e) => {
+            // Перевіряємо чи клік на кнопці завдання
+            if (e.target.classList.contains('task-button') || e.target.closest('.task-button')) {
+                const button = e.target.classList.contains('task-button') ? e.target : e.target.closest('.task-button');
+                const card = button.closest('.task-card');
+
+                if (card) {
+                    const taskId = card.getAttribute('data-task-id');
+                    const taskType = card.getAttribute('data-task-type');
+                    const platform = card.getAttribute('data-platform');
+
+                    console.log('[TasksManager] Клік на завдання:', { taskId, taskType, platform });
+
+                    // Викликаємо обробник завдання
+                    handleTaskClick(taskId, taskType, platform);
+                }
+            }
         });
 
         // Обробник виконання завдання
@@ -666,7 +714,9 @@ function processTasks(tasksData) {
             }
 
             // Відстежуємо подію
-            window.TasksServices?.Analytics?.trackEvent('Tasks', 'completed', taskId, reward.winix);
+            if (window.TasksServices?.Analytics) {
+                window.TasksServices.Analytics.trackEvent('Tasks', 'completed', taskId, reward.winix);
+            }
         });
 
         // Підписка на зміни в Store
@@ -675,7 +725,124 @@ function processTasks(tasksData) {
                 console.log('[TasksManager] Зміна вкладки через Store');
                 updateTasksUI();
             }
+
+            // Якщо змінилися завдання - оновлюємо UI
+            if (action.type === 'SET_TASKS') {
+                console.log('[TasksManager] Завдання оновлено в Store');
+                setTimeout(() => updateTasksUI(), 100);
+            }
         });
+    }
+
+    /**
+     * Обробка кліку на завдання - НОВА ФУНКЦІЯ
+     */
+    function handleTaskClick(taskId, taskType, platform) {
+        console.log('[TasksManager] Обробка кліку на завдання:', taskId);
+
+        // Отримуємо завдання зі стору
+        const state = window.TasksStore.getState();
+        const task = state.tasks[taskType]?.[taskId];
+
+        if (!task) {
+            console.error('[TasksManager] Завдання не знайдено:', taskId);
+            return;
+        }
+
+        // Перевіряємо статус
+        if (task.status === 'completed') {
+            window.TasksUtils.showToast('Це завдання вже виконано', 'info');
+            return;
+        }
+
+        // Оновлюємо статус на "в процесі"
+        window.TasksStore.actions.updateTaskStatus(taskType, taskId, 'in_progress');
+
+        // Оновлюємо UI кнопки
+        const card = document.querySelector(`[data-task-id="${taskId}"]`);
+        if (card) {
+            const button = card.querySelector('.task-button');
+            if (button) {
+                button.textContent = 'В процесі...';
+                button.disabled = true;
+            }
+        }
+
+        // Виконуємо дію залежно від типу завдання
+        if (task.url) {
+            // Відкриваємо URL
+            window.open(task.url, '_blank');
+
+            // Для Telegram завдань з верифікацією
+            if (platform === 'telegram' && config.platforms.telegram.verificationRequired) {
+                // Запускаємо верифікацію через бота
+                if (window.TaskVerification) {
+                    setTimeout(() => {
+                        window.TaskVerification.verifyTelegramTask(taskId, task.channelUsername);
+                    }, 2000);
+                }
+            } else {
+                // Для інших платформ - автоматична верифікація через таймер
+                const verificationTime = config.platforms[platform]?.verificationTime || 15000;
+
+                setTimeout(() => {
+                    // Імітуємо верифікацію
+                    window.TasksStore.actions.updateTaskStatus(taskType, taskId, 'verifying');
+                    if (button) button.textContent = 'Перевірка...';
+
+                    // Завершуємо завдання
+                    setTimeout(() => {
+                        completeTask(taskId, taskType, task);
+                    }, 3000);
+                }, verificationTime);
+            }
+        } else {
+            // Завдання без URL - відразу виконуємо
+            completeTask(taskId, taskType, task);
+        }
+    }
+
+    /**
+     * Завершити завдання - НОВА ФУНКЦІЯ
+     */
+    function completeTask(taskId, taskType, task) {
+        console.log('[TasksManager] Завершення завдання:', taskId);
+
+        // Оновлюємо статус
+        window.TasksStore.actions.updateTaskStatus(taskType, taskId, 'completed');
+
+        // Оновлюємо баланс користувача
+        if (task.reward) {
+            const currentBalance = window.TasksStore.selectors.getUserBalance();
+            const newBalance = {
+                winix: (currentBalance.winix || 0) + (task.reward.winix || 0),
+                tickets: (currentBalance.tickets || 0) + (task.reward.tickets || 0)
+            };
+
+            window.TasksStore.actions.updateBalance(newBalance);
+
+            // Показуємо повідомлення про винагороду
+            if (window.TasksServices?.Notification) {
+                window.TasksServices.Notification.showReward(task.reward);
+            } else {
+                window.TasksUtils.showToast(
+                    `Отримано: ${task.reward.winix || 0} WINIX${task.reward.tickets ? ` + ${task.reward.tickets} tickets` : ''}`,
+                    'success'
+                );
+            }
+        }
+
+        // Генеруємо подію завершення
+        document.dispatchEvent(new CustomEvent('task-completed', {
+            detail: {
+                taskId: taskId,
+                type: taskType,
+                reward: task.reward || { winix: 0, tickets: 0 }
+            }
+        }));
+
+        // Оновлюємо UI
+        updateTasksUI();
     }
 
     /**

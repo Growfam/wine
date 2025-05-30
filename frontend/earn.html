@@ -976,11 +976,11 @@
 
     <!-- Базова ініціалізація -->
     <script>
-        // Обробники для навігації
+        // Обробники для навігації - ВИПРАВЛЕНА ВЕРСІЯ
         document.addEventListener('DOMContentLoaded', function() {
             console.log('[MAIN] DOM завантажено');
 
-            // Додатковий обробник для вкладок (для тестування)
+            // Додатковий обробник для вкладок - ВИПРАВЛЕНА ВЕРСІЯ
             const tabButtons = document.querySelectorAll('.tab-button');
             console.log('[MAIN] Знайдено вкладок:', tabButtons.length);
 
@@ -1006,6 +1006,26 @@
                         targetPane.classList.add('active');
                         targetPane.style.display = 'block';
                         console.log('[MAIN] Показано панель:', tabName + '-tab');
+
+                        // ВАЖЛИВО: Оновлюємо Store з поточною вкладкою
+                        if (window.TasksStore) {
+                            window.TasksStore.actions.setCurrentTab(tabName);
+                        }
+
+                        // ВАЖЛИВО: Генеруємо подію для TasksManager
+                        document.dispatchEvent(new CustomEvent('tab-switched', {
+                            detail: { tab: tabName }
+                        }));
+
+                        // ВАЖЛИВО: Форсуємо оновлення UI для вкладок завдань
+                        if (['social', 'limited', 'partner'].includes(tabName)) {
+                            setTimeout(() => {
+                                if (window.TasksManager && window.TasksManager.updateTasksUI) {
+                                    console.log('[MAIN] Форсуємо оновлення UI для вкладки:', tabName);
+                                    window.TasksManager.updateTasksUI();
+                                }
+                            }, 100);
+                        }
                     }
                 });
             });
@@ -1324,26 +1344,125 @@
 
         })();
     </script>
-<script>
-    // Ініціалізація системи завдань
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 [MAIN] Запуск ініціалізації системи завдань...');
 
-        // Даємо час на завантаження всіх модулів
-        setTimeout(function() {
-            if (window.initTasksSystem) {
-                window.initTasksSystem()
-                    .then(function(integration) {
-                        console.log('✅ [MAIN] Система завдань ініціалізована успішно');
-                    })
-                    .catch(function(error) {
-                        console.error('❌ [MAIN] Помилка ініціалізації системи завдань:', error);
+    <!-- Ініціалізація системи завдань - ВИПРАВЛЕНА ВЕРСІЯ -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 [MAIN] Запуск ініціалізації системи завдань...');
+
+            // Даємо час на завантаження всіх модулів
+            setTimeout(function() {
+                if (window.initTasksSystem) {
+                    window.initTasksSystem()
+                        .then(function(integration) {
+                            console.log('✅ [MAIN] Система завдань ініціалізована успішно');
+
+                            // Додаткова перевірка та форсування рендерингу
+                            setTimeout(function() {
+                                console.log('🔄 [MAIN] Перевірка рендерингу завдань...');
+
+                                // Перевіряємо поточну вкладку
+                                const currentTab = window.TasksStore?.selectors?.getCurrentTab();
+                                console.log('📑 [MAIN] Поточна вкладка:', currentTab);
+
+                                // Якщо це вкладка завдань - форсуємо оновлення
+                                if (['social', 'limited', 'partner'].includes(currentTab)) {
+                                    if (window.TasksManager && window.TasksManager.updateTasksUI) {
+                                        console.log('🔄 [MAIN] Форсуємо оновлення UI');
+                                        window.TasksManager.updateTasksUI();
+                                    }
+                                }
+                            }, 1000);
+                        })
+                        .catch(function(error) {
+                            console.error('❌ [MAIN] Помилка ініціалізації системи завдань:', error);
+
+                            // Показуємо помилку користувачу
+                            const errorDiv = document.createElement('div');
+                            errorDiv.className = 'error-container';
+                            errorDiv.innerHTML = `
+                                <h3>❌ Помилка завантаження</h3>
+                                <p>${error.message || 'Не вдалося завантажити систему завдань'}</p>
+                                <button onclick="window.location.reload()">Оновити сторінку</button>
+                            `;
+
+                            const mainContainer = document.querySelector('.tasks-section');
+                            if (mainContainer) {
+                                mainContainer.prepend(errorDiv);
+                            }
+                        });
+                } else {
+                    console.error('❌ [MAIN] window.initTasksSystem не знайдено');
+
+                    // Спробуємо ще раз через секунду
+                    setTimeout(arguments.callee, 1000);
+                }
+            }, 500);
+        });
+    </script>
+
+    <!-- Додаткова перевірка рендерингу завдань -->
+    <script>
+        (function() {
+            'use strict';
+
+            console.log('🔧 [RENDER-CHECK] Ініціалізація перевірки рендерингу');
+
+            let checkAttempts = 0;
+            const maxChecks = 10;
+
+            function checkTasksRendering() {
+                checkAttempts++;
+                console.log(`🔄 [RENDER-CHECK] Перевірка #${checkAttempts}`);
+
+                // Перевіряємо чи система ініціалізована
+                if (!window.TasksStore || !window.TasksManager) {
+                    if (checkAttempts < maxChecks) {
+                        setTimeout(checkTasksRendering, 1000);
+                    }
+                    return;
+                }
+
+                // Перевіряємо чи є завдання в Store
+                const state = window.TasksStore.getState();
+                const hasTasks = state.tasks && (
+                    Object.keys(state.tasks.social || {}).length > 0 ||
+                    Object.keys(state.tasks.limited || {}).length > 0 ||
+                    Object.keys(state.tasks.partner || {}).length > 0
+                );
+
+                if (hasTasks) {
+                    console.log('✅ [RENDER-CHECK] Знайдено завдання в Store');
+
+                    // Перевіряємо чи завдання відрендерені
+                    const containers = ['social-tab', 'limited-tab', 'partner-tab'];
+                    let rendered = false;
+
+                    containers.forEach(id => {
+                        const container = document.getElementById(id);
+                        if (container && container.children.length > 0) {
+                            console.log(`✅ [RENDER-CHECK] Контейнер ${id} має елементи:`, container.children.length);
+                            rendered = true;
+                        }
                     });
-            } else {
-                console.error('❌ [MAIN] window.initTasksSystem не знайдено');
+
+                    if (!rendered) {
+                        console.warn('⚠️ [RENDER-CHECK] Завдання не відрендерені, форсуємо оновлення');
+
+                        // Форсуємо оновлення UI
+                        if (window.TasksManager.updateTasksUI) {
+                            window.TasksManager.updateTasksUI();
+                        }
+                    }
+                } else if (checkAttempts < maxChecks) {
+                    // Продовжуємо перевірку
+                    setTimeout(checkTasksRendering, 2000);
+                }
             }
-        }, 500);
-    });
-</script>
+
+            // Запускаємо перевірку через 3 секунди після завантаження
+            setTimeout(checkTasksRendering, 3000);
+        })();
+    </script>
 </body>
 </html>
