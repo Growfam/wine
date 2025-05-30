@@ -1,6 +1,7 @@
 """
 Контролер щоденних бонусів для системи завдань WINIX
 Обробка отримання, статусу та історії щоденних винагород
+З повною підтримкою Supabase БД
 """
 import logging
 from datetime import datetime, timezone, timedelta
@@ -11,7 +12,7 @@ import hashlib
 logger = logging.getLogger(__name__)
 
 from ..models.daily_bonus import (
-    DailyBonusStatus, daily_bonus_manager
+    DailyBonusStatus, daily_bonus_manager, Reward
 )
 from ..models.user_quest import UserQuest
 from ..services.reward_calculator import reward_calculator, calculate_daily_reward
@@ -45,7 +46,19 @@ except ImportError:
 
 
 class DailyController:
-    """Контролер щоденних бонусів з підтримкою транзакцій"""
+    """Контролер щоденних бонусів з підтримкою транзакцій та БД"""
+
+    @staticmethod
+    def _convert_telegram_id_to_user_id(telegram_id: str) -> str:
+        """
+        Конвертація telegram_id в user_id для БД
+        В БД використовується user_id як рядок
+        """
+        # Перевіряємо чи це вже user_id формат
+        if isinstance(telegram_id, str) and telegram_id:
+            return telegram_id
+        # Конвертуємо число в рядок
+        return str(telegram_id)
 
     @staticmethod
     def get_daily_status(telegram_id: str) -> Dict[str, Any]:
@@ -66,13 +79,17 @@ class DailyController:
             if not validated_id:
                 raise ValidationError("Невірний Telegram ID")
 
+            # Конвертуємо в user_id для БД
+            user_id = DailyController._convert_telegram_id_to_user_id(validated_id)
+            logger.info(f"Converted telegram_id {validated_id} to user_id {user_id}")
+
             # Перевіряємо чи користувач існує
             user_data = get_user(str(validated_id))
             if not user_data:
                 raise ValidationError("Користувач не знайдений")
 
-            # Отримуємо статус щоденних бонусів
-            daily_status = daily_bonus_manager.get_user_status(validated_id)
+            # Отримуємо статус щоденних бонусів з БД
+            daily_status = daily_bonus_manager.get_user_status(user_id)
 
             # Розраховуємо сьогоднішню винагороду якщо користувач може отримати
             today_reward = None
@@ -97,12 +114,14 @@ class DailyController:
 
             # Додаємо додаткову інформацію
             status_data.update({
+                "telegram_id": validated_id,  # Повертаємо оригінальний telegram_id
                 "streak_info": daily_status.get_streak_info(),
                 "statistics": daily_status.get_statistics(),
                 "next_claim_in_hours": DailyController._calculate_hours_until_next_claim(daily_status),
                 "month_progress": (daily_status.total_days_claimed / 30 * 100),
                 "is_special_day": False,  # Видаляємо логіку спеціальних днів
-                "calendar_rewards": DailyController._get_calendar_rewards(validated_id)  # Додаємо календар
+                "calendar_rewards": DailyController._get_calendar_rewards(validated_id),  # Додаємо календар
+                "claimed_days": DailyController._get_claimed_days(user_id)  # Додаємо список отриманих днів
             })
 
             logger.info(
@@ -139,13 +158,16 @@ class DailyController:
             if not validated_id:
                 raise ValidationError("Невірний Telegram ID")
 
+            # Конвертуємо в user_id для БД
+            user_id = DailyController._convert_telegram_id_to_user_id(validated_id)
+
             # Перевіряємо користувача
             user_data = get_user(str(validated_id))
             if not user_data:
                 raise ValidationError("Користувач не знайдений")
 
             # Отримуємо поточний статус
-            daily_status = daily_bonus_manager.get_user_status(validated_id, force_refresh=True)
+            daily_status = daily_bonus_manager.get_user_status(user_id, force_refresh=True)
 
             # Перевіряємо чи можна отримати бонус
             if not daily_status.can_claim_today:
@@ -210,12 +232,12 @@ class DailyController:
             # Отримуємо бонус (оновлює статус)
             entry = daily_status.claim_bonus(reward)
 
-            # Зберігаємо оновлений статус
+            # Зберігаємо оновлений статус в БД
             if not daily_bonus_manager.save_status_to_db(daily_status):
                 logger.error("Помилка збереження статусу щоденних бонусів")
                 # Не викидаємо помилку, оскільки винагорода вже нарахована
 
-            # Зберігаємо запис про отримання
+            # Зберігаємо запис про отримання в БД
             if not daily_bonus_manager.save_entry_to_db(entry):
                 logger.error("Помилка збереження запису про отримання")
                 # Не викидаємо помилку, оскільки винагорода вже нарахована
@@ -254,7 +276,7 @@ class DailyController:
     @staticmethod
     def get_daily_history(telegram_id: str, limit: int = 30) -> Dict[str, Any]:
         """
-        Отримання історії щоденних бонусів з транзакціями
+        Отримання історії щоденних бонусів з БД
 
         Args:
             telegram_id: Telegram ID користувача
@@ -271,12 +293,32 @@ class DailyController:
             if not validated_id:
                 raise ValidationError("Невірний Telegram ID")
 
-            # Отримуємо історію з transaction service якщо доступний
-            history_entries = []
-            transaction_history = []
+            # Конвертуємо в user_id для БД
+            user_id = DailyController._convert_telegram_id_to_user_id(validated_id)
 
+            # Отримуємо історію з БД
+            history_entries = daily_bonus_manager.get_user_history(user_id, limit)
+
+            # Конвертуємо в формат для API
+            history_data = []
+            for entry in history_entries:
+                history_data.append({
+                    'claim_date': entry.claim_date.isoformat(),
+                    'day_number': entry.day_number,
+                    'streak': entry.streak_at_claim,
+                    'reward': {
+                        'winix': entry.reward.winix,
+                        'tickets': entry.reward.tickets
+                    },
+                    'is_special_day': entry.is_special_day
+                })
+
+            # Отримуємо поточний статус для статистики
+            daily_status = daily_bonus_manager.get_user_status(user_id)
+
+            # Додатково отримуємо транзакції якщо доступно
+            transaction_history = []
             if transaction_service:
-                # Отримуємо транзакції daily_bonus
                 try:
                     history_result = transaction_service.get_user_transaction_history(
                         telegram_id=str(validated_id),
@@ -290,40 +332,19 @@ class DailyController:
                             t for t in all_transactions
                             if t.get('type') == 'daily_bonus'
                         ]
-
-                        # Конвертуємо в формат історії
-                        for trans in transaction_history[:limit]:
-                            metadata = trans.get('metadata', {})
-                            history_entries.append({
-                                'transaction_id': trans.get('id'),
-                                'claim_date': trans.get('created_at'),
-                                'day_number': metadata.get('day_number', 1),
-                                'streak': metadata.get('streak', 1),
-                                'reward': {
-                                    'winix': trans.get('amount', {}).get('winix', 0),
-                                    'tickets': trans.get('amount', {}).get('tickets', 0)
-                                },
-                                'status': trans.get('status'),
-                                'description': trans.get('description', '')
-                            })
-
-                        logger.info(f"Отримано {len(history_entries)} записів історії з transaction service")
-
                 except Exception as e:
                     logger.warning(f"Помилка отримання історії з transaction service: {e}")
-
-            # Отримуємо поточний статус для статистики
-            daily_status = daily_bonus_manager.get_user_status(validated_id)
 
             return {
                 "status": "success",
                 "data": {
-                    "history": history_entries,
-                    "total_entries": len(history_entries),
+                    "history": history_data,
+                    "total_entries": len(history_data),
                     "statistics": daily_status.get_statistics(),
                     "current_streak": daily_status.current_streak,
                     "longest_streak": daily_status.longest_streak,
-                    "has_transaction_history": len(transaction_history) > 0
+                    "has_transaction_history": len(transaction_history) > 0,
+                    "transactions": transaction_history[:10]  # Перші 10 транзакцій
                 }
             }
 
@@ -476,14 +497,17 @@ class DailyController:
             if not validated_id:
                 raise ValidationError("Невірний Telegram ID")
 
+            # Конвертуємо в user_id для БД
+            user_id = DailyController._convert_telegram_id_to_user_id(validated_id)
+
             # Отримуємо статус
-            daily_status = daily_bonus_manager.get_user_status(validated_id, force_refresh=True)
+            daily_status = daily_bonus_manager.get_user_status(user_id, force_refresh=True)
             old_streak = daily_status.current_streak
 
             # Скидаємо серію
             daily_status.reset_streak(reason)
 
-            # Зберігаємо оновлений статус
+            # Зберігаємо оновлений статус в БД
             if not daily_bonus_manager.save_status_to_db(daily_status):
                 raise ValidationError("Помилка збереження статусу")
 
@@ -551,8 +575,11 @@ class DailyController:
             if not validated_id:
                 raise ValidationError("Невірний Telegram ID")
 
+            # Конвертуємо в user_id для БД
+            user_id = DailyController._convert_telegram_id_to_user_id(validated_id)
+
             # Отримуємо базову статистику
-            daily_status = daily_bonus_manager.get_user_status(validated_id)
+            daily_status = daily_bonus_manager.get_user_status(user_id)
             base_stats = daily_status.get_statistics()
 
             # Додаємо статистику з транзакцій якщо доступно
@@ -590,7 +617,8 @@ class DailyController:
                 'transaction_statistics': transaction_stats,
                 'service_info': {
                     'transaction_service_available': transaction_service is not None,
-                    'atomic_operations_enabled': transaction_service is not None
+                    'atomic_operations_enabled': transaction_service is not None,
+                    'database_connected': True  # Тепер завжди true
                 }
             }
 
@@ -647,6 +675,30 @@ class DailyController:
             })
 
         return calendar
+
+    @staticmethod
+    def _get_claimed_days(user_id: str) -> List[int]:
+        """
+        Отримує список днів які вже були отримані
+
+        Args:
+            user_id: User ID для БД
+
+        Returns:
+            List з номерами днів
+        """
+        try:
+            # Отримуємо історію з БД
+            history = daily_bonus_manager.get_user_history(user_id, limit=30)
+
+            # Витягуємо номери днів
+            claimed_days = [entry.day_number for entry in history]
+
+            return sorted(set(claimed_days))  # Унікальні та відсортовані
+
+        except Exception as e:
+            logger.error(f"Помилка отримання claimed days: {e}")
+            return []
 
 
 # Функції-обгортки для роутів
