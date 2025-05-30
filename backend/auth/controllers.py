@@ -89,6 +89,25 @@ class TelegramAuthController:
                 hashlib.sha256
             ).hexdigest()
 
+            # ====== ДОДАЙТЕ ДІАГНОСТИКУ ТУТ ======
+            logger.info(f"Debug - Received hash: {received_hash}")
+            logger.info(f"Debug - Calculated hash: {calculated_hash}")
+            logger.info(f"Debug - Bot token ends with: ...{bot_token[-20:]}")
+            logger.info(f"Debug - Hash match: {received_hash == calculated_hash}")
+
+            # Додаткова діагностика auth_date
+            auth_date = parsed_data.get('auth_date', [None])[0]
+            if auth_date:
+                try:
+                    auth_timestamp = int(auth_date)
+                    current_timestamp = int(time.time())
+                    time_diff = current_timestamp - auth_timestamp
+                    logger.info(
+                        f"Debug - Auth date time difference: {time_diff} seconds ({time_diff / 3600:.1f} hours)")
+                except:
+                    pass
+            # ====== КІНЕЦЬ ДІАГНОСТИКИ ======
+
             # Порівнюємо хеші
             is_valid = hmac.compare_digest(received_hash, calculated_hash)
 
