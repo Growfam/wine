@@ -1,6 +1,7 @@
 /**
  * Override стилі для сітки Flex завдань
- * Цей файл має бути підключений ПІСЛЯ flex-earn.css
+ * iOS 18 Premium Style - Purple Theme
+ * Преміальний дизайн з реферальної системи
  */
 
 /* Скидання стилів контейнера */
@@ -9,32 +10,49 @@
     /* Видаляємо всі попередні стилі */
     all: unset;
 
-    /* Застосовуємо Grid */
+    /* Застосовуємо преміальну Grid */
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-auto-rows: minmax(280px, auto);
-    gap: 20px !important;
-    padding: 10px !important;
+    grid-auto-rows: minmax(300px, auto);
+    gap: 1.25rem !important;
+    padding: 0.5rem !important;
     width: 100% !important;
     box-sizing: border-box !important;
+    animation: grid-appear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
-/* Базові стилі для всіх карток */
+@keyframes grid-appear {
+    0% {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+        filter: blur(8px);
+    }
+    50% {
+        filter: blur(3px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+    }
+}
+
+/* Преміальні стилі для всіх карток */
 .flex-task-card {
     /* Скидання */
     margin: 0 !important;
     width: 100% !important;
 
-    /* Основні стилі */
-    background: rgba(139, 92, 246, 0.1);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 1.5rem;
-    padding: 1.25rem;
-    border: 1px solid rgba(179, 102, 255, 0.2);
+    /* Основні преміальні стилі */
+    background: rgba(139, 92, 246, 0.1) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-radius: 1.5rem !important;
+    padding: 1.5rem !important;
+    border: 1px solid rgba(179, 102, 255, 0.2) !important;
     box-shadow:
-        0 4px 24px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(179, 102, 255, 0.1);
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1) !important;
 
     /* Флекс для внутрішнього вмісту */
     display: flex !important;
@@ -42,13 +60,47 @@
     justify-content: space-between !important;
 
     /* Розміри */
-    min-height: 280px !important;
+    min-height: 300px !important;
     box-sizing: border-box !important;
 
-    /* Анімації */
+    /* Преміальні анімації */
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
     position: relative !important;
     overflow: hidden !important;
+}
+
+/* Градієнтне світіння при наведенні */
+.flex-task-card::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 0 !important;
+    transition: opacity 0.5s ease !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+}
+
+.flex-task-card.bronze::before {
+    background: radial-gradient(circle at 30% 30%, rgba(205, 127, 50, 0.15), transparent 60%) !important;
+}
+
+.flex-task-card.silver::before {
+    background: radial-gradient(circle at 30% 30%, rgba(192, 192, 192, 0.15), transparent 60%) !important;
+}
+
+.flex-task-card.gold::before {
+    background: radial-gradient(circle at 30% 30%, rgba(255, 215, 0, 0.15), transparent 60%) !important;
+}
+
+.flex-task-card.platinum::before {
+    background: radial-gradient(circle at 30% 30%, rgba(229, 228, 226, 0.15), transparent 60%) !important;
+}
+
+.flex-task-card.diamond::before {
+    background: radial-gradient(circle at 30% 30%, rgba(185, 242, 255, 0.2), transparent 60%) !important;
 }
 
 /* Спеціальне розташування для 5-ї картки */
@@ -57,73 +109,120 @@
     max-width: none !important;
 }
 
-/* Hover ефекти з високим z-index */
+/* Преміальні hover ефекти з високим z-index */
 .flex-task-card:hover {
     transform: translateY(-5px) scale(1.02) !important;
     z-index: 999 !important;
     box-shadow:
-        0 12px 40px rgba(179, 102, 255, 0.3),
+        0 15px 50px rgba(179, 102, 255, 0.35),
         inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
 }
 
-/* Внутрішні елементи карток */
+.flex-task-card:hover::before {
+    opacity: 1 !important;
+}
+
+/* Внутрішні елементи карток - преміальні */
 .task-header {
     display: flex !important;
     align-items: center !important;
-    gap: 0.75rem !important;
-    margin-bottom: 0.75rem !important;
+    gap: 0.875rem !important;
+    margin-bottom: 0.875rem !important;
+    position: relative !important;
+    z-index: 1 !important;
 }
 
 .task-icon {
-    width: 2.5rem !important;
-    height: 2.5rem !important;
+    width: 3rem !important;
+    height: 3rem !important;
     flex-shrink: 0 !important;
+    box-shadow:
+        0 6px 24px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    animation: icon-float 4s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
+@keyframes icon-float {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+        filter: brightness(1) drop-shadow(0 4px 16px rgba(179, 102, 255, 0.4));
+    }
+    25% {
+        transform: translateY(-3px) scale(1.05);
+        filter: brightness(1.1) drop-shadow(0 6px 20px rgba(179, 102, 255, 0.5));
+    }
+    75% {
+        transform: translateY(2px) scale(0.98);
+        filter: brightness(0.95) drop-shadow(0 3px 12px rgba(179, 102, 255, 0.3));
+    }
 }
 
 .task-info {
     flex: 1 !important;
     min-width: 0 !important;
+    position: relative !important;
+    z-index: 1 !important;
 }
 
 .task-title {
-    font-size: 0.9375rem !important;
-    line-height: 1.2 !important;
+    font-size: 1.125rem !important;
+    line-height: 1.3 !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
 }
 
 .task-requirement {
-    font-size: 0.75rem !important;
-    line-height: 1.2 !important;
+    font-size: 0.875rem !important;
+    line-height: 1.4 !important;
+    color: rgba(255, 255, 255, 0.7) !important;
 }
 
 .task-rewards {
-    margin-bottom: 0.75rem !important;
+    margin-bottom: 0.875rem !important;
+    padding: 0.875rem !important;
+    background: rgba(0, 0, 0, 0.2) !important;
+    border-radius: 1rem !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(179, 102, 255, 0.1) !important;
+    position: relative !important;
+    z-index: 1 !important;
 }
 
 .claim-button {
     margin-top: auto !important;
+    position: relative !important;
+    z-index: 1 !important;
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 }
 
-/* Таблет */
+/* Таблет - преміальна адаптивність */
 @media (max-width: 768px) and (min-width: 541px) {
     .flex-tasks-container,
     #flex-tasks {
-        gap: 15px !important;
-        padding: 8px !important;
+        gap: 1rem !important;
+        padding: 0.375rem !important;
     }
 
     .flex-task-card {
-        min-height: 260px !important;
-        padding: 1rem !important;
+        min-height: 280px !important;
+        padding: 1.25rem !important;
+    }
+
+    .task-icon {
+        width: 2.75rem !important;
+        height: 2.75rem !important;
     }
 }
 
-/* Мобільні */
+/* Мобільні - преміальна адаптивність */
 @media (max-width: 540px) {
     .flex-tasks-container,
     #flex-tasks {
         grid-template-columns: 1fr !important;
-        gap: 15px !important;
-        padding: 5px !important;
+        gap: 1rem !important;
+        padding: 0.25rem !important;
     }
 
     .flex-task-card:nth-child(5) {
@@ -132,16 +231,82 @@
 
     .flex-task-card {
         min-height: auto !important;
+        padding: 1.125rem !important;
+    }
+
+    .task-icon {
+        width: 2.5rem !important;
+        height: 2.5rem !important;
+    }
+
+    .task-title {
+        font-size: 1rem !important;
+    }
+
+    .task-requirement {
+        font-size: 0.8125rem !important;
     }
 }
 
-/* Видалення конфліктних анімацій */
+/* Видалення конфліктних анімацій та додавання преміальних */
 .flex-task-card {
-    animation: none !important;
+    animation: card-premium-appear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+}
+
+.flex-task-card:nth-child(1) { animation-delay: 0.1s !important; }
+.flex-task-card:nth-child(2) { animation-delay: 0.2s !important; }
+.flex-task-card:nth-child(3) { animation-delay: 0.3s !important; }
+.flex-task-card:nth-child(4) { animation-delay: 0.4s !important; }
+.flex-task-card:nth-child(5) { animation-delay: 0.5s !important; }
+
+@keyframes card-premium-appear {
+    0% {
+        opacity: 0;
+        transform: translateY(40px) scale(0.9) rotateX(10deg);
+        filter: blur(5px);
+    }
+    60% {
+        transform: translateY(-5px) scale(1.02) rotateX(-2deg);
+        filter: blur(0);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1) rotateX(0);
+        filter: blur(0);
+    }
 }
 
 /* Додатковий простір для анімацій */
 #flex-tab {
     overflow: visible !important;
     padding-bottom: 20px !important;
+}
+
+/* Преміальний ефект мерехтіння */
+.flex-task-card::after {
+    content: '' !important;
+    position: absolute !important;
+    top: -50% !important;
+    left: -50% !important;
+    width: 200% !important;
+    height: 200% !important;
+    background: linear-gradient(
+        45deg,
+        transparent 30%,
+        rgba(255, 255, 255, 0.05) 50%,
+        transparent 70%
+    ) !important;
+    transform: rotate(45deg) !important;
+    animation: card-shimmer 8s linear infinite !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+}
+
+@keyframes card-shimmer {
+    0% {
+        transform: translateX(-100%) translateY(-100%) rotate(45deg);
+    }
+    100% {
+        transform: translateX(100%) translateY(100%) rotate(45deg);
+    }
 }
