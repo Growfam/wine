@@ -505,6 +505,43 @@ def refresh_token_route(telegram_id=None):
             'code': 'refresh_failed'
         }
 
+
+def validate_token_route(token: str = None):
+    """
+    Функція валідації токену для сумісності з системою завдань
+    """
+    try:
+        # Якщо токен не переданий, спробуємо отримати з request
+        if not token:
+            from flask import request
+
+            # Отримуємо токен з заголовка
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header[7:]
+            else:
+                # Або з body
+                data = request.get_json() or {}
+                token = data.get('token')
+
+        if not token:
+            return {
+                'valid': False,
+                'error': 'Token not provided',
+                'code': 'missing_token'
+            }
+
+        # Використовуємо існуючий метод validate_token
+        result = TelegramAuthController.validate_token(token)
+        return result
+
+    except Exception as e:
+        logger.error(f"Validate token route error: {str(e)}")
+        return {
+            'valid': False,
+            'error': str(e),
+            'code': 'validation_error'
+        }
 # Оновити експорт
 __all__ = [
     'TelegramAuthController',
@@ -512,5 +549,6 @@ __all__ = [
     'AuthError',
     'require_auth',
     'validate_telegram_route',
-    'refresh_token_route'
+    'refresh_token_route',
+    'validate_token_route'
 ]
