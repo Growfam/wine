@@ -1,23 +1,20 @@
 """
 Модель щоденних бонусів для системи завдань WINIX
 Управління серіями днів та винагородами з автоматичним скиданням серії
+З повною підтримкою Supabase БД
 """
 
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-
 # === БАЗОВІ КЛАСИ ТА ФУНКЦІЇ ===
-
-from dataclasses import dataclass, field
-
 
 class BaseModel:
     """Базова модель з timestamp'ами"""
-
     def __init__(self):
         now = datetime.now(timezone.utc)
         self.created_at = now
@@ -44,11 +41,9 @@ class Reward:
             "tickets": self.tickets
         }
 
-
 def get_current_utc_time() -> datetime:
     """Отримати поточний UTC час"""
     return datetime.now(timezone.utc)
-
 
 def parse_datetime(dt_str: str) -> datetime:
     """Парсинг datetime з рядка"""
@@ -56,11 +51,17 @@ def parse_datetime(dt_str: str) -> datetime:
         return dt_str
     if isinstance(dt_str, str):
         try:
+            # Спробуємо різні формати
+            for fmt in ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d']:
+                try:
+                    return datetime.strptime(dt_str.replace('Z', '+00:00'), fmt)
+                except:
+                    continue
+            # Якщо нічого не підійшло, спробуємо fromisoformat
             return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
         except:
             return datetime.now(timezone.utc)
     return datetime.now(timezone.utc)
-
 
 def format_datetime(dt: Optional[datetime]) -> Optional[str]:
     """Форматування datetime в рядок"""
@@ -68,40 +69,36 @@ def format_datetime(dt: Optional[datetime]) -> Optional[str]:
         return None
     return dt.isoformat()
 
-
-def validate_telegram_id(telegram_id: int) -> bool:
-    """Валідація Telegram ID"""
-    return isinstance(telegram_id, int) and telegram_id > 0
-
+def validate_user_id(user_id: str) -> bool:
+    """Валідація User ID (тепер це рядок)"""
+    return isinstance(user_id, str) and len(user_id) > 0
 
 @dataclass
 class DailyBonusEntry:
     """Запис про отримання щоденного бонусу"""
 
     # Основні дані (обов'язкові поля)
-    telegram_id: int
+    user_id: str  # Змінено з telegram_id на user_id та з int на str
     day_number: int  # День в серії (1, 2, 3, ...)
     claim_date: datetime
     reward: Reward
 
     # Метадані (з значеннями за замовчуванням)
     streak_at_claim: int = 0  # Серія на момент отримання
-    bonus_multiplier: float = 1.0  # Множник бонусу
-    is_special_day: bool = False  # Спеціальний день (більше не використовується)
+    bonus_multiplier: float = 1.0  # Множник бонусу (multiplier_app в БД)
+    is_special_day: bool = False  # Спеціальний день
+
+    # ID з БД
+    id: Optional[int] = None
 
     # Timestamp поля
     created_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
-
-    def update_timestamp(self):
-        """Оновити timestamp"""
-        self.updated_at = datetime.now(timezone.utc)
 
     def __post_init__(self):
         """Ініціалізація після створення"""
-        # Валідація telegram_id
-        if not validate_telegram_id(self.telegram_id):
-            raise ValueError(f"Невірний telegram_id: {self.telegram_id}")
+        # Валідація user_id
+        if not validate_user_id(self.user_id):
+            raise ValueError(f"Невірний user_id: {self.user_id}")
 
         # Валідація day_number
         if self.day_number < 1 or self.day_number > 30:
@@ -111,57 +108,52 @@ class DailyBonusEntry:
         if isinstance(self.claim_date, str):
             self.claim_date = parse_datetime(self.claim_date)
 
-        if not isinstance(self.claim_date, datetime):
-            self.claim_date = get_current_utc_time()
-
         # Валідація винагороди
         if isinstance(self.reward, dict):
             self.reward = Reward(**self.reward)
         elif not isinstance(self.reward, Reward):
             self.reward = Reward()
 
-    def validate(self) -> List[str]:
-        """Валідація запису"""
-        errors = []
-
-        if not validate_telegram_id(self.telegram_id):
-            errors.append("Невірний telegram_id")
-
-        if self.day_number < 1 or self.day_number > 30:
-            errors.append("day_number має бути між 1 і 30")
-
-        if self.reward.is_empty():
-            errors.append("Винагорода не може бути пустою")
-
-        if self.streak_at_claim < 0:
-            errors.append("streak_at_claim не може бути від'ємним")
-
-        if self.bonus_multiplier <= 0:
-            errors.append("bonus_multiplier має бути додатним")
-
-        return errors
-
     def to_dict(self) -> Dict[str, Any]:
-        """Серіалізація в словник"""
+        """Серіалізація в словник для БД"""
         return {
-            "telegram_id": self.telegram_id,
+            "user_id": self.user_id,
             "day_number": self.day_number,
             "claim_date": format_datetime(self.claim_date),
-            "reward": self.reward.to_dict(),
+            "reward_winix": self.reward.winix,
+            "reward_tickets": self.reward.tickets,
             "streak_at_claim": self.streak_at_claim,
-            "bonus_multiplier": self.bonus_multiplier,
+            "multiplier_app": self.bonus_multiplier,
             "is_special_day": self.is_special_day,
-            "created_at": format_datetime(self.created_at),
-            "updated_at": format_datetime(self.updated_at)
+            "created_at": format_datetime(self.created_at)
         }
 
+    @classmethod
+    def from_db_record(cls, record: Dict[str, Any]) -> 'DailyBonusEntry':
+        """Створення з запису БД"""
+        reward = Reward(
+            winix=record.get('reward_winix', 0),
+            tickets=record.get('reward_tickets', 0)
+        )
+
+        return cls(
+            id=record.get('id'),
+            user_id=record.get('user_id'),
+            day_number=record.get('day_number', 1),
+            claim_date=parse_datetime(record.get('claim_date')),
+            reward=reward,
+            streak_at_claim=record.get('streak_at_claim', 0),
+            bonus_multiplier=record.get('multiplier_app', 1.0),
+            is_special_day=record.get('is_special_day', False),
+            created_at=parse_datetime(record.get('created_at'))
+        )
 
 @dataclass
 class DailyBonusStatus:
     """Статус щоденних бонусів користувача"""
 
     # Основні дані (обов'язкове поле)
-    telegram_id: int
+    user_id: str  # Змінено з telegram_id на user_id та з int на str
 
     # Всі інші поля з значеннями за замовчуванням
     current_streak: int = 0
@@ -171,33 +163,31 @@ class DailyBonusStatus:
     # Дати
     last_claim_date: Optional[datetime] = None
     next_available_date: Optional[datetime] = None
-    streak_start_date: Optional[datetime] = None
-
-    # Статистика винагород
-    total_winix_earned: int = 0
-    total_tickets_earned: int = 0
 
     # Поточний статус
     can_claim_today: bool = False
     current_day_number: int = 1
     today_reward: Optional[Reward] = None
 
+    # ID з БД
+    id: Optional[int] = None
+
     # Timestamp поля
     created_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    def update_timestamp(self):
-        """Оновити timestamp"""
-        self.updated_at = datetime.now(timezone.utc)
+    # Додаткова статистика (розраховується на льоту)
+    total_winix_earned: int = 0
+    total_tickets_earned: int = 0
 
     def __post_init__(self):
         """Ініціалізація після створення"""
-        # Валідація telegram_id
-        if not validate_telegram_id(self.telegram_id):
-            raise ValueError(f"Невірний telegram_id: {self.telegram_id}")
+        # Валідація user_id
+        if not validate_user_id(self.user_id):
+            raise ValueError(f"Невірний user_id: {self.user_id}")
 
         # Парсинг дат
-        datetime_fields = ['last_claim_date', 'next_available_date', 'streak_start_date']
+        datetime_fields = ['last_claim_date', 'next_available_date', 'created_at', 'updated_at']
         for field_name in datetime_fields:
             value = getattr(self, field_name)
             if isinstance(value, str):
@@ -207,8 +197,6 @@ class DailyBonusStatus:
         self.current_streak = max(0, self.current_streak)
         self.longest_streak = max(0, self.longest_streak)
         self.total_days_claimed = max(0, self.total_days_claimed)
-        self.total_winix_earned = max(0, self.total_winix_earned)
-        self.total_tickets_earned = max(0, self.total_tickets_earned)
 
         # Обчислення поточного статусу
         self._update_current_status()
@@ -240,11 +228,10 @@ class DailyBonusStatus:
                     self.current_day_number = self.current_streak + 1
                 else:
                     # Пропустили дні - СКИДАЄМО ВСЮ СЕРІЮ НА 1 ДЕНЬ
-                    logger.warning(f"User {self.telegram_id} пропустив {days_since_last} днів. Скидання серії на день 1")
+                    logger.warning(f"User {self.user_id} пропустив {days_since_last} днів. Скидання серії на день 1")
                     self.can_claim_today = True
                     self.current_day_number = 1
                     self.current_streak = 0  # Скидаємо поточну серію
-                    self.streak_start_date = now  # Нова серія починається сьогодні
 
                 # Розрахунок наступної доступної дати
                 if self.can_claim_today:
@@ -254,8 +241,7 @@ class DailyBonusStatus:
                     next_claim = self.last_claim_date + timedelta(hours=20)
                     if next_claim.date() == now.date():
                         # Завтра
-                        self.next_available_date = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(
-                            days=1)
+                        self.next_available_date = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
                     else:
                         self.next_available_date = next_claim
             else:
@@ -294,11 +280,9 @@ class DailyBonusStatus:
                 # Серія вже повинна бути скинута в _update_current_status
                 # Починаємо з дня 1
                 self.current_streak = 1
-                self.streak_start_date = now
         else:
             # Перший бонус
             self.current_streak = 1
-            self.streak_start_date = now
 
         # Оновлюємо найдовшу серію
         self.longest_streak = max(self.longest_streak, self.current_streak)
@@ -306,12 +290,10 @@ class DailyBonusStatus:
         # Оновлюємо статистику
         self.last_claim_date = now
         self.total_days_claimed += 1
-        self.total_winix_earned += reward.winix
-        self.total_tickets_earned += reward.tickets
 
         # Створюємо запис про отримання
         entry = DailyBonusEntry(
-            telegram_id=self.telegram_id,
+            user_id=self.user_id,
             day_number=self.current_day_number,
             claim_date=now,
             reward=reward,
@@ -324,7 +306,7 @@ class DailyBonusStatus:
         self._update_current_status()
         self.update_timestamp()
 
-        logger.info(f"User {self.telegram_id} claimed day {self.current_day_number} bonus: {reward.to_dict()}")
+        logger.info(f"User {self.user_id} claimed day {self.current_day_number} bonus: {reward.to_dict()}")
 
         return entry
 
@@ -333,7 +315,6 @@ class DailyBonusStatus:
         return {
             "current_streak": self.current_streak,
             "longest_streak": self.longest_streak,
-            "streak_start_date": format_datetime(self.streak_start_date),
             "can_claim_today": self.can_claim_today,
             "current_day_number": self.current_day_number,
             "next_available_date": format_datetime(self.next_available_date)
@@ -356,24 +337,22 @@ class DailyBonusStatus:
 
     def reset_streak(self, reason: str = "manual"):
         """Скидання серії"""
-        logger.info(f"Resetting streak for user {self.telegram_id}: {reason}")
+        logger.info(f"Resetting streak for user {self.user_id}: {reason}")
 
         self.current_streak = 0
         self.current_day_number = 1  # Повертаємось на день 1
-        self.streak_start_date = None
         self._update_current_status()
         self.update_timestamp()
 
     def to_dict(self) -> Dict[str, Any]:
-        """Серіалізація в словник"""
+        """Серіалізація в словник для API"""
         return {
-            "telegram_id": self.telegram_id,
+            "user_id": self.user_id,
             "current_streak": self.current_streak,
             "longest_streak": self.longest_streak,
             "total_days_claimed": self.total_days_claimed,
             "last_claim_date": format_datetime(self.last_claim_date),
             "next_available_date": format_datetime(self.next_available_date),
-            "streak_start_date": format_datetime(self.streak_start_date),
             "total_winix_earned": self.total_winix_earned,
             "total_tickets_earned": self.total_tickets_earned,
             "can_claim_today": self.can_claim_today,
@@ -383,28 +362,46 @@ class DailyBonusStatus:
             "updated_at": format_datetime(self.updated_at)
         }
 
+    def to_db_dict(self) -> Dict[str, Any]:
+        """Серіалізація в словник для БД"""
+        return {
+            "user_id": self.user_id,
+            "current_streak": self.current_streak,
+            "longest_streak": self.longest_streak,
+            "total_days_claimed": self.total_days_claimed,
+            "last_claim_date": format_datetime(self.last_claim_date),
+            "next_available_date": format_datetime(self.next_available_date),
+            "current_day_number": self.current_day_number,
+            "updated_at": format_datetime(datetime.now(timezone.utc))
+        }
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DailyBonusStatus':
-        """Створення об'єкта з словника"""
-        # Парсинг datetime полів
-        datetime_fields = ['last_claim_date', 'next_available_date', 'streak_start_date', 'created_at', 'updated_at']
-        for field in datetime_fields:
-            if data.get(field):
-                data[field] = parse_datetime(data[field])
+    def from_db_record(cls, record: Dict[str, Any]) -> 'DailyBonusStatus':
+        """Створення з запису БД"""
+        return cls(
+            id=record.get('id'),
+            user_id=record.get('user_id'),
+            current_streak=record.get('current_streak', 0),
+            longest_streak=record.get('longest_streak', 0),
+            total_days_claimed=record.get('total_days_claimed', 0),
+            last_claim_date=parse_datetime(record.get('last_claim_date')) if record.get('last_claim_date') else None,
+            next_available_date=parse_datetime(record.get('next_available_date')) if record.get('next_available_date') else None,
+            current_day_number=record.get('current_day_number', 1),
+            created_at=parse_datetime(record.get('created_at')),
+            updated_at=parse_datetime(record.get('updated_at'))
+        )
 
-        # Парсинг винагороди
-        if data.get('today_reward') and isinstance(data['today_reward'], dict):
-            data['today_reward'] = Reward(**data['today_reward'])
-
-        return cls(**data)
+    def update_timestamp(self):
+        """Оновити timestamp"""
+        self.updated_at = datetime.now(timezone.utc)
 
 
 class DailyBonusManager:
-    """Менеджер щоденних бонусів"""
+    """Менеджер щоденних бонусів з підтримкою БД"""
 
     def __init__(self):
         # Кеш статусів
-        self._status_cache: Dict[int, DailyBonusStatus] = {}
+        self._status_cache: Dict[str, DailyBonusStatus] = {}
         self._cache_ttl = 300  # 5 хвилин
         self._last_cache_clear = get_current_utc_time()
 
@@ -415,12 +412,12 @@ class DailyBonusManager:
             self._status_cache.clear()
             self._last_cache_clear = now
 
-    def get_user_status(self, telegram_id: int, force_refresh: bool = False) -> DailyBonusStatus:
+    def get_user_status(self, user_id: str, force_refresh: bool = False) -> DailyBonusStatus:
         """
         Отримання статусу щоденних бонусів користувача
 
         Args:
-            telegram_id: Telegram ID користувача
+            user_id: User ID користувача
             force_refresh: Примусове оновлення з БД
 
         Returns:
@@ -428,64 +425,124 @@ class DailyBonusManager:
         """
         self._clear_old_cache()
 
-        if not force_refresh and telegram_id in self._status_cache:
-            cached_status = self._status_cache[telegram_id]
+        if not force_refresh and user_id in self._status_cache:
+            cached_status = self._status_cache[user_id]
             # Оновлюємо поточний статус на основі часу
             cached_status._update_current_status()
             return cached_status
 
         # Завантажуємо з БД
-        status = self._load_status_from_db(telegram_id)
-        self._status_cache[telegram_id] = status
+        status = self._load_status_from_db(user_id)
+
+        # Розраховуємо статистику з історії
+        self._update_statistics_from_history(status)
+
+        self._status_cache[user_id] = status
 
         return status
 
-    def _load_status_from_db(self, telegram_id: int) -> DailyBonusStatus:
+    def _load_status_from_db(self, user_id: str) -> DailyBonusStatus:
         """Завантаження статусу з БД"""
         try:
-            # TODO: Реалізувати завантаження з БД
-            # Тут повинен бути код для завантаження з Supabase
+            from supabase_client import supabase
 
-            # Поки що створюємо новий статус
-            return DailyBonusStatus(telegram_id=telegram_id)
+            # Завантажуємо статус користувача
+            response = supabase.table('daily_bonus_status').select('*').eq('user_id', user_id).maybeSingle().execute()
+
+            if response.data:
+                # Конвертуємо з запису БД
+                return DailyBonusStatus.from_db_record(response.data)
+            else:
+                # Новий користувач
+                logger.info(f"Creating new daily bonus status for user {user_id}")
+                return DailyBonusStatus(user_id=user_id)
+
         except Exception as e:
-            logger.error(f"Error loading daily bonus status for {telegram_id}: {e}")
-            return DailyBonusStatus(telegram_id=telegram_id)
+            logger.error(f"Error loading daily bonus status for {user_id}: {e}")
+            return DailyBonusStatus(user_id=user_id)
+
+    def _update_statistics_from_history(self, status: DailyBonusStatus):
+        """Оновлення статистики з історії"""
+        try:
+            from supabase_client import supabase
+
+            # Отримуємо суму винагород з історії
+            response = supabase.table('daily_bonus_entries').select(
+                'reward_winix',
+                'reward_tickets'
+            ).eq('user_id', status.user_id).execute()
+
+            if response.data:
+                total_winix = sum(entry.get('reward_winix', 0) for entry in response.data)
+                total_tickets = sum(entry.get('reward_tickets', 0) for entry in response.data)
+
+                status.total_winix_earned = total_winix
+                status.total_tickets_earned = total_tickets
+
+                logger.info(f"Updated statistics for {status.user_id}: winix={total_winix}, tickets={total_tickets}")
+
+        except Exception as e:
+            logger.error(f"Error updating statistics from history: {e}")
 
     def save_status_to_db(self, status: DailyBonusStatus) -> bool:
         """Збереження статусу в БД"""
         try:
-            # TODO: Реалізувати збереження в БД
-            # Тут повинен бути код для збереження в Supabase
-            logger.info(f"Saving daily bonus status for {status.telegram_id}")
+            from supabase_client import supabase
 
-            # Оновлюємо кеш
-            self._status_cache[status.telegram_id] = status
+            data = status.to_db_dict()
 
+            # Використовуємо upsert для створення або оновлення
+            response = supabase.table('daily_bonus_status').upsert(data, on_conflict='user_id').execute()
+
+            logger.info(f"Saved daily bonus status for {status.user_id}")
             return True
+
         except Exception as e:
-            logger.error(f"Error saving daily bonus status for {status.telegram_id}: {e}")
+            logger.error(f"Error saving daily bonus status: {e}")
             return False
 
     def save_entry_to_db(self, entry: DailyBonusEntry) -> bool:
         """Збереження запису про отримання в БД"""
         try:
-            # TODO: Реалізувати збереження в БД
-            # Тут повинен бути код для збереження в Supabase
-            logger.info(f"Saving daily bonus entry for {entry.telegram_id}, day {entry.day_number}")
+            from supabase_client import supabase
+
+            data = entry.to_dict()
+
+            response = supabase.table('daily_bonus_entries').insert(data).execute()
+
+            logger.info(f"Saved daily bonus entry for {entry.user_id}, day {entry.day_number}")
             return True
+
         except Exception as e:
             logger.error(f"Error saving daily bonus entry: {e}")
             return False
+
+    def get_user_history(self, user_id: str, limit: int = 30) -> List[DailyBonusEntry]:
+        """Отримання історії отримання бонусів"""
+        try:
+            from supabase_client import supabase
+
+            response = supabase.table('daily_bonus_entries').select('*').eq(
+                'user_id', user_id
+            ).order('claim_date', desc=True).limit(limit).execute()
+
+            if response.data:
+                return [DailyBonusEntry.from_db_record(record) for record in response.data]
+            else:
+                return []
+
+        except Exception as e:
+            logger.error(f"Error loading daily bonus history: {e}")
+            return []
 
 
 # Глобальний менеджер
 daily_bonus_manager = DailyBonusManager()
 
 
-def create_new_daily_status(telegram_id: int) -> DailyBonusStatus:
+def create_new_daily_status(user_id: str) -> DailyBonusStatus:
     """Створення нового статусу щоденних бонусів"""
-    return DailyBonusStatus(telegram_id=telegram_id)
+    return DailyBonusStatus(user_id=user_id)
 
 
 def get_daily_bonus_constants() -> Dict[str, Any]:
@@ -508,5 +565,6 @@ __all__ = [
     'DailyBonusManager',
     'daily_bonus_manager',
     'create_new_daily_status',
-    'get_daily_bonus_constants'
+    'get_daily_bonus_constants',
+    'Reward'
 ]

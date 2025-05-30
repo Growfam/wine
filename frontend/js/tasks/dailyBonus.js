@@ -249,69 +249,75 @@ window.DailyBonusManager = (function() {
     /**
      * Оновлення календаря
      */
-    function updateCalendarUI(dailyBonus) {
-        console.log('📅 [DailyBonus] Оновлення календаря...');
-
-        const calendar = document.getElementById('daily-calendar');
-        if (!calendar) {
-            console.warn('⚠️ [DailyBonus] Елемент календаря не знайдено');
-            return;
-        }
-
-        // Очищаємо календар
-        calendar.innerHTML = '';
-
-        // Створюємо дні
-        for (let day = 1; day <= config.maxDays; day++) {
-            const dayCell = createDayCell(day, dailyBonus);
-            calendar.appendChild(dayCell);
-        }
-
-        console.log('✅ [DailyBonus] Календар оновлено');
-    }
-
     /**
-     * Створення комірки дня
-     */
-    function createDayCell(dayNumber, dailyBonus) {
-        const cell = document.createElement('div');
-        cell.className = 'calendar-day';
-        cell.setAttribute('data-day', dayNumber);
+ * Оновлення календаря
+ */
+function updateCalendarUI(dailyBonus) {
+    console.log('📅 [DailyBonus] Оновлення календаря...');
 
-        // Визначаємо стан дня
-        const currentDay = state.currentDay;
-        const isClaimed = dayNumber <= currentDay;
-        const isToday = dayNumber === currentDay + 1 && state.canClaim;
-        const isFuture = dayNumber > currentDay + 1;
-
-        // Встановлюємо класи
-        if (isClaimed) cell.classList.add('claimed');
-        if (isToday) cell.classList.add('today');
-        if (isFuture) cell.classList.add('future');
-
-        // Отримуємо дані про винагороду з календаря
-        const rewardData = state.calendarRewards ?
-            state.calendarRewards.find(r => r.day === dayNumber) : null;
-
-        const hasTickets = rewardData && rewardData.tickets > 0;
-
-        // Спеціальні дні з білетами
-        if (hasTickets) {
-            cell.classList.add('special');
-        }
-
-        // Відображення винагороди
-        const rewardDisplay = rewardData || { winix: '?', tickets: 0 };
-
-        // Вміст комірки
-        cell.innerHTML = `
-            <div class="calendar-day-number">${dayNumber}</div>
-            <div class="calendar-day-reward">${rewardDisplay.winix}</div>
-            ${hasTickets ? `<div class="calendar-ticket-badge">${rewardDisplay.tickets}</div>` : ''}
-        `;
-
-        return cell;
+    const calendar = document.getElementById('daily-calendar');
+    if (!calendar) {
+        console.warn('⚠️ [DailyBonus] Елемент календаря не знайдено');
+        return;
     }
+
+    // Очищаємо календар
+    calendar.innerHTML = '';
+
+    // Отримуємо список claimed days з state
+    const claimedDays = state.claimedDays || [];
+
+    // Створюємо дні
+    for (let day = 1; day <= config.maxDays; day++) {
+        const dayCell = createDayCell(day, dailyBonus, claimedDays);
+        calendar.appendChild(dayCell);
+    }
+
+    console.log('✅ [DailyBonus] Календар оновлено з claimed days:', claimedDays);
+}
+
+/**
+ * Створення комірки дня
+ */
+function createDayCell(dayNumber, dailyBonus, claimedDays) {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day';
+    cell.setAttribute('data-day', dayNumber);
+
+    // Визначаємо стан дня
+    const currentDay = state.currentDay;
+    const isClaimed = claimedDays.includes(dayNumber); // Використовуємо claimed_days з бекенду
+    const isToday = dayNumber === currentDay + 1 && state.canClaim;
+    const isFuture = dayNumber > currentDay + 1 && !isClaimed;
+
+    // Встановлюємо класи
+    if (isClaimed) cell.classList.add('claimed');
+    if (isToday) cell.classList.add('today');
+    if (isFuture) cell.classList.add('future');
+
+    // Отримуємо дані про винагороду з календаря
+    const rewardData = state.calendarRewards ?
+        state.calendarRewards.find(r => r.day === dayNumber) : null;
+
+    const hasTickets = rewardData && rewardData.tickets > 0;
+
+    // Спеціальні дні з білетами
+    if (hasTickets) {
+        cell.classList.add('special');
+    }
+
+    // Відображення винагороди
+    const rewardDisplay = rewardData || { winix: '?', tickets: 0 };
+
+    // Вміст комірки
+    cell.innerHTML = `
+        <div class="calendar-day-number">${dayNumber}</div>
+        <div class="calendar-day-reward">${rewardDisplay.winix}</div>
+        ${hasTickets ? `<div class="calendar-ticket-badge">${rewardDisplay.tickets}</div>` : ''}
+    `;
+
+    return cell;
+}
 
     /**
      * Оновлення статистики
