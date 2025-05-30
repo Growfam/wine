@@ -10,6 +10,7 @@ import hmac
 import hashlib
 import urllib.parse
 import json
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from flask import request, jsonify
@@ -43,50 +44,79 @@ class TelegramAuthController:
         """Перевірка автентичності даних від Telegram WebApp"""
         try:
             logger.info(f"verify_telegram_webapp_data: Початок перевірки")
-            logger.info(f"init_data тип: {type(init_data)}")
-            logger.info(f"init_data довжина: {len(init_data) if init_data else 0}")
 
+            # Перевіряємо формат initData
+            if not init_data or not isinstance(init_data, str):
+                logger.error("initData порожній або невалідний")
+                return False
+
+            logger.info(f"init_data довжина: {len(init_data)}")
+
+            # Парсимо дані
             parsed_data = urllib.parse.parse_qs(init_data)
-
             logger.info(f"Parsed data keys: {list(parsed_data.keys())}")
 
             # Отримуємо hash
             received_hash = parsed_data.get('hash', [None])[0]
             if not received_hash:
-                logger.error(f"Hash відсутній в parsed_data")
+                logger.error("Hash відсутній в parsed_data")
                 return False
 
-            logger.info(f"Received hash: {received_hash[:10]}...")
-
-            # Створюємо рядок для перевірки
-            auth_items = []
-            for key, value in parsed_data.items():
+            # Створюємо data-check-string
+            data_check_items = []
+            for key, values in sorted(parsed_data.items()):
                 if key != 'hash':
-                    auth_items.append(f"{key}={value[0]}")
+                    # Беремо перше значення з списку
+                    value = values[0] if values else ''
+                    data_check_items.append(f"{key}={value}")
 
-            auth_string = '\n'.join(sorted(auth_items))
+            data_check_string = '\n'.join(data_check_items)
+
+            # Логуємо для діагностики (без чутливих даних)
+            logger.debug(f"Data check string keys: {[item.split('=')[0] for item in data_check_items]}")
 
             # Створюємо секретний ключ
             secret_key = hmac.new(
-                "WebAppData".encode(),
-                bot_token.encode(),
+                "WebAppData".encode('utf-8'),
+                bot_token.encode('utf-8'),
                 hashlib.sha256
             ).digest()
 
             # Обчислюємо hash
             calculated_hash = hmac.new(
                 secret_key,
-                auth_string.encode(),
+                data_check_string.encode('utf-8'),
                 hashlib.sha256
             ).hexdigest()
 
+            # Порівнюємо хеші
             is_valid = hmac.compare_digest(received_hash, calculated_hash)
-            logger.info(f"Підпис валідний: {'Так' if is_valid else 'Ні'}")
+
+            if is_valid:
+                logger.info("✅ Підпис валідний")
+            else:
+                logger.warning("⚠️ Підпис НЕ валідний")
+                # Додаткова діагностика
+                logger.debug(f"Received hash (перші 10): {received_hash[:10]}...")
+                logger.debug(f"Expected hash (перші 10): {calculated_hash[:10]}...")
+
+                # Перевіряємо час auth_date
+                auth_date = parsed_data.get('auth_date', [None])[0]
+                if auth_date:
+                    try:
+                        auth_timestamp = int(auth_date)
+                        current_timestamp = int(time.time())
+                        time_diff = current_timestamp - auth_timestamp
+
+                        if time_diff > 86400:  # 24 години
+                            logger.warning(f"⚠️ auth_date застарілий: {time_diff} секунд тому")
+                    except:
+                        pass
 
             return is_valid
 
         except Exception as e:
-            logger.error(f"Помилка перевірки Telegram data: {str(e)}")
+            logger.error(f"Помилка перевірки Telegram data: {str(e)}", exc_info=True)
             return False
 
     @staticmethod

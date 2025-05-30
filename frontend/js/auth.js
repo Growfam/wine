@@ -310,7 +310,7 @@
      * @param {Object} userData - Дані користувача з Telegram
      * @returns {Promise<Object>} Об'єкт з даними користувача
      */
-    async function authorizeUser(userData) {
+async function authorizeUser(userData) {
     if (_authRequestInProgress) {
         console.log("🔐 AUTH: Авторизація вже виконується");
         return Promise.reject(new Error("Authorization already in progress"));
@@ -326,97 +326,81 @@
             throw new Error("No Telegram ID");
         }
 
-        // Оновлюємо userData з актуальним ID
-        userData = {
-            ...userData,
-            id: telegramId,
-            telegram_id: telegramId
-        };
-
-        // ВАЖЛИВО: Додаємо initData від Telegram
-        if (window.Telegram && window.Telegram.WebApp) {
-            // Отримуємо всі дані від Telegram
-            const tgWebApp = window.Telegram.WebApp;
-
-            // Додаємо initData (це головне для перевірки підпису!)
-            if (tgWebApp.initData) {
-                userData.initData = tgWebApp.initData;
-                console.log("✅ AUTH: initData додано від Telegram");
-            }
-
-            // Додаємо додаткові дані користувача якщо є
-            if (tgWebApp.initDataUnsafe && tgWebApp.initDataUnsafe.user) {
-                const tgUser = tgWebApp.initDataUnsafe.user;
-                userData.username = userData.username || tgUser.username;
-                userData.first_name = userData.first_name || tgUser.first_name;
-                userData.last_name = userData.last_name || tgUser.last_name;
-                userData.language_code = userData.language_code || tgUser.language_code;
-            }
+        // КРИТИЧНО: Переконуємось що Telegram WebApp доступний
+        if (!window.Telegram || !window.Telegram.WebApp) {
+            throw new Error("Telegram WebApp не доступний");
         }
 
-        console.log('🔐 AUTH: Дані для авторизації готові:', {
-            hasInitData: !!userData.initData,
-            telegramId: userData.telegram_id,
-            username: userData.username
+        const tgWebApp = window.Telegram.WebApp;
+
+        // ВАЖЛИВО: Перевіряємо наявність initData
+        if (!tgWebApp.initData) {
+            console.error("❌ AUTH: initData відсутній!");
+            console.log("Можливі причини:");
+            console.log("1. Додаток відкритий НЕ через Telegram");
+            console.log("2. Використовується старий Telegram клієнт");
+            console.log("3. Проблема з HTTPS");
+            throw new Error("initData відсутній - додаток має бути відкритий через Telegram");
+        }
+
+        // Формуємо дані для авторизації
+        const authData = {
+            // Основні дані
+            id: telegramId,
+            telegram_id: telegramId,
+
+            // КРИТИЧНО: Додаємо initData без змін
+            initData: tgWebApp.initData,
+
+            // Додаткові дані користувача
+            username: userData.username || tgWebApp.initDataUnsafe?.user?.username || '',
+            first_name: userData.first_name || tgWebApp.initDataUnsafe?.user?.first_name || '',
+            last_name: userData.last_name || tgWebApp.initDataUnsafe?.user?.last_name || '',
+            language_code: userData.language_code || tgWebApp.initDataUnsafe?.user?.language_code || 'uk'
+        };
+
+        // Діагностика
+        console.log('🔐 AUTH: Дані для авторизації:', {
+            telegram_id: authData.telegram_id,
+            hasInitData: !!authData.initData,
+            initDataLength: authData.initData.length,
+            username: authData.username
         });
 
         // Показуємо індикатор завантаження
         const spinner = document.getElementById('loading-spinner');
         if (spinner) spinner.classList.add('show');
 
-        // Перевіряємо наявність API модуля
-        if (!hasApiModule()) {
-            throw new Error("API module not available");
-        }
-
-        console.log('🔐 AUTH: Фінальні дані перед відправкою:', {
-    userData: userData,
-    hasInitData: !!userData.initData,
-    initDataPreview: userData.initData ? userData.initData.substring(0, 100) + '...' : 'ВІДСУТНІЙ',
-    hasTelegramWebApp: !!window.Telegram?.WebApp,
-    telegramInitData: window.Telegram?.WebApp?.initData ? 'Є' : 'Немає'
-});
-
-// КРИТИЧНА ПЕРЕВІРКА: без initData не продовжуємо
-if (!window.Telegram || !window.Telegram.WebApp || !window.Telegram.WebApp.initData) {
-    console.error('❌ AUTH: Додаток НЕ відкритий через Telegram або initData відсутній!');
-    throw new Error("Додаток доступний тільки через Telegram");
-}
-
-// ОБОВ'ЯЗКОВО: Додаємо initData якщо його ще немає
-if (!userData.initData && window.Telegram.WebApp.initData) {
-    userData.initData = window.Telegram.WebApp.initData;
-}
-// ДІАГНОСТИКА ПЕРЕД ВІДПРАВКОЮ
-console.log('🔐 AUTH: === ДІАГНОСТИКА ПЕРЕД ЗАПИТОМ ===');
-console.log('userData:', userData);
-console.log('Має initData:', !!userData.initData);
-
-// Спроба додати initData якщо його немає
-if (!userData.initData && window.Telegram?.WebApp?.initData) {
-    userData.initData = window.Telegram.WebApp.initData;
-    console.log('✅ AUTH: initData додано автоматично! Довжина:', userData.initData.length);
-} else if (!userData.initData) {
-    console.error('❌ AUTH: initData відсутній!');
-    console.log('  Telegram WebApp:', window.Telegram?.WebApp);
-}
-
         // Виконуємо запит авторизації
-        const response = await window.WinixAPI.apiRequest('/api/auth/telegram', 'POST', userData, {
+        const response = await window.WinixAPI.apiRequest('/api/auth/telegram', 'POST', authData, {
             timeout: 15000,
-            suppressErrors: false
+            suppressErrors: false,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': telegramId
+            }
         });
 
         // Приховуємо індикатор завантаження
         if (spinner) spinner.classList.remove('show');
 
-        if (response && response.status === 'success' && response.user) {
+        if (response && response.status === 'success') {
+            // Зберігаємо токен
+            if (response.token) {
+                localStorage.setItem('auth_token', response.token);
+
+                // Розраховуємо час закінчення токену
+                const expiresIn = response.expires_in || 86400; // 24 години за замовчуванням
+                const expiryTime = Date.now() + (expiresIn * 1000);
+                localStorage.setItem('auth_token_expiry', expiryTime.toString());
+            }
+
             // Зберігаємо дані користувача
             window.WinixAuth.currentUser = response.user;
             console.log("✅ AUTH: Користувача успішно авторизовано", response.user);
 
             // Показуємо вітальне повідомлення для нових користувачів
-            if (response.user.is_new_user) {
+            if (response.user && response.user.is_new_user) {
                 showWelcomeMessage();
             }
 
@@ -436,7 +420,12 @@ if (!userData.initData && window.Telegram?.WebApp?.initData) {
         const spinner = document.getElementById('loading-spinner');
         if (spinner) spinner.classList.remove('show');
 
-        showError(getLocalizedText('authError'));
+        // Показуємо відповідне повідомлення
+        if (error.message.includes('initData')) {
+            showError('Додаток має бути відкритий через Telegram');
+        } else {
+            showError(getLocalizedText('authError'));
+        }
 
         // Відправляємо подію про помилку авторизації
         document.dispatchEvent(new CustomEvent(EVENT_AUTH_ERROR, {
