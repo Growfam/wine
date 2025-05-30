@@ -1,6 +1,6 @@
 """
 Модель щоденних бонусів для системи завдань WINIX
-Управління серіями днів та винагородами
+Управління серіями днів та винагородами з автоматичним скиданням серії
 """
 
 import logging
@@ -87,7 +87,7 @@ class DailyBonusEntry:
     # Метадані (з значеннями за замовчуванням)
     streak_at_claim: int = 0  # Серія на момент отримання
     bonus_multiplier: float = 1.0  # Множник бонусу
-    is_special_day: bool = False  # Спеціальний день (7, 14, 21, 28)
+    is_special_day: bool = False  # Спеціальний день (більше не використовується)
 
     # Timestamp поля
     created_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -106,9 +106,6 @@ class DailyBonusEntry:
         # Валідація day_number
         if self.day_number < 1 or self.day_number > 30:
             raise ValueError(f"day_number має бути між 1 і 30: {self.day_number}")
-
-        # Перевірка чи це спеціальний день
-        self.is_special_day = (self.day_number % 7 == 0)
 
         # Валідація дати
         if isinstance(self.claim_date, str):
@@ -217,7 +214,7 @@ class DailyBonusStatus:
         self._update_current_status()
 
     def _update_current_status(self):
-        """Оновлення поточного статусу"""
+        """Оновлення поточного статусу з новою логікою скидання серії"""
         now = get_current_utc_time()
 
         # Визначаємо чи можна отримати бонус сьогодні
@@ -242,10 +239,12 @@ class DailyBonusStatus:
                     self.can_claim_today = True
                     self.current_day_number = self.current_streak + 1
                 else:
-                    # Пропустили дні - серія перервана
+                    # Пропустили дні - СКИДАЄМО ВСЮ СЕРІЮ НА 1 ДЕНЬ
+                    logger.warning(f"User {self.telegram_id} пропустив {days_since_last} днів. Скидання серії на день 1")
                     self.can_claim_today = True
                     self.current_day_number = 1
-                    # Серія буде скинута при отриманні
+                    self.current_streak = 0  # Скидаємо поточну серію
+                    self.streak_start_date = now  # Нова серія починається сьогодні
 
                 # Розрахунок наступної доступної дати
                 if self.can_claim_today:
@@ -292,7 +291,8 @@ class DailyBonusStatus:
                 # Продовжуємо серію
                 self.current_streak += 1
             else:
-                # Серія перервана - починаємо заново
+                # Серія вже повинна бути скинута в _update_current_status
+                # Починаємо з дня 1
                 self.current_streak = 1
                 self.streak_start_date = now
         else:
@@ -317,7 +317,7 @@ class DailyBonusStatus:
             reward=reward,
             streak_at_claim=self.current_streak,
             bonus_multiplier=1.0,
-            is_special_day=(self.current_day_number % 7 == 0)
+            is_special_day=False
         )
 
         # Оновлюємо поточний статус
@@ -359,6 +359,7 @@ class DailyBonusStatus:
         logger.info(f"Resetting streak for user {self.telegram_id}: {reason}")
 
         self.current_streak = 0
+        self.current_day_number = 1  # Повертаємось на день 1
         self.streak_start_date = None
         self._update_current_status()
         self.update_timestamp()
@@ -428,7 +429,10 @@ class DailyBonusManager:
         self._clear_old_cache()
 
         if not force_refresh and telegram_id in self._status_cache:
-            return self._status_cache[telegram_id]
+            cached_status = self._status_cache[telegram_id]
+            # Оновлюємо поточний статус на основі часу
+            cached_status._update_current_status()
+            return cached_status
 
         # Завантажуємо з БД
         status = self._load_status_from_db(telegram_id)
@@ -440,6 +444,8 @@ class DailyBonusManager:
         """Завантаження статусу з БД"""
         try:
             # TODO: Реалізувати завантаження з БД
+            # Тут повинен бути код для завантаження з Supabase
+
             # Поки що створюємо новий статус
             return DailyBonusStatus(telegram_id=telegram_id)
         except Exception as e:
@@ -450,6 +456,7 @@ class DailyBonusManager:
         """Збереження статусу в БД"""
         try:
             # TODO: Реалізувати збереження в БД
+            # Тут повинен бути код для збереження в Supabase
             logger.info(f"Saving daily bonus status for {status.telegram_id}")
 
             # Оновлюємо кеш
@@ -464,6 +471,7 @@ class DailyBonusManager:
         """Збереження запису про отримання в БД"""
         try:
             # TODO: Реалізувати збереження в БД
+            # Тут повинен бути код для збереження в Supabase
             logger.info(f"Saving daily bonus entry for {entry.telegram_id}, day {entry.day_number}")
             return True
         except Exception as e:
@@ -485,10 +493,11 @@ def get_daily_bonus_constants() -> Dict[str, Any]:
     return {
         "MAX_DAYS": 30,
         "MIN_HOURS_BETWEEN_CLAIMS": 20,
-        "SPECIAL_DAYS": [7, 14, 21, 28],
-        "BASE_WINIX_REWARD": 20,
-        "TICKETS_DAYS": [7, 14, 21, 28],  # Дні коли дають tickets
-        "PROGRESSIVE_MULTIPLIER": True
+        "SPECIAL_DAYS": [],  # Більше немає спеціальних днів
+        "BASE_WINIX_REWARD": 100,  # Початкова винагорода
+        "TICKETS_DAYS": [],  # Динамічно визначається для кожного користувача
+        "PROGRESSIVE_MULTIPLIER": True,
+        "STREAK_RESET_POLICY": "RESET_TO_DAY_1"  # Нова політика скидання
     }
 
 

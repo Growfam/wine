@@ -11,7 +11,8 @@ from ..controllers.daily_controller import (
     get_daily_history_route,
     calculate_reward_route,
     get_reward_preview_route,
-    reset_streak_route
+    reset_streak_route,
+    get_daily_statistics_route
 )
 from ..utils.decorators import (
     secure_endpoint,
@@ -52,9 +53,16 @@ def get_daily_status(telegram_id):
             "current_day_number": number,
             "today_reward": {
                 "winix": number,
-                "tickets": number,
-                "flex": number
+                "tickets": number
             },
+            "calendar_rewards": [
+                {
+                    "day": number,
+                    "winix": number,
+                    "tickets": number,
+                    "hasTickets": boolean
+                }
+            ],
             "streak_info": object,
             "statistics": object,
             "next_claim_in_hours": number,
@@ -103,10 +111,9 @@ def claim_daily_bonus(telegram_id):
             "day_number": number,
             "reward": {
                 "winix": number,
-                "tickets": number,
-                "flex": number
+                "tickets": number
             },
-            "operations": ["WINIX +50", "Tickets +2"],
+            "operations": ["WINIX +100", "Tickets +2"],
             "new_streak": number,
             "is_special_day": boolean,
             "streak_bonus_applied": boolean,
@@ -210,8 +217,7 @@ def calculate_daily_reward(telegram_id):
             "day_number": number,
             "reward": {
                 "winix": number,
-                "tickets": number,
-                "flex": number
+                "tickets": number
             },
             "is_special_day": boolean,
             "multiplier": number,
@@ -263,7 +269,10 @@ def get_reward_preview(telegram_id):
             "preview": [
                 {
                     "day": number,
-                    "reward": object,
+                    "reward": {
+                        "winix": number,
+                        "tickets": number
+                    },
                     "is_special": boolean,
                     "is_final": boolean,
                     "multiplier": number,
@@ -353,6 +362,48 @@ def reset_daily_streak(telegram_id):
         }), 400
 
 
+@daily_bp.route('/statistics/<telegram_id>', methods=['GET'])
+@secure_endpoint(max_requests=20, window_seconds=60)
+def get_daily_statistics(telegram_id):
+    """
+    Отримання детальної статистики щоденних бонусів
+
+    GET /api/daily/statistics/<telegram_id>
+
+    Headers:
+        Authorization: Bearer <token>
+
+    Response:
+    {
+        "status": "success",
+        "data": {
+            "total_days_claimed": number,
+            "total_winix_earned": number,
+            "total_tickets_earned": number,
+            "current_streak": number,
+            "longest_streak": number,
+            "average_daily_winix": number,
+            "completion_rate": string,
+            "transaction_statistics": object,
+            "service_info": object
+        }
+    }
+    """
+    logger.info(f"=== GET /api/daily/statistics/{telegram_id} ===")
+
+    try:
+        result = get_daily_statistics_route(telegram_id)
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"Помилка в get_daily_statistics: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "code": "statistics_error"
+        }), 400
+
+
 # Утилітарні маршрути
 @daily_bp.route('/info', methods=['GET'])
 @public_endpoint(max_requests=30, window_seconds=60)
@@ -369,8 +420,9 @@ def get_daily_bonus_info():
             "system_info": {
                 "max_days": 30,
                 "min_hours_between_claims": 20,
-                "special_days": [7, 14, 21, 28],
-                "base_winix_reward": 20
+                "special_days": [],
+                "base_winix_reward": 100,
+                "streak_reset_policy": "RESET_TO_DAY_1"
             },
             "calculator_stats": object,
             "available_endpoints": array
@@ -398,6 +450,7 @@ def get_daily_bonus_info():
                     "POST /api/daily/calculate-reward/<telegram_id>",
                     "GET /api/daily/preview/<telegram_id>",
                     "POST /api/daily/reset-streak/<telegram_id>",
+                    "GET /api/daily/statistics/<telegram_id>",
                     "GET /api/daily/info"
                 ]
             }

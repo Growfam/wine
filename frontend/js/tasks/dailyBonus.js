@@ -1,6 +1,6 @@
 /**
  * Модуль Daily Bonus для системи завдань WINIX
- * Управління щоденними винагородами (логіка на сервері)
+ * Управління щоденними винагородами з новою системою
  */
 
 window.DailyBonusManager = (function() {
@@ -18,7 +18,9 @@ window.DailyBonusManager = (function() {
         canClaim: false,
         nextClaimTime: null,
         todayReward: null,
-        updateInterval: null
+        calendarRewards: null,
+        updateInterval: null,
+        claimedDays: []
     };
 
     // Конфігурація
@@ -70,39 +72,51 @@ window.DailyBonusManager = (function() {
 
             console.log('✅ [DailyBonus] Отримано стан з бекенду:', response);
 
-            // Оновлюємо локальний стан
-            state.currentDay = response.currentDay || 0;
-            state.currentStreak = response.currentStreak || 0;
-            state.longestStreak = response.longestStreak || 0;
-            state.canClaim = response.canClaim || false;
-            state.nextClaimTime = response.nextClaimTime || null;
-            state.todayReward = response.todayReward || null;
+            if (response.status === 'success' && response.data) {
+                const data = response.data;
 
-            // Оновлюємо стан в сторі
-            const store = window.TasksStore;
-            if (store) {
-                store.actions.setDailyStreak(state.currentStreak);
+                // Оновлюємо локальний стан
+                state.currentDay = data.current_day_number || 0;
+                state.currentStreak = data.current_streak || 0;
+                state.longestStreak = data.longest_streak || 0;
+                state.canClaim = data.can_claim_today || false;
+                state.nextClaimTime = data.next_available_date || null;
+                state.todayReward = data.today_reward || null;
+                state.calendarRewards = data.calendar_rewards || [];
+                state.claimedDays = data.claimed_days || [];
 
-                // Оновлюємо дані з відповіді сервера
-                if (response.claimedDays) {
-                    response.claimedDays.forEach(day => {
-                        if (!store.getState().dailyBonus.claimedDays.includes(day)) {
-                            store.actions.addClaimedDay(day);
-                        }
-                    });
+                // Оновлюємо стан в сторі
+                const store = window.TasksStore;
+                if (store) {
+                    store.actions.setDailyStreak(state.currentStreak);
+
+                    // Оновлюємо claimed days
+                    if (state.claimedDays.length > 0) {
+                        state.claimedDays.forEach(day => {
+                            if (!store.getState().dailyBonus.claimedDays.includes(day)) {
+                                store.actions.addClaimedDay(day);
+                            }
+                        });
+                    }
+
+                    // Оновлюємо статистику
+                    if (data.statistics) {
+                        store.actions.updateDailyTotalClaimed({
+                            winix: data.statistics.total_winix_earned || 0,
+                            tickets: data.statistics.total_tickets_earned || 0
+                        });
+                    }
                 }
 
-                if (response.totalClaimed) {
-                    store.actions.updateDailyTotalClaimed(response.totalClaimed);
-                }
+                console.log('📊 [DailyBonus] Поточний стан:', {
+                    Daily: state.currentDay,
+                    Seria: state.currentStreak,
+                    Claim: state.canClaim,
+                    NextTime: state.nextClaimTime
+                });
+            } else {
+                throw new Error('Invalid response format');
             }
-
-            console.log('📊 [DailyBonus] Поточний стан:', {
-                Daily: state.currentDay,
-                Seria: state.currentStreak,
-                Claim: state.canClaim,
-                NextTime: state.nextClaimTime
-            });
 
         } catch (error) {
             console.error('❌ [DailyBonus] Помилка завантаження стану:', error);
@@ -117,7 +131,7 @@ window.DailyBonusManager = (function() {
         console.log('🔄 [DailyBonus] === ОНОВЛЕННЯ UI ===');
 
         const store = window.TasksStore;
-        const dailyBonus = store.getState().dailyBonus;
+        const dailyBonus = store ? store.getState().dailyBonus : {};
 
         // Оновлюємо прогрес бар місяця
         updateMonthProgressUI(dailyBonus);
@@ -180,8 +194,8 @@ window.DailyBonusManager = (function() {
         recentDaysGrid.innerHTML = '';
 
         // Визначаємо останні 5 днів
-        const currentDay = state.currentDay + 1; // Наступний день для отримання
-        const startDay = Math.max(1, currentDay - 4);
+        const currentDay = state.currentDay;
+        const startDay = Math.max(1, currentDay - 3);
         const endDay = Math.min(startDay + 4, config.maxDays);
 
         for (let day = startDay; day <= endDay; day++) {
@@ -199,15 +213,18 @@ window.DailyBonusManager = (function() {
         const card = document.createElement('div');
         card.className = 'recent-day-card';
 
-        const isToday = dayNumber === currentDay && state.canClaim;
-        const isClaimed = dayNumber < currentDay;
-        const isFuture = dayNumber > currentDay;
+        const isToday = dayNumber === currentDay + 1 && state.canClaim;
+        const isClaimed = dayNumber <= currentDay;
+        const isFuture = dayNumber > currentDay + 1;
 
         if (isToday) card.classList.add('today');
         if (isClaimed) card.classList.add('claimed');
 
-        // Отримуємо дані про винагороду з сервера або показуємо приблизні
-        const rewardDisplay = getRewardDisplay(dayNumber);
+        // Отримуємо дані про винагороду з календаря
+        const rewardData = state.calendarRewards ?
+            state.calendarRewards.find(r => r.day === dayNumber) : null;
+
+        const rewardDisplay = rewardData || { winix: '?', tickets: 0 };
 
         card.innerHTML = `
             <div class="recent-day-number">${dayNumber}</div>
@@ -217,7 +234,7 @@ window.DailyBonusManager = (function() {
                     <span class="reward-icon-small winix-icon-small"></span>
                     ${rewardDisplay.winix}
                 </div>
-                ${rewardDisplay.tickets ? `
+                ${rewardDisplay.tickets > 0 ? `
                     <div class="recent-day-reward tickets">
                         <span class="reward-icon-small ticket-icon-small"></span>
                         ${rewardDisplay.tickets}
@@ -227,35 +244,6 @@ window.DailyBonusManager = (function() {
         `;
 
         return card;
-    }
-
-    /**
-     * Отримати відображення винагороди
-     */
-    function getRewardDisplay(dayNumber) {
-        // Якщо це поточний день і ми маємо дані з сервера
-        if (dayNumber === state.currentDay + 1 && state.todayReward) {
-            return {
-                winix: state.todayReward.winix,
-                tickets: state.todayReward.tickets || null
-            };
-        }
-
-        // Інакше показуємо приблизні значення на основі UI конфігурації
-        const uiRewards = window.TasksConstants.DAILY_BONUS.UI_REWARDS;
-
-        // Знаходимо найближчу віху
-        let display = '20+';
-        Object.entries(uiRewards).forEach(([day, config]) => {
-            if (dayNumber >= parseInt(day)) {
-                display = config.display;
-            }
-        });
-
-        return {
-            winix: display,
-            tickets: '?'
-        };
     }
 
     /**
@@ -286,36 +274,40 @@ window.DailyBonusManager = (function() {
      * Створення комірки дня
      */
     function createDayCell(dayNumber, dailyBonus) {
-        console.log(`📅 [DailyBonus] Створення дня ${dayNumber}`);
-
         const cell = document.createElement('div');
         cell.className = 'calendar-day';
         cell.setAttribute('data-day', dayNumber);
 
         // Визначаємо стан дня
-        const currentDay = state.currentDay + 1;
-        const isClaimed = dayNumber < currentDay;
-        const isToday = dayNumber === currentDay && state.canClaim;
-        const isFuture = dayNumber > currentDay;
+        const currentDay = state.currentDay;
+        const isClaimed = dayNumber <= currentDay;
+        const isToday = dayNumber === currentDay + 1 && state.canClaim;
+        const isFuture = dayNumber > currentDay + 1;
 
         // Встановлюємо класи
         if (isClaimed) cell.classList.add('claimed');
         if (isToday) cell.classList.add('today');
         if (isFuture) cell.classList.add('future');
 
-        // Спеціальні дні (кожен 7-й день)
-        if (dayNumber % 7 === 0) {
+        // Отримуємо дані про винагороду з календаря
+        const rewardData = state.calendarRewards ?
+            state.calendarRewards.find(r => r.day === dayNumber) : null;
+
+        const hasTickets = rewardData && rewardData.tickets > 0;
+
+        // Спеціальні дні з білетами
+        if (hasTickets) {
             cell.classList.add('special');
         }
 
         // Відображення винагороди
-        const rewardDisplay = getRewardDisplay(dayNumber);
+        const rewardDisplay = rewardData || { winix: '?', tickets: 0 };
 
         // Вміст комірки
         cell.innerHTML = `
             <div class="calendar-day-number">${dayNumber}</div>
             <div class="calendar-day-reward">${rewardDisplay.winix}</div>
-            ${rewardDisplay.tickets ? '<div class="calendar-ticket-badge"></div>' : ''}
+            ${hasTickets ? `<div class="calendar-ticket-badge">${rewardDisplay.tickets}</div>` : ''}
         `;
 
         return cell;
@@ -327,7 +319,12 @@ window.DailyBonusManager = (function() {
     function updateStatsUI(dailyBonus) {
         console.log('📊 [DailyBonus] Оновлення статистики...');
 
-        // Елементи статистики оновлюються через updateMonthProgressUI
+        // Статистика оновлюється через updateMonthProgressUI
+
+        // Додатково можемо показати загальну статистику
+        const totalClaimed = dailyBonus.totalClaimed || { winix: 0, tickets: 0 };
+        console.log('📊 [DailyBonus] Загальна статистика:', totalClaimed);
+
         console.log('✅ [DailyBonus] Статистика оновлена');
     }
 
@@ -346,10 +343,11 @@ window.DailyBonusManager = (function() {
 
             // Якщо маємо дані про сьогоднішню винагороду
             if (state.todayReward) {
-                button.innerHTML = `
-                    <span class="button-text">Отримати ${state.todayReward.winix} WINIX</span>
-                    ${state.todayReward.tickets > 0 ? `<span class="bonus-tickets">+${state.todayReward.tickets} tickets</span>` : ''}
-                `;
+                let btnText = `Отримати ${state.todayReward.winix} WINIX`;
+                if (state.todayReward.tickets > 0) {
+                    btnText += ` + ${state.todayReward.tickets} tickets`;
+                }
+                button.innerHTML = `<span class="button-text">${btnText}</span>`;
             } else {
                 button.innerHTML = '<span class="button-text">Отримати щоденний бонус</span>';
             }
@@ -405,7 +403,9 @@ window.DailyBonusManager = (function() {
         }
 
         // Встановлюємо стан отримання
-        store.actions.setDailyClaiming(true);
+        if (store) {
+            store.actions.setDailyClaiming(true);
+        }
 
         try {
             // Відправляємо запит на бекенд
@@ -413,32 +413,40 @@ window.DailyBonusManager = (function() {
 
             console.log('✅ [DailyBonus] Відповідь від бекенду:', response);
 
-            if (response.success) {
+            if (response.status === 'success' && response.data) {
+                const data = response.data;
+
                 // Оновлюємо локальний стан
                 state.canClaim = false;
-                state.currentDay = response.currentDay;
-                state.currentStreak = response.currentStreak;
-                state.nextClaimTime = response.nextClaimTime;
+                state.currentDay = data.day_number;
+                state.currentStreak = data.new_streak;
+                state.nextClaimTime = data.next_available;
 
                 // Оновлюємо стан в сторі
-                store.actions.claimDailyBonus(response.reward);
+                if (store) {
+                    store.actions.claimDailyBonus(data.reward);
 
-                if (response.reward.tickets > 0) {
-                    store.actions.addTicketDay(new Date().toISOString());
+                    if (data.reward.tickets > 0) {
+                        store.actions.addTicketDay(new Date().toISOString());
+                    }
+
+                    // Оновлюємо баланси
+                    const currentBalance = store.selectors.getUserBalance();
+                    store.actions.updateBalance({
+                        winix: currentBalance.winix + data.reward.winix,
+                        tickets: currentBalance.tickets + (data.reward.tickets || 0)
+                    });
                 }
 
-                // Оновлюємо баланси
-                const currentBalance = store.selectors.getUserBalance();
-                store.actions.updateBalance({
-                    winix: currentBalance.winix + response.reward.winix,
-                    tickets: currentBalance.tickets + (response.reward.tickets || 0)
-                });
-
                 // Показуємо анімацію
-                showClaimAnimation(response.reward);
+                showClaimAnimation(data.reward);
 
                 // Оновлюємо UI
-                updateDailyBonusUI();
+                setTimeout(() => {
+                    loadDailyBonusState().then(() => {
+                        updateDailyBonusUI();
+                    });
+                }, 1500);
 
                 console.log('✅ [DailyBonus] Бонус успішно отримано!');
             } else {
@@ -450,7 +458,9 @@ window.DailyBonusManager = (function() {
             window.TasksUtils.showToast(error.message || 'Помилка отримання бонусу', 'error');
 
         } finally {
-            store.actions.setDailyClaiming(false);
+            if (store) {
+                store.actions.setDailyClaiming(false);
+            }
         }
     }
 
@@ -466,7 +476,7 @@ window.DailyBonusManager = (function() {
 
         let content = `
             <div class="reward-amount">
-                <span class="winix-icon-small"></span>
+                <span class="winix-icon"></span>
                 +${reward.winix} WINIX
             </div>
         `;
@@ -474,7 +484,7 @@ window.DailyBonusManager = (function() {
         if (reward.tickets > 0) {
             content += `
                 <div class="reward-tickets">
-                    <span class="ticket-icon-small"></span>
+                    <span class="ticket-icon"></span>
                     +${reward.tickets} TICKETS
                 </div>
             `;
@@ -588,13 +598,28 @@ window.DailyBonusManager = (function() {
         console.log(`📋 [DailyBonus] Показуємо деталі дня ${day}`);
 
         try {
-            // Запитуємо розрахунок винагороди з сервера
-            const response = await window.TasksAPI.daily.calculateReward(state.userId, day);
+            // Знаходимо дані дня в календарі
+            const dayData = state.calendarRewards ?
+                state.calendarRewards.find(r => r.day === day) : null;
 
-            const message = `День ${day}: ${response.winix} WINIX` +
-                           (response.tickets > 0 ? ` + ${response.tickets} tickets` : '');
+            if (dayData) {
+                let message = `День ${day}: ${dayData.winix} WINIX`;
+                if (dayData.tickets > 0) {
+                    message += ` + ${dayData.tickets} tickets`;
+                }
+                window.TasksUtils.showToast(message, 'info');
+            } else {
+                // Запитуємо розрахунок винагороди з сервера
+                const response = await window.TasksAPI.daily.calculateReward(state.userId, day);
 
-            window.TasksUtils.showToast(message, 'info');
+                if (response.status === 'success' && response.data) {
+                    const reward = response.data.reward;
+                    const message = `День ${day}: ${reward.winix} WINIX` +
+                                   (reward.tickets > 0 ? ` + ${reward.tickets} tickets` : '');
+
+                    window.TasksUtils.showToast(message, 'info');
+                }
+            }
         } catch (error) {
             console.error('❌ [DailyBonus] Помилка отримання деталей дня:', error);
         }
@@ -605,14 +630,14 @@ window.DailyBonusManager = (function() {
      */
     function getStatistics() {
         const store = window.TasksStore;
-        const dailyBonus = store.getState().dailyBonus;
+        const dailyBonus = store ? store.getState().dailyBonus : {};
 
         return {
             currentStreak: state.currentStreak,
             longestStreak: state.longestStreak,
             currentDay: state.currentDay,
-            totalWinix: dailyBonus.totalClaimed.winix,
-            totalTickets: dailyBonus.totalClaimed.tickets,
+            totalWinix: dailyBonus.totalClaimed?.winix || 0,
+            totalTickets: dailyBonus.totalClaimed?.tickets || 0,
             completionRate: (state.currentDay / config.maxDays * 100).toFixed(1) + '%'
         };
     }
