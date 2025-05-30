@@ -1,11 +1,13 @@
 """
 Сервіс розрахунку винагород для системи завдань WINIX
-Логіка обчислення щоденних бонусів, множників та прогресивних винагород
+Логіка обчислення щоденних бонусів з новою формулою та рандомізацією білетів
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 from datetime import datetime, timezone
+import hashlib
+import random
 
 from ..models.transaction import TransactionAmount as Reward
 from ..models.daily_bonus import get_daily_bonus_constants
@@ -14,117 +16,61 @@ logger = logging.getLogger(__name__)
 
 
 class RewardCalculator:
-    """Калькулятор винагород"""
+    """Калькулятор винагород з новою системою"""
 
     def __init__(self):
         self.constants = get_daily_bonus_constants()
 
         # Базові налаштування
-        self.base_winix = self.constants["BASE_WINIX_REWARD"]
-        self.special_days = self.constants["SPECIAL_DAYS"]
-        self.tickets_days = self.constants["TICKETS_DAYS"]
-        self.max_days = self.constants["MAX_DAYS"]
+        self.max_days = 30
+        self.base_winix = 100  # Початкова винагорода
+        self.winix_increment = 60  # Приріст на день (100 + (день-1) * 60)
 
-        # Прогресивні множники
-        self.progressive_multipliers = {
-            1: 1.0,  # День 1: 20 WINIX
-            2: 1.1,  # День 2: 22 WINIX
-            3: 1.2,  # День 3: 24 WINIX
-            4: 1.3,  # День 4: 26 WINIX
-            5: 1.4,  # День 5: 28 WINIX
-            6: 1.5,  # День 6: 30 WINIX
-            7: 2.0,  # День 7: 40 WINIX + 1 ticket (спеціальний)
-            8: 1.6,  # День 8: 32 WINIX
-            9: 1.7,  # День 9: 34 WINIX
-            10: 1.8,  # День 10: 36 WINIX
-            11: 1.9,  # День 11: 38 WINIX
-            12: 2.0,  # День 12: 40 WINIX
-            13: 2.1,  # День 13: 42 WINIX
-            14: 2.5,  # День 14: 50 WINIX + 2 tickets (спеціальний)
-            15: 2.2,  # День 15: 44 WINIX
-            16: 2.3,  # День 16: 46 WINIX
-            17: 2.4,  # День 17: 48 WINIX
-            18: 2.5,  # День 18: 50 WINIX
-            19: 2.6,  # День 19: 52 WINIX
-            20: 2.7,  # День 20: 54 WINIX
-            21: 3.0,  # День 21: 60 WINIX + 3 tickets (спеціальний)
-            22: 2.8,  # День 22: 56 WINIX
-            23: 2.9,  # День 23: 58 WINIX
-            24: 3.0,  # День 24: 60 WINIX
-            25: 3.1,  # День 25: 62 WINIX
-            26: 3.2,  # День 26: 64 WINIX
-            27: 3.3,  # День 27: 66 WINIX
-            28: 4.0,  # День 28: 80 WINIX + 5 tickets (спеціальний)
-            29: 3.5,  # День 29: 70 WINIX
-            30: 5.0  # День 30: 100 WINIX + 10 tickets (фінальний)
-        }
+        # Налаштування білетів
+        self.tickets_per_week = 3  # Кількість днів з білетами на тиждень
+        self.min_tickets = 1  # Мінімум білетів за раз
+        self.max_tickets = 5  # Максимум білетів за раз
+        self.monthly_tickets_limit = 40  # Максимум білетів на місяць
 
-        # Спеціальні винагороди для tickets
-        self.tickets_rewards = {
-            7: 1,  # 1 ticket на 7 день
-            14: 2,  # 2 tickets на 14 день
-            21: 3,  # 3 tickets на 21 день
-            28: 5,  # 5 tickets на 28 день
-            30: 10  # 10 tickets на 30 день (бонус)
-        }
+        logger.info("RewardCalculator ініціалізовано з новою системою винагород")
 
-        logger.info("RewardCalculator ініціалізовано")
-        logger.info(f"Базова винагорода: {self.base_winix} WINIX")
-        logger.info(f"Спеціальні дні: {self.special_days}")
-        logger.info(f"Дні з tickets: {list(self.tickets_rewards.keys())}")
-
-    def calculate_daily_bonus(self, day_number: int, current_streak: int = 0,
+    def calculate_daily_bonus(self, user_id: int, day_number: int, current_streak: int = 0,
                               user_level: int = 1, bonus_multiplier: float = 1.0) -> Reward:
         """
         Розрахунок щоденного бонусу
 
         Args:
+            user_id: ID користувача (для генерації детермінованих білетів)
             day_number: Номер дня (1-30)
             current_streak: Поточна серія
-            user_level: Рівень користувача
-            bonus_multiplier: Додатковий множник
+            user_level: Рівень користувача (не використовується в новій системі)
+            bonus_multiplier: Додатковий множник (не використовується)
 
         Returns:
             Reward об'єкт з винагородою
         """
         try:
             logger.info(f"=== РОЗРАХУНОК ЩОДЕННОГО БОНУСУ ===")
-            logger.info(f"День: {day_number}, серія: {current_streak}, рівень: {user_level}")
+            logger.info(f"User ID: {user_id}, День: {day_number}, серія: {current_streak}")
 
             # Валідація вхідних даних
             day_number = max(1, min(day_number, self.max_days))
             current_streak = max(0, current_streak)
-            user_level = max(1, user_level)
-            bonus_multiplier = max(0.1, bonus_multiplier)
 
-            # Базова винагорода WINIX
-            base_multiplier = self.progressive_multipliers.get(day_number, 1.0)
-            winix_amount = int(self.base_winix * base_multiplier)
+            # Розрахунок WINIX за новою формулою: 100 + (день - 1) × 60
+            winix_amount = self.base_winix + (day_number - 1) * self.winix_increment
 
-            # Бонус за серію (до 50% додатково за довгу серію)
-            streak_bonus = min(0.5, current_streak * 0.02)  # 2% за кожен день серії
-            winix_amount = int(winix_amount * (1 + streak_bonus))
-
-            # Бонус за рівень користувача (1% за рівень понад 1)
-            level_bonus = (user_level - 1) * 0.01
-            winix_amount = int(winix_amount * (1 + level_bonus))
-
-            # Застосовуємо додатковий множник
-            winix_amount = int(winix_amount * bonus_multiplier)
-
-            # Tickets для спеціальних днів
-            tickets_amount = self.tickets_rewards.get(day_number, 0)
+            # Розрахунок білетів
+            tickets_amount = self._calculate_tickets_for_day(user_id, day_number)
 
             # Створюємо винагороду
             reward = Reward(
-                winix=winix_amount,
+                winix=int(winix_amount),
                 tickets=tickets_amount,
                 flex=0
             )
 
             logger.info(f"Розрахована винагорода: {reward.to_dict()}")
-            logger.info(
-                f"Множники: base={base_multiplier}, streak={streak_bonus:.2f}, level={level_bonus:.2f}, bonus={bonus_multiplier}")
 
             return reward
 
@@ -133,12 +79,124 @@ class RewardCalculator:
             # Повертаємо мінімальну винагороду у випадку помилки
             return Reward(winix=self.base_winix, tickets=0, flex=0)
 
-    def get_reward_preview(self, start_day: int = 1, end_day: int = 30,
+    def _calculate_tickets_for_day(self, user_id: int, day_number: int) -> int:
+        """
+        Розраховує кількість білетів для конкретного дня користувача
+        Використовує детерміновану рандомізацію на основі user_id
+
+        Args:
+            user_id: ID користувача
+            day_number: Номер дня (1-30)
+
+        Returns:
+            Кількість білетів (0-5)
+        """
+        # Генеруємо детермінований seed для користувача
+        # Додаємо поточний місяць та рік для унікальності кожного місяця
+        now = datetime.now(timezone.utc)
+        seed_string = f"{user_id}_{now.year}_{now.month}"
+        seed_hash = int(hashlib.md5(seed_string.encode()).hexdigest(), 16)
+
+        # Ініціалізуємо генератор з детермінованим seed
+        rng = random.Random(seed_hash)
+
+        # Генеруємо розподіл білетів для всього місяця
+        ticket_days = self._generate_ticket_days(rng)
+
+        # Генеруємо кількості білетів для кожного дня
+        ticket_amounts = self._generate_ticket_amounts(rng, ticket_days)
+
+        # Повертаємо кількість білетів для конкретного дня
+        return ticket_amounts.get(day_number, 0)
+
+    def _generate_ticket_days(self, rng: random.Random) -> Set[int]:
+        """
+        Генерує дні, коли будуть видані білети
+
+        Args:
+            rng: Ініціалізований генератор випадкових чисел
+
+        Returns:
+            Set з номерами днів
+        """
+        ticket_days = set()
+
+        # Розбиваємо місяць на тижні
+        weeks = [
+            (1, 7),    # Тиждень 1
+            (8, 14),   # Тиждень 2
+            (15, 21),  # Тиждень 3
+            (22, 28),  # Тиждень 4
+            (29, 30)   # Останні дні
+        ]
+
+        # Для кожного повного тижня вибираємо 3 рандомні дні
+        for start, end in weeks[:4]:  # Перші 4 тижні
+            week_days = list(range(start, end + 1))
+            selected_days = rng.sample(week_days, min(self.tickets_per_week, len(week_days)))
+            ticket_days.update(selected_days)
+
+        # Для останніх днів (29-30) вибираємо 1 день
+        if rng.random() < 0.5:  # 50% шанс
+            ticket_days.add(rng.choice([29, 30]))
+
+        return ticket_days
+
+    def _generate_ticket_amounts(self, rng: random.Random, ticket_days: Set[int]) -> Dict[int, int]:
+        """
+        Генерує кількості білетів для кожного дня з обмеженням 40 білетів на місяць
+
+        Args:
+            rng: Ініціалізований генератор випадкових чисел
+            ticket_days: Дні, коли видаються білети
+
+        Returns:
+            Dict з кількістю білетів для кожного дня
+        """
+        ticket_amounts = {}
+        total_tickets = 0
+
+        # Сортуємо дні для послідовного розподілу
+        sorted_days = sorted(ticket_days)
+
+        for i, day in enumerate(sorted_days):
+            # Розраховуємо залишок білетів
+            remaining_tickets = self.monthly_tickets_limit - total_tickets
+            remaining_days = len(sorted_days) - i
+
+            if remaining_tickets <= 0:
+                ticket_amounts[day] = 0
+                continue
+
+            # Розраховуємо максимум для цього дня
+            max_for_day = min(
+                self.max_tickets,
+                remaining_tickets,
+                remaining_tickets - (remaining_days - 1)  # Залишаємо хоча б 1 білет на кожен день
+            )
+
+            # Генеруємо кількість білетів
+            if remaining_days == 1:
+                # Останній день - даємо всі залишки
+                amount = min(remaining_tickets, self.max_tickets)
+            else:
+                # Рандомна кількість в межах дозволеного
+                min_amount = max(1, self.min_tickets)
+                max_amount = max(min_amount, min(max_for_day, self.max_tickets))
+                amount = rng.randint(min_amount, max_amount)
+
+            ticket_amounts[day] = amount
+            total_tickets += amount
+
+        return ticket_amounts
+
+    def get_reward_preview(self, user_id: int, start_day: int = 1, end_day: int = 30,
                            user_level: int = 1) -> List[Dict[str, Any]]:
         """
         Отримання попереднього перегляду винагород
 
         Args:
+            user_id: ID користувача
             start_day: Початковий день
             end_day: Кінцевий день
             user_level: Рівень користувача
@@ -151,12 +209,13 @@ class RewardCalculator:
 
             for day in range(start_day, min(end_day + 1, self.max_days + 1)):
                 reward = self.calculate_daily_bonus(
+                    user_id=user_id,
                     day_number=day,
                     current_streak=day,  # Припускаємо безперервну серію
                     user_level=user_level
                 )
 
-                is_special = day in self.special_days
+                is_special = False  # Більше немає спеціальних днів
                 is_final = day == self.max_days
 
                 day_info = {
@@ -164,13 +223,13 @@ class RewardCalculator:
                     "reward": reward.to_dict(),
                     "is_special": is_special,
                     "is_final": is_final,
-                    "multiplier": self.progressive_multipliers.get(day, 1.0),
+                    "multiplier": 1.0,
                     "description": self._get_day_description(day, reward, is_special, is_final)
                 }
 
                 preview.append(day_info)
 
-            logger.info(f"Створено попередній перегляд для днів {start_day}-{end_day}")
+            logger.info(f"Створено попередній перегляд для користувача {user_id}, днів {start_day}-{end_day}")
             return preview
 
         except Exception as e:
@@ -181,41 +240,42 @@ class RewardCalculator:
                              is_special: bool, is_final: bool) -> str:
         """Отримання опису дня"""
         if is_final:
-            return f"🎉 Фінальний день! {reward.winix} WINIX + {reward.tickets} tickets"
-        elif is_special:
-            return f"⭐ Спеціальний день! {reward.winix} WINIX + {reward.tickets} tickets"
+            return f"🎉 Фінальний день! {reward.winix} WINIX"
+        elif reward.tickets > 0:
+            return f"🎟️ День {day}: {reward.winix} WINIX + {reward.tickets} tickets"
         else:
             return f"📅 День {day}: {reward.winix} WINIX"
 
     def calculate_streak_bonus(self, streak_length: int) -> float:
         """
-        Розрахунок бонусу за серію
+        Розрахунок бонусу за серію (не використовується в новій системі)
 
         Args:
             streak_length: Довжина серії
 
         Returns:
-            Множник бонусу (0.0 - 0.5)
+            Множник бонусу (завжди 0 в новій системі)
         """
-        return min(0.5, streak_length * 0.02)
+        return 0.0  # Немає бонусів за серію в новій системі
 
     def calculate_level_bonus(self, user_level: int) -> float:
         """
-        Розрахунок бонусу за рівень
+        Розрахунок бонусу за рівень (не використовується в новій системі)
 
         Args:
             user_level: Рівень користувача
 
         Returns:
-            Множник бонусу
+            Множник бонусу (завжди 0 в новій системі)
         """
-        return (user_level - 1) * 0.01
+        return 0.0  # Немає бонусів за рівень в новій системі
 
-    def get_total_month_reward(self, user_level: int = 1) -> Dict[str, Any]:
+    def get_total_month_reward(self, user_id: int, user_level: int = 1) -> Dict[str, Any]:
         """
         Розрахунок загальної винагороди за місяць
 
         Args:
+            user_id: ID користувача
             user_level: Рівень користувача
 
         Returns:
@@ -227,6 +287,7 @@ class RewardCalculator:
 
             for day in range(1, self.max_days + 1):
                 reward = self.calculate_daily_bonus(
+                    user_id=user_id,
                     day_number=day,
                     current_streak=day,
                     user_level=user_level
@@ -239,7 +300,7 @@ class RewardCalculator:
                 "total_tickets": total_tickets,
                 "total_value_winix_equivalent": total_winix + (total_tickets * 100),
                 "average_daily_winix": total_winix // self.max_days,
-                "special_days_count": len(self.special_days),
+                "special_days_count": 0,  # Немає спеціальних днів
                 "perfect_streak_required": True
             }
 
@@ -308,62 +369,24 @@ class RewardCalculator:
                 "error": str(e)
             }
 
-    def calculate_optimal_claim_times(self, timezone_offset: int = 0) -> List[Dict[str, Any]]:
-        """
-        Розрахунок оптимальних часів для отримання бонусів
-
-        Args:
-            timezone_offset: Зміщення часового поясу в годинах
-
-        Returns:
-            Список оптимальних часів
-        """
-        try:
-            optimal_times = []
-
-            # Рекомендовані часи (UTC)
-            recommended_hours = [6, 12, 18, 22]  # 6:00, 12:00, 18:00, 22:00
-
-            for hour in recommended_hours:
-                local_hour = (hour + timezone_offset) % 24
-                optimal_times.append({
-                    "utc_hour": hour,
-                    "local_hour": local_hour,
-                    "description": self._get_time_description(local_hour)
-                })
-
-            return optimal_times
-
-        except Exception as e:
-            logger.error(f"Помилка розрахунку оптимальних часів: {e}")
-            return []
-
-    def _get_time_description(self, hour: int) -> str:
-        """Опис часу"""
-        if 5 <= hour <= 11:
-            return "🌅 Ранок - хороший початок дня!"
-        elif 12 <= hour <= 17:
-            return "☀️ День - обідня перерва!"
-        elif 18 <= hour <= 22:
-            return "🌆 Вечір - час відпочинку!"
-        else:
-            return "🌙 Ніч - для нічних сов!"
-
     def get_calculator_stats(self) -> Dict[str, Any]:
         """Отримання статистики калькулятора"""
+        # Розраховуємо загальну суму WINIX за формулою
+        total_winix = sum(self.base_winix + (day - 1) * self.winix_increment for day in range(1, 31))
+
         return {
             "base_winix_reward": self.base_winix,
+            "winix_increment_per_day": self.winix_increment,
             "max_days": self.max_days,
-            "special_days_count": len(self.special_days),
-            "tickets_days_count": len(self.tickets_rewards),
+            "special_days_count": 0,
+            "tickets_per_week": self.tickets_per_week,
+            "min_tickets_per_reward": self.min_tickets,
+            "max_tickets_per_reward": self.max_tickets,
+            "monthly_tickets_limit": self.monthly_tickets_limit,
             "min_hours_between_claims": self.constants["MIN_HOURS_BETWEEN_CLAIMS"],
-            "max_streak_bonus": "50%",
-            "level_bonus_per_level": "1%",
-            "total_possible_winix": sum(
-                self.calculate_daily_bonus(day, day, 1).winix
-                for day in range(1, self.max_days + 1)
-            ),
-            "total_possible_tickets": sum(self.tickets_rewards.values())
+            "streak_policy": "RESET_TO_DAY_1",
+            "total_possible_winix": total_winix,
+            "total_possible_tickets": self.monthly_tickets_limit
         }
 
 
@@ -371,17 +394,17 @@ class RewardCalculator:
 reward_calculator = RewardCalculator()
 
 
-def calculate_daily_reward(day_number: int, current_streak: int = 0,
+def calculate_daily_reward(user_id: int, day_number: int, current_streak: int = 0,
                            user_level: int = 1, bonus_multiplier: float = 1.0) -> Reward:
     """Зручна функція для розрахунку щоденної винагороди"""
     return reward_calculator.calculate_daily_bonus(
-        day_number, current_streak, user_level, bonus_multiplier
+        user_id, day_number, current_streak, user_level, bonus_multiplier
     )
 
 
-def get_reward_preview_for_user(user_level: int = 1) -> List[Dict[str, Any]]:
+def get_reward_preview_for_user(user_id: int, user_level: int = 1) -> List[Dict[str, Any]]:
     """Зручна функція для отримання попереднього перегляду"""
-    return reward_calculator.get_reward_preview(user_level=user_level)
+    return reward_calculator.get_reward_preview(user_id, user_level=user_level)
 
 
 def validate_daily_claim(last_claim_timestamp: Optional[int]) -> Dict[str, Any]:

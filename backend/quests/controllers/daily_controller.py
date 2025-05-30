@@ -1,13 +1,13 @@
 """
 Контролер щоденних бонусів для системи завдань WINIX
 Обробка отримання, статусу та історії щоденних винагород
-ОНОВЛЕНО: Інтеграція з Transaction Service для атомарних операцій
 """
 import logging
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, Optional, List
+import random
+import hashlib
 
-# Оголошуємо logger одразу після імпортів
 logger = logging.getLogger(__name__)
 
 from ..models.daily_bonus import (
@@ -42,8 +42,6 @@ except ImportError:
             return None
         def update_coins(telegram_id, amount):
             return None
-
-logger = logging.getLogger(__name__)
 
 
 class DailyController:
@@ -87,6 +85,7 @@ class DailyController:
                     user_level = 1
 
                 today_reward = calculate_daily_reward(
+                    user_id=validated_id,
                     day_number=daily_status.current_day_number,
                     current_streak=daily_status.current_streak,
                     user_level=user_level
@@ -102,7 +101,8 @@ class DailyController:
                 "statistics": daily_status.get_statistics(),
                 "next_claim_in_hours": DailyController._calculate_hours_until_next_claim(daily_status),
                 "month_progress": (daily_status.total_days_claimed / 30 * 100),
-                "is_special_day": (daily_status.current_day_number % 7 == 0) if daily_status.can_claim_today else False
+                "is_special_day": False,  # Видаляємо логіку спеціальних днів
+                "calendar_rewards": DailyController._get_calendar_rewards(validated_id)  # Додаємо календар
             })
 
             logger.info(
@@ -160,6 +160,7 @@ class DailyController:
                 user_level = 1
 
             reward = calculate_daily_reward(
+                user_id=validated_id,
                 day_number=daily_status.current_day_number,
                 current_streak=daily_status.current_streak,
                 user_level=user_level
@@ -228,8 +229,8 @@ class DailyController:
                 "reward": reward.to_dict(),
                 "operations": success_operations,
                 "new_streak": daily_status.current_streak,
-                "is_special_day": entry.is_special_day,
-                "streak_bonus_applied": entry.streak_at_claim > 1,
+                "is_special_day": False,
+                "streak_bonus_applied": daily_status.current_streak > 1,
                 "claimed_at": entry.claim_date.isoformat(),
                 "next_available": daily_status.next_available_date.isoformat() if daily_status.next_available_date else None,
                 "total_days_claimed": daily_status.total_days_claimed
@@ -368,14 +369,15 @@ class DailyController:
 
             # Розраховуємо винагороду
             reward = calculate_daily_reward(
+                user_id=validated_id,
                 day_number=day_number,
                 current_streak=day_number,  # Припускаємо ідеальну серію для розрахунку
                 user_level=user_level
             )
 
             # Додаткова інформація
-            is_special = (day_number % 7 == 0)
-            multiplier = reward_calculator.progressive_multipliers.get(day_number, 1.0)
+            is_special = False  # Більше немає спеціальних днів
+            multiplier = 1.0
 
             return {
                 "status": "success",
@@ -426,10 +428,10 @@ class DailyController:
                     pass
 
             # Отримуємо попередній перегляд
-            preview = reward_calculator.get_reward_preview(user_level=user_level)
+            preview = reward_calculator.get_reward_preview(validated_id, user_level=user_level)
 
             # Загальна статистика
-            total_stats = reward_calculator.get_total_month_reward(user_level=user_level)
+            total_stats = reward_calculator.get_total_month_reward(validated_id, user_level=user_level)
 
             return {
                 "status": "success",
@@ -438,7 +440,7 @@ class DailyController:
                     "total_statistics": total_stats,
                     "calculated_for_level": user_level,
                     "month_duration": 30,
-                    "special_days_count": len([d for d in preview if d["is_special"]]),
+                    "special_days_count": 0,  # Більше немає спеціальних днів
                     "calculator_info": reward_calculator.get_calculator_stats(),
                     "transaction_service_info": {
                         "available": transaction_service is not None,
@@ -615,6 +617,36 @@ class DailyController:
 
         time_diff = daily_status.next_available_date - now
         return time_diff.total_seconds() / 3600
+
+    @staticmethod
+    def _get_calendar_rewards(user_id: int) -> List[Dict[str, Any]]:
+        """
+        Отримує календар винагород для користувача на весь місяць
+
+        Args:
+            user_id: ID користувача
+
+        Returns:
+            List з інформацією про винагороди кожного дня
+        """
+        calendar = []
+
+        for day in range(1, 31):
+            reward = calculate_daily_reward(
+                user_id=user_id,
+                day_number=day,
+                current_streak=day,  # Припускаємо ідеальну серію
+                user_level=1
+            )
+
+            calendar.append({
+                "day": day,
+                "winix": reward.winix,
+                "tickets": reward.tickets,
+                "hasTickets": reward.tickets > 0
+            })
+
+        return calendar
 
 
 # Функції-обгортки для роутів
