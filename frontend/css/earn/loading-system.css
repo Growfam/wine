@@ -1,0 +1,324 @@
+/* ======== СТИЛІ ДЛЯ МІНІ-ЛОАДЕРА ВКЛАДОК ======== */
+
+/* Overlay для вкладок */
+.tab-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 11, 20, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-radius: 1.5rem;
+}
+
+.tab-loading-overlay.show {
+    display: flex;
+    opacity: 1;
+    animation: tab-loader-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes tab-loader-appear {
+    0% {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Контент міні-лоадера */
+.tab-loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    animation: tab-content-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes tab-content-bounce {
+    0% {
+        transform: scale(0.8) translateY(10px);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Міні логотип */
+.tab-loading-spinner {
+    position: relative;
+    width: 60px;
+    height: 60px;
+}
+
+.loading-logo-mini {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    animation: logo-float-mini 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes logo-float-mini {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+    }
+    50% {
+        transform: translateY(-5px) scale(1.05);
+    }
+}
+
+.loading-logo-bg-mini {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #b366ff, #8b5cf6);
+    border-radius: 30%;
+    animation: loading-logo-rotate-mini 2s linear infinite;
+    box-shadow:
+        0 0 30px rgba(179, 102, 255, 0.6),
+        inset 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+@keyframes loading-logo-rotate-mini {
+    0% {
+        transform: rotate(0deg) scale(1);
+        border-radius: 30%;
+    }
+    50% {
+        transform: rotate(180deg) scale(0.95);
+        border-radius: 45%;
+    }
+    100% {
+        transform: rotate(360deg) scale(1);
+        border-radius: 30%;
+    }
+}
+
+.loading-logo-text-mini {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+    animation: loading-logo-pulse-mini 1.5s ease-in-out infinite;
+}
+
+@keyframes loading-logo-pulse-mini {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+        filter: brightness(1);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.1);
+        filter: brightness(1.2);
+    }
+}
+
+/* Текст міні-лоадера */
+.tab-loading-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: center;
+    animation: loading-text-glow-mini 1.5s ease-in-out infinite;
+}
+
+@keyframes loading-text-glow-mini {
+    0%, 100% {
+        opacity: 0.7;
+    }
+    50% {
+        opacity: 1;
+        text-shadow: 0 0 15px rgba(179, 102, 255, 0.5);
+    }
+}
+
+/* Приховування контенту під час завантаження */
+.tab-content.loading .main-tab-pane {
+    opacity: 0.3;
+    filter: blur(2px);
+    transition: all 0.3s ease;
+}
+
+/* Стиль для екрану завантаження з loading.html */
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background: #0a0b14;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: loading-screen-fade 0.5s ease-out;
+}
+
+/* Додаткові частинки для екрану */
+.particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #b366ff;
+    border-radius: 50%;
+    opacity: 0;
+    animation: particle-float 8s linear infinite;
+}
+
+@keyframes particle-float {
+    0% {
+        transform: translateY(100vh) translateX(0);
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    90% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100vh) translateX(100px);
+        opacity: 0;
+    }
+}
+
+.particle:nth-child(1) { left: 10%; animation-delay: 0s; animation-duration: 8s; }
+.particle:nth-child(2) { left: 20%; animation-delay: 1s; animation-duration: 10s; }
+.particle:nth-child(3) { left: 30%; animation-delay: 2s; animation-duration: 9s; }
+.particle:nth-child(4) { left: 40%; animation-delay: 3s; animation-duration: 11s; }
+.particle:nth-child(5) { left: 50%; animation-delay: 4s; animation-duration: 8s; }
+.particle:nth-child(6) { left: 60%; animation-delay: 5s; animation-duration: 10s; }
+.particle:nth-child(7) { left: 70%; animation-delay: 6s; animation-duration: 9s; }
+.particle:nth-child(8) { left: 80%; animation-delay: 7s; animation-duration: 11s; }
+.particle:nth-child(9) { left: 90%; animation-delay: 8s; animation-duration: 8s; }
+.particle:nth-child(10) { left: 95%; animation-delay: 9s; animation-duration: 10s; }
+
+/* Контейнер для контенту вкладок повинен мати position: relative */
+.tab-content {
+    position: relative;
+    min-height: 400px;
+}
+
+/* Швидка поява контенту після завантаження */
+.main-tab-pane.fade-in-quick {
+    animation: quick-fade-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes quick-fade-in {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Прогрес бар для початкового завантаження */
+.loading-progress {
+    width: 250px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.loading-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg,
+        transparent,
+        #b366ff,
+        #8b5cf6,
+        #b366ff,
+        transparent);
+    width: 40%;
+    animation: loading-progress-move 1.5s ease-in-out infinite;
+    box-shadow: 0 0 10px rgba(179, 102, 255, 0.8);
+}
+
+/* Логотип для повного екрану */
+.loading-logo {
+    width: 120px;
+    height: 120px;
+    position: relative;
+}
+
+.loading-logo-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    animation: logo-float 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.loading-logo-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #b366ff, #8b5cf6);
+    border-radius: 30%;
+    animation: loading-logo-rotate 3s linear infinite;
+    box-shadow:
+        0 0 60px rgba(179, 102, 255, 0.6),
+        inset 0 0 40px rgba(255, 255, 255, 0.1);
+}
+
+.loading-logo-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 0 30px rgba(255, 255, 255, 0.5);
+    animation: loading-logo-pulse 2s ease-in-out infinite;
+}
+
+/* Анімація зникнення */
+.loading-screen.fade-out,
+.tab-loading-overlay.fade-out {
+    animation: fade-out-animation 0.5s ease-out forwards;
+}
+
+@keyframes fade-out-animation {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.95);
+        visibility: hidden;
+    }
+}
