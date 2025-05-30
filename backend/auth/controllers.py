@@ -44,72 +44,64 @@ class TelegramAuthController:
         try:
             logger.info(f"verify_telegram_webapp_data: Початок перевірки")
 
-            # НОВЕ: Логуємо точний формат даних
-            logger.info(f"init_data перші 100 символів: {init_data[:100]}")
-            logger.info(f"Має %20: {'%20' in init_data}")
-            logger.info(f"Має +: {'+' in init_data}")
+            # Перевіряємо формат initData
+            if not init_data or not isinstance(init_data, str):
+                logger.error("initData порожній або невалідний")
+                return False
 
+            logger.info(f"init_data довжина: {len(init_data)}")
+
+            # Парсимо дані
             parsed_data = urllib.parse.parse_qs(init_data)
             logger.info(f"Parsed data keys: {list(parsed_data.keys())}")
 
-            # НОВЕ: Логуємо точні значення
-            for key in ['query_id', 'auth_date', 'hash']:
-                if key in parsed_data:
-                    value = parsed_data[key][0]
-                    if key == 'hash':
-                        logger.info(f"{key}: {value[:10]}...{value[-10:]}")
-                    else:
-                        logger.info(f"{key}: {value}")
-
+            # Отримуємо hash
             received_hash = parsed_data.get('hash', [None])[0]
             if not received_hash:
-                logger.error("Hash відсутній")
+                logger.error("Hash відсутній в parsed_data")
                 return False
 
             # Створюємо data-check-string
+            # ВАЖЛИВО: виключаємо І hash, І signature!
             data_check_items = []
             for key, values in sorted(parsed_data.items()):
-                if key != 'hash':
+                if key not in ['hash', 'signature']:  # <-- ТУТ ВИПРАВЛЕННЯ!
                     value = values[0] if values else ''
                     data_check_items.append(f"{key}={value}")
 
             data_check_string = '\n'.join(data_check_items)
 
-            # НОВЕ: Логуємо точну структуру data_check_string
-            logger.info(f"Data check string має {len(data_check_items)} елементів")
-            logger.info(f"Ключі в порядку: {[item.split('=')[0] for item in data_check_items]}")
+            # Логуємо для діагностики
+            logger.debug(f"Data check string keys: {[item.split('=')[0] for item in data_check_items]}")
 
-            # Обчислюємо hash
+            # Створюємо секретний ключ
             secret_key = hmac.new(
                 "WebAppData".encode('utf-8'),
                 bot_token.encode('utf-8'),
                 hashlib.sha256
             ).digest()
 
+            # Обчислюємо hash
             calculated_hash = hmac.new(
                 secret_key,
                 data_check_string.encode('utf-8'),
                 hashlib.sha256
             ).hexdigest()
 
-            # НОВЕ: Детальне порівняння
-            logger.info(f"Received hash: {received_hash}")
-            logger.info(f"Calculated hash: {calculated_hash}")
-
+            # Порівнюємо хеші
             is_valid = hmac.compare_digest(received_hash, calculated_hash)
 
-            if not is_valid:
-                # НОВЕ: Спробуємо альтернативний спосіб
-                logger.info("Спроба альтернативного методу...")
-
-                # Можливо signature замість hash?
-                if 'signature' in parsed_data:
-                    logger.info("Знайдено signature, але очікувався hash")
+            if is_valid:
+                logger.info("✅ Підпис валідний")
+            else:
+                logger.warning("⚠️ Підпис НЕ валідний")
+                logger.debug(f"Received hash: {received_hash[:10]}...")
+                logger.debug(f"Expected hash: {calculated_hash[:10]}...")
 
             return is_valid
 
         except Exception as e:
-            logger.error(f"Помилка перевірки: {str(e)}", exc_info=True)
+            logger.error(f"Помилка перевірки Telegram data: {str(e)}", exc_info=True)
             return False
 
     @staticmethod
