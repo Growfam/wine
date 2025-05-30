@@ -24,45 +24,38 @@ def authenticate_telegram():
     if request.method == 'OPTIONS':
         return '', 200
 
-    # КРИТИЧНЕ ЛОГУВАННЯ
-    logger.error("🚨🚨🚨 TELEGRAM AUTH REQUEST RECEIVED 🚨🚨🚨")
-    logger.error(f"Origin: {request.headers.get('Origin')}")
-    logger.error(f"Headers: {dict(request.headers)}")
+    logger.info("🔐 TELEGRAM AUTH REQUEST RECEIVED")
+    logger.info(f"Origin: {request.headers.get('Origin')}")
 
     try:
         data = request.get_json() or {}
-        logger.error(f"Body keys: {list(data.keys())}")
-        logger.error(f"Has initData: {bool(data.get('initData'))}")
+        logger.info(f"Auth data received: {list(data.keys())}")
 
-        # Отримуємо telegram_id
-        telegram_id = data.get('telegram_id') or data.get('id')
+        # ВАЖЛИВО: Використовуємо реальну авторизацію замість тимчасового коду
+        result = TelegramAuthController.authenticate_telegram_user(data)
 
-        if not telegram_id:
-            logger.error("❌ NO TELEGRAM ID")
+        if result.get('success'):
+            logger.info(f"✅ Auth success for user {result['user'].get('telegram_id')}")
+            return jsonify({
+                'status': 'success',
+                'token': result['token'],
+                'expires_in': result['expires_in'],
+                'user': result['user']
+            }), 200
+        else:
+            logger.warning(f"❌ Auth failed: {result.get('error')}")
             return jsonify({
                 'status': 'error',
-                'message': 'No telegram ID'
-            }), 400
-
-        # ТИМЧАСОВО - ПРОСТО ПОВЕРТАЄМО УСПІХ
-        logger.error(f"✅ RETURNING SUCCESS FOR ID: {telegram_id}")
-
-        return jsonify({
-            'status': 'success',
-            'token': 'test_token_' + str(telegram_id),
-            'user': {
-                'telegram_id': telegram_id,
-                'username': data.get('username', 'Test User'),
-                'balance': 100,
-                'coins': 50
-            }
-        }), 200
+                'message': result.get('error', 'Помилка авторизації'),
+                'code': result.get('code', 'auth_failed')
+            }), 401
 
     except Exception as e:
-        logger.error(f"💥 CRITICAL ERROR: {str(e)}", exc_info=True)
+        logger.error(f"💥 CRITICAL ERROR in authenticate_telegram: {str(e)}", exc_info=True)
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': 'Внутрішня помилка сервера',
+            'code': 'internal_error'
         }), 500
 
 
@@ -299,6 +292,78 @@ def logout():
         }), 500
 
 
+@auth_bp.route('/debug/auth-check', methods=['POST'])
+def debug_auth_check():
+    """Діагностичний endpoint для перевірки авторизації"""
+    try:
+        data = request.get_json() or {}
+
+        # Збираємо всю інформацію
+        debug_info = {
+            "received_data": data,
+            "headers": dict(request.headers),
+            "env_vars": {
+                "JWT_SECRET": "***" + JWT_SECRET[-4:] if JWT_SECRET else None,
+                "TELEGRAM_BOT_TOKEN": "***" + os.getenv('TELEGRAM_BOT_TOKEN', '')[-4:] if os.getenv('TELEGRAM_BOT_TOKEN') else None,
+                "SKIP_TELEGRAM_SIGNATURE_CHECK": os.getenv('SKIP_TELEGRAM_SIGNATURE_CHECK', 'false'),
+                "ALLOW_INVALID_SIGNATURE": os.getenv('ALLOW_INVALID_SIGNATURE', 'false'),
+            },
+            "init_data_present": bool(data.get('initData')),
+            "telegram_id_present": bool(data.get('telegram_id') or data.get('id')),
+        }
+
+        # Спробуємо валідацію якщо є initData
+        if data.get('initData'):
+            bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            if bot_token:
+                try:
+                    is_valid = TelegramAuthController.verify_telegram_webapp_data(
+                        data['initData'],
+                        bot_token
+                    )
+                    debug_info['signature_valid'] = is_valid
+
+                    # Спробуємо витягнути користувача
+                    user_data = TelegramAuthController.extract_user_from_webapp_data(data['initData'])
+                    debug_info['extracted_user'] = user_data
+                except Exception as e:
+                    debug_info['validation_error'] = str(e)
+            else:
+                debug_info['error'] = "TELEGRAM_BOT_TOKEN not configured"
+
+        # Спробуємо згенерувати токен
+        if data.get('telegram_id') or data.get('id'):
+            try:
+                test_token = TelegramAuthController.generate_jwt_token({
+                    'telegram_id': data.get('telegram_id') or data.get('id'),
+                    'username': data.get('username', 'test_user')
+                })
+                debug_info['test_token_generated'] = bool(test_token)
+
+                # Спробуємо декодувати
+                decoded = TelegramAuthController.decode_jwt_token(test_token)
+                debug_info['token_decoded_successfully'] = True
+                debug_info['decoded_payload'] = {
+                    'user_id': decoded.get('user_id'),
+                    'telegram_id': decoded.get('telegram_id'),
+                    'exp': decoded.get('exp')
+                }
+            except Exception as e:
+                debug_info['token_error'] = str(e)
+
+        return jsonify({
+            'status': 'success',
+            'debug_info': debug_info
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Debug endpoint error: {str(e)}", exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
 # Спеціальний endpoint для Telegram WebApp валідації (для сумісності)
 def validate_telegram_webapp():
     """
@@ -340,7 +405,8 @@ def test_auth():
             'POST /api/auth/validate',
             'GET /api/auth/status',
             'POST /api/auth/logout',
-            'POST|GET /api/auth/validate-telegram'
+            'POST|GET /api/auth/validate-telegram',
+            'POST /api/auth/debug/auth-check'
         ]
     }), 200
 
@@ -414,4 +480,3 @@ def register_auth_routes(app):
     app.register_blueprint(auth_bp)
     logger.info("✅ Auth routes registered successfully")
     return True
-
