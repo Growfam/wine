@@ -80,13 +80,13 @@
     background: rgba(139, 92, 246, 0.1);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-radius: var(--border-radius-md);
+    border-radius: var(--border-radius-lg);
     padding: 0.25rem;
     margin-bottom: 1.5rem;
     overflow: hidden;
     box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        0 4px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(179, 102, 255, 0.1);
     position: relative;
     z-index: 1;
     border: 1px solid var(--border-color);
@@ -100,7 +100,7 @@
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
-    border-radius: var(--border-radius-sm);
+    border-radius: 1rem;
     transition: all 0.3s var(--animation-smooth);
     position: relative;
     overflow: hidden;
@@ -221,10 +221,10 @@
 
 /* ======== ЗАГОЛОВКИ СЕКЦІЙ ======== */
 .section-title {
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--text-color);
-    margin-bottom: 1rem;
+    margin-bottom: var(--space-md);
     text-align: center;
     background: linear-gradient(45deg, var(--text-color), var(--gradient-1));
     -webkit-background-clip: text;
@@ -392,7 +392,7 @@
     top: 2rem;
     left: 50%;
     transform: translateX(-50%) translateY(-100px);
-    background: rgba(139, 92, 246, 0.95);
+    background: rgba(139, 92, 246, 0.15);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     color: white;
@@ -402,34 +402,75 @@
     font-weight: 500;
     box-shadow:
         0 20px 40px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        inset 0 1px 0 rgba(179, 102, 255, 0.2);
     z-index: 2000;
     opacity: 0;
     transition: all 0.3s var(--animation-spring);
     min-width: 250px;
     text-align: center;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 102, 255, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 350px;
+    width: 90%;
 }
 
 .toast-message.show {
-    transform: translateX(-50%) translateY(0);
+    transform: translate(-50%, 10px);
     opacity: 1;
+    animation: toast-appear 0.3s var(--animation-spring),
+                toast-disappear 0.3s ease-in 2.7s forwards;
+}
+
+@keyframes toast-appear {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, 10px);
+    }
+}
+
+@keyframes toast-disappear {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, 10px);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -20px);
+    }
 }
 
 .toast-message.success {
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.95), rgba(69, 160, 73, 0.95));
+    background: linear-gradient(135deg,
+        rgba(76, 175, 80, 0.15) 0%,
+        rgba(46, 125, 50, 0.15) 100%);
+    border-color: rgba(76, 175, 80, 0.3);
 }
 
 .toast-message.error {
-    background: linear-gradient(135deg, rgba(244, 67, 54, 0.95), rgba(211, 47, 47, 0.95));
+    background: linear-gradient(135deg,
+        rgba(244, 67, 54, 0.15) 0%,
+        rgba(211, 47, 47, 0.15) 100%);
+    border-color: rgba(244, 67, 54, 0.3);
 }
 
 .toast-message.warning {
-    background: linear-gradient(135deg, rgba(255, 152, 0, 0.95), rgba(245, 124, 0, 0.95));
+    background: linear-gradient(135deg,
+        rgba(255, 152, 0, 0.15) 0%,
+        rgba(245, 124, 0, 0.15) 100%);
+    border-color: rgba(255, 152, 0, 0.3);
 }
 
 .toast-message.info {
-    background: linear-gradient(135deg, rgba(33, 150, 243, 0.95), rgba(30, 136, 229, 0.95));
+    background: linear-gradient(135deg,
+        rgba(33, 150, 243, 0.15) 0%,
+        rgba(30, 136, 229, 0.15) 100%);
+    border-color: rgba(33, 150, 243, 0.3);
 }
 
 /* ======== ІНДИКАТОР ЗАВАНТАЖЕННЯ ======== */
@@ -527,8 +568,8 @@
     background: var(--bg-card);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-radius: var(--border-radius-md);
-    padding: 1.25rem;
+    border-radius: var(--border-radius-lg);
+    padding: var(--space-md);
     text-align: center;
     border: 1px solid var(--border-color);
     box-shadow:
@@ -537,6 +578,9 @@
     transition: all 0.3s var(--animation-smooth);
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .stats-card::before {
@@ -658,3 +702,232 @@
         box-shadow: 0 0 30px rgba(255, 215, 0, 0.7), 0 0 40px rgba(255, 215, 0, 0.5);
     }
 }
+
+/* ======== ЕКРАН ЗАВАНТАЖЕННЯ ======== */
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--primary-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: loading-screen-fade 0.5s ease-out;
+}
+
+@keyframes loading-screen-fade {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.loading-screen.fade-out {
+    animation: loading-screen-fade-out 0.5s ease-out forwards;
+}
+
+@keyframes loading-screen-fade-out {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+
+.loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+    animation: loading-content-appear 0.8s var(--animation-spring);
+}
+
+@keyframes loading-content-appear {
+    0% {
+        transform: scale(0.8) translateY(20px);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+.loading-logo {
+    width: 100px;
+    height: 100px;
+    position: relative;
+}
+
+.loading-logo::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
+    border-radius: 30%;
+    animation: loading-logo-rotate 3s linear infinite;
+    box-shadow:
+        0 0 40px rgba(179, 102, 255, 0.5),
+        inset 0 0 40px rgba(255, 255, 255, 0.1);
+}
+
+@keyframes loading-logo-rotate {
+    0% {
+        transform: rotate(0deg) scale(1);
+        border-radius: 30%;
+    }
+    50% {
+        transform: rotate(180deg) scale(0.9);
+        border-radius: 50%;
+    }
+    100% {
+        transform: rotate(360deg) scale(1);
+        border-radius: 30%;
+    }
+}
+
+.loading-logo::after {
+    content: 'W';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+    animation: loading-logo-pulse 2s ease-in-out infinite;
+}
+
+@keyframes loading-logo-pulse {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+}
+
+.loading-text {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-color);
+    text-align: center;
+    animation: loading-text-glow 2s ease-in-out infinite;
+}
+
+@keyframes loading-text-glow {
+    0%, 100% {
+        opacity: 0.7;
+    }
+    50% {
+        opacity: 1;
+        text-shadow: 0 0 20px rgba(179, 102, 255, 0.5);
+    }
+}
+
+.loading-progress {
+    width: 200px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+}
+
+.loading-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg,
+        transparent,
+        var(--gradient-1),
+        var(--gradient-2),
+        transparent);
+    width: 40%;
+    animation: loading-progress-move 1.5s ease-in-out infinite;
+}
+
+@keyframes loading-progress-move {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(350%);
+    }
+}
+
+.loading-dots {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.loading-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--gradient-1);
+    border-radius: 50%;
+    animation: loading-dot-bounce 1.4s ease-in-out infinite;
+}
+
+.loading-dot:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.loading-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.loading-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes loading-dot-bounce {
+    0%, 80%, 100% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1.5);
+        opacity: 1;
+    }
+}
+
+/* Використання екрану завантаження:
+<div class="loading-screen" id="loadingScreen">
+    <div class="loading-content">
+        <div class="loading-logo"></div>
+        <div class="loading-text">WINIX завантажується...</div>
+        <div class="loading-progress">
+            <div class="loading-progress-bar"></div>
+        </div>
+        <div class="loading-dots">
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Приховати екран завантаження через 2-3 секунди
+setTimeout(() => {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        loadingScreen.classList.add('fade-out');
+        setTimeout(() => {
+            loadingScreen.style.display = 'none';
+        }, 500);
+    }
+}, 2500);
+</script>
+*/
