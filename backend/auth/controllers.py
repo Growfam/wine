@@ -10,7 +10,6 @@ import hmac
 import hashlib
 import urllib.parse
 import json
-import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from flask import request, jsonify
@@ -45,97 +44,72 @@ class TelegramAuthController:
         try:
             logger.info(f"verify_telegram_webapp_data: Початок перевірки")
 
-            # Перевіряємо формат initData
-            if not init_data or not isinstance(init_data, str):
-                logger.error("initData порожній або невалідний")
-                return False
+            # НОВЕ: Логуємо точний формат даних
+            logger.info(f"init_data перші 100 символів: {init_data[:100]}")
+            logger.info(f"Має %20: {'%20' in init_data}")
+            logger.info(f"Має +: {'+' in init_data}")
 
-            logger.info(f"init_data довжина: {len(init_data)}")
-
-            # Парсимо дані
             parsed_data = urllib.parse.parse_qs(init_data)
             logger.info(f"Parsed data keys: {list(parsed_data.keys())}")
 
-            # Отримуємо hash
+            # НОВЕ: Логуємо точні значення
+            for key in ['query_id', 'auth_date', 'hash']:
+                if key in parsed_data:
+                    value = parsed_data[key][0]
+                    if key == 'hash':
+                        logger.info(f"{key}: {value[:10]}...{value[-10:]}")
+                    else:
+                        logger.info(f"{key}: {value}")
+
             received_hash = parsed_data.get('hash', [None])[0]
             if not received_hash:
-                logger.error("Hash відсутній в parsed_data")
+                logger.error("Hash відсутній")
                 return False
 
             # Створюємо data-check-string
             data_check_items = []
             for key, values in sorted(parsed_data.items()):
                 if key != 'hash':
-                    # Беремо перше значення з списку
                     value = values[0] if values else ''
                     data_check_items.append(f"{key}={value}")
 
             data_check_string = '\n'.join(data_check_items)
 
-            # Логуємо для діагностики (без чутливих даних)
-            logger.debug(f"Data check string keys: {[item.split('=')[0] for item in data_check_items]}")
+            # НОВЕ: Логуємо точну структуру data_check_string
+            logger.info(f"Data check string має {len(data_check_items)} елементів")
+            logger.info(f"Ключі в порядку: {[item.split('=')[0] for item in data_check_items]}")
 
-            # Створюємо секретний ключ
+            # Обчислюємо hash
             secret_key = hmac.new(
                 "WebAppData".encode('utf-8'),
                 bot_token.encode('utf-8'),
                 hashlib.sha256
             ).digest()
 
-            # Обчислюємо hash
             calculated_hash = hmac.new(
                 secret_key,
                 data_check_string.encode('utf-8'),
                 hashlib.sha256
             ).hexdigest()
 
-            # ====== ДОДАЙТЕ ДІАГНОСТИКУ ТУТ ======
-            logger.info(f"Debug - Received hash: {received_hash}")
-            logger.info(f"Debug - Calculated hash: {calculated_hash}")
-            logger.info(f"Debug - Bot token ends with: ...{bot_token[-20:]}")
-            logger.info(f"Debug - Hash match: {received_hash == calculated_hash}")
+            # НОВЕ: Детальне порівняння
+            logger.info(f"Received hash: {received_hash}")
+            logger.info(f"Calculated hash: {calculated_hash}")
 
-            # Додаткова діагностика auth_date
-            auth_date = parsed_data.get('auth_date', [None])[0]
-            if auth_date:
-                try:
-                    auth_timestamp = int(auth_date)
-                    current_timestamp = int(time.time())
-                    time_diff = current_timestamp - auth_timestamp
-                    logger.info(
-                        f"Debug - Auth date time difference: {time_diff} seconds ({time_diff / 3600:.1f} hours)")
-                except:
-                    pass
-            # ====== КІНЕЦЬ ДІАГНОСТИКИ ======
-
-            # Порівнюємо хеші
             is_valid = hmac.compare_digest(received_hash, calculated_hash)
 
-            if is_valid:
-                logger.info("✅ Підпис валідний")
-            else:
-                logger.warning("⚠️ Підпис НЕ валідний")
-                # Додаткова діагностика
-                logger.debug(f"Received hash (перші 10): {received_hash[:10]}...")
-                logger.debug(f"Expected hash (перші 10): {calculated_hash[:10]}...")
+            if not is_valid:
+                # НОВЕ: Спробуємо альтернативний спосіб
+                logger.info("Спроба альтернативного методу...")
 
-                # Перевіряємо час auth_date
-                auth_date = parsed_data.get('auth_date', [None])[0]
-                if auth_date:
-                    try:
-                        auth_timestamp = int(auth_date)
-                        current_timestamp = int(time.time())
-                        time_diff = current_timestamp - auth_timestamp
-
-                        if time_diff > 86400:  # 24 години
-                            logger.warning(f"⚠️ auth_date застарілий: {time_diff} секунд тому")
-                    except:
-                        pass
+                # Можливо signature замість hash?
+                if 'signature' in parsed_data:
+                    logger.info("Знайдено signature, але очікувався hash")
 
             return is_valid
 
         except Exception as e:
-            logger.error(f"Помилка перевірки Telegram data: {str(e)}", exc_info=True)
+            logger.error(f"Помилка перевірки: {str(e)}", exc_info=True)
             return False
 
     @staticmethod
