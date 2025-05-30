@@ -386,29 +386,27 @@
     font-weight: 500;
 }
 
-/* ======== TOAST ПОВІДОМЛЕННЯ ======== */
+/* ======== TOAST ПОВІДОМЛЕННЯ - ІДЕНТИЧНІ REFERRALS ======== */
 .toast-message {
     position: fixed;
-    top: 2rem;
+    top: 20px;
     left: 50%;
-    transform: translateX(-50%) translateY(-100px);
+    transform: translateX(-50%);
     background: rgba(139, 92, 246, 0.15);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     color: white;
-    padding: 1rem 2rem;
-    border-radius: var(--border-radius-lg);
-    font-size: 0.9375rem;
-    font-weight: 500;
+    padding: 16px 24px;
+    border-radius: 16px;
+    z-index: 1000;
     box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.3),
+        0 8px 32px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(179, 102, 255, 0.2);
-    z-index: 2000;
-    opacity: 0;
-    transition: all 0.3s var(--animation-spring);
-    min-width: 250px;
-    text-align: center;
     border: 1px solid rgba(179, 102, 255, 0.2);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    font-size: 15px;
+    font-weight: 500;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -417,9 +415,9 @@
 }
 
 .toast-message.show {
-    transform: translate(-50%, 10px);
     opacity: 1;
-    animation: toast-appear 0.3s var(--animation-spring),
+    transform: translate(-50%, 10px);
+    animation: toast-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
                 toast-disappear 0.3s ease-in 2.7s forwards;
 }
 
