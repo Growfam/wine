@@ -28,8 +28,50 @@
     <link rel="stylesheet" href="css/earn/tasks-icons.css">
     <link rel="stylesheet" href="css/earn/verification.css">
     <link rel="stylesheet" href="css/earn/responsive.css">
+
+    <!-- НОВИЙ CSS для системи завантаження -->
+    <link rel="stylesheet" href="css/earn/loading-system.css">
 </head>
 <body>
+    <!-- Повний екран завантаження (для початкового завантаження) -->
+    <div class="loading-screen" id="fullLoadingScreen">
+        <div class="particles">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+
+        <div class="loading-content">
+            <div class="loading-logo">
+                <div class="loading-logo-container">
+                    <div class="loading-logo-bg"></div>
+                    <div class="loading-logo-text">W</div>
+                </div>
+            </div>
+
+            <div class="loading-title">WINIX</div>
+
+            <div class="loading-text">Завантаження системи завдань...</div>
+
+            <div class="loading-progress">
+                <div class="loading-progress-bar"></div>
+            </div>
+
+            <div class="loading-dots">
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- SVG фільтри та спрайт для іконок -->
     <svg class="winix-filters" style="display: none;">
         <defs>
@@ -109,6 +151,19 @@
 
             <!-- Контент вкладок -->
             <div class="tab-content">
+                <!-- Міні-лоадер для вкладок -->
+                <div class="tab-loading-overlay" id="tabLoadingOverlay">
+                    <div class="tab-loading-content">
+                        <div class="tab-loading-spinner">
+                            <div class="loading-logo-mini">
+                                <div class="loading-logo-bg-mini"></div>
+                                <div class="loading-logo-text-mini">W</div>
+                            </div>
+                        </div>
+                        <div class="tab-loading-text">Завантаження...</div>
+                    </div>
+                </div>
+
                 <!-- ВКЛАДКА 1: FLEX EARN -->
                 <div class="main-tab-pane active" id="flex-tab">
                     <!-- Статус підключеного гаманця (показується коли гаманець підключено) -->
@@ -534,6 +589,9 @@
         </div>
     </div>
 
+    <!-- НОВИЙ СКРИПТ - Система завантаження -->
+    <script src="./js/loading-system.js"></script>
+
     <!-- Завантаження скриптів у правильному порядку -->
     <script src="./js/api-init.js"></script>
     <script src="./js/api.js"></script>
@@ -691,59 +749,9 @@
 
     <!-- Базова ініціалізація -->
     <script>
-        // Обробники для навігації - ВИПРАВЛЕНА ВЕРСІЯ
+        // Обробники для навігації
         document.addEventListener('DOMContentLoaded', function() {
             console.log('[MAIN] DOM завантажено');
-
-            // Додатковий обробник для вкладок - ВИПРАВЛЕНА ВЕРСІЯ
-            const tabButtons = document.querySelectorAll('.tab-button');
-            console.log('[MAIN] Знайдено вкладок:', tabButtons.length);
-
-            tabButtons.forEach(button => {
-                button.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const tabName = this.getAttribute('data-tab');
-                    console.log('[MAIN] Клік на вкладку:', tabName);
-
-                    // Оновлюємо активні класи вкладок
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    this.classList.add('active');
-
-                    // Оновлюємо видимість панелей
-                    const panes = document.querySelectorAll('.main-tab-pane');
-                    panes.forEach(pane => {
-                        pane.classList.remove('active');
-                        pane.style.display = 'none';
-                    });
-
-                    const targetPane = document.getElementById(tabName + '-tab');
-                    if (targetPane) {
-                        targetPane.classList.add('active');
-                        targetPane.style.display = 'block';
-                        console.log('[MAIN] Показано панель:', tabName + '-tab');
-
-                        // ВАЖЛИВО: Оновлюємо Store з поточною вкладкою
-                        if (window.TasksStore) {
-                            window.TasksStore.actions.setCurrentTab(tabName);
-                        }
-
-                        // ВАЖЛИВО: Генеруємо подію для TasksManager
-                        document.dispatchEvent(new CustomEvent('tab-switched', {
-                            detail: { tab: tabName }
-                        }));
-
-                        // ВАЖЛИВО: Форсуємо оновлення UI для вкладок завдань
-                        if (['social', 'limited', 'partner'].includes(tabName)) {
-                            setTimeout(() => {
-                                if (window.TasksManager && window.TasksManager.updateTasksUI) {
-                                    console.log('[MAIN] Форсуємо оновлення UI для вкладки:', tabName);
-                                    window.TasksManager.updateTasksUI();
-                                }
-                            }, 100);
-                        }
-                    }
-                });
-            });
 
             // Обробники для навігації
             const navItems = document.querySelectorAll('.nav-bar .nav-item');
@@ -1060,59 +1068,64 @@
         })();
     </script>
 
-    <!-- Ініціалізація системи завдань - ВИПРАВЛЕНА ВЕРСІЯ -->
+    <!-- Ініціалізація системи завдань після завантаження сторінки -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 [MAIN] Запуск ініціалізації системи завдань...');
 
-            // Даємо час на завантаження всіх модулів
-            setTimeout(function() {
-                if (window.initTasksSystem) {
-                    window.initTasksSystem()
-                        .then(function(integration) {
-                            console.log('✅ [MAIN] Система завдань ініціалізована успішно');
+            // Чекаємо на завершення початкового завантаження
+            document.addEventListener('page-loaded', function() {
+                console.log('✅ [MAIN] Сторінка завантажена, ініціалізуємо систему завдань');
 
-                            // Додаткова перевірка та форсування рендерингу
-                            setTimeout(function() {
-                                console.log('🔄 [MAIN] Перевірка рендерингу завдань...');
+                // Даємо час на завантаження всіх модулів
+                setTimeout(function() {
+                    if (window.initTasksSystem) {
+                        window.initTasksSystem()
+                            .then(function(integration) {
+                                console.log('✅ [MAIN] Система завдань ініціалізована успішно');
 
-                                // Перевіряємо поточну вкладку
-                                const currentTab = window.TasksStore?.selectors?.getCurrentTab();
-                                console.log('📑 [MAIN] Поточна вкладка:', currentTab);
+                                // Додаткова перевірка та форсування рендерингу
+                                setTimeout(function() {
+                                    console.log('🔄 [MAIN] Перевірка рендерингу завдань...');
 
-                                // Якщо це вкладка завдань - форсуємо оновлення
-                                if (['social', 'limited', 'partner'].includes(currentTab)) {
-                                    if (window.TasksManager && window.TasksManager.updateTasksUI) {
-                                        console.log('🔄 [MAIN] Форсуємо оновлення UI');
-                                        window.TasksManager.updateTasksUI();
+                                    // Перевіряємо поточну вкладку
+                                    const currentTab = window.TasksStore?.selectors?.getCurrentTab();
+                                    console.log('📑 [MAIN] Поточна вкладка:', currentTab);
+
+                                    // Якщо це вкладка завдань - форсуємо оновлення
+                                    if (['social', 'limited', 'partner'].includes(currentTab)) {
+                                        if (window.TasksManager && window.TasksManager.updateTasksUI) {
+                                            console.log('🔄 [MAIN] Форсуємо оновлення UI');
+                                            window.TasksManager.updateTasksUI();
+                                        }
                                     }
+                                }, 1000);
+                            })
+                            .catch(function(error) {
+                                console.error('❌ [MAIN] Помилка ініціалізації системи завдань:', error);
+
+                                // Показуємо помилку користувачу
+                                const errorDiv = document.createElement('div');
+                                errorDiv.className = 'error-container';
+                                errorDiv.innerHTML = `
+                                    <h3>❌ Помилка завантаження</h3>
+                                    <p>${error.message || 'Не вдалося завантажити систему завдань'}</p>
+                                    <button onclick="window.location.reload()">Оновити сторінку</button>
+                                `;
+
+                                const mainContainer = document.querySelector('.tasks-section');
+                                if (mainContainer) {
+                                    mainContainer.prepend(errorDiv);
                                 }
-                            }, 1000);
-                        })
-                        .catch(function(error) {
-                            console.error('❌ [MAIN] Помилка ініціалізації системи завдань:', error);
+                            });
+                    } else {
+                        console.error('❌ [MAIN] window.initTasksSystem не знайдено');
 
-                            // Показуємо помилку користувачу
-                            const errorDiv = document.createElement('div');
-                            errorDiv.className = 'error-container';
-                            errorDiv.innerHTML = `
-                                <h3>❌ Помилка завантаження</h3>
-                                <p>${error.message || 'Не вдалося завантажити систему завдань'}</p>
-                                <button onclick="window.location.reload()">Оновити сторінку</button>
-                            `;
-
-                            const mainContainer = document.querySelector('.tasks-section');
-                            if (mainContainer) {
-                                mainContainer.prepend(errorDiv);
-                            }
-                        });
-                } else {
-                    console.error('❌ [MAIN] window.initTasksSystem не знайдено');
-
-                    // Спробуємо ще раз через секунду
-                    setTimeout(arguments.callee, 1000);
-                }
-            }, 500);
+                        // Спробуємо ще раз через секунду
+                        setTimeout(arguments.callee, 1000);
+                    }
+                }, 500);
+            });
         });
     </script>
 
@@ -1175,8 +1188,8 @@
                 }
             }
 
-            // Запускаємо перевірку через 3 секунди після завантаження
-            setTimeout(checkTasksRendering, 3000);
+            // Запускаємо перевірку через 5 секунд після завантаження (після завершення екрану завантаження)
+            setTimeout(checkTasksRendering, 5000);
         })();
     </script>
 </body>
