@@ -12,7 +12,7 @@ import hashlib
 logger = logging.getLogger(__name__)
 
 from ..models.daily_bonus import (
-    DailyBonusStatus, daily_bonus_manager, Reward
+    DailyBonusStatus, daily_bonus_manager, Reward, DailyBonusEntry
 )
 from ..models.user_quest import UserQuest
 from ..services.reward_calculator import reward_calculator, calculate_daily_reward
@@ -87,6 +87,9 @@ class DailyController:
             user_data = get_user(str(validated_id))
             if not user_data:
                 raise ValidationError("Користувач не знайдений")
+
+            # НОВИЙ КОД: Синхронізуємо статус перед отриманням
+            daily_bonus_manager.verify_and_sync_status(user_id)
 
             # Отримуємо статус щоденних бонусів з БД
             daily_status = daily_bonus_manager.get_user_status(user_id)
@@ -166,8 +169,19 @@ class DailyController:
             if not user_data:
                 raise ValidationError("Користувач не знайдений")
 
-            # Отримуємо поточний статус
+            # КРИТИЧНО: Синхронізуємо статус перед перевіркою
+            logger.info(f"Синхронізація статусу для {user_id}")
+            if not daily_bonus_manager.verify_and_sync_status(user_id):
+                logger.warning(f"Помилка синхронізації статусу для {user_id}")
+
+            # Отримуємо поточний статус (з force_refresh!)
             daily_status = daily_bonus_manager.get_user_status(user_id, force_refresh=True)
+
+            # КРИТИЧНО: Додаткова перевірка next_available_date
+            now = datetime.now(timezone.utc)
+            if daily_status.next_available_date and daily_status.next_available_date > now:
+                hours_remaining = (daily_status.next_available_date - now).total_seconds() / 3600
+                raise ValidationError(f"Бонус вже отримано сьогодні. Наступний через {hours_remaining:.1f} годин")
 
             # Перевіряємо чи можна отримати бонус
             if not daily_status.can_claim_today:
@@ -190,7 +204,26 @@ class DailyController:
 
             logger.info(f"Розрахована винагорода: {reward.to_dict()}")
 
+            # Спочатку створюємо запис про отримання
+            new_entry = DailyBonusEntry(
+                user_id=user_id,
+                day_number=daily_status.current_day_number,
+                claim_date=now,
+                reward=reward,
+                streak_at_claim=daily_status.current_streak,
+                bonus_multiplier=1.0,
+                is_special_day=False
+            )
+
+            # КРИТИЧНО: Зберігаємо запис ПЕРЕД нарахуванням винагороди
+            if not daily_bonus_manager.save_entry_to_db(new_entry):
+                logger.error("Помилка збереження запису про отримання")
+                raise ValidationError("Помилка збереження бонусу")
+
             # Нараховуємо винагороду через Transaction Service
+            transaction_id = None
+            success_operations = []
+
             if transaction_service:
                 # Використовуємо атомарну транзакцію
                 transaction_result = transaction_service.process_daily_bonus(
@@ -207,12 +240,10 @@ class DailyController:
                     logger.info(f"Щоденний бонус нарахований через transaction service: {success_operations}")
                 else:
                     logger.error(f"Помилка transaction service: {transaction_result['error']}")
+                    # TODO: Видалити запис з daily_bonus_entries якщо транзакція не вдалась
                     raise ValidationError(f"Помилка нарахування: {transaction_result['error']}")
             else:
                 # Fallback до старого методу
-                success_operations = []
-                transaction_id = None
-
                 if reward.winix > 0:
                     winix_result = update_balance(str(validated_id), reward.winix)
                     if winix_result:
@@ -229,31 +260,39 @@ class DailyController:
                         logger.error("Помилка нарахування tickets")
                         raise ValidationError("Помилка нарахування tickets")
 
-            # Отримуємо бонус (оновлює статус)
-            entry = daily_status.claim_bonus(reward)
+            # КРИТИЧНО: Оновлюємо статус з правильними даними
+            daily_status.last_claim_date = now
+            daily_status.next_available_date = now + timedelta(hours=20)
+            daily_status.total_days_claimed += 1
+            daily_status.can_claim_today = False
 
-            # Зберігаємо оновлений статус в БД
+            # Оновлюємо серію
+            if daily_status.current_streak == 0:
+                daily_status.current_streak = 1
+            else:
+                daily_status.current_streak += 1
+
+            daily_status.longest_streak = max(daily_status.longest_streak, daily_status.current_streak)
+            daily_status.update_timestamp()
+
+            # Зберігаємо оновлений статус
             if not daily_bonus_manager.save_status_to_db(daily_status):
-                logger.error("Помилка збереження статусу щоденних бонусів")
-                # Не викидаємо помилку, оскільки винагорода вже нарахована
-
-            # Зберігаємо запис про отримання в БД
-            if not daily_bonus_manager.save_entry_to_db(entry):
-                logger.error("Помилка збереження запису про отримання")
-                # Не викидаємо помилку, оскільки винагорода вже нарахована
+                logger.error("КРИТИЧНА ПОМИЛКА: Не вдалося зберегти статус після claim!")
+                # Спробуємо синхронізувати
+                daily_bonus_manager.verify_and_sync_status(user_id)
 
             logger.info(f"Щоденний бонус успішно отримано користувачем {validated_id}: {success_operations}")
 
             # Формуємо відповідь
             response_data = {
                 "success": True,
-                "day_number": entry.day_number,
+                "day_number": new_entry.day_number,
                 "reward": reward.to_dict(),
                 "operations": success_operations,
                 "new_streak": daily_status.current_streak,
                 "is_special_day": False,
                 "streak_bonus_applied": daily_status.current_streak > 1,
-                "claimed_at": entry.claim_date.isoformat(),
+                "claimed_at": new_entry.claim_date.isoformat(),
                 "next_available": daily_status.next_available_date.isoformat() if daily_status.next_available_date else None,
                 "total_days_claimed": daily_status.total_days_claimed
             }
