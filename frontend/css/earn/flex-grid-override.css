@@ -10,11 +10,11 @@
     /* Видаляємо всі попередні стилі */
     all: unset;
 
-    /* Застосовуємо преміальну Grid */
+    /* Застосовуємо преміальну Grid - ЗАВЖДИ 2x2 */
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-auto-rows: minmax(300px, auto);
-    gap: 1.25rem !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    grid-auto-rows: minmax(280px, auto);
+    gap: 1rem !important;
     padding: 0.5rem !important;
     width: 100% !important;
     box-sizing: border-box !important;
@@ -48,7 +48,7 @@
     backdrop-filter: blur(20px) !important;
     -webkit-backdrop-filter: blur(20px) !important;
     border-radius: 1.5rem !important;
-    padding: 1.5rem !important;
+    padding: 1.25rem !important;
     border: 1px solid rgba(179, 102, 255, 0.2) !important;
     box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.2),
@@ -60,7 +60,8 @@
     justify-content: space-between !important;
 
     /* Розміри */
-    min-height: 300px !important;
+    min-height: 280px !important;
+    height: 100% !important;
     box-sizing: border-box !important;
 
     /* Преміальні анімації */
@@ -133,8 +134,8 @@
 }
 
 .task-icon {
-    width: 3rem !important;
-    height: 3rem !important;
+    width: 2.5rem !important;
+    height: 2.5rem !important;
     flex-shrink: 0 !important;
     box-shadow:
         0 6px 24px rgba(0, 0, 0, 0.2),
@@ -165,27 +166,39 @@
 }
 
 .task-title {
-    font-size: 1.125rem !important;
+    font-size: 0.9375rem !important;
     line-height: 1.3 !important;
     font-weight: 700 !important;
     letter-spacing: -0.02em !important;
 }
 
 .task-requirement {
-    font-size: 0.875rem !important;
+    font-size: 0.75rem !important;
     line-height: 1.4 !important;
     color: rgba(255, 255, 255, 0.7) !important;
 }
 
 .task-rewards {
-    margin-bottom: 0.875rem !important;
-    padding: 0.875rem !important;
+    margin-bottom: 0.75rem !important;
+    padding: 0.625rem !important;
     background: rgba(0, 0, 0, 0.2) !important;
-    border-radius: 1rem !important;
+    border-radius: 0.75rem !important;
     backdrop-filter: blur(10px) !important;
     border: 1px solid rgba(179, 102, 255, 0.1) !important;
     position: relative !important;
     z-index: 1 !important;
+}
+
+.reward-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.25rem !important;
+    font-size: 0.75rem !important;
+}
+
+.reward-text {
+    font-size: 0.75rem !important;
+    white-space: nowrap !important;
 }
 
 .claim-button {
@@ -195,60 +208,90 @@
     box-shadow:
         0 4px 16px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    padding: 0.75rem !important;
+    font-size: 0.8125rem !important;
 }
 
-/* Таблет - преміальна адаптивність */
-@media (max-width: 768px) and (min-width: 541px) {
+/* Таблет - зберігаємо 2x2 сітку */
+@media (max-width: 768px) {
     .flex-tasks-container,
     #flex-tasks {
-        gap: 1rem !important;
+        gap: 0.875rem !important;
         padding: 0.375rem !important;
+        /* Залишаємо 2 колонки */
+        grid-template-columns: repeat(2, 1fr) !important;
     }
 
     .flex-task-card {
-        min-height: 280px !important;
-        padding: 1.25rem !important;
+        min-height: 260px !important;
+        padding: 1rem !important;
     }
 
     .task-icon {
-        width: 2.75rem !important;
-        height: 2.75rem !important;
+        width: 2.25rem !important;
+        height: 2.25rem !important;
     }
 }
 
-/* Мобільні - преміальна адаптивність */
-@media (max-width: 540px) {
+/* Мобільні - зберігаємо 2x2 сітку */
+@media (max-width: 600px) {
     .flex-tasks-container,
     #flex-tasks {
-        grid-template-columns: 1fr !important;
-        gap: 1rem !important;
+        /* ВАЖЛИВО: залишаємо 2 колонки навіть на мобільних */
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.75rem !important;
         padding: 0.25rem !important;
     }
 
-    .flex-task-card:nth-child(5) {
-        grid-column: 1 !important;
-    }
-
     .flex-task-card {
-        min-height: auto !important;
-        padding: 1.125rem !important;
-    }
-
-    .task-icon {
-        width: 2.5rem !important;
-        height: 2.5rem !important;
+        min-height: 240px !important;
+        padding: 0.875rem !important;
     }
 
     .task-title {
-        font-size: 1rem !important;
+        font-size: 0.875rem !important;
     }
 
     .task-requirement {
-        font-size: 0.8125rem !important;
+        font-size: 0.6875rem !important;
+    }
+
+    .reward-text {
+        font-size: 0.6875rem !important;
     }
 }
 
-/* Видалення конфліктних анімацій та додавання преміальних */
+/* Дуже малі екрани - зберігаємо 2x2 сітку */
+@media (max-width: 400px) {
+    .flex-tasks-container,
+    #flex-tasks {
+        /* ВАЖЛИВО: все ще 2 колонки */
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.5rem !important;
+        padding: 0.125rem !important;
+    }
+
+    .flex-task-card {
+        min-height: 220px !important;
+        padding: 0.75rem !important;
+    }
+
+    .task-icon {
+        width: 2rem !important;
+        height: 2rem !important;
+    }
+
+    .task-title {
+        font-size: 0.8125rem !important;
+    }
+
+    .claim-button {
+        padding: 0.625rem !important;
+        font-size: 0.75rem !important;
+    }
+}
+
+/* Анімація появи карток */
 .flex-task-card {
     animation: card-premium-appear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
 }
