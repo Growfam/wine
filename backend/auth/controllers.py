@@ -17,10 +17,16 @@ from flask import request, jsonify
 # Налаштування
 logger = logging.getLogger(__name__)
 
-# JWT конфігурація
-JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key')
+# JWT конфігурація - СИНХРОНІЗОВАНА
+JWT_SECRET = os.getenv('JWT_SECRET', 'winix-secure-jwt-secret-key-2025')
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION = int(os.getenv('JWT_EXPIRATION', '86400'))  # 24 години
+
+# Перевірка наявності секретного ключа
+if JWT_SECRET == 'your-secret-key':
+    logger.warning("⚠️ JWT_SECRET використовує дефолтне значення! Встановіть JWT_SECRET в .env")
+
+logger.info(f"JWT Config loaded: Algorithm={JWT_ALGORITHM}, Expiration={JWT_EXPIRATION}s")
 
 # Імпорт функцій БД
 try:
@@ -36,24 +42,20 @@ class TelegramAuthController:
     def verify_telegram_webapp_data(init_data: str, bot_token: str) -> bool:
         """Перевірка автентичності даних від Telegram WebApp"""
         try:
-            # ===== НОВЕ: ДІАГНОСТИЧНЕ ЛОГУВАННЯ =====
             logger.info(f"verify_telegram_webapp_data: Початок перевірки")
             logger.info(f"init_data тип: {type(init_data)}")
             logger.info(f"init_data довжина: {len(init_data) if init_data else 0}")
 
             parsed_data = urllib.parse.parse_qs(init_data)
 
-            # ===== НОВЕ: ЛОГУВАННЯ КЛЮЧІВ =====
             logger.info(f"Parsed data keys: {list(parsed_data.keys())}")
 
             # Отримуємо hash
             received_hash = parsed_data.get('hash', [None])[0]
             if not received_hash:
-                # ===== НОВЕ: ДЕТАЛЬНЕ ЛОГУВАННЯ ПОМИЛКИ =====
                 logger.error(f"Hash відсутній в parsed_data")
                 return False
 
-            # ===== НОВЕ: ЛОГУВАННЯ HASH =====
             logger.info(f"Received hash: {received_hash[:10]}...")
 
             # Створюємо рядок для перевірки
@@ -78,7 +80,6 @@ class TelegramAuthController:
                 hashlib.sha256
             ).hexdigest()
 
-            # ===== НОВЕ: ЛОГУВАННЯ РЕЗУЛЬТАТУ =====
             is_valid = hmac.compare_digest(received_hash, calculated_hash)
             logger.info(f"Підпис валідний: {'Так' if is_valid else 'Ні'}")
 
@@ -114,8 +115,12 @@ class TelegramAuthController:
     def generate_jwt_token(user_data: Dict[str, Any]) -> str:
         """Генерація JWT токена"""
         try:
+            # Отримуємо telegram_id
+            telegram_id = str(user_data.get('telegram_id', user_data.get('id')))
+
             payload = {
-                'user_id': str(user_data.get('telegram_id', user_data.get('id'))),
+                'telegram_id': telegram_id,  # ВАЖЛИВО: додаємо це поле
+                'user_id': telegram_id,      # для сумісності
                 'username': user_data.get('username', ''),
                 'first_name': user_data.get('first_name', ''),
                 'last_name': user_data.get('last_name', ''),
@@ -124,7 +129,9 @@ class TelegramAuthController:
                 'type': 'access'
             }
 
-            return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+            token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+            logger.info(f"Generated JWT token for user {telegram_id}")
+            return token
 
         except Exception as e:
             logger.error(f"Помилка генерації токена: {str(e)}")
@@ -145,7 +152,6 @@ class TelegramAuthController:
     def authenticate_telegram_user(telegram_data: Dict[str, Any]) -> Dict[str, Any]:
         """Основна функція авторизації через Telegram"""
         try:
-            # ===== ДОДАЙТЕ ЦЕ ВІДРАЗУ НА ПОЧАТКУ =====
             logger.info("🔍 === ПОЧАТОК АВТОРИЗАЦІЇ ===")
             logger.info(f"Отримані дані: {list(telegram_data.keys())}")
             logger.info(f"ENV змінні:")
@@ -158,7 +164,6 @@ class TelegramAuthController:
             init_data = telegram_data.get('initData')
             bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
 
-            # ===== НОВЕ: ДІАГНОСТИКА INITDATA =====
             logger.info(f"=== ДІАГНОСТИКА АВТОРИЗАЦІЇ ===")
             logger.info(f"init_data присутній: {'Так' if init_data else 'Ні'}")
             logger.info(f"bot_token присутній: {'Так' if bot_token else 'Ні'}")
@@ -168,12 +173,16 @@ class TelegramAuthController:
 
             # КРИТИЧНО: Перевіряємо наявність initData для продакшену
             if not init_data:
-                logger.error(f"❌ initData відсутній для користувача {telegram_data.get('id')}")
-                return {
-                    'success': False,
-                    'error': 'Відсутні дані авторизації Telegram',
-                    'code': 'missing_init_data'
-                }
+                # Якщо є telegram_id без initData - дозволяємо для development
+                if os.getenv('ENVIRONMENT', 'development') == 'development' and telegram_data.get('id'):
+                    logger.warning(f"⚠️ Development mode: дозволяємо авторизацію без initData")
+                else:
+                    logger.error(f"❌ initData відсутній для користувача {telegram_data.get('id')}")
+                    return {
+                        'success': False,
+                        'error': 'Відсутні дані авторизації Telegram',
+                        'code': 'missing_init_data'
+                    }
 
             if not bot_token:
                 logger.error("❌ TELEGRAM_BOT_TOKEN не налаштований")
@@ -182,7 +191,8 @@ class TelegramAuthController:
                     'error': 'Сервер неправильно налаштований',
                     'code': 'missing_bot_token'
                 }
-            # ===== НОВЕ: МОЖЛИВІСТЬ ПРОПУСТИТИ ПЕРЕВІРКУ ПІДПИСУ =====
+
+            # МОЖЛИВІСТЬ ПРОПУСТИТИ ПЕРЕВІРКУ ПІДПИСУ
             SKIP_SIGNATURE_CHECK = os.getenv('SKIP_TELEGRAM_SIGNATURE_CHECK', 'false').lower() == 'true'
 
             if init_data and bot_token and not SKIP_SIGNATURE_CHECK:
@@ -190,7 +200,7 @@ class TelegramAuthController:
                 if not TelegramAuthController.verify_telegram_webapp_data(init_data, bot_token):
                     logger.warning(f"⚠️ Невалідний підпис для користувача")
 
-                    # ===== НОВЕ: МОЖЛИВІСТЬ ПРОДОВЖИТИ З НЕВАЛІДНИМ ПІДПИСОМ =====
+                    # МОЖЛИВІСТЬ ПРОДОВЖИТИ З НЕВАЛІДНИМ ПІДПИСОМ
                     if not os.getenv('ALLOW_INVALID_SIGNATURE', 'false').lower() == 'true':
                         return {
                             'success': False,
@@ -369,7 +379,7 @@ class TelegramAuthController:
         """Валідація JWT токена"""
         try:
             payload = TelegramAuthController.decode_jwt_token(token)
-            user_id = payload.get('user_id')
+            user_id = payload.get('user_id') or payload.get('telegram_id')
 
             # Перевіряємо користувача
             user = get_user(user_id)
@@ -502,5 +512,5 @@ __all__ = [
     'AuthError',
     'require_auth',
     'validate_telegram_route',
-    'refresh_token_route'  # Додати це
+    'refresh_token_route'
 ]

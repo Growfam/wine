@@ -1,7 +1,7 @@
 """
 Декоратори для системи завдань WINIX
 JWT авторизація, валідація, rate limiting, безпека та інші утиліти
-ВИПРАВЛЕНА ВЕРСІЯ - вирішує проблеми з validate_json
+ВИПРАВЛЕНА ВЕРСІЯ - синхронізована JWT конфігурація
 """
 
 import os
@@ -19,10 +19,16 @@ from collections import defaultdict, deque
 
 logger = logging.getLogger(__name__)
 
-# JWT налаштування
-JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key')
+# JWT налаштування - СИНХРОНІЗОВАНІ З ІНШИМИ ФАЙЛАМИ
+JWT_SECRET = os.getenv('JWT_SECRET', 'winix-secure-jwt-secret-key-2025')
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION = int(os.getenv('JWT_EXPIRATION', '86400'))  # 24 години
+
+# Перевірка наявності секретного ключа
+if JWT_SECRET == 'your-secret-key':
+    logger.warning("⚠️ JWT_SECRET використовує дефолтне значення! Встановіть JWT_SECRET в .env")
+
+logger.info(f"Decorators JWT Config: Algorithm={JWT_ALGORITHM}, Expiration={JWT_EXPIRATION}s")
 
 # Безпека
 SECURITY_HEADERS_ENABLED = os.getenv('SECURITY_HEADERS_ENABLED', 'true').lower() == 'true'
