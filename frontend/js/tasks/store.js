@@ -62,7 +62,8 @@ window.TasksStore = (function() {
                 tickets: 0
             },
             nextTicketDay: null,
-            claiming: false
+            claiming: false,
+            isClaiming: false // додано для сумісності
         },
 
         // Завдання
@@ -125,6 +126,9 @@ window.TasksStore = (function() {
         ADD_TICKET_DAY: 'ADD_TICKET_DAY',
         SET_DAILY_CLAIMING: 'SET_DAILY_CLAIMING',
         RESET_DAILY_BONUS: 'RESET_DAILY_BONUS',
+        ADD_CLAIMED_DAY: 'ADD_CLAIMED_DAY',
+        SET_CLAIMED_DAYS: 'SET_CLAIMED_DAYS',
+        UPDATE_DAILY_TOTAL_CLAIMED: 'UPDATE_DAILY_TOTAL_CLAIMED',
 
         // Tasks actions
         SET_TASKS: 'SET_TASKS',
@@ -379,7 +383,7 @@ window.TasksStore = (function() {
     }
 
     /**
-     * Daily Bonus Reducer
+     * Daily Bonus Reducer - розширено новими діями
      */
     function dailyBonusReducer(state = initialState.dailyBonus, action) {
         switch(action.type) {
@@ -400,7 +404,7 @@ window.TasksStore = (function() {
                     claimedDays: [...state.claimedDays, today],
                     currentStreak: state.currentStreak + 1,
                     totalClaimed: {
-                        winix: state.totalClaimed.winix + action.payload.winix,
+                        winix: state.totalClaimed.winix + (action.payload.winix || 0),
                         tickets: state.totalClaimed.tickets + (action.payload.tickets || 0)
                     }
                 };
@@ -414,7 +418,38 @@ window.TasksStore = (function() {
 
             case ActionTypes.SET_DAILY_CLAIMING:
                 console.log('  🔄 [TasksStore] Встановлення стану отримання бонусу');
-                return { ...state, claiming: action.payload };
+                return {
+                    ...state,
+                    claiming: action.payload,
+                    isClaiming: action.payload // для сумісності
+                };
+
+            case ActionTypes.ADD_CLAIMED_DAY:
+                console.log('  📅 [TasksStore] Додавання дня отримання бонусу');
+                if (!state.claimedDays.includes(action.payload)) {
+                    return {
+                        ...state,
+                        claimedDays: [...state.claimedDays, action.payload]
+                    };
+                }
+                return state;
+
+            case ActionTypes.SET_CLAIMED_DAYS:
+                console.log('  📅 [TasksStore] Встановлення днів отримання бонусів');
+                return {
+                    ...state,
+                    claimedDays: action.payload || []
+                };
+
+            case ActionTypes.UPDATE_DAILY_TOTAL_CLAIMED:
+                console.log('  💰 [TasksStore] Оновлення загальної суми отриманих бонусів');
+                return {
+                    ...state,
+                    totalClaimed: {
+                        winix: action.payload.winix || 0,
+                        tickets: action.payload.tickets || 0
+                    }
+                };
 
             case ActionTypes.RESET_DAILY_BONUS:
                 console.log('  🔄 [TasksStore] Скидання щоденного бонусу');
@@ -582,7 +617,7 @@ window.TasksStore = (function() {
     }
 
     /**
-     * Селектори
+     * Селектори - розширено для Daily Bonus
      */
     const selectors = {
         // User selectors
@@ -602,7 +637,7 @@ window.TasksStore = (function() {
         isFlexLevelClaimed: (level) => state.flexEarn.levels[level]?.claimed || false,
         isFlexLevelAvailable: (level) => state.flexEarn.levels[level]?.available || false,
 
-        // Daily bonus selectors
+        // Daily bonus selectors - розширено
         getCurrentStreak: () => state.dailyBonus.currentStreak,
         getLastClaimDate: () => state.dailyBonus.lastClaimDate,
         canClaimDailyBonus: () => {
@@ -610,6 +645,12 @@ window.TasksStore = (function() {
             if (!lastClaim) return true;
             return window.TasksUtils.isNewDay(lastClaim);
         },
+        getDailyBonus: () => state.dailyBonus,
+        getDailyStreak: () => state.dailyBonus.currentStreak,
+        getClaimedDays: () => state.dailyBonus.claimedDays,
+        isDailyClaiming: () => state.dailyBonus.claiming || state.dailyBonus.isClaiming,
+        getTotalClaimed: () => state.dailyBonus.totalClaimed,
+        getTicketDays: () => state.dailyBonus.ticketDays,
 
         // UI selectors
         getCurrentTab: () => state.ui.currentTab,
@@ -621,7 +662,7 @@ window.TasksStore = (function() {
     };
 
     /**
-     * Action creators - оновлено для правильної обробки балансу
+     * Action creators - розширено для Daily Bonus
      */
     const actions = {
         // User actions
@@ -648,11 +689,17 @@ window.TasksStore = (function() {
         setFlexClaiming: (claiming) => dispatch({ type: ActionTypes.SET_FLEX_CLAIMING, payload: claiming }),
         resetFlexDaily: () => dispatch({ type: ActionTypes.RESET_FLEX_DAILY }),
 
-        // Daily bonus actions
+        // Daily bonus actions - розширено новими методами
         setDailyStreak: (current) => dispatch({ type: ActionTypes.SET_DAILY_STREAK, payload: { current } }),
         claimDailyBonus: (rewards) => dispatch({ type: ActionTypes.CLAIM_DAILY_BONUS, payload: rewards }),
         addTicketDay: (date) => dispatch({ type: ActionTypes.ADD_TICKET_DAY, payload: date }),
         setDailyClaiming: (claiming) => dispatch({ type: ActionTypes.SET_DAILY_CLAIMING, payload: claiming }),
+        addClaimedDay: (day) => dispatch({ type: ActionTypes.ADD_CLAIMED_DAY, payload: day }),
+        setClaimedDays: (days) => dispatch({ type: ActionTypes.SET_CLAIMED_DAYS, payload: days }),
+        updateDailyTotalClaimed: (totals) => dispatch({
+            type: ActionTypes.UPDATE_DAILY_TOTAL_CLAIMED,
+            payload: totals
+        }),
 
         // Tasks actions
         setTasks: (type, tasks) => dispatch({ type: ActionTypes.SET_TASKS, payload: { type, tasks } }),

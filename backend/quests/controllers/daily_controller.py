@@ -694,10 +694,13 @@ class DailyController:
             # Витягуємо номери днів
             claimed_days = [entry.day_number for entry in history]
 
+            # Логуємо для діагностики
+            logger.info(f"Claimed days для {user_id}: {sorted(set(claimed_days))}")
+
             return sorted(set(claimed_days))  # Унікальні та відсортовані
 
         except Exception as e:
-            logger.error(f"Помилка отримання claimed days: {e}")
+            logger.error(f"Помилка отримання claimed days: {e}", exc_info=True)
             return []
 
 

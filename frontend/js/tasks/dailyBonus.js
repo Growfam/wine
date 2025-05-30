@@ -64,66 +64,82 @@ window.DailyBonusManager = (function() {
     /**
      * Завантаження стану з бекенду
      */
-    async function loadDailyBonusState() {
-        console.log('📂 [DailyBonus] Завантаження стану з бекенду...');
+async function loadDailyBonusState() {
+    console.log('📂 [DailyBonus] Завантаження стану з бекенду...');
 
-        try {
-            const response = await window.TasksAPI.daily.getStatus(state.userId);
+    try {
+        const response = await window.TasksAPI.daily.getStatus(state.userId);
 
-            console.log('✅ [DailyBonus] Отримано стан з бекенду:', response);
+        console.log('✅ [DailyBonus] Отримано стан з бекенду:', response);
 
-            if (response.status === 'success' && response.data) {
-                const data = response.data;
+        if (response.status === 'success' && response.data) {
+            const data = response.data;
 
-                // Оновлюємо локальний стан
-                state.currentDay = data.current_day_number || 0;
-                state.currentStreak = data.current_streak || 0;
-                state.longestStreak = data.longest_streak || 0;
-                state.canClaim = data.can_claim_today || false;
-                state.nextClaimTime = data.next_available_date || null;
-                state.todayReward = data.today_reward || null;
-                state.calendarRewards = data.calendar_rewards || [];
-                state.claimedDays = data.claimed_days || [];
+            // Оновлюємо локальний стан
+            state.currentDay = data.current_day_number || 0;
+            state.currentStreak = data.current_streak || 0;
+            state.longestStreak = data.longest_streak || 0;
+            state.canClaim = data.can_claim_today || false;
+            state.nextClaimTime = data.next_available_date || null;
+            state.todayReward = data.today_reward || null;
+            state.calendarRewards = data.calendar_rewards || [];
+            state.claimedDays = data.claimed_days || [];
 
-                // Оновлюємо стан в сторі
-                const store = window.TasksStore;
-                if (store) {
+            // Оновлюємо стан в сторі
+            const store = window.TasksStore;
+            if (store && store.actions) {
+                // Оновлюємо серію
+                if (store.actions.setDailyStreak) {
                     store.actions.setDailyStreak(state.currentStreak);
-
-                    // Оновлюємо claimed days
-                    if (state.claimedDays.length > 0) {
-                        state.claimedDays.forEach(day => {
-                            if (!store.getState().dailyBonus.claimedDays.includes(day)) {
-                                store.actions.addClaimedDay(day);
-                            }
-                        });
-                    }
-
-                    // Оновлюємо статистику
-                    if (data.statistics) {
-                        store.actions.updateDailyTotalClaimed({
-                            winix: data.statistics.total_winix_earned || 0,
-                            tickets: data.statistics.total_tickets_earned || 0
-                        });
-                    }
                 }
 
-                console.log('📊 [DailyBonus] Поточний стан:', {
-                    Daily: state.currentDay,
-                    Seria: state.currentStreak,
-                    Claim: state.canClaim,
-                    NextTime: state.nextClaimTime
-                });
+                // Оновлюємо claimed days
+                if (store.actions.setClaimedDays) {
+                    store.actions.setClaimedDays(state.claimedDays);
+                } else if (store.actions.addClaimedDay) {
+                    // Fallback якщо немає setClaimedDays
+                    state.claimedDays.forEach(day => {
+                        store.actions.addClaimedDay(day);
+                    });
+                } else {
+                    console.warn('⚠️ [DailyBonus] Store не має методів для claimed days');
+                }
+
+                // Оновлюємо статистику
+                if (data.statistics && store.actions.updateDailyTotalClaimed) {
+                    store.actions.updateDailyTotalClaimed({
+                        winix: data.statistics.total_winix_earned || 0,
+                        tickets: data.statistics.total_tickets_earned || 0
+                    });
+                }
             } else {
-                throw new Error('Invalid response format');
+                console.warn('⚠️ [DailyBonus] TasksStore не доступний або не має actions');
             }
 
-        } catch (error) {
-            console.error('❌ [DailyBonus] Помилка завантаження стану:', error);
-            window.TasksUtils.showToast('Помилка завантаження щоденного бонусу', 'error');
+            console.log('📊 [DailyBonus] Поточний стан:', {
+                Daily: state.currentDay,
+                Seria: state.currentStreak,
+                Claim: state.canClaim,
+                NextTime: state.nextClaimTime,
+                ClaimedDays: state.claimedDays
+            });
+        } else {
+            throw new Error('Invalid response format');
         }
-    }
 
+    } catch (error) {
+        console.error('❌ [DailyBonus] Помилка завантаження стану:', error);
+
+        // Встановлюємо дефолтні значення при помилці
+        state.currentDay = 0;
+        state.currentStreak = 0;
+        state.longestStreak = 0;
+        state.canClaim = false;
+        state.claimedDays = [];
+
+        window.TasksUtils.showToast('Помилка завантаження щоденного бонусу', 'error');
+    }
+}
     /**
      * Оновлення UI щоденного бонусу
      */
