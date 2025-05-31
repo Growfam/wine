@@ -50,8 +50,8 @@ window.TasksIntegration = (function() {
             // Крок 5: Асинхронне завантаження даних
             this.loadDataAsync();
 
-            // Крок 6: Ініціалізація менеджерів через події
-            this.initializeManagers();
+            // Крок 6: Ініціалізація менеджерів
+            await this.initializeManagers();
 
             this.isInitialized = true;
 
@@ -431,29 +431,44 @@ window.TasksIntegration = (function() {
     };
 
     /**
-     * Ініціалізація менеджерів через події
+     * Ініціалізація менеджерів через прямий виклик
      */
-    TasksIntegration.prototype.initializeManagers = function() {
+    TasksIntegration.prototype.initializeManagers = async function() {
         console.log('🔧 [TasksIntegration] Ініціалізація менеджерів');
 
-        // Замість прямих залежностей використовуємо події
-        const managers = [
-            { name: 'flexEarn', event: 'manager.flex.ready' },
-            { name: 'dailyBonus', event: 'manager.daily.ready' },
-            { name: 'tasks', event: 'manager.tasks.ready' },
-            { name: 'wallet', event: 'manager.wallet.ready' }
-        ];
+        try {
+            // Ініціалізуємо Daily Bonus Manager
+            if (window.DailyBonusManager) {
+                await window.DailyBonusManager.init(this.userId);
+                this.managers.set('dailyBonus', window.DailyBonusManager);
+                console.log('✅ [TasksIntegration] DailyBonusManager ініціалізовано');
+            }
 
-        managers.forEach(({ name, event }) => {
-            // Чекаємо на готовність менеджера
-            EventBus.once(event, (manager) => {
-                this.managers.set(name, manager);
-                console.log(`✅ [TasksIntegration] Менеджер ${name} готовий`);
-            });
+            // Ініціалізуємо Tasks Manager
+            if (window.TasksManager) {
+                await window.TasksManager.init(this.userId);
+                this.managers.set('tasks', window.TasksManager);
+                console.log('✅ [TasksIntegration] TasksManager ініціалізовано');
+            }
 
-            // Запитуємо ініціалізацію
-            EventBus.emit(`manager.${name}.init`, { userId: this.userId });
-        });
+            // Ініціалізуємо Flex Earn Manager
+            if (window.FlexEarnManager) {
+                await window.FlexEarnManager.init(this.userId);
+                this.managers.set('flexEarn', window.FlexEarnManager);
+                console.log('✅ [TasksIntegration] FlexEarnManager ініціалізовано');
+            }
+
+            // Ініціалізуємо Wallet Checker
+            if (window.WalletChecker) {
+                await window.WalletChecker.init(this.userId);
+                this.managers.set('wallet', window.WalletChecker);
+                console.log('✅ [TasksIntegration] WalletChecker ініціалізовано');
+            }
+
+        } catch (error) {
+            console.error('❌ [TasksIntegration] Помилка ініціалізації менеджерів:', error);
+            // Не блокуємо загальну ініціалізацію
+        }
     };
 
     /**

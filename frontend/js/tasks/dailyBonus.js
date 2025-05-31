@@ -112,8 +112,7 @@ window.DailyBonusManager = (function() {
                 // Оновлюємо Store
                 updateStoreFromData(data);
 
-                // Оновлюємо UI через EventBus
-                eventBus.emit('dataLoaded', data);
+                // Оновлюємо UI
                 updateUIFromData(data);
 
                 return data;
@@ -158,23 +157,159 @@ window.DailyBonusManager = (function() {
      * Оновлення UI з даних
      */
     function updateUIFromData(data) {
-        // Використовуємо EventBus для оновлення UI компонентів
-        EventBus.emit(EventBus.EVENTS.UI_UPDATE, {
-            component: 'dailyBonus',
-            data: {
-                currentDay: data.current_day_number || 0,
-                currentStreak: data.current_streak || 0,
-                longestStreak: data.longest_streak || 0,
-                canClaim: data.can_claim_today || false,
-                nextClaimTime: data.next_available_date || null,
-                todayReward: data.today_reward || null,
-                calendarRewards: data.calendar_rewards || [],
-                claimedDays: data.claimed_days || []
-            }
-        });
+        console.log('🔄 [DailyBonus-V3] Оновлення UI з даних:', data);
+
+        // Оновлюємо прогрес місяця
+        updateMonthProgress(data);
+
+        // Оновлюємо останні дні
+        updateRecentDays(data);
+
+        // Оновлюємо календар
+        updateCalendar(data);
+
+        // Оновлюємо статистику
+        updateStreakStats(data);
 
         // Оновлюємо кнопку
         updateClaimButton(data);
+    }
+
+    /**
+     * Оновлення прогресу місяця
+     */
+    function updateMonthProgress(data) {
+        const progressFill = document.getElementById('month-progress-fill');
+        const daysCompleted = document.getElementById('days-completed');
+        const currentStreak = document.getElementById('current-streak');
+        const longestStreak = document.getElementById('longest-streak');
+
+        if (progressFill) {
+            const progress = ((data.current_day_number || 0) / 30) * 100;
+            progressFill.style.width = `${progress}%`;
+        }
+
+        if (daysCompleted) {
+            daysCompleted.textContent = data.current_day_number || 0;
+        }
+
+        if (currentStreak) {
+            currentStreak.textContent = data.current_streak || 0;
+        }
+
+        if (longestStreak) {
+            longestStreak.textContent = data.longest_streak || 0;
+        }
+    }
+
+    /**
+     * Оновлення останніх днів
+     */
+    function updateRecentDays(data) {
+        const container = document.getElementById('recent-days-grid');
+        if (!container) return;
+
+        const today = new Date();
+        const recentDays = [];
+
+        // Генеруємо останні 5 днів
+        for (let i = 4; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
+            const dayNum = date.getDate();
+
+            const isClaimed = data.claimed_days?.includes(dateStr);
+            const isToday = i === 0;
+
+            recentDays.push({
+                date: dateStr,
+                dayNum: dayNum,
+                isClaimed: isClaimed,
+                isToday: isToday,
+                canClaim: isToday && data.can_claim_today
+            });
+        }
+
+        // Рендеримо HTML
+        container.innerHTML = recentDays.map(day => `
+            <div class="recent-day ${day.isClaimed ? 'claimed' : ''} ${day.isToday ? 'today' : ''} ${day.canClaim ? 'can-claim' : ''}">
+                <div class="day-number">${day.dayNum}</div>
+                <div class="day-status">
+                    ${day.isClaimed ? '✓' : (day.canClaim ? '🎁' : '-')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    /**
+     * Оновлення календаря
+     */
+    function updateCalendar(data) {
+        const container = document.getElementById('daily-calendar');
+        if (!container) return;
+
+        const calendarDays = [];
+        const today = new Date();
+        const currentDay = today.getDate();
+
+        // Генеруємо 30 днів
+        for (let day = 1; day <= 30; day++) {
+            const date = new Date(today.getFullYear(), today.getMonth(), day);
+            const dateStr = date.toISOString().split('T')[0];
+
+            const isClaimed = data.claimed_days?.includes(dateStr) ||
+                             (data.claimed_days?.some(d => new Date(d).getDate() === day));
+            const isToday = day === currentDay;
+            const isFuture = day > currentDay;
+            const canClaim = isToday && data.can_claim_today;
+
+            // Отримуємо винагороду для дня
+            const dayReward = data.calendar_rewards?.[day] ||
+                             data.calendar_rewards?.find(r => r.day === day) ||
+                             { winix: 20 + (day * 2), tickets: day % 7 === 0 ? 1 : 0 };
+
+            calendarDays.push({
+                day: day,
+                date: dateStr,
+                isClaimed: isClaimed,
+                isToday: isToday,
+                isFuture: isFuture,
+                canClaim: canClaim,
+                reward: dayReward
+            });
+        }
+
+        // Рендеримо HTML
+        container.innerHTML = calendarDays.map(day => `
+            <div class="calendar-day ${day.isClaimed ? 'claimed' : ''} ${day.isToday ? 'today' : ''} ${day.isFuture ? 'future' : ''} ${day.canClaim ? 'available' : ''}"
+                 data-day="${day.day}">
+                <div class="day-number">${day.day}</div>
+                <div class="day-rewards">
+                    ${day.reward.winix ? `<span class="winix-reward">${day.reward.winix}</span>` : ''}
+                    ${day.reward.tickets ? `<span class="ticket-reward">🎫</span>` : ''}
+                </div>
+                <div class="day-status">
+                    ${day.isClaimed ? '✓' : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    /**
+     * Оновлення статистики стріків
+     */
+    function updateStreakStats(data) {
+        const currentStreakEl = document.getElementById('current-streak');
+        const longestStreakEl = document.getElementById('longest-streak');
+
+        if (currentStreakEl) {
+            currentStreakEl.textContent = data.current_streak || 0;
+        }
+
+        if (longestStreakEl) {
+            longestStreakEl.textContent = data.longest_streak || 0;
+        }
     }
 
     /**
@@ -254,7 +389,13 @@ window.DailyBonusManager = (function() {
                 });
 
                 // Показуємо анімацію через EventBus
-                EventBus.emit('showRewardAnimation', data.reward);
+                eventBus.emit('showRewardAnimation', data.reward);
+
+                // Показуємо повідомлення
+                window.TasksUtils.showToast(
+                    `Отримано: +${data.reward.winix} WINIX${data.reward.tickets ? ` та +${data.reward.tickets} tickets` : ''}`,
+                    'success'
+                );
 
                 // Оновлюємо дані
                 await loadDailyBonusState(true);

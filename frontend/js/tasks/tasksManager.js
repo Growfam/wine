@@ -109,6 +109,8 @@ window.TasksManager = (function() {
                 { priority: 'normal', deduplicate: !forceRefresh }
             );
 
+            console.log('[TasksManager-V3] Відповідь API:', response);
+
             if (response?.status === 'success' && response.data?.tasks) {
                 // Кешуємо результат
                 CacheManager.set(CACHE_NAMESPACE, cacheKey, response.data.tasks);
@@ -118,6 +120,12 @@ window.TasksManager = (function() {
 
                 // Емітуємо подію завантаження
                 EventBus.emit('tasks.loaded', { tasks: response.data.tasks });
+            } else if (response?.data?.tasks) {
+                // Альтернативний формат відповіді
+                processTasks(response.data.tasks);
+            } else if (response?.tasks) {
+                // Ще один можливий формат
+                processTasks(response.tasks);
             }
 
         } catch (error) {
@@ -137,7 +145,7 @@ window.TasksManager = (function() {
      * Обробити завдання
      */
     function processTasks(tasksData) {
-        console.log('[TasksManager-V3] Обробка завдань');
+        console.log('[TasksManager-V3] Обробка завдань:', tasksData);
 
         // Конвертуємо в правильний формат для Store
         const tasksByType = {
@@ -150,6 +158,7 @@ window.TasksManager = (function() {
         // Обробляємо різні формати даних
         if (Array.isArray(tasksData)) {
             // Масив завдань
+            console.log('[TasksManager-V3] Обробка масиву завдань');
             tasksData.forEach(task => {
                 const type = task.type || 'social';
                 if (tasksByType[type]) {
@@ -157,19 +166,40 @@ window.TasksManager = (function() {
                 }
             });
         } else if (typeof tasksData === 'object') {
-            // Вже згруповані по типах
-            Object.entries(tasksData).forEach(([type, tasks]) => {
-                if (tasksByType[type]) {
-                    if (Array.isArray(tasks)) {
-                        tasks.forEach(task => {
-                            tasksByType[type][task.id] = task;
-                        });
-                    } else {
-                        tasksByType[type] = tasks;
+            console.log('[TasksManager-V3] Обробка об\'єкта завдань');
+
+            // Перевіряємо чи це вже згруповані завдання
+            const hasValidTypes = Object.keys(tasksData).some(key =>
+                ['social', 'limited', 'partner', 'daily'].includes(key)
+            );
+
+            if (hasValidTypes) {
+                // Вже згруповані по типах
+                Object.entries(tasksData).forEach(([type, tasks]) => {
+                    if (tasksByType[type]) {
+                        if (Array.isArray(tasks)) {
+                            tasks.forEach(task => {
+                                tasksByType[type][task.id] = task;
+                            });
+                        } else if (typeof tasks === 'object') {
+                            tasksByType[type] = tasks;
+                        }
                     }
-                }
-            });
+                });
+            } else {
+                // Це об'єкт завдань без групування
+                Object.values(tasksData).forEach(task => {
+                    if (task && task.id) {
+                        const type = task.type || 'social';
+                        if (tasksByType[type]) {
+                            tasksByType[type][task.id] = task;
+                        }
+                    }
+                });
+            }
         }
+
+        console.log('[TasksManager-V3] Згруповані завдання:', tasksByType);
 
         // Зберігаємо в Store
         Object.entries(tasksByType).forEach(([type, tasks]) => {
@@ -225,11 +255,15 @@ window.TasksManager = (function() {
      */
     function renderSocialTasks() {
         const container = document.getElementById('social-tab');
-        if (!container) return;
+        if (!container) {
+            console.warn('[TasksManager-V3] Контейнер social-tab не знайдено');
+            return;
+        }
 
         const tasks = window.TasksStore.getState().tasks.social;
+        console.log('[TasksManager-V3] Соціальні завдання:', tasks);
 
-        if (Object.keys(tasks).length === 0) {
+        if (!tasks || Object.keys(tasks).length === 0) {
             container.innerHTML = '<div class="no-tasks">Немає доступних завдань</div>';
             return;
         }
@@ -263,11 +297,15 @@ window.TasksManager = (function() {
      */
     function renderLimitedTasks() {
         const container = document.getElementById('limited-tab');
-        if (!container) return;
+        if (!container) {
+            console.warn('[TasksManager-V3] Контейнер limited-tab не знайдено');
+            return;
+        }
 
         const tasks = window.TasksStore.getState().tasks.limited;
+        console.log('[TasksManager-V3] Лімітовані завдання:', tasks);
 
-        if (Object.keys(tasks).length === 0) {
+        if (!tasks || Object.keys(tasks).length === 0) {
             container.innerHTML = '<div class="no-tasks">Немає доступних завдань</div>';
             return;
         }
@@ -295,11 +333,15 @@ window.TasksManager = (function() {
      */
     function renderPartnerTasks() {
         const container = document.getElementById('partner-tab');
-        if (!container) return;
+        if (!container) {
+            console.warn('[TasksManager-V3] Контейнер partner-tab не знайдено');
+            return;
+        }
 
         const tasks = window.TasksStore.getState().tasks.partner;
+        console.log('[TasksManager-V3] Партнерські завдання:', tasks);
 
-        if (Object.keys(tasks).length === 0) {
+        if (!tasks || Object.keys(tasks).length === 0) {
             container.innerHTML = '<div class="no-tasks">Немає доступних завдань</div>';
             return;
         }
@@ -331,7 +373,6 @@ window.TasksManager = (function() {
 
         container.innerHTML = html;
     }
-
     /**
      * Створення HTML картки завдання
      */
@@ -520,6 +561,7 @@ window.TasksManager = (function() {
         // Підписка на зміну вкладки
         const unsubTabChange = EventBus.on(EventBus.EVENTS.TAB_CHANGED, (data) => {
             if (['social', 'limited', 'partner'].includes(data.newTab)) {
+                console.log('[TasksManager-V3] Зміна вкладки на:', data.newTab);
                 scheduleRender();
             }
         });
