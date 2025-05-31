@@ -1,759 +1,387 @@
 /**
  * Модуль Daily Bonus для системи завдань WINIX
- * ОПТИМІЗОВАНА ВЕРСІЯ - з антидебаунсом та кешуванням
+ * ОПТИМІЗОВАНА ВЕРСІЯ V3 - Використовує централізовані утиліти
  */
 
 window.DailyBonusManager = (function() {
     'use strict';
 
-    console.log('🎁 [DailyBonus] ===== ІНІЦІАЛІЗАЦІЯ МОДУЛЯ ЩОДЕННОГО БОНУСУ (ОПТИМІЗОВАНИЙ) =====');
+    console.log('🎁 [DailyBonus-V3] ===== ІНІЦІАЛІЗАЦІЯ ОПТИМІЗОВАНОГО МОДУЛЯ =====');
 
-    /*
-     * ВАЖЛИВО: Додайте ці CSS стилі для правильної роботи кнопки:
-     *
-     * .claim-daily-button {
-     *     padding: 12px 24px;
-     *     border-radius: 8px;
-     *     border: none;
-     *     font-weight: 600;
-     *     cursor: pointer;
-     *     transition: all 0.3s ease;
-     * }
-     *
-     * .claim-daily-button.available {
-     *     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-     *     color: white;
-     * }
-     *
-     * .claim-daily-button.available:hover {
-     *     transform: translateY(-2px);
-     *     box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-     * }
-     *
-     * .claim-daily-button.claimed {
-     *     background: #e0e0e0;
-     *     color: #999;
-     *     cursor: not-allowed !important;
-     * }
-     *
-     * .claim-daily-button:disabled {
-     *     opacity: 0.6;
-     *     cursor: not-allowed !important;
-     *     pointer-events: none;
-     * }
-     *
-     * .claim-daily-button.claiming {
-     *     background: #f0f0f0;
-     *     color: #666;
-     * }
-     *
-     * .claim-daily-button .timer {
-     *     display: block;
-     *     font-size: 14px;
-     *     margin-top: 4px;
-     *     font-weight: normal;
-     * }
-     *
-     * .claim-daily-button.pulse-animation {
-     *     animation: pulse 2s infinite;
-     * }
-     *
-     * @keyframes pulse {
-     *     0% { transform: scale(1); }
-     *     50% { transform: scale(1.05); }
-     *     100% { transform: scale(1); }
-     * }
-     *
-     * .reset-badge {
-     *     display: inline-block;
-     *     background: #ff6b6b;
-     *     color: white;
-     *     padding: 2px 8px;
-     *     border-radius: 4px;
-     *     font-size: 12px;
-     *     margin-left: 8px;
-     * }
-     *
-     * .claim-now-badge {
-     *     position: absolute;
-     *     top: -8px;
-     *     right: -8px;
-     *     background: #ff6b6b;
-     *     color: white;
-     *     padding: 2px 6px;
-     *     border-radius: 4px;
-     *     font-size: 10px;
-     *     font-weight: bold;
-     * }
-     */
+    // Використовуємо централізовані утиліти
+    const { CacheManager, RequestManager, EventBus } = window;
 
-    // Стан модуля
+    // Namespace для кешування
+    const CACHE_NAMESPACE = CacheManager.NAMESPACES.DAILY;
+
+    // RequestManager клієнт
+    const apiClient = RequestManager.createClient('dailyBonus');
+
+    // EventBus namespace
+    const eventBus = EventBus.createNamespace('dailyBonus');
+
+    // Стан модуля (мінімальний)
     const state = {
         userId: null,
         isInitialized: false,
-        currentDay: 0,
-        currentStreak: 0,
-        longestStreak: 0,
-        canClaim: false,
-        nextClaimTime: null,
-        todayReward: null,
-        calendarRewards: null,
-        updateInterval: null,
-        claimedDays: [],
-        isResetting: false,
-        lastSyncTime: null,
         isProcessingClaim: false,
-        lastClaimAttempt: 0,
-        cacheTimeout: 60000, // 1 хвилина кеш
-        stateCache: null,
-        lastApiCallTime: 0,
-        minApiDelay: 2000, // 2 секунди між API викликами
-        retryCount: 0,
-        maxRefreshRetries: 3,
-        unsubscribeStore: null // Для збереження функції відписки
+        unsubscribeCallbacks: []
     };
 
     // Конфігурація
     const config = {
-        updateIntervalMs: 60000, // 1 хвилина
         maxDays: 30,
-        minSyncInterval: 5000,   // Мінімум 5 секунд між синхронізаціями
-        maxRetries: 3,           // Максимум спроб при помилках
-        debugMode: false,        // Режим налагодження
-        claimDebounceTime: 5000  // 5 секунд між спробами claim
+        claimDebounceTime: 5000,
+        updateIntervalMs: 60000
     };
 
     /**
      * Ініціалізація модуля
      */
     async function init(userId) {
-        console.log('🚀 [DailyBonus] Початок ініціалізації');
-        console.log('👤 [DailyBonus] User ID:', userId);
-        console.log('⚙️ [DailyBonus] Конфігурація:', config);
+        console.log('🚀 [DailyBonus-V3] Початок ініціалізації');
+
+        if (state.isInitialized) {
+            console.log('✅ [DailyBonus-V3] Вже ініціалізовано');
+            return;
+        }
 
         state.userId = userId;
 
-        // Встановлюємо початковий стан кнопки (заблокована)
-        const button = document.getElementById('claim-daily-button');
-        if (button) {
-            button.disabled = true;
-            button.classList.add('loading');
-            button.innerHTML = '<span class="button-text">Завантаження...</span>';
-        }
-
         try {
-            // Завантажуємо стан з бекенду
-            await loadDailyBonusState();
-
-            // Оновлюємо UI
-            updateDailyBonusUI();
-
-            // Налаштовуємо таймер оновлення
-            setupUpdateTimer();
-
-            // Налаштовуємо обробники подій
-            setupEventHandlers();
-
-            state.isInitialized = true;
-            console.log('✅ [DailyBonus] Модуль успішно ініціалізовано');
-            console.log('  📊 Фінальний стан:', {
-                canClaim: state.canClaim,
-                currentDay: state.currentDay,
-                currentStreak: state.currentStreak,
-                buttonDisabled: button ? button.disabled : 'button not found'
-            });
-
-        } catch (error) {
-            console.error('❌ [DailyBonus] Помилка ініціалізації:', error);
-
-            // У випадку помилки - блокуємо кнопку
-            if (button) {
-                button.disabled = true;
-                button.classList.remove('loading');
-                button.classList.add('error');
-                button.innerHTML = '<span class="button-text">Помилка завантаження</span>';
+            // Завантажуємо дані з кешу для швидкого старту
+            const cachedData = CacheManager.get(CACHE_NAMESPACE, `status_${userId}`);
+            if (cachedData) {
+                updateUIFromData(cachedData);
             }
 
+            // Завантажуємо свіжі дані
+            await loadDailyBonusState();
+
+            // Підписуємось на події
+            setupEventSubscriptions();
+
+            // Налаштовуємо періодичне оновлення
+            setupPeriodicUpdate();
+
+            state.isInitialized = true;
+
+            // Емітуємо подію готовності
+            EventBus.emit('manager.daily.ready', { userId });
+
+            console.log('✅ [DailyBonus-V3] Модуль ініціалізовано');
+
+        } catch (error) {
+            console.error('❌ [DailyBonus-V3] Помилка ініціалізації:', error);
             window.TasksUtils.showToast('Помилка завантаження щоденного бонусу', 'error');
             throw error;
         }
     }
 
     /**
-     * Перевірка rate limit для API викликів
-     */
-    async function checkApiRateLimit() {
-        const now = Date.now();
-        const timeSinceLastCall = now - state.lastApiCallTime;
-
-        if (timeSinceLastCall < state.minApiDelay) {
-            const waitTime = state.minApiDelay - timeSinceLastCall;
-            console.log(`⏳ [DailyBonus] Чекаємо ${waitTime}мс перед API викликом`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-
-        state.lastApiCallTime = Date.now();
-    }
-
-    /**
-     * Завантаження стану з бекенду з кешуванням
+     * Завантаження стану з бекенду
      */
     async function loadDailyBonusState(forceRefresh = false) {
-        console.log('📂 [DailyBonus] Завантаження стану з бекенду...');
-        console.log('  🔄 Примусове оновлення:', forceRefresh);
+        console.log('📂 [DailyBonus-V3] Завантаження стану');
+
+        const cacheKey = `status_${state.userId}`;
 
         // Перевіряємо кеш
-        if (!forceRefresh && state.stateCache && state.lastSyncTime) {
-            const cacheAge = Date.now() - state.lastSyncTime;
-            if (cacheAge < state.cacheTimeout) {
-                console.log('📦 [DailyBonus] Використовуємо кешований стан');
-                console.log('  ⏰ Вік кешу:', Math.floor(cacheAge / 1000), 'сек');
-                updateStateFromCache();
-                return;
+        if (!forceRefresh) {
+            const cached = CacheManager.get(CACHE_NAMESPACE, cacheKey);
+            if (cached) {
+                updateUIFromData(cached);
+                return cached;
             }
         }
 
-        // Перевіряємо чи не занадто часто оновлюємо
-        if (!forceRefresh && state.lastSyncTime) {
-            const timeSinceLastSync = Date.now() - state.lastSyncTime;
-            if (timeSinceLastSync < config.minSyncInterval) {
-                console.log('⏳ [DailyBonus] Занадто рано для оновлення, пропускаємо');
-                return;
+        try {
+            // Використовуємо RequestManager для API виклику
+            const response = await apiClient.execute(
+                cacheKey,
+                () => window.TasksAPI.daily.getStatus(state.userId),
+                { priority: 'normal', deduplicate: !forceRefresh }
+            );
+
+            if (response?.status === 'success' && response.data) {
+                const data = response.data;
+
+                // Кешуємо результат
+                CacheManager.set(CACHE_NAMESPACE, cacheKey, data);
+
+                // Оновлюємо Store
+                updateStoreFromData(data);
+
+                // Оновлюємо UI через EventBus
+                eventBus.emit('dataLoaded', data);
+                updateUIFromData(data);
+
+                return data;
             }
-        }
 
-        // Rate limiting для API
-        await checkApiRateLimit();
+            throw new Error('Invalid response format');
 
-        let retries = 0;
-        let lastError = null;
+        } catch (error) {
+            console.error('❌ [DailyBonus-V3] Помилка завантаження:', error);
 
-        while (retries < config.maxRetries) {
-            try {
-                let response = await window.TasksAPI.daily.getStatus(state.userId);
-                console.log('✅ [DailyBonus] Отримано стан з бекенду:', response);
-
-                // Перевіряємо валідність даних
-                if (response.data) {
-                    const data = response.data;
-
-                    // Детектуємо скидання серії
-                    const wasReset = state.currentStreak > 0 && data.current_streak === 0 && data.current_day_number === 1;
-                    if (wasReset) {
-                        console.warn('🔄 [DailyBonus] Виявлено скидання серії!');
-                        state.isResetting = true;
-                    }
-
-                    // Автоматичний refresh при невалідних даних
-                    const needsRefresh = data.can_claim_today && data.next_claim_in_hours > 0;
-                    const hasInconsistentData = data.can_claim_today === false && (!data.next_available_date || new Date(data.next_available_date) <= new Date());
-
-                    if (needsRefresh || hasInconsistentData) {
-                        console.warn('⚠️ [DailyBonus] Невалідні дані, робимо refresh');
-
-                        if (state.retryCount < state.maxRefreshRetries) {
-                            state.retryCount++;
-
-                            try {
-                                await checkApiRateLimit();
-                                await window.TasksAPI.daily.refresh(state.userId);
-                                console.log('✅ [DailyBonus] Refresh виконано');
-
-                                // Повторно завантажуємо статус
-                                await checkApiRateLimit();
-                                response = await window.TasksAPI.daily.getStatus(state.userId);
-                                console.log('✅ [DailyBonus] Статус оновлено після refresh:', response);
-                            } catch (refreshError) {
-                                console.error('❌ [DailyBonus] Помилка refresh:', refreshError);
-                            }
-                        }
-                    }
-                }
-
-                if (response.status === 'success' && response.data) {
-                    const data = response.data;
-
-                    // Оновлюємо локальний стан
-                    state.currentDay = data.current_day_number || 0;
-                    state.currentStreak = data.current_streak || 0;
-                    state.longestStreak = data.longest_streak || 0;
-                    state.canClaim = Boolean(data.can_claim_today);
-                    state.nextClaimTime = data.next_available_date || null;
-                    state.todayReward = data.today_reward || null;
-                    state.calendarRewards = data.calendar_rewards || [];
-                    state.claimedDays = data.claimed_days || [];
-                    state.lastSyncTime = Date.now();
-                    state.retryCount = 0; // Скидаємо лічильник при успіху
-
-                    // Зберігаємо в кеш
-                    state.stateCache = {
-                        currentDay: state.currentDay,
-                        currentStreak: state.currentStreak,
-                        longestStreak: state.longestStreak,
-                        canClaim: state.canClaim,
-                        nextClaimTime: state.nextClaimTime,
-                        todayReward: state.todayReward,
-                        calendarRewards: state.calendarRewards,
-                        claimedDays: state.claimedDays
-                    };
-
-                    // Додаткова перевірка консистентності даних
-                    if (state.canClaim && state.nextClaimTime) {
-                        const now = new Date();
-                        const next = new Date(state.nextClaimTime);
-                        if (next > now) {
-                            console.warn('⚠️ [DailyBonus] Некоректні дані: canClaim=true але nextClaimTime в майбутньому');
-                            state.canClaim = false;
-                        }
-                    }
-
-                    // Якщо було скидання серії, показуємо повідомлення
-                    if (state.isResetting) {
-                        window.TasksUtils.showToast('Серія скинута на день 1. Можете отримати бонус!', 'info');
-                        state.isResetting = false;
-                    }
-
-                    // Оновлюємо стан в сторі
-                    updateStoreState();
-
-                    console.log('📊 [DailyBonus] Поточний стан:', {
-                        Daily: state.currentDay,
-                        Seria: state.currentStreak,
-                        Claim: state.canClaim,
-                        NextTime: state.nextClaimTime,
-                        ClaimedDays: state.claimedDays
-                    });
-
-                    return; // Успішно завантажено
-                } else {
-                    throw new Error('Invalid response format');
-                }
-
-            } catch (error) {
-                lastError = error;
-                retries++;
-                console.error(`❌ [DailyBonus] Помилка завантаження (спроба ${retries}/${config.maxRetries}):`, error);
-
-                if (retries < config.maxRetries) {
-                    // Чекаємо перед повторною спробою
-                    await new Promise(resolve => setTimeout(resolve, 1000 * retries));
-                }
+            // Використовуємо кешовані дані при помилці
+            const fallback = CacheManager.get(CACHE_NAMESPACE, cacheKey);
+            if (fallback) {
+                updateUIFromData(fallback);
+                return fallback;
             }
-        }
 
-        // Якщо всі спроби невдалі
-        console.error('❌ [DailyBonus] Не вдалося завантажити стан після всіх спроб:', lastError);
-
-        // Встановлюємо дефолтні значення при помилці
-        state.currentDay = 0;
-        state.currentStreak = 0;
-        state.longestStreak = 0;
-        state.canClaim = false;
-        state.claimedDays = [];
-
-        window.TasksUtils.showToast('Помилка завантаження щоденного бонусу', 'error');
-    }
-
-    /**
-     * Оновлення стану з кешу
-     */
-    function updateStateFromCache() {
-        if (state.stateCache) {
-            Object.assign(state, state.stateCache);
-            updateStoreState();
-            updateDailyBonusUI();
+            throw error;
         }
     }
 
     /**
-     * Оновлення стану в сторі
+     * Оновлення Store з даних
      */
-    function updateStoreState() {
+    function updateStoreFromData(data) {
         const store = window.TasksStore;
-        if (!store || !store.actions) {
-            console.warn('⚠️ [DailyBonus] TasksStore не доступний');
-            return;
-        }
+        if (!store) return;
 
-        // Оновлюємо серію
-        if (store.actions.setDailyStreak) {
-            store.actions.setDailyStreak(state.currentStreak);
-        }
+        // Батчимо оновлення через actions
+        store.actions.setDailyStreak(data.current_streak || 0);
+        store.actions.setClaimedDays(data.claimed_days || []);
 
-        // Оновлюємо claimed days
-        if (store.actions.setClaimedDays) {
-            store.actions.setClaimedDays(state.claimedDays);
-        } else if (store.actions.addClaimedDay) {
-            // Fallback якщо немає setClaimedDays
-            state.claimedDays.forEach(day => {
-                store.actions.addClaimedDay(day);
-            });
-        }
-
-        // Додаткова синхронізація
-        if (store.actions.updateDailyTotalClaimed) {
-            const totalWinix = state.calendarRewards
-                .filter((_, index) => state.claimedDays.includes(index + 1))
-                .reduce((sum, reward) => sum + (reward.winix || 0), 0);
-
-            const totalTickets = state.calendarRewards
-                .filter((_, index) => state.claimedDays.includes(index + 1))
-                .reduce((sum, reward) => sum + (reward.tickets || 0), 0);
-
+        if (data.total_claimed) {
             store.actions.updateDailyTotalClaimed({
-                winix: totalWinix,
-                tickets: totalTickets
+                winix: data.total_claimed.winix || 0,
+                tickets: data.total_claimed.tickets || 0
             });
         }
     }
 
     /**
-     * Оновлення UI щоденного бонусу - оптимізована версія
+     * Оновлення UI з даних
      */
-    const updateDailyBonusUI = window.TasksUtils.throttle(function() {
-        console.log('🔄 [DailyBonus] === ОНОВЛЕННЯ UI ===');
-
-        const store = window.TasksStore;
-        const dailyBonus = store ? store.getState().dailyBonus : {};
-
-        // Використовуємо requestAnimationFrame для плавних оновлень
-        requestAnimationFrame(() => {
-            // Оновлюємо прогрес бар місяця
-            updateMonthProgressUI(dailyBonus);
-
-            // Оновлюємо останні 5 днів
-            updateRecentDaysUI(dailyBonus);
-
-            // Оновлюємо календар
-            updateCalendarUI(dailyBonus);
-
-            // Оновлюємо статистику
-            updateStatsUI(dailyBonus);
-
-            // Оновлюємо кнопку отримання
-            updateClaimButtonUI();
+    function updateUIFromData(data) {
+        // Використовуємо EventBus для оновлення UI компонентів
+        EventBus.emit(EventBus.EVENTS.UI_UPDATE, {
+            component: 'dailyBonus',
+            data: {
+                currentDay: data.current_day_number || 0,
+                currentStreak: data.current_streak || 0,
+                longestStreak: data.longest_streak || 0,
+                canClaim: data.can_claim_today || false,
+                nextClaimTime: data.next_available_date || null,
+                todayReward: data.today_reward || null,
+                calendarRewards: data.calendar_rewards || [],
+                claimedDays: data.claimed_days || []
+            }
         });
 
-        console.log('✅ [DailyBonus] UI оновлено');
-    }, 500); // Максимум 2 рази в секунду
-
-    /**
-     * Оновлення прогрес бару місяця
-     */
-    function updateMonthProgressUI(dailyBonus) {
-        console.log('📊 [DailyBonus] Оновлення прогрес бару місяця...');
-
-        const progressFill = document.getElementById('month-progress-fill');
-        const daysCompleted = document.getElementById('days-completed');
-        const currentStreakSpan = document.getElementById('current-streak');
-        const longestStreakSpan = document.getElementById('longest-streak');
-
-        if (progressFill) {
-            const progress = (state.currentDay / config.maxDays) * 100;
-            progressFill.style.width = `${progress}%`;
-
-            // Додаємо анімацію при зміні
-            progressFill.style.transition = 'width 0.5s ease-out';
-        }
-
-        if (daysCompleted) {
-            daysCompleted.textContent = state.currentDay;
-        }
-
-        if (currentStreakSpan) {
-            currentStreakSpan.textContent = state.currentStreak;
-
-            // Підсвічуємо при скиданні серії
-            if (state.currentStreak === 0 && state.currentDay > 0) {
-                currentStreakSpan.style.color = '#ff6b6b';
-                setTimeout(() => {
-                    currentStreakSpan.style.color = '';
-                }, 3000);
-            }
-        }
-
-        if (longestStreakSpan) {
-            longestStreakSpan.textContent = state.longestStreak;
-        }
-
-        console.log('✅ [DailyBonus] Прогрес бар оновлено');
-    }
-
-    /**
-     * Оновлення останніх 5 днів
-     */
-    function updateRecentDaysUI(dailyBonus) {
-        console.log('📅 [DailyBonus] Оновлення останніх 5 днів...');
-
-        const recentDaysGrid = document.getElementById('recent-days-grid');
-        if (!recentDaysGrid) return;
-
-        recentDaysGrid.innerHTML = '';
-
-        // Визначаємо останні 5 днів
-        const currentDay = state.currentDay;
-        const nextClaimDay = state.canClaim ? state.currentDay + 1 : state.currentDay;
-        const startDay = Math.max(1, nextClaimDay - 2);
-        const endDay = Math.min(startDay + 4, config.maxDays);
-
-        for (let day = startDay; day <= endDay; day++) {
-            const dayCard = createRecentDayCard(day, dailyBonus, currentDay);
-            recentDaysGrid.appendChild(dayCard);
-        }
-
-        console.log('✅ [DailyBonus] Останні дні оновлено');
-    }
-
-    /**
-     * Створення картки останнього дня
-     */
-    function createRecentDayCard(dayNumber, dailyBonus, currentDay) {
-        const card = document.createElement('div');
-        card.className = 'recent-day-card';
-
-        // Визначаємо стан дня з урахуванням скидання серії
-        const isToday = state.canClaim && dayNumber === state.currentDay + 1;
-        const isClaimed = state.claimedDays.includes(dayNumber);
-        const isFuture = dayNumber > state.currentDay + 1 && !isClaimed;
-
-        if (isToday) {
-            card.classList.add('today');
-            // Додаємо пульсуючу анімацію для привернення уваги
-            card.style.animation = 'pulse 2s infinite';
-        }
-        if (isClaimed) card.classList.add('claimed');
-        if (isFuture) card.classList.add('future');
-
-        // Отримуємо дані про винагороду з календаря
-        const rewardData = state.calendarRewards ?
-            state.calendarRewards.find(r => r.day === dayNumber) : null;
-
-        const rewardDisplay = rewardData || { winix: '?', tickets: 0 };
-
-        card.innerHTML = `
-            <div class="recent-day-number">${dayNumber}</div>
-            <div class="recent-day-label">День</div>
-            <div class="recent-day-rewards">
-                <div class="recent-day-reward winix">
-                    <span class="reward-icon-small winix-icon-small"></span>
-                    ${rewardDisplay.winix}
-                </div>
-                ${rewardDisplay.tickets > 0 ? `
-                    <div class="recent-day-reward tickets">
-                        <span class="reward-icon-small ticket-icon-small"></span>
-                        ${rewardDisplay.tickets}
-                    </div>
-                ` : ''}
-            </div>
-            ${isToday ? '<div class="claim-now-badge">Отримати!</div>' : ''}
-        `;
-
-        return card;
-    }
-
-    /**
-     * Оновлення календаря - оптимізована версія
-     */
-    function updateCalendarUI(dailyBonus) {
-        console.log('📅 [DailyBonus] Оновлення календаря...');
-
-        const calendar = document.getElementById('daily-calendar');
-        if (!calendar) {
-            console.warn('⚠️ [DailyBonus] Елемент календаря не знайдено');
-            return;
-        }
-
-        // Використовуємо DocumentFragment для оптимізації
-        const fragment = document.createDocumentFragment();
-
-        // Отримуємо список claimed days з state
-        const claimedDays = state.claimedDays || [];
-
-        // Створюємо дні
-        for (let day = 1; day <= config.maxDays; day++) {
-            const dayCell = createDayCell(day, dailyBonus, claimedDays);
-            fragment.appendChild(dayCell);
-        }
-
-        // Очищаємо і додаємо всі елементи одразу
-        calendar.innerHTML = '';
-        calendar.appendChild(fragment);
-
-        console.log('✅ [DailyBonus] Календар оновлено з claimed days:', claimedDays);
-    }
-
-    /**
-     * Створення комірки дня
-     */
-    function createDayCell(dayNumber, dailyBonus, claimedDays) {
-        const cell = document.createElement('div');
-        cell.className = 'calendar-day';
-        cell.setAttribute('data-day', dayNumber);
-
-        // Визначаємо стан дня
-        const isClaimed = claimedDays.includes(dayNumber);
-        const isToday = state.canClaim && dayNumber === state.currentDay + 1;
-        const isFuture = dayNumber > state.currentDay + 1 && !isClaimed;
-        const isPast = dayNumber < state.currentDay + 1 && !isClaimed && !state.canClaim;
-
-        // Встановлюємо класи
-        if (isClaimed) cell.classList.add('claimed');
-        if (isToday) {
-            cell.classList.add('today');
-            cell.classList.add('available');
-        }
-        if (isFuture) cell.classList.add('future');
-        if (isPast) cell.classList.add('missed'); // Пропущені дні
-
-        // Отримуємо дані про винагороду з календаря
-        const rewardData = state.calendarRewards ?
-            state.calendarRewards.find(r => r.day === dayNumber) : null;
-
-        const hasTickets = rewardData && rewardData.tickets > 0;
-
-        // Спеціальні дні з білетами
-        if (hasTickets) {
-            cell.classList.add('special');
-        }
-
-        // Відображення винагороди
-        const rewardDisplay = rewardData || { winix: '?', tickets: 0 };
-
-        // Вміст комірки
-        cell.innerHTML = `
-            <div class="calendar-day-number">${dayNumber}</div>
-            <div class="calendar-day-reward">${rewardDisplay.winix}</div>
-            ${hasTickets ? `<div class="calendar-ticket-badge">${rewardDisplay.tickets}</div>` : ''}
-            ${isToday ? '<div class="pulse-indicator"></div>' : ''}
-        `;
-
-        return cell;
-    }
-
-    /**
-     * Оновлення статистики
-     */
-    function updateStatsUI(dailyBonus) {
-        console.log('📊 [DailyBonus] Оновлення статистики...');
-
-        // Додатково можемо показати загальну статистику
-        const totalClaimed = dailyBonus.totalClaimed || { winix: 0, tickets: 0 };
-        console.log('📊 [DailyBonus] Загальна статистика:', totalClaimed);
-
-        // Показуємо попередження при скиданні серії
-        const streakResetWarning = document.getElementById('streak-reset-warning');
-        if (streakResetWarning) {
-            if (state.currentStreak === 0 && state.currentDay > 0) {
-                streakResetWarning.style.display = 'block';
-                streakResetWarning.textContent = 'Серія скинута! Не пропускайте дні щоб зберегти серію.';
-            } else {
-                streakResetWarning.style.display = 'none';
-            }
-        }
-
-        console.log('✅ [DailyBonus] Статистика оновлена');
+        // Оновлюємо кнопку
+        updateClaimButton(data);
     }
 
     /**
      * Оновлення кнопки отримання
      */
-    function updateClaimButtonUI() {
-        console.log('🔘 [DailyBonus] Оновлення кнопки отримання...');
-        console.log('  📊 Стан кнопки:', {
-            canClaim: state.canClaim,
-            nextClaimTime: state.nextClaimTime,
-            currentDay: state.currentDay,
-            currentStreak: state.currentStreak
-        });
-
+    function updateClaimButton(data) {
         const button = document.getElementById('claim-daily-button');
-        if (!button) {
-            console.warn('⚠️ [DailyBonus] Кнопка не знайдена!');
+        if (!button) return;
+
+        const canClaim = data.can_claim_today;
+
+        // Оновлюємо стан кнопки
+        button.disabled = !canClaim || state.isProcessingClaim;
+        button.className = `claim-daily-button ${canClaim ? 'available' : 'claimed'}`;
+
+        if (state.isProcessingClaim) {
+            button.innerHTML = '<span class="button-text">Обробка...</span>';
+        } else if (canClaim) {
+            let btnText = 'Отримати щоденний бонус';
+            if (data.today_reward) {
+                btnText = `Отримати ${data.today_reward.winix} WINIX`;
+                if (data.today_reward.tickets > 0) {
+                    btnText += ` + ${data.today_reward.tickets} tickets`;
+                }
+            }
+            button.innerHTML = `<span class="button-text">${btnText}</span>`;
+        } else {
+            button.innerHTML = '<span class="button-text">Отримано сьогодні</span>';
+
+            if (data.next_available_date) {
+                const timeUntil = getTimeUntilNext(data.next_available_date);
+                button.innerHTML += `<span class="timer">${timeUntil}</span>`;
+            }
+        }
+    }
+
+    /**
+     * Отримати щоденний бонус
+     */
+    const claimDailyBonus = window.TasksUtils.debounce(async function() {
+        console.log('🎁 [DailyBonus-V3] Отримання бонусу');
+
+        if (state.isProcessingClaim) {
+            console.warn('⚠️ [DailyBonus-V3] Вже обробляється');
             return;
         }
 
-        // Очищаємо всі класи і стилі
-        button.className = 'claim-daily-button';
-        button.style.cursor = '';
+        state.isProcessingClaim = true;
 
-        // ГОЛОВНА ЛОГІКА: Перевіряємо чи можна отримати бонус
-        if (state.canClaim === true) {
-            // МОЖНА ОТРИМАТИ - розблоковуємо кнопку
-            button.disabled = false;
-            button.classList.add('available');
-            button.style.cursor = 'pointer';
+        // Оновлюємо UI
+        EventBus.emit('claimStarted');
+        updateClaimButton({ can_claim_today: false });
 
-            // Додаємо анімацію для привернення уваги
-            if (state.currentStreak === 0 && state.currentDay > 0) {
-                button.classList.add('pulse-animation');
-            }
+        try {
+            // API виклик через RequestManager
+            const response = await apiClient.execute(
+                `claim_${state.userId}`,
+                () => window.TasksAPI.daily.claim(state.userId),
+                { priority: 'high', deduplicate: false }
+            );
 
-            // Якщо маємо дані про сьогоднішню винагороду
-            if (state.todayReward) {
-                let btnText = `Отримати ${state.todayReward.winix} WINIX`;
-                if (state.todayReward.tickets > 0) {
-                    btnText += ` + ${state.todayReward.tickets} tickets`;
-                }
-                button.innerHTML = `
-                    <span class="button-text">${btnText}</span>
-                    ${state.currentStreak === 0 ? '<span class="reset-badge">Серія скинута!</span>' : ''}
-                `;
+            if (response?.status === 'success' && response.data) {
+                const data = response.data;
+
+                // Інвалідуємо кеш
+                CacheManager.invalidate(CACHE_NAMESPACE, `status_${state.userId}`);
+
+                // Оновлюємо Store
+                window.TasksStore.actions.claimDailyBonus(data.reward);
+                window.TasksStore.actions.addClaimedDay(data.day_number);
+
+                // Емітуємо подію успіху
+                EventBus.emit(EventBus.EVENTS.DAILY_CLAIMED, {
+                    reward: data.reward,
+                    day: data.day_number,
+                    streak: data.new_streak
+                });
+
+                // Показуємо анімацію через EventBus
+                EventBus.emit('showRewardAnimation', data.reward);
+
+                // Оновлюємо дані
+                await loadDailyBonusState(true);
+
+                console.log('✅ [DailyBonus-V3] Бонус успішно отримано');
             } else {
-                button.innerHTML = '<span class="button-text">Отримати щоденний бонус</span>';
+                throw new Error(response?.message || 'Помилка отримання бонусу');
             }
 
-            console.log('✅ [DailyBonus] Кнопка РОЗБЛОКОВАНА - можна отримати бонус');
-        } else {
-            // НЕ МОЖНА ОТРИМАТИ - блокуємо кнопку
-            button.disabled = true;
-            button.classList.add('claimed');
-            button.style.cursor = 'not-allowed';
+        } catch (error) {
+            console.error('❌ [DailyBonus-V3] Помилка:', error);
 
-            // Показуємо час до наступного бонусу
-            if (state.nextClaimTime) {
-                const now = new Date();
-                const nextTime = new Date(state.nextClaimTime);
-
-                if (nextTime > now) {
-                    const timeUntilNext = getTimeUntilNext(state.nextClaimTime);
-                    button.innerHTML = `
-                        <span class="button-text">Отримано сьогодні</span>
-                        <span class="timer">${timeUntilNext}</span>
-                    `;
-                } else {
-                    // Час вже минув, але сервер ще не оновив стан
-                    button.innerHTML = `
-                        <span class="button-text">Оновлення статусу...</span>
-                    `;
-                    // Запускаємо оновлення стану
-                    setTimeout(() => loadDailyBonusState(true), 1000);
-                }
+            // Обробка специфічних помилок
+            if (error.message?.includes('вже отримано')) {
+                await loadDailyBonusState(true);
+                window.TasksUtils.showToast('Бонус вже отримано сьогодні', 'warning');
+            } else if (error.message?.includes('429')) {
+                window.TasksUtils.showToast('Забагато запитів. Спробуйте через хвилину', 'warning');
             } else {
-                button.innerHTML = '<span class="button-text">Отримано сьогодні</span>';
+                window.TasksUtils.showToast('Помилка отримання бонусу', 'error');
             }
 
-            console.log('✅ [DailyBonus] Кнопка ЗАБЛОКОВАНА - потрібно чекати');
+        } finally {
+            state.isProcessingClaim = false;
+            EventBus.emit('claimCompleted');
+        }
+    }, config.claimDebounceTime);
+
+    /**
+     * Налаштування підписок на події
+     */
+    function setupEventSubscriptions() {
+        // Підписка на оновлення даних
+        const unsubDataUpdate = EventBus.on('daily.status.updated', (data) => {
+            console.log('📊 [DailyBonus-V3] Отримано оновлення статусу');
+            updateUIFromData(data);
+        });
+
+        // Підписка на UI події
+        const unsubUIUpdate = EventBus.on('ui.daily.refresh', () => {
+            loadDailyBonusState(true);
+        });
+
+        // Підписка на зміну вкладки
+        const unsubTabChange = EventBus.on(EventBus.EVENTS.TAB_CHANGED, (data) => {
+            if (data.newTab === 'daily') {
+                checkForNewDay();
+            }
+        });
+
+        // Зберігаємо callbacks для відписки
+        state.unsubscribeCallbacks.push(unsubDataUpdate, unsubUIUpdate, unsubTabChange);
+
+        // Обробник кнопки
+        const button = document.getElementById('claim-daily-button');
+        if (button) {
+            button.addEventListener('click', claimDailyBonus);
         }
 
-        // Додаємо додатковий обробник для запобігання кліків при disabled
-        button.onclick = function(e) {
-            if (button.disabled || !state.canClaim) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.warn('⚠️ [DailyBonus] Клік заблоковано - бонус недоступний');
+        // Делегування для календаря
+        const calendar = document.getElementById('daily-calendar');
+        if (calendar) {
+            calendar.addEventListener('click', handleCalendarClick);
+        }
+    }
 
-                // Показуємо повідомлення
-                if (state.nextClaimTime) {
-                    const timeUntilNext = getTimeUntilNext(state.nextClaimTime);
-                    window.TasksUtils.showToast(`Наступний бонус через ${timeUntilNext}`, 'warning');
-                } else {
-                    window.TasksUtils.showToast('Бонус вже отримано сьогодні', 'warning');
-                }
-                return false;
+    /**
+     * Обробка кліків на календарі
+     */
+    const handleCalendarClick = window.TasksUtils.throttle((e) => {
+        const dayCell = e.target.closest('.calendar-day');
+        if (!dayCell) return;
+
+        const day = parseInt(dayCell.getAttribute('data-day'));
+        EventBus.emit('calendar.dayClicked', { day });
+    }, 500);
+
+    /**
+     * Налаштування періодичного оновлення
+     */
+    function setupPeriodicUpdate() {
+        // Використовуємо RequestManager для планування
+        const checkInterval = setInterval(() => {
+            if (!document.hidden) {
+                checkForNewDay();
             }
-        };
+        }, config.updateIntervalMs);
 
-        console.log('✅ [DailyBonus] Кнопка оновлена. Стан:', button.disabled ? 'ЗАБЛОКОВАНА' : 'АКТИВНА');
+        // Зберігаємо для очищення
+        state.unsubscribeCallbacks.push(() => clearInterval(checkInterval));
+
+        // Оновлення таймера кожну секунду
+        const timerInterval = setInterval(() => {
+            const button = document.getElementById('claim-daily-button');
+            if (button && button.querySelector('.timer')) {
+                const cached = CacheManager.get(CACHE_NAMESPACE, `status_${state.userId}`);
+                if (cached && !cached.can_claim_today && cached.next_available_date) {
+                    const timeUntil = getTimeUntilNext(cached.next_available_date);
+                    const timerSpan = button.querySelector('.timer');
+                    if (timerSpan) {
+                        timerSpan.textContent = timeUntil;
+                    }
+                }
+            }
+        }, 1000);
+
+        state.unsubscribeCallbacks.push(() => clearInterval(timerInterval));
+    }
+
+    /**
+     * Перевірка нового дня
+     */
+    async function checkForNewDay() {
+        const cached = CacheManager.get(CACHE_NAMESPACE, `status_${state.userId}`);
+
+        if (cached && !cached.can_claim_today && cached.next_available_date) {
+            const now = Date.now();
+            const nextTime = new Date(cached.next_available_date).getTime();
+
+            if (now >= nextTime) {
+                console.log('🆕 [DailyBonus-V3] Новий день!');
+                await loadDailyBonusState(true);
+
+                // Сповіщаємо про новий бонус
+                EventBus.emit('daily.newDayAvailable');
+            }
+        }
     }
 
     /**
@@ -762,9 +390,7 @@ window.DailyBonusManager = (function() {
     function getTimeUntilNext(nextClaimTime) {
         const now = Date.now();
         const next = new Date(nextClaimTime).getTime();
-        const diff = next - now;
-
-        if (diff <= 0) return '00:00:00';
+        const diff = Math.max(0, next - now);
 
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -774,485 +400,20 @@ window.DailyBonusManager = (function() {
     }
 
     /**
-     * Отримати щоденний бонус - ОПТИМІЗОВАНА ВЕРСІЯ З АНТИДЕБАУНСОМ
-     */
-    async function claimDailyBonus() {
-        console.log('🎁 [DailyBonus] === ОТРИМАННЯ ЩОДЕННОГО БОНУСУ ===');
-
-        // Перевіряємо чи вже обробляється запит
-        if (state.isProcessingClaim) {
-            console.warn('⚠️ [DailyBonus] Вже обробляється попередній запит');
-            return;
-        }
-
-        // Антидебаунс - перевіряємо час з останньої спроби
-        const now = Date.now();
-        const timeSinceLastAttempt = now - state.lastClaimAttempt;
-
-        if (timeSinceLastAttempt < config.claimDebounceTime) {
-            const waitTime = Math.ceil((config.claimDebounceTime - timeSinceLastAttempt) / 1000);
-            console.warn('⚠️ [DailyBonus] Занадто швидко! Зачекайте', waitTime, 'секунд');
-            window.TasksUtils.showToast(`Зачекайте ${waitTime} секунд між спробами`, 'warning');
-            return;
-        }
-
-        // ДОДАТКОВА ПЕРЕВІРКА: чи дійсно можна отримати бонус
-        if (!state.canClaim) {
-            console.warn('⚠️ [DailyBonus] Спроба отримати бонус коли canClaim = false');
-            window.TasksUtils.showToast('Бонус вже отримано сьогодні', 'warning');
-
-            // Оновлюємо стан з сервера на всяк випадок
-            await loadDailyBonusState(true);
-            updateDailyBonusUI();
-            return;
-        }
-
-        // Встановлюємо флаги
-        state.isProcessingClaim = true;
-        state.lastClaimAttempt = now;
-
-        const store = window.TasksStore;
-
-        // Блокуємо кнопку одразу
-        const button = document.getElementById('claim-daily-button');
-        if (button) {
-            button.disabled = true;
-            button.classList.remove('available');
-            button.classList.add('claiming');
-            button.innerHTML = '<span class="button-text">Отримання...</span>';
-            button.style.cursor = 'wait';
-        }
-
-        // Встановлюємо стан отримання
-        if (store) {
-            store.actions.setDailyClaiming(true);
-        }
-
-        try {
-            // Rate limiting для API
-            await checkApiRateLimit();
-
-            // Відправляємо запит на бекенд
-            const response = await window.TasksAPI.daily.claim(state.userId);
-
-            console.log('✅ [DailyBonus] Відповідь від бекенду:', response);
-
-            if (response.status === 'success' && response.data) {
-                const data = response.data;
-
-                // Оновлюємо локальний стан
-                state.canClaim = false;
-                state.currentDay = data.day_number;
-                state.currentStreak = data.new_streak;
-                state.nextClaimTime = data.next_available;
-
-                // Додаємо день до claimed days
-                if (!state.claimedDays.includes(data.day_number)) {
-                    state.claimedDays.push(data.day_number);
-                }
-
-                // Очищаємо кеш для примусового оновлення
-                state.stateCache = null;
-                state.lastSyncTime = 0;
-
-                // Оновлюємо стан в сторі
-                if (store) {
-                    store.actions.claimDailyBonus(data.reward);
-
-                    if (data.reward.tickets > 0) {
-                        store.actions.addTicketDay(new Date().toISOString());
-                    }
-
-                    // Додаємо claimed day
-                    store.actions.addClaimedDay(data.day_number);
-
-                    // Оновлюємо баланси
-                    const currentBalance = store.selectors.getUserBalance();
-                    store.actions.updateBalance({
-                        winix: currentBalance.winix + data.reward.winix,
-                        tickets: currentBalance.tickets + (data.reward.tickets || 0)
-                    });
-                }
-
-                // Показуємо анімацію
-                showClaimAnimation(data.reward);
-
-                // Оновлюємо UI через невелику затримку
-                setTimeout(() => {
-                    updateDailyBonusUI();
-                }, 1500);
-
-                console.log('✅ [DailyBonus] Бонус успішно отримано!');
-            } else {
-                throw new Error(response.message || 'Помилка отримання бонусу');
-            }
-
-        } catch (error) {
-            console.error('❌ [DailyBonus] Помилка отримання бонусу:', error);
-
-            // Перевіряємо типи помилок
-            if (error.message) {
-                if (error.message.includes('вже отримано') ||
-                    error.message.includes('Бонус вже отримано') ||
-                    error.message.includes('ще недоступний') ||
-                    error.message.includes('429')) {
-                    // Оновлюємо стан з сервера
-                    state.canClaim = false;
-
-                    // Затримка перед оновленням при 429
-                    if (error.message.includes('429')) {
-                        await new Promise(resolve => setTimeout(resolve, 3000));
-                    }
-
-                    await loadDailyBonusState(true);
-                    updateDailyBonusUI();
-
-                    if (error.message.includes('429')) {
-                        window.TasksUtils.showToast('Забагато запитів. Спробуйте через хвилину', 'warning');
-                    } else {
-                        window.TasksUtils.showToast('Бонус вже отримано або ще недоступний', 'warning');
-                    }
-                } else if (error.message.includes('Занадто рано')) {
-                    // Показуємо скільки часу залишилось
-                    window.TasksUtils.showToast(error.message, 'warning');
-                    state.canClaim = false;
-                    updateDailyBonusUI();
-                } else {
-                    window.TasksUtils.showToast(error.message || 'Помилка отримання бонусу', 'error');
-                }
-            } else {
-                window.TasksUtils.showToast('Помилка отримання бонусу', 'error');
-            }
-
-        } finally {
-            // Знімаємо флаг обробки
-            state.isProcessingClaim = false;
-
-            if (store) {
-                store.actions.setDailyClaiming(false);
-            }
-
-            // Повертаємо кнопку в нормальний стан
-            if (button) {
-                button.classList.remove('claiming');
-            }
-            updateClaimButtonUI();
-        }
-    }
-
-    /**
-     * Показати анімацію отримання
-     */
-    function showClaimAnimation(reward) {
-        console.log('🎊 [DailyBonus] Показуємо анімацію отримання');
-
-        // Створюємо елемент анімації
-        const animDiv = document.createElement('div');
-        animDiv.className = 'daily-bonus-claimed';
-
-        let content = `
-            <div class="reward-amount">
-                <span class="winix-icon"></span>
-                +${reward.winix} WINIX
-            </div>
-        `;
-
-        if (reward.tickets > 0) {
-            content += `
-                <div class="reward-tickets">
-                    <span class="ticket-icon"></span>
-                    +${reward.tickets} TICKETS
-                </div>
-            `;
-        }
-
-        // Додаємо інформацію про серію
-        if (state.currentStreak > 1) {
-            content += `
-                <div class="streak-info">
-                    Серія: ${state.currentStreak} днів!
-                </div>
-            `;
-        }
-
-        animDiv.innerHTML = content;
-        document.body.appendChild(animDiv);
-
-        // Запускаємо анімацію
-        setTimeout(() => {
-            animDiv.classList.add('show');
-        }, 10);
-
-        // Видаляємо після анімації
-        setTimeout(() => {
-            animDiv.classList.remove('show');
-            setTimeout(() => {
-                document.body.removeChild(animDiv);
-            }, 500);
-        }, 2500);
-
-        // Toast повідомлення
-        let message = `Отримано ${reward.winix} WINIX`;
-        if (reward.tickets > 0) {
-            message += ` та ${reward.tickets} tickets!`;
-        }
-        window.TasksUtils.showToast(message, 'success');
-    }
-
-    /**
-     * Налаштування таймера оновлення
-     */
-    function setupUpdateTimer() {
-        console.log('⏰ [DailyBonus] Налаштування таймера оновлення');
-
-        // Очищаємо попередній таймер
-        if (state.updateInterval) {
-            clearInterval(state.updateInterval);
-        }
-
-        // Оновлюємо кожну хвилину
-        state.updateInterval = setInterval(() => {
-            console.log('🔄 [DailyBonus] Періодичне оновлення');
-
-            // Оновлюємо таймер на кнопці
-            updateClaimButtonUI();
-
-            // Перевіряємо чи настав новий день
-            checkForNewDay();
-
-        }, config.updateIntervalMs);
-
-        // Також оновлюємо кожну секунду для точного таймера
-        setInterval(() => {
-            if (!state.canClaim && state.nextClaimTime) {
-                updateClaimButtonUI();
-            }
-        }, 1000);
-
-        console.log('✅ [DailyBonus] Таймер налаштовано');
-    }
-
-    /**
-     * Перевірка нового дня
-     */
-    async function checkForNewDay() {
-        console.log('🔍 [DailyBonus] Перевірка нового дня...');
-        console.log('  📊 Поточний стан:', {
-            canClaim: state.canClaim,
-            nextClaimTime: state.nextClaimTime,
-            now: new Date().toISOString()
-        });
-
-        if (!state.canClaim && state.nextClaimTime) {
-            const now = Date.now();
-            const next = new Date(state.nextClaimTime).getTime();
-
-            if (now >= next) {
-                console.log('🆕 [DailyBonus] Новий день! Оновлюємо стан');
-                await loadDailyBonusState(true);
-                updateDailyBonusUI();
-
-                // Показуємо повідомлення тільки якщо дійсно можна отримати
-                if (state.canClaim) {
-                    window.TasksUtils.showToast('Новий щоденний бонус доступний!', 'info');
-                }
-            }
-        }
-
-        // Додаткова перевірка на десинхронізацію UI
-        const button = document.getElementById('claim-daily-button');
-        if (button) {
-            const shouldBeDisabled = !state.canClaim;
-            const isDisabled = button.disabled;
-
-            if (isDisabled !== shouldBeDisabled) {
-                console.warn('⚠️ [DailyBonus] UI десинхронізація виявлена!');
-                console.log('  📊 Кнопка disabled:', isDisabled);
-                console.log('  📊 Повинна бути disabled:', shouldBeDisabled);
-                console.log('  📊 state.canClaim:', state.canClaim);
-                updateClaimButtonUI();
-            }
-        }
-    }
-
-    /**
-     * Налаштування обробників подій
-     */
-    function setupEventHandlers() {
-        console.log('🎯 [DailyBonus] Налаштування обробників подій');
-
-        // Кнопка отримання з дебаунсом
-        const claimButton = document.getElementById('claim-daily-button');
-        if (claimButton) {
-            // Видаляємо старі обробники
-            claimButton.removeEventListener('click', claimDailyBonus);
-
-            // Додаємо новий обробник з дебаунсом
-            const debouncedClaim = window.TasksUtils.debounce(function(e) {
-                e.preventDefault();
-
-                // Перевіряємо чи вже обробляється
-                if (state.isProcessingClaim) {
-                    console.warn('⚠️ [DailyBonus] Клік ігнорується - вже обробляється');
-                    return false;
-                }
-
-                // Перевіряємо чи можна клікати
-                if (claimButton.disabled || !state.canClaim) {
-                    console.warn('⚠️ [DailyBonus] Клік на заблоковану кнопку');
-
-                    if (state.nextClaimTime) {
-                        const timeUntilNext = getTimeUntilNext(state.nextClaimTime);
-                        window.TasksUtils.showToast(`Наступний бонус через ${timeUntilNext}`, 'warning');
-                    } else {
-                        window.TasksUtils.showToast('Бонус вже отримано сьогодні', 'warning');
-                    }
-                    return false;
-                }
-
-                // Викликаємо функцію отримання бонусу
-                claimDailyBonus();
-            }, 1000); // 1 секунда дебаунс
-
-            claimButton.addEventListener('click', debouncedClaim);
-
-            console.log('✅ [DailyBonus] Обробник кнопки отримання додано');
-        }
-
-        // Клік на день в календарі з throttle
-        const calendar = document.getElementById('daily-calendar');
-        if (calendar) {
-            const throttledDayClick = window.TasksUtils.throttle(async (e) => {
-                const dayCell = e.target.closest('.calendar-day');
-                if (dayCell) {
-                    const day = parseInt(dayCell.getAttribute('data-day'));
-                    console.log(`📅 [DailyBonus] Клік на день ${day}`);
-                    await showDayDetails(day);
-                }
-            }, 500);
-
-            calendar.addEventListener('click', throttledDayClick);
-            console.log('✅ [DailyBonus] Обробник календаря додано');
-        }
-
-        // Кнопка примусового оновлення (якщо є) з дебаунсом
-        const refreshButton = document.getElementById('daily-refresh-button');
-        if (refreshButton) {
-            const debouncedRefresh = window.TasksUtils.debounce(async () => {
-                console.log('🔄 [DailyBonus] Примусове оновлення...');
-                refreshButton.disabled = true;
-                refreshButton.textContent = 'Оновлення...';
-
-                try {
-                    await loadDailyBonusState(true);
-                    updateDailyBonusUI();
-                    window.TasksUtils.showToast('Статус оновлено', 'success');
-                } catch (error) {
-                    window.TasksUtils.showToast('Помилка оновлення', 'error');
-                } finally {
-                    refreshButton.disabled = false;
-                    refreshButton.textContent = 'Оновити';
-                }
-            }, 2000);
-
-            refreshButton.addEventListener('click', debouncedRefresh);
-            console.log('✅ [DailyBonus] Обробник кнопки оновлення додано');
-        }
-
-        // Обробник зміни видимості сторінки
-        document.addEventListener('visibilitychange', function() {
-            if (!document.hidden && state.isInitialized) {
-                console.log('👁️ [DailyBonus] Сторінка знову активна, перевіряємо стан');
-                checkForNewDay();
-            }
-        });
-
-        // Обробник фокусу вікна
-        window.addEventListener('focus', function() {
-            if (state.isInitialized) {
-                console.log('🎯 [DailyBonus] Вікно в фокусі, перевіряємо стан');
-                checkForNewDay();
-            }
-        });
-
-        // Підписка на зміни Store
-        if (window.TasksStore) {
-            state.unsubscribeStore = window.TasksStore.subscribe((storeState, prevState) => {
-                // Реагуємо на зміни серії
-                if (storeState.dailyBonus.currentStreak !== prevState.dailyBonus.currentStreak) {
-                    console.log('🔄 [DailyBonus] Серія змінилась в Store');
-                    state.currentStreak = storeState.dailyBonus.currentStreak;
-                    updateDailyBonusUI();
-                }
-            });
-        }
-    }
-
-    /**
-     * Показати деталі дня
-     */
-    async function showDayDetails(day) {
-        console.log(`📋 [DailyBonus] Показуємо деталі дня ${day}`);
-
-        try {
-            // Знаходимо дані дня в календарі
-            const dayData = state.calendarRewards ?
-                state.calendarRewards.find(r => r.day === day) : null;
-
-            if (dayData) {
-                let message = `День ${day}: ${dayData.winix} WINIX`;
-                if (dayData.tickets > 0) {
-                    message += ` + ${dayData.tickets} tickets`;
-                }
-
-                // Додаємо інформацію про статус
-                const isClaimed = state.claimedDays.includes(day);
-                const isToday = state.canClaim && day === state.currentDay + 1;
-
-                if (isClaimed) {
-                    message += ' ✓ Отримано';
-                } else if (isToday) {
-                    message += ' 🎁 Доступно зараз!';
-                } else if (day < state.currentDay + 1 && !state.canClaim) {
-                    message += ' ❌ Пропущено';
-                }
-
-                window.TasksUtils.showToast(message, 'info');
-            } else {
-                // Використовуємо кешовані дані або робимо запит
-                await checkApiRateLimit();
-                const response = await window.TasksAPI.daily.calculateReward(state.userId, day);
-
-                if (response.status === 'success' && response.data) {
-                    const reward = response.data.reward;
-                    const message = `День ${day}: ${reward.winix} WINIX` +
-                                   (reward.tickets > 0 ? ` + ${reward.tickets} tickets` : '');
-
-                    window.TasksUtils.showToast(message, 'info');
-                }
-            }
-        } catch (error) {
-            console.error('❌ [DailyBonus] Помилка отримання деталей дня:', error);
-        }
-    }
-
-    /**
      * Отримати статистику
      */
     function getStatistics() {
-        const store = window.TasksStore;
-        const dailyBonus = store ? store.getState().dailyBonus : {};
+        const cached = CacheManager.get(CACHE_NAMESPACE, `status_${state.userId}`);
+        if (!cached) return null;
 
         return {
-            currentStreak: state.currentStreak,
-            longestStreak: state.longestStreak,
-            currentDay: state.currentDay,
-            totalWinix: dailyBonus.totalClaimed?.winix || 0,
-            totalTickets: dailyBonus.totalClaimed?.tickets || 0,
-            completionRate: (state.currentDay / config.maxDays * 100).toFixed(1) + '%',
-            daysUntilReset: config.maxDays - state.currentDay,
-            isStreakActive: state.currentStreak > 0,
-            cacheAge: state.lastSyncTime ? Date.now() - state.lastSyncTime : null
+            currentStreak: cached.current_streak || 0,
+            longestStreak: cached.longest_streak || 0,
+            currentDay: cached.current_day_number || 0,
+            totalWinix: cached.total_claimed?.winix || 0,
+            totalTickets: cached.total_claimed?.tickets || 0,
+            completionRate: ((cached.current_day_number || 0) / config.maxDays * 100).toFixed(1) + '%',
+            daysUntilReset: config.maxDays - (cached.current_day_number || 0)
         };
     }
 
@@ -1260,58 +421,41 @@ window.DailyBonusManager = (function() {
      * Знищити модуль
      */
     function destroy() {
-        console.log('🗑️ [DailyBonus] === ЗНИЩЕННЯ МОДУЛЯ ===');
+        console.log('🗑️ [DailyBonus-V3] Знищення модуля');
 
-        // Очищаємо таймер
-        if (state.updateInterval) {
-            clearInterval(state.updateInterval);
-        }
-
-        // Відписуємось від Store
-        if (state.unsubscribeStore) {
-            state.unsubscribeStore();
-        }
-
-        // Очищаємо стан
-        Object.keys(state).forEach(key => {
-            if (typeof state[key] !== 'function') {
-                state[key] = null;
+        // Відписуємось від всіх подій
+        state.unsubscribeCallbacks.forEach(unsubscribe => {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
             }
         });
 
-        console.log('✅ [DailyBonus] Модуль знищено');
+        // Очищаємо стан
+        state.isInitialized = false;
+        state.isProcessingClaim = false;
+        state.unsubscribeCallbacks = [];
+
+        console.log('✅ [DailyBonus-V3] Модуль знищено');
     }
 
-    console.log('✅ [DailyBonus] Модуль щоденного бонусу готовий (ОПТИМІЗОВАНИЙ)');
+    console.log('✅ [DailyBonus-V3] Модуль готовий (Централізовані утиліти)');
 
     // Публічний API
     return {
         init,
         claimDailyBonus,
-        updateDailyBonusUI,
-        getStatistics,
         loadDailyBonusState,
+        getStatistics,
         destroy,
 
-        // Додаткові методи для діагностики
-        getState: function() {
-            return {
-                canClaim: state.canClaim,
-                currentDay: state.currentDay,
-                currentStreak: state.currentStreak,
-                nextClaimTime: state.nextClaimTime,
-                isInitialized: state.isInitialized,
-                isProcessingClaim: state.isProcessingClaim,
-                cacheAge: state.lastSyncTime ? Date.now() - state.lastSyncTime : null
-            };
-        },
-
-        forceUpdateButton: function() {
-            console.log('🔧 [DailyBonus] Примусове оновлення кнопки');
-            updateClaimButtonUI();
-        }
+        // Для зовнішнього доступу
+        getState: () => ({
+            canClaim: CacheManager.get(CACHE_NAMESPACE, `status_${state.userId}`)?.can_claim_today || false,
+            currentDay: CacheManager.get(CACHE_NAMESPACE, `status_${state.userId}`)?.current_day_number || 0,
+            isProcessing: state.isProcessingClaim
+        })
     };
 
 })();
 
-console.log('✅ [DailyBonus] Модуль експортовано глобально (ОПТИМІЗОВАНИЙ)');
+console.log('✅ [DailyBonus-V3] Модуль експортовано глобально');

@@ -1,275 +1,70 @@
 /**
  * Менеджер завдань для системи WINIX
- * ОПТИМІЗОВАНА ВЕРСІЯ V2 - з віртуальним DOM та батчингом оновлень
+ * ОПТИМІЗОВАНА ВЕРСІЯ V3 - Без Virtual DOM, з централізованими утилітами
  */
 
 window.TasksManager = (function() {
     'use strict';
 
-    console.log('[TasksManager-V2] ===== ІНІЦІАЛІЗАЦІЯ ОПТИМІЗОВАНОГО МЕНЕДЖЕРА =====');
+    console.log('[TasksManager-V3] ===== ІНІЦІАЛІЗАЦІЯ ОПТИМІЗОВАНОГО МЕНЕДЖЕРА =====');
 
-    // Віртуальний DOM для ефективного рендерингу
-    const VirtualDOM = {
-        currentTree: null,
+    // Використовуємо централізовані утиліти
+    const { CacheManager, RequestManager, EventBus } = window;
 
-        createElement(type, props, ...children) {
-            return {
-                type,
-                props: props || {},
-                children: children.flat().filter(Boolean)
-            };
-        },
+    // Namespace для кешування
+    const CACHE_NAMESPACE = CacheManager.NAMESPACES.TASKS;
 
-        diff(oldNode, newNode) {
-            if (!oldNode) return { type: 'CREATE', newNode };
-            if (!newNode) return { type: 'REMOVE' };
-            if (oldNode.type !== newNode.type) return { type: 'REPLACE', newNode };
+    // RequestManager клієнт
+    const apiClient = RequestManager.createClient('tasksManager');
 
-            if (typeof oldNode === 'string' || typeof newNode === 'string') {
-                if (oldNode !== newNode) return { type: 'TEXT', newNode };
-                return null;
-            }
+    // EventBus namespace
+    const eventBus = EventBus.createNamespace('tasks');
 
-            const propsPatches = this.diffProps(oldNode.props, newNode.props);
-            const childrenPatches = this.diffChildren(oldNode.children, newNode.children);
-
-            if (propsPatches || childrenPatches.length > 0) {
-                return { type: 'UPDATE', propsPatches, childrenPatches };
-            }
-
-            return null;
-        },
-
-        diffProps(oldProps, newProps) {
-            const patches = {};
-            let hasChanges = false;
-
-            // Check for changed/new props
-            for (const key in newProps) {
-                if (oldProps[key] !== newProps[key]) {
-                    patches[key] = newProps[key];
-                    hasChanges = true;
-                }
-            }
-
-            // Check for removed props
-            for (const key in oldProps) {
-                if (!(key in newProps)) {
-                    patches[key] = undefined;
-                    hasChanges = true;
-                }
-            }
-
-            return hasChanges ? patches : null;
-        },
-
-        diffChildren(oldChildren, newChildren) {
-            const patches = [];
-            const maxLength = Math.max(oldChildren.length, newChildren.length);
-
-            for (let i = 0; i < maxLength; i++) {
-                const patch = this.diff(oldChildren[i], newChildren[i]);
-                if (patch) patches.push({ index: i, patch });
-            }
-
-            return patches;
-        },
-
-        patch(domNode, patches) {
-            if (!patches) return domNode;
-
-            switch (patches.type) {
-                case 'CREATE':
-                    return this.createDOM(patches.newNode);
-
-                case 'REMOVE':
-                    domNode.remove();
-                    return null;
-
-                case 'REPLACE':
-                    const newDomNode = this.createDOM(patches.newNode);
-                    domNode.replaceWith(newDomNode);
-                    return newDomNode;
-
-                case 'TEXT':
-                    domNode.textContent = patches.newNode;
-                    return domNode;
-
-                case 'UPDATE':
-                    if (patches.propsPatches) {
-                        this.patchProps(domNode, patches.propsPatches);
-                    }
-                    if (patches.childrenPatches) {
-                        this.patchChildren(domNode, patches.childrenPatches);
-                    }
-                    return domNode;
-            }
-        },
-
-        patchProps(domNode, propsPatches) {
-            for (const key in propsPatches) {
-                const value = propsPatches[key];
-
-                if (key === 'className') {
-                    domNode.className = value || '';
-                } else if (key.startsWith('data-')) {
-                    if (value === undefined) {
-                        delete domNode.dataset[key.slice(5)];
-                    } else {
-                        domNode.dataset[key.slice(5)] = value;
-                    }
-                } else if (key === 'style' && typeof value === 'object') {
-                    Object.assign(domNode.style, value);
-                } else if (value === undefined) {
-                    domNode.removeAttribute(key);
-                } else {
-                    domNode.setAttribute(key, value);
-                }
-            }
-        },
-
-        patchChildren(domNode, childrenPatches) {
-            childrenPatches.forEach(({ index, patch }) => {
-                const childNode = domNode.childNodes[index];
-                this.patch(childNode, patch);
-            });
-        },
-
-        createDOM(vNode) {
-            if (typeof vNode === 'string') {
-                return document.createTextNode(vNode);
-            }
-
-            const domNode = document.createElement(vNode.type);
-
-            // Set props
-            for (const key in vNode.props) {
-                const value = vNode.props[key];
-                if (key === 'className') {
-                    domNode.className = value;
-                } else if (key.startsWith('data-')) {
-                    domNode.dataset[key.slice(5)] = value;
-                } else if (key === 'style' && typeof value === 'object') {
-                    Object.assign(domNode.style, value);
-                } else {
-                    domNode.setAttribute(key, value);
-                }
-            }
-
-            // Append children
-            vNode.children.forEach(child => {
-                domNode.appendChild(this.createDOM(child));
-            });
-
-            return domNode;
-        }
-    };
-
-    // Кеш менеджер для завдань
-    const TasksCache = {
-        cache: new Map(),
-        ttl: 2 * 60 * 1000, // 2 хвилини
-
-        set(key, data) {
-            this.cache.set(key, {
-                data,
-                timestamp: Date.now()
-            });
-        },
-
-        get(key) {
-            const cached = this.cache.get(key);
-            if (!cached) return null;
-
-            if (Date.now() - cached.timestamp > this.ttl) {
-                this.cache.delete(key);
-                return null;
-            }
-
-            return cached.data;
-        },
-
-        invalidate(key) {
-            this.cache.delete(key);
-        },
-
-        clear() {
-            this.cache.clear();
-        }
-    };
-
-    // Стан модуля
+    // Мінімальний стан
     const state = {
         userId: null,
         isInitialized: false,
-        isLoading: false,
         currentFilter: 'all',
-        updateInterval: null,
-        lastUpdate: null,
-        renderQueue: [],
-        isRendering: false,
-        domCache: new Map(),
-        vdomTrees: new Map(),
-        globalTaskTimer: null,
-        taskTimers: new Map()
+        renderQueue: new Set(),
+        renderFrame: null,
+        unsubscribeCallbacks: []
     };
 
     // Конфігурація
     const config = {
-        updateIntervalMs: window.TasksConstants?.TIMERS?.AUTO_CHECK_INTERVAL || 5 * 60 * 1000,
         taskTypes: ['social', 'limited', 'partner', 'daily'],
-        batchRenderDelay: 16, // 1 frame
-        platforms: {
-            telegram: {
-                name: 'Telegram',
-                color: '#0088cc',
-                verificationRequired: true
-            },
-            youtube: {
-                name: 'YouTube',
-                color: '#ff0000',
-                verificationRequired: false
-            },
-            twitter: {
-                name: 'Twitter',
-                color: '#1da1f2',
-                verificationRequired: false
-            },
-            discord: {
-                name: 'Discord',
-                color: '#5865f2',
-                verificationRequired: false
-            }
-        }
+        updateIntervalMs: window.TasksConstants?.TIMERS?.AUTO_CHECK_INTERVAL || 5 * 60 * 1000,
+        batchRenderDelay: 16 // 1 frame
     };
 
     /**
-     * Ініціалізація менеджера - ОПТИМІЗОВАНА
+     * Ініціалізація менеджера
      */
     async function init(userId) {
-        console.log('[TasksManager-V2] Початок ініціалізації');
+        console.log('[TasksManager-V3] Початок ініціалізації');
+
+        if (state.isInitialized) {
+            console.log('[TasksManager-V3] Вже ініціалізовано');
+            return;
+        }
 
         state.userId = userId;
 
         try {
-            // Завантажуємо з кешу одразу якщо є
-            const cachedTasks = TasksCache.get(`all_tasks_${userId}`);
+            // Завантажуємо кешовані завдання для швидкого старту
+            const cachedTasks = CacheManager.get(CACHE_NAMESPACE, `all_${userId}`);
             if (cachedTasks) {
-                console.log('[TasksManager-V2] Використовуємо кешовані завдання');
                 processTasks(cachedTasks);
             }
 
-            // Завантажуємо свіжі дані асинхронно
-            loadAllTasks();
+            // Завантажуємо свіжі дані
+            await loadAllTasks();
 
-            // Налаштовуємо глобальний таймер для всіх завдань
-            setupGlobalTaskTimer();
+            // Налаштовуємо підписки
+            setupEventSubscriptions();
 
-            // Налаштовуємо автооновлення
-            setupAutoUpdate();
-
-            // Налаштовуємо обробники подій
-            setupEventHandlers();
+            // Налаштовуємо періодичне оновлення
+            setupPeriodicUpdate();
 
             // Ініціалізуємо модуль верифікації
             if (window.TaskVerification) {
@@ -277,51 +72,61 @@ window.TasksManager = (function() {
             }
 
             state.isInitialized = true;
-            console.log('[TasksManager-V2] Менеджер успішно ініціалізовано');
+
+            // Емітуємо подію готовності
+            EventBus.emit('manager.tasks.ready', { userId });
+
+            console.log('[TasksManager-V3] Менеджер ініціалізовано');
 
         } catch (error) {
-            console.error('[TasksManager-V2] Помилка ініціалізації:', error);
+            console.error('[TasksManager-V3] Помилка ініціалізації:', error);
             throw error;
         }
     }
 
     /**
-     * Завантажити всі завдання - ОПТИМІЗОВАНА
+     * Завантажити всі завдання
      */
-    async function loadAllTasks() {
-        console.log('[TasksManager-V2] === ЗАВАНТАЖЕННЯ ЗАВДАНЬ ===');
+    async function loadAllTasks(forceRefresh = false) {
+        console.log('[TasksManager-V3] Завантаження завдань');
 
-        if (!state.userId) {
-            console.error('[TasksManager-V2] User ID відсутній');
-            return;
+        const cacheKey = `all_${state.userId}`;
+
+        // Перевіряємо кеш
+        if (!forceRefresh) {
+            const cached = CacheManager.get(CACHE_NAMESPACE, cacheKey);
+            if (cached) {
+                processTasks(cached);
+                return;
+            }
         }
 
-        // Використовуємо RequestQueue якщо доступний
-        const requestKey = `tasks_list_${state.userId}`;
-
         try {
-            const response = await (window.RequestQueue?.enqueue || (fn => fn()))(
-                requestKey,
-                () => window.TasksAPI.tasks.getList(state.userId, 'all')
+            // API виклик через RequestManager
+            const response = await apiClient.execute(
+                cacheKey,
+                () => window.TasksAPI.tasks.getList(state.userId, 'all'),
+                { priority: 'normal', deduplicate: !forceRefresh }
             );
 
             if (response?.status === 'success' && response.data?.tasks) {
                 // Кешуємо результат
-                TasksCache.set(`all_tasks_${state.userId}`, response.data.tasks);
+                CacheManager.set(CACHE_NAMESPACE, cacheKey, response.data.tasks);
 
                 // Обробляємо завдання
                 processTasks(response.data.tasks);
 
-                state.lastUpdate = Date.now();
+                // Емітуємо подію завантаження
+                EventBus.emit('tasks.loaded', { tasks: response.data.tasks });
             }
 
         } catch (error) {
-            console.error('[TasksManager-V2] Помилка завантаження:', error);
+            console.error('[TasksManager-V3] Помилка завантаження:', error);
 
-            // Використовуємо кешовані дані якщо є
-            const cached = TasksCache.get(`all_tasks_${state.userId}`);
-            if (cached) {
-                processTasks(cached);
+            // Використовуємо кеш при помилці
+            const fallback = CacheManager.get(CACHE_NAMESPACE, cacheKey);
+            if (fallback) {
+                processTasks(fallback);
             } else {
                 window.TasksUtils.showToast('Помилка завантаження завдань', 'error');
             }
@@ -329,10 +134,10 @@ window.TasksManager = (function() {
     }
 
     /**
-     * Обробити завдання - ОПТИМІЗОВАНА
+     * Обробити завдання
      */
     function processTasks(tasksData) {
-        console.log('[TasksManager-V2] Обробка завдань');
+        console.log('[TasksManager-V3] Обробка завдань');
 
         // Конвертуємо в правильний формат для Store
         const tasksByType = {
@@ -342,32 +147,26 @@ window.TasksManager = (function() {
             daily: {}
         };
 
-        // Групуємо завдання по типах
-        if (tasksData.social || tasksData.limited || tasksData.partner || tasksData.daily) {
-            // Вже згруповані
-            Object.entries(tasksData).forEach(([type, tasksList]) => {
-                const tasksObject = {};
-
-                if (Array.isArray(tasksList)) {
-                    tasksList.forEach(task => {
-                        task.type = task.type || type;
-                        tasksObject[task.id] = task;
-                    });
-                } else if (typeof tasksList === 'object') {
-                    Object.entries(tasksList).forEach(([id, task]) => {
-                        task.type = type;
-                        tasksObject[id] = task;
-                    });
-                }
-
-                tasksByType[type] = tasksObject;
-            });
-        } else if (Array.isArray(tasksData)) {
+        // Обробляємо різні формати даних
+        if (Array.isArray(tasksData)) {
             // Масив завдань
             tasksData.forEach(task => {
-                const taskType = task.type || 'social';
-                if (tasksByType[taskType]) {
-                    tasksByType[taskType][task.id] = task;
+                const type = task.type || 'social';
+                if (tasksByType[type]) {
+                    tasksByType[type][task.id] = task;
+                }
+            });
+        } else if (typeof tasksData === 'object') {
+            // Вже згруповані по типах
+            Object.entries(tasksData).forEach(([type, tasks]) => {
+                if (tasksByType[type]) {
+                    if (Array.isArray(tasks)) {
+                        tasks.forEach(task => {
+                            tasksByType[type][task.id] = task;
+                        });
+                    } else {
+                        tasksByType[type] = tasks;
+                    }
                 }
             });
         }
@@ -377,34 +176,31 @@ window.TasksManager = (function() {
             window.TasksStore.actions.setTasks(type, tasks);
         });
 
-        // Плануємо оновлення UI через батчинг
+        // Плануємо рендеринг
         scheduleRender();
     }
 
     /**
-     * Планування рендерингу через батчинг
+     * Планування рендерингу
      */
     function scheduleRender() {
-        if (state.renderQueue.length === 0) {
-            state.renderQueue.push(Date.now());
-        }
+        state.renderQueue.add(Date.now());
 
-        if (!state.isRendering) {
-            state.isRendering = true;
-
-            requestAnimationFrame(() => {
-                performBatchRender();
+        if (!state.renderFrame) {
+            state.renderFrame = requestAnimationFrame(() => {
+                performRender();
+                state.renderFrame = null;
             });
         }
     }
 
     /**
-     * Виконання батч рендерингу
+     * Виконання рендерингу
      */
-    function performBatchRender() {
-        console.log('[TasksManager-V2] Батч рендеринг');
+    function performRender() {
+        console.log('[TasksManager-V3] Рендеринг завдань');
 
-        const currentTab = window.TasksStore.selectors.getCurrentTab();
+        const currentTab = window.TasksStore?.selectors.getCurrentTab();
 
         switch(currentTab) {
             case 'social':
@@ -418,188 +214,62 @@ window.TasksManager = (function() {
                 break;
         }
 
-        state.renderQueue = [];
-        state.isRendering = false;
+        state.renderQueue.clear();
+
+        // Емітуємо подію завершення рендерингу
+        EventBus.emit('tasks.rendered', { tab: currentTab });
     }
 
     /**
-     * Рендеринг соціальних завдань з віртуальним DOM
+     * Рендеринг соціальних завдань
      */
     function renderSocialTasks() {
-        console.log('[TasksManager-V2] Рендеринг соціальних завдань');
-
         const container = document.getElementById('social-tab');
         if (!container) return;
 
         const tasks = window.TasksStore.getState().tasks.social;
 
-        // Створюємо віртуальне дерево
-        const vdom = createSocialTasksVDOM(tasks);
-
-        // Отримуємо попереднє дерево
-        const oldVdom = state.vdomTrees.get('social');
-
-        if (oldVdom) {
-            // Diff і patch
-            const patches = VirtualDOM.diff(oldVdom, vdom);
-            if (patches) {
-                VirtualDOM.patch(container, patches);
-            }
-        } else {
-            // Перший рендер
-            container.innerHTML = '';
-            const dom = VirtualDOM.createDOM(vdom);
-            container.appendChild(dom);
-        }
-
-        // Зберігаємо нове дерево
-        state.vdomTrees.set('social', vdom);
-    }
-
-    /**
-     * Створення віртуального DOM для соціальних завдань
-     */
-    function createSocialTasksVDOM(tasks) {
-        const h = VirtualDOM.createElement;
-
         if (Object.keys(tasks).length === 0) {
-            return h('div', { className: 'no-tasks' }, 'Немає доступних завдань');
+            container.innerHTML = '<div class="no-tasks">Немає доступних завдань</div>';
+            return;
         }
 
         // Групуємо по платформах
         const tasksByPlatform = groupTasksByPlatform(tasks);
 
-        return h('div', { className: 'tasks-container' },
-            ...Object.entries(tasksByPlatform).map(([platform, platformTasks]) =>
-                createPlatformSectionVDOM(platform, platformTasks)
-            )
-        );
+        // Створюємо HTML через template literals (швидше ніж DOM маніпуляції)
+        const html = Object.entries(tasksByPlatform).map(([platform, platformTasks]) => `
+            <div class="platform-section" data-platform="${platform}">
+                <div class="platform-header">
+                    <div class="platform-info">
+                        <span class="platform-name">${getPlatformName(platform)}</span>
+                        <span class="platform-count">${platformTasks.length} завдань</span>
+                    </div>
+                </div>
+                <div class="platform-tasks">
+                    ${platformTasks.map(task => createTaskCardHTML(task, 'social')).join('')}
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = html;
+
+        // Оновлюємо таймери якщо є
+        updateTaskTimers(container);
     }
 
     /**
-     * Створення секції платформи для віртуального DOM
-     */
-    function createPlatformSectionVDOM(platform, tasks) {
-        const h = VirtualDOM.createElement;
-        const platformInfo = config.platforms[platform] || { name: platform };
-
-        return h('div', {
-            className: 'platform-section',
-            'data-platform': platform
-        },
-            h('div', { className: 'platform-header' },
-                h('div', { className: 'platform-info' },
-                    h('span', { className: 'platform-name' }, platformInfo.name),
-                    h('span', { className: 'platform-count' }, `${tasks.length} завдань`)
-                )
-            ),
-            h('div', { className: 'platform-tasks' },
-                ...tasks.map(task => createTaskCardVDOM(task, 'social'))
-            )
-        );
-    }
-
-    /**
-     * Створення картки завдання для віртуального DOM
-     */
-    function createTaskCardVDOM(task, type) {
-        const h = VirtualDOM.createElement;
-
-        const status = task.status || window.TasksConstants.TASK_STATUS.AVAILABLE;
-        const buttonText = getTaskButtonText(task);
-        const buttonClass = getTaskButtonClass(task);
-
-        return h('div', {
-            className: `task-card ${type}-task ${status}`,
-            'data-task-id': task.id,
-            'data-task-type': type,
-            'data-platform': task.platform || '',
-            'data-channel': task.channelUsername || '',
-            'data-action': task.action || '',
-            'data-url': task.url || ''
-        },
-            h('div', { className: 'task-header' },
-                h('div', { className: 'task-info' },
-                    h('h3', { className: 'task-title' }, task.title || 'Завдання'),
-                    h('p', { className: 'task-description' }, task.description || '')
-                )
-            ),
-            createTaskRewardsVDOM(task.reward),
-            h('button', {
-                className: `task-button ${buttonClass}`,
-                disabled: status === window.TasksConstants.TASK_STATUS.COMPLETED ? 'true' : undefined
-            }, buttonText)
-        );
-    }
-
-    /**
-     * Створення блоку винагород для віртуального DOM
-     */
-    function createTaskRewardsVDOM(reward) {
-        const h = VirtualDOM.createElement;
-
-        if (!reward) return null;
-
-        const rewards = [];
-
-        if (reward.winix) {
-            rewards.push(
-                h('div', { className: 'reward-item' },
-                    h('span', { className: 'reward-text' }, `${reward.winix} WINIX`)
-                )
-            );
-        }
-
-        if (reward.tickets) {
-            rewards.push(
-                h('div', { className: 'reward-item' },
-                    h('span', { className: 'reward-text' }, `${reward.tickets} TICKETS`)
-                )
-            );
-        }
-
-        return h('div', { className: 'task-rewards' }, ...rewards);
-    }
-
-    /**
-     * Рендеринг лімітованих завдань - ОПТИМІЗОВАНА
+     * Рендеринг лімітованих завдань
      */
     function renderLimitedTasks() {
-        console.log('[TasksManager-V2] Рендеринг лімітованих завдань');
-
         const container = document.getElementById('limited-tab');
         if (!container) return;
 
         const tasks = window.TasksStore.getState().tasks.limited;
 
-        // Створюємо віртуальне дерево
-        const vdom = createLimitedTasksVDOM(tasks);
-
-        // Diff і patch
-        const oldVdom = state.vdomTrees.get('limited');
-
-        if (oldVdom) {
-            const patches = VirtualDOM.diff(oldVdom, vdom);
-            if (patches) {
-                VirtualDOM.patch(container, patches);
-            }
-        } else {
-            container.innerHTML = '';
-            const dom = VirtualDOM.createDOM(vdom);
-            container.appendChild(dom);
-        }
-
-        state.vdomTrees.set('limited', vdom);
-    }
-
-    /**
-     * Створення віртуального DOM для лімітованих завдань
-     */
-    function createLimitedTasksVDOM(tasks) {
-        const h = VirtualDOM.createElement;
-
         if (Object.keys(tasks).length === 0) {
-            return h('div', { className: 'no-tasks' }, 'Немає доступних завдань');
+            container.innerHTML = '<div class="no-tasks">Немає доступних завдань</div>';
+            return;
         }
 
         // Сортуємо по часу закінчення
@@ -607,50 +277,31 @@ window.TasksManager = (function() {
             return (a.expiresAt || Infinity) - (b.expiresAt || Infinity);
         });
 
-        return h('div', { className: 'tasks-container' },
-            ...sortedTasks.map(task => createTaskCardVDOM(task, 'limited'))
-        );
+        // Створюємо HTML
+        const html = `
+            <div class="tasks-container">
+                ${sortedTasks.map(task => createTaskCardHTML(task, 'limited')).join('')}
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+        // Оновлюємо таймери
+        updateTaskTimers(container);
     }
 
     /**
-     * Рендеринг партнерських завдань - ОПТИМІЗОВАНА
+     * Рендеринг партнерських завдань
      */
     function renderPartnerTasks() {
-        console.log('[TasksManager-V2] Рендеринг партнерських завдань');
-
         const container = document.getElementById('partner-tab');
         if (!container) return;
 
         const tasks = window.TasksStore.getState().tasks.partner;
 
-        // Створюємо віртуальне дерево
-        const vdom = createPartnerTasksVDOM(tasks);
-
-        // Diff і patch
-        const oldVdom = state.vdomTrees.get('partner');
-
-        if (oldVdom) {
-            const patches = VirtualDOM.diff(oldVdom, vdom);
-            if (patches) {
-                VirtualDOM.patch(container, patches);
-            }
-        } else {
-            container.innerHTML = '';
-            const dom = VirtualDOM.createDOM(vdom);
-            container.appendChild(dom);
-        }
-
-        state.vdomTrees.set('partner', vdom);
-    }
-
-    /**
-     * Створення віртуального DOM для партнерських завдань
-     */
-    function createPartnerTasksVDOM(tasks) {
-        const h = VirtualDOM.createElement;
-
         if (Object.keys(tasks).length === 0) {
-            return h('div', { className: 'no-tasks' }, 'Немає доступних завдань');
+            container.innerHTML = '<div class="no-tasks">Немає доступних завдань</div>';
+            return;
         }
 
         // Групуємо по партнерах
@@ -663,133 +314,135 @@ window.TasksManager = (function() {
             tasksByPartner[partner].push(task);
         });
 
-        return h('div', { className: 'tasks-container' },
-            ...Object.entries(tasksByPartner).map(([partner, partnerTasks]) =>
-                createPartnerSectionVDOM(partner, partnerTasks)
-            )
-        );
+        // Створюємо HTML
+        const html = Object.entries(tasksByPartner).map(([partner, partnerTasks]) => `
+            <div class="partner-section" data-partner="${partner}">
+                <div class="partner-header">
+                    <div class="partner-info">
+                        <span class="partner-name">${partner}</span>
+                        <span class="partner-count">${partnerTasks.length} завдань</span>
+                    </div>
+                </div>
+                <div class="partner-tasks">
+                    ${partnerTasks.map(task => createTaskCardHTML(task, 'partner')).join('')}
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = html;
     }
 
     /**
-     * Створення секції партнера для віртуального DOM
+     * Створення HTML картки завдання
      */
-    function createPartnerSectionVDOM(partner, tasks) {
-        const h = VirtualDOM.createElement;
+    function createTaskCardHTML(task, type) {
+        const status = task.status || window.TasksConstants.TASK_STATUS.AVAILABLE;
+        const buttonText = getTaskButtonText(task);
+        const buttonClass = getTaskButtonClass(task);
 
-        return h('div', {
-            className: 'partner-section',
-            'data-partner': partner
-        },
-            h('div', { className: 'partner-header' },
-                h('div', { className: 'partner-info' },
-                    h('span', { className: 'partner-name' }, partner),
-                    h('span', { className: 'partner-count' }, `${tasks.length} завдань`)
-                )
-            ),
-            h('div', { className: 'partner-tasks' },
-                ...tasks.map(task => createTaskCardVDOM(task, 'partner'))
-            )
-        );
+        return `
+            <div class="task-card ${type}-task ${status}" 
+                 data-task-id="${task.id}"
+                 data-task-type="${type}"
+                 data-platform="${task.platform || ''}"
+                 data-channel="${task.channelUsername || ''}"
+                 data-action="${task.action || ''}"
+                 data-url="${task.url || ''}">
+                <div class="task-header">
+                    <div class="task-info">
+                        <h3 class="task-title">${task.title || 'Завдання'}</h3>
+                        <p class="task-description">${task.description || ''}</p>
+                    </div>
+                </div>
+                ${createTaskRewardsHTML(task.reward)}
+                ${task.expiresAt ? createTaskTimerHTML(task.expiresAt) : ''}
+                <button class="task-button ${buttonClass}" 
+                        ${status === window.TasksConstants.TASK_STATUS.COMPLETED ? 'disabled' : ''}>
+                    ${buttonText}
+                </button>
+            </div>
+        `;
     }
 
     /**
-     * Налаштування глобального таймера для всіх завдань
+     * Створення HTML винагород
      */
-    function setupGlobalTaskTimer() {
-        console.log('[TasksManager-V2] Налаштування глобального таймера');
+    function createTaskRewardsHTML(reward) {
+        if (!reward) return '';
 
-        // Очищаємо старий таймер
-        if (state.globalTaskTimer) {
-            clearInterval(state.globalTaskTimer);
+        const parts = [];
+
+        if (reward.winix) {
+            parts.push(`<div class="reward-item">${reward.winix} WINIX</div>`);
         }
 
-        // Оновлюємо всі таймери раз в секунду
-        state.globalTaskTimer = setInterval(() => {
-            updateAllTimers();
-        }, 1000);
-    }
-
-    /**
-     * Оновлення всіх таймерів одночасно
-     */
-    function updateAllTimers() {
-        const now = Date.now();
-        let hasExpired = false;
-
-        // Знаходимо всі елементи з таймерами
-        const timerElements = document.querySelectorAll('.task-timer[data-expires]');
-
-        timerElements.forEach(timerEl => {
-            const expiresAt = parseInt(timerEl.getAttribute('data-expires'));
-            const timeLeft = expiresAt - now;
-
-            if (timeLeft <= 0) {
-                // Завдання закінчилось
-                const card = timerEl.closest('.task-card');
-                if (card && !card.classList.contains('expired')) {
-                    card.classList.add('expired');
-                    hasExpired = true;
-
-                    // Оновлюємо в Store
-                    const taskId = card.getAttribute('data-task-id');
-                    const taskType = card.getAttribute('data-task-type');
-
-                    window.TasksStore.actions.updateTaskStatus(
-                        taskType,
-                        taskId,
-                        window.TasksConstants.TASK_STATUS.EXPIRED
-                    );
-                }
-
-                const timeSpan = timerEl.querySelector('.time-remaining');
-                if (timeSpan) {
-                    timeSpan.textContent = 'Завершено';
-                }
-            } else {
-                // Оновлюємо таймер
-                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
-                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-
-                const timeSpan = timerEl.querySelector('.time-remaining');
-                if (timeSpan) {
-                    timeSpan.textContent = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                }
-            }
-        });
-
-        // Якщо є завдання що закінчились - плануємо оновлення
-        if (hasExpired) {
-            scheduleRender();
-        }
-    }
-
-    /**
-     * Налаштування автооновлення - ОПТИМІЗОВАНА
-     */
-    function setupAutoUpdate() {
-        console.log('[TasksManager-V2] Налаштування автооновлення');
-
-        // Очищаємо попередній інтервал
-        if (state.updateInterval) {
-            clearInterval(state.updateInterval);
+        if (reward.tickets) {
+            parts.push(`<div class="reward-item">${reward.tickets} TICKETS</div>`);
         }
 
-        // Smart polling - оновлюємо тільки якщо вкладка активна
-        state.updateInterval = setInterval(() => {
-            if (!document.hidden && isTasksTabActive()) {
-                console.log('[TasksManager-V2] Автоматичне оновлення завдань');
-                loadAllTasks();
-            }
-        }, config.updateIntervalMs);
+        return parts.length > 0 ? `<div class="task-rewards">${parts.join('')}</div>` : '';
     }
 
     /**
-     * Перевірка чи активна вкладка завдань
+     * Створення HTML таймера
      */
-    function isTasksTabActive() {
-        const currentTab = window.TasksStore?.selectors.getCurrentTab();
-        return ['social', 'limited', 'partner'].includes(currentTab);
+    function createTaskTimerHTML(expiresAt) {
+        return `
+            <div class="task-timer" data-expires="${expiresAt}">
+                <span class="timer-label">Залишилось:</span>
+                <span class="time-remaining">--:--:--</span>
+            </div>
+        `;
+    }
+
+    /**
+     * Оновлення таймерів завдань
+     */
+    function updateTaskTimers(container) {
+        const timers = container.querySelectorAll('.task-timer[data-expires]');
+        if (timers.length === 0) return;
+
+        const updateTimers = () => {
+            const now = Date.now();
+
+            timers.forEach(timer => {
+                const expiresAt = parseInt(timer.getAttribute('data-expires'));
+                const timeLeft = expiresAt - now;
+
+                if (timeLeft <= 0) {
+                    timer.querySelector('.time-remaining').textContent = 'Завершено';
+
+                    // Оновлюємо статус в Store
+                    const card = timer.closest('.task-card');
+                    if (card) {
+                        const taskId = card.getAttribute('data-task-id');
+                        const taskType = card.getAttribute('data-task-type');
+
+                        window.TasksStore.actions.updateTaskStatus(
+                            taskType,
+                            taskId,
+                            window.TasksConstants.TASK_STATUS.EXPIRED
+                        );
+                    }
+                } else {
+                    const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+                    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+                    timer.querySelector('.time-remaining').textContent =
+                        `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+            });
+        };
+
+        // Оновлюємо одразу
+        updateTimers();
+
+        // Оновлюємо кожну секунду
+        const intervalId = setInterval(updateTimers, 1000);
+
+        // Зберігаємо для очищення
+        state.unsubscribeCallbacks.push(() => clearInterval(intervalId));
     }
 
     /**
@@ -807,6 +460,14 @@ window.TasksManager = (function() {
         });
 
         return grouped;
+    }
+
+    /**
+     * Отримати назву платформи
+     */
+    function getPlatformName(platform) {
+        const platforms = window.TasksConstants?.SOCIAL_PLATFORMS || {};
+        return platforms[platform]?.name || platform.charAt(0).toUpperCase() + platform.slice(1);
     }
 
     /**
@@ -853,66 +514,48 @@ window.TasksManager = (function() {
     }
 
     /**
-     * Налаштування обробників подій - ОПТИМІЗОВАНА
+     * Налаштування підписок на події
      */
-    function setupEventHandlers() {
-        console.log('[TasksManager-V2] Налаштування обробників подій');
-
-        // Видаляємо старі обробники
-        document.removeEventListener('tab-switched', handleTabSwitch);
-        document.removeEventListener('click', handleTaskClick);
-
-        // Додаємо нові
-        document.addEventListener('tab-switched', handleTabSwitch);
-        document.addEventListener('click', handleTaskClick);
-
-        // Оптимізована підписка на Store
-        if (window.TasksStore) {
-            const debouncedRender = window.TasksUtils.debounce(() => {
+    function setupEventSubscriptions() {
+        // Підписка на зміну вкладки
+        const unsubTabChange = EventBus.on(EventBus.EVENTS.TAB_CHANGED, (data) => {
+            if (['social', 'limited', 'partner'].includes(data.newTab)) {
                 scheduleRender();
-            }, 100);
-
-            window.TasksStore.subscribe((state, prevState, action) => {
-                // Рендеримо тільки при змінах завдань
-                if (action.type === 'SET_TASKS' || action.type === 'UPDATE_TASK_STATUS') {
-                    debouncedRender();
-                }
-            });
-        }
-
-        // Оптимізація видимості
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                // Зупиняємо таймери при прихованій вкладці
-                if (state.globalTaskTimer) {
-                    clearInterval(state.globalTaskTimer);
-                }
-            } else {
-                // Відновлюємо при поверненні
-                setupGlobalTaskTimer();
-
-                // Оновлюємо якщо пройшло багато часу
-                if (state.lastUpdate && Date.now() - state.lastUpdate > 60000) {
-                    loadAllTasks();
-                }
             }
         });
-    }
 
-    /**
-     * Обробка перемикання вкладок
-     */
-    const handleTabSwitch = window.TasksUtils.debounce((e) => {
-        console.log('[TasksManager-V2] Перемикання вкладки:', e.detail);
-        scheduleRender();
-    }, 100);
+        // Підписка на оновлення завдань
+        const unsubTaskUpdate = EventBus.on('tasks.refresh', () => {
+            loadAllTasks(true);
+        });
+
+        // Підписка на завершення завдання
+        const unsubTaskCompleted = EventBus.on(EventBus.EVENTS.TASK_COMPLETED, () => {
+            scheduleRender();
+        });
+
+        // Делегування для кліків на завданнях
+        document.addEventListener('click', handleTaskClick);
+
+        // Оптимізація видимості
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Зберігаємо callbacks для відписки
+        state.unsubscribeCallbacks.push(
+            unsubTabChange,
+            unsubTaskUpdate,
+            unsubTaskCompleted,
+            () => document.removeEventListener('click', handleTaskClick),
+            () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+        );
+    }
 
     /**
      * Обробка кліків на завданнях
      */
     const handleTaskClick = (e) => {
         const button = e.target.closest('.task-button');
-        if (!button) return;
+        if (!button || button.disabled) return;
 
         const card = button.closest('.task-card');
         if (!card) return;
@@ -921,22 +564,21 @@ window.TasksManager = (function() {
         const taskType = card.getAttribute('data-task-type');
         const platform = card.getAttribute('data-platform');
 
-        console.log('[TasksManager-V2] Клік на завдання:', { taskId, taskType, platform });
+        console.log('[TasksManager-V3] Клік на завдання:', { taskId, taskType, platform });
 
         // Делегуємо обробку
         handleTaskAction(taskId, taskType, platform);
     };
 
     /**
-     * Обробка дій із завданнями - ОПТИМІЗОВАНА
+     * Обробка дій із завданнями
      */
     async function handleTaskAction(taskId, taskType, platform) {
-        // Отримуємо завдання зі стору
-        const state = window.TasksStore.getState();
-        const task = state.tasks[taskType]?.[taskId];
+        // Отримуємо завдання зі Store
+        const task = window.TasksStore.getState().tasks[taskType]?.[taskId];
 
         if (!task) {
-            console.error('[TasksManager-V2] Завдання не знайдено:', taskId);
+            console.error('[TasksManager-V3] Завдання не знайдено:', taskId);
             return;
         }
 
@@ -954,7 +596,7 @@ window.TasksManager = (function() {
             window.open(task.url, '_blank');
         }
 
-        // Запускаємо верифікацію якщо потрібно
+        // Запускаємо верифікацію
         if (window.TaskVerification) {
             window.TaskVerification.addToQueue(taskId, taskType, platform, {
                 channelUsername: task.channelUsername,
@@ -965,15 +607,50 @@ window.TasksManager = (function() {
     }
 
     /**
-     * Оновити UI завдань - PUBLIC метод для зовнішніх викликів
+     * Обробка зміни видимості
+     */
+    const handleVisibilityChange = () => {
+        if (!document.hidden && state.isInitialized) {
+            // Оновлюємо якщо минуло багато часу
+            const lastUpdate = CacheManager.get(CACHE_NAMESPACE, 'lastUpdateTime') || 0;
+            if (Date.now() - lastUpdate > config.updateIntervalMs) {
+                loadAllTasks();
+            }
+        }
+    };
+
+    /**
+     * Налаштування періодичного оновлення
+     */
+    function setupPeriodicUpdate() {
+        const intervalId = setInterval(() => {
+            if (!document.hidden && isTasksTabActive()) {
+                console.log('[TasksManager-V3] Періодичне оновлення');
+                loadAllTasks();
+            }
+        }, config.updateIntervalMs);
+
+        state.unsubscribeCallbacks.push(() => clearInterval(intervalId));
+    }
+
+    /**
+     * Перевірка чи активна вкладка завдань
+     */
+    function isTasksTabActive() {
+        const currentTab = window.TasksStore?.selectors.getCurrentTab();
+        return ['social', 'limited', 'partner'].includes(currentTab);
+    }
+
+    /**
+     * Оновити UI завдань
      */
     function updateTasksUI() {
-        console.log('[TasksManager-V2] Зовнішній виклик updateTasksUI');
+        console.log('[TasksManager-V3] Зовнішній виклик updateTasksUI');
         scheduleRender();
     }
 
     /**
-     * Отримати статистику завдань
+     * Отримати статистику
      */
     function getTasksStatistics() {
         const state = window.TasksStore.getState();
@@ -996,17 +673,17 @@ window.TasksManager = (function() {
             tasks.forEach(task => {
                 if (task.status === statuses.COMPLETED) {
                     stats.completed++;
-                } else if (task.status === statuses.AVAILABLE) {
+                } else if (task.status === statuses.AVAILABLE || !task.status) {
                     stats.available++;
+
+                    if (task.reward) {
+                        stats.totalRewards.winix += task.reward.winix || 0;
+                        stats.totalRewards.tickets += task.reward.tickets || 0;
+                    }
                 }
 
                 const platform = task.platform || 'other';
                 stats.byPlatform[platform] = (stats.byPlatform[platform] || 0) + 1;
-
-                if (task.status === statuses.AVAILABLE && task.reward) {
-                    stats.totalRewards.winix += task.reward.winix || 0;
-                    stats.totalRewards.tickets += task.reward.tickets || 0;
-                }
             });
         });
 
@@ -1017,30 +694,29 @@ window.TasksManager = (function() {
      * Знищити менеджер
      */
     function destroy() {
-        console.log('[TasksManager-V2] === ЗНИЩЕННЯ МЕНЕДЖЕРА ===');
+        console.log('[TasksManager-V3] Знищення менеджера');
 
-        // Очищаємо таймери
-        if (state.updateInterval) {
-            clearInterval(state.updateInterval);
+        // Скасовуємо pending рендеринг
+        if (state.renderFrame) {
+            cancelAnimationFrame(state.renderFrame);
         }
 
-        if (state.globalTaskTimer) {
-            clearInterval(state.globalTaskTimer);
-        }
+        // Відписуємось від всіх подій
+        state.unsubscribeCallbacks.forEach(unsubscribe => {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
+            }
+        });
 
-        // Очищаємо кеш
-        TasksCache.clear();
-        state.vdomTrees.clear();
-        state.domCache.clear();
+        // Очищаємо стан
+        state.isInitialized = false;
+        state.renderQueue.clear();
+        state.unsubscribeCallbacks = [];
 
-        // Видаляємо обробники
-        document.removeEventListener('tab-switched', handleTabSwitch);
-        document.removeEventListener('click', handleTaskClick);
-
-        console.log('[TasksManager-V2] Менеджер знищено');
+        console.log('[TasksManager-V3] Менеджер знищено');
     }
 
-    console.log('[TasksManager-V2] Менеджер завдань готовий');
+    console.log('[TasksManager-V3] Менеджер готовий (Без Virtual DOM)');
 
     // Публічний API
     return {
@@ -1048,9 +724,16 @@ window.TasksManager = (function() {
         loadAllTasks,
         updateTasksUI,
         getTasksStatistics,
-        destroy
+        destroy,
+
+        // Для зовнішнього доступу
+        getState: () => ({
+            isInitialized: state.isInitialized,
+            currentFilter: state.currentFilter,
+            tasksCount: window.TasksStore?.getState().tasks || {}
+        })
     };
 
 })();
 
-console.log('[TasksManager-V2] Модуль експортовано глобально');
+console.log('[TasksManager-V3] Модуль експортовано глобально');

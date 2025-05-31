@@ -1,135 +1,106 @@
 /**
  * Модуль верифікації завдань для системи WINIX
- * Автоматична перевірка виконання завдань
+ * ОПТИМІЗОВАНА ВЕРСІЯ V3 - Використовує централізовані утиліти
  */
 
 window.TaskVerification = (function() {
     'use strict';
 
-    console.log('🔍 [TaskVerification] ===== ІНІЦІАЛІЗАЦІЯ МОДУЛЯ ВЕРИФІКАЦІЇ =====');
+    console.log('🔍 [TaskVerification-V3] ===== ІНІЦІАЛІЗАЦІЯ ОПТИМІЗОВАНОГО МОДУЛЯ =====');
 
-    // Стан модуля
+    // Використовуємо централізовані утиліти
+    const { CacheManager, RequestManager, EventBus } = window;
+
+    // Namespace для кешування
+    const CACHE_NAMESPACE = CacheManager.NAMESPACES.VALIDATION;
+
+    // RequestManager клієнт
+    const apiClient = RequestManager.createClient('verification', {
+        maxRetries: 3,
+        retryDelay: 2000
+    });
+
+    // EventBus namespace
+    const eventBus = EventBus.createNamespace('verification');
+
+    // Мінімальний стан
     const state = {
-        activeVerifications: new Map(),
-        verificationQueue: [],
-        isProcessing: false,
         telegramBotUsername: '@WINIX_Official_bot',
-        taskTimestamps: new Map() // Зберігаємо час початку завдань
+        socialVerificationDelay: 15000 // 15 секунд
     };
 
     // Конфігурація
     const config = {
-        maxRetries: 3,
-        retryDelay: 2000,
-        verificationTimeout: 30000,
-        queueProcessInterval: 1000,
-        socialVerificationDelay: 15000 // 15 секунд для соціальних мереж
+        verificationTimeout: 30000
     };
 
     /**
      * Ініціалізація модуля
      */
     function init() {
-        console.log('🚀 [TaskVerification] Ініціалізація системи верифікації');
-        console.log('⚙️ [TaskVerification] Конфігурація:', config);
+        console.log('🚀 [TaskVerification-V3] Ініціалізація');
 
-        // Завантажуємо збережені timestamps
-        loadTaskTimestamps();
+        // Підписуємось на події
+        setupEventSubscriptions();
 
-        // Запускаємо обробку черги
-        startQueueProcessor();
+        // Емітуємо подію готовності
+        EventBus.emit('verification.ready');
 
-        // Налаштовуємо обробники подій
-        setupEventHandlers();
-
-        console.log('✅ [TaskVerification] Модуль ініціалізовано');
-    }
-
-    /**
-     * Завантажити збережені timestamps
-     */
-    function loadTaskTimestamps() {
-        const saved = window.TasksUtils.storage.get(window.TasksConstants.STORAGE_KEYS.TASK_TIMESTAMPS, {});
-        Object.entries(saved).forEach(([taskId, timestamp]) => {
-            state.taskTimestamps.set(taskId, timestamp);
-        });
-        console.log('📂 [TaskVerification] Завантажено timestamps для', state.taskTimestamps.size, 'завдань');
-    }
-
-    /**
-     * Зберегти timestamps
-     */
-    function saveTaskTimestamps() {
-        const timestamps = {};
-        state.taskTimestamps.forEach((timestamp, taskId) => {
-            timestamps[taskId] = timestamp;
-        });
-        window.TasksUtils.storage.set(window.TasksConstants.STORAGE_KEYS.TASK_TIMESTAMPS, timestamps);
+        console.log('✅ [TaskVerification-V3] Модуль ініціалізовано');
     }
 
     /**
      * Верифікувати завдання
      */
     async function verifyTask(taskId, taskType, platform, data = {}) {
-        console.log('🔍 [TaskVerification] === ВЕРИФІКАЦІЯ ЗАВДАННЯ ===');
-        console.log('📋 [TaskVerification] Дані завдання:', {
-            taskId,
-            taskType,
-            platform,
-            data
-        });
+        console.log('🔍 [TaskVerification-V3] Верифікація:', { taskId, platform });
 
-        const verificationId = generateVerificationId();
-        const userId = window.TasksStore.selectors.getUserId();
-
+        const userId = window.TasksStore?.selectors?.getUserId();
         if (!userId) {
-            console.error('❌ [TaskVerification] User ID не знайдено');
             throw new Error('User not authenticated');
         }
 
-        // Створюємо об'єкт верифікації
-        const verification = {
-            id: verificationId,
+        const verificationData = {
             taskId,
             taskType,
             platform,
             userId,
             data,
-            status: 'pending',
-            attempts: 0,
-            createdAt: Date.now()
+            timestamp: Date.now()
         };
 
-        // Додаємо в активні верифікації
-        state.activeVerifications.set(verificationId, verification);
+        // Емітуємо подію початку
+        EventBus.emit(EventBus.EVENTS.TASK_STARTED, verificationData);
 
-        // Вибираємо метод верифікації в залежності від платформи
         try {
             let result;
 
             switch(platform.toLowerCase()) {
                 case 'telegram':
-                    result = await verifyTelegramTask(verification);
+                    result = await verifyTelegramTask(verificationData);
                     break;
 
                 case 'youtube':
                 case 'twitter':
                 case 'discord':
-                    result = await verifySocialTask(verification);
+                    result = await verifySocialTask(verificationData);
                     break;
 
                 default:
-                    console.warn('⚠️ [TaskVerification] Невідома платформа:', platform);
-                    result = await verifySocialTask(verification);
+                    result = await verifySocialTask(verificationData);
             }
 
-            console.log('✅ [TaskVerification] Результат верифікації:', result);
             return result;
 
         } catch (error) {
-            console.error('❌ [TaskVerification] Помилка верифікації:', error);
-            verification.status = 'failed';
-            verification.error = error.message;
+            console.error('❌ [TaskVerification-V3] Помилка:', error);
+
+            // Емітуємо подію помилки
+            EventBus.emit(EventBus.EVENTS.TASK_FAILED, {
+                ...verificationData,
+                error: error.message
+            });
+
             throw error;
         }
     }
@@ -138,41 +109,42 @@ window.TaskVerification = (function() {
      * Верифікація Telegram завдання
      */
     async function verifyTelegramTask(verification) {
-        console.log('📱 [TaskVerification] === TELEGRAM ВЕРИФІКАЦІЯ ===');
-
         const { taskId, data, userId } = verification;
-        const { channelUsername, actionType } = data;
+        const { channelUsername } = data;
 
-        console.log('📊 [TaskVerification] Параметри:', {
-            канал: channelUsername,
-            дія: actionType
-        });
-
-        // Оновлюємо UI - показуємо процес верифікації
+        // Оновлюємо UI
         updateTaskUI(taskId, 'verifying');
 
         try {
-            // Крок 1: Перевіряємо чи користувач запустив бота
-            console.log('🔄 [TaskVerification] Крок 1: Перевірка запуску бота');
-            const botStarted = await checkBotStarted(userId);
+            // Перевіряємо кеш бота
+            const botCacheKey = `bot_started_${userId}`;
+            let botStarted = CacheManager.get(CACHE_NAMESPACE, botCacheKey);
+
+            if (botStarted === null) {
+                // Перевіряємо через API
+                const response = await apiClient.execute(
+                    botCacheKey,
+                    () => window.TasksAPI.verify.checkBot(userId),
+                    { priority: 'high' }
+                );
+
+                botStarted = response.botStarted || false;
+                CacheManager.set(CACHE_NAMESPACE, botCacheKey, botStarted, 300000); // 5 хвилин
+            }
 
             if (!botStarted) {
-                console.log('❌ [TaskVerification] Користувач не запустив бота');
                 throw new Error('Спочатку запустіть бота ' + state.telegramBotUsername);
             }
 
-            // Крок 2: Відправляємо запит на верифікацію через API
-            console.log('🔄 [TaskVerification] Крок 2: Запит верифікації');
-            const response = await window.TasksAPI.verify.telegram(userId, channelUsername);
+            // Верифікуємо підписку
+            const response = await apiClient.execute(
+                `verify_tg_${channelUsername}`,
+                () => window.TasksAPI.verify.telegram(userId, channelUsername),
+                { priority: 'high', deduplicate: false }
+            );
 
             if (response.verified) {
-                console.log('✅ [TaskVerification] Telegram завдання верифіковано');
-
-                // Оновлюємо статус завдання
-                await completeTask(taskId, verification);
-
-                // Нараховуємо винагороду
-                await claimReward(taskId, response.reward);
+                await completeTask(taskId, verification, response.reward);
 
                 return {
                     success: true,
@@ -180,56 +152,40 @@ window.TaskVerification = (function() {
                     reward: response.reward
                 };
             } else {
-                console.log('❌ [TaskVerification] Верифікація не пройдена');
                 throw new Error(response.message || 'Підписка не підтверджена');
             }
 
         } catch (error) {
-            console.error('❌ [TaskVerification] Помилка Telegram верифікації:', error);
             updateTaskUI(taskId, 'failed', error.message);
             throw error;
         }
     }
 
     /**
-     * Перевірка чи користувач запустив бота
-     */
-    async function checkBotStarted(userId) {
-        console.log('🤖 [TaskVerification] Перевірка запуску бота для користувача:', userId);
-
-        try {
-            const response = await window.TasksAPI.verify.checkBot(userId);
-            return response.botStarted || false;
-        } catch (error) {
-            console.error('❌ [TaskVerification] Помилка перевірки бота:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Верифікація соціальних завдань (YouTube, Twitter, Discord)
+     * Верифікація соціальних завдань
      */
     async function verifySocialTask(verification) {
-        console.log('🌐 [TaskVerification] === СОЦІАЛЬНА ВЕРИФІКАЦІЯ ===');
-        console.log('📊 [TaskVerification] Платформа:', verification.platform);
+        const { taskId, userId } = verification;
 
-        const { taskId, userId, platform } = verification;
+        // Оновлюємо UI
+        updateTaskUI(taskId, 'verifying');
 
         try {
-            // Оновлюємо UI
-            updateTaskUI(taskId, 'verifying');
-
-            // Отримуємо або встановлюємо timestamp початку
-            let startTimestamp = state.taskTimestamps.get(taskId);
+            // Перевіряємо кеш часу початку
+            const timestampKey = `task_start_${taskId}`;
+            let startTimestamp = CacheManager.get(CACHE_NAMESPACE, timestampKey);
 
             if (!startTimestamp) {
-                console.log('⏰ [TaskVerification] Початок відліку часу для завдання');
+                // Початок виконання
                 startTimestamp = Date.now();
-                state.taskTimestamps.set(taskId, startTimestamp);
-                saveTaskTimestamps();
+                CacheManager.set(CACHE_NAMESPACE, timestampKey, startTimestamp, 3600000); // 1 година
 
-                // Відправляємо запит на початок завдання
-                await window.TasksAPI.tasks.start(userId, taskId);
+                // Відправляємо на сервер
+                await apiClient.execute(
+                    `start_${taskId}`,
+                    () => window.TasksAPI.tasks.start(userId, taskId),
+                    { priority: 'normal' }
+                );
 
                 // Показуємо повідомлення
                 window.TasksUtils.showToast(
@@ -238,49 +194,36 @@ window.TaskVerification = (function() {
                     5000
                 );
 
-                // Відкриваємо посилання
+                // Відкриваємо URL
                 if (verification.data.url) {
-                    console.log('🔗 [TaskVerification] Відкриваємо URL:', verification.data.url);
                     window.open(verification.data.url, '_blank');
                 }
 
                 // Показуємо таймер
-                showVerificationTimer(taskId, config.socialVerificationDelay);
+                showVerificationTimer(taskId, state.socialVerificationDelay);
             }
 
-            // Перевіряємо чи минув необхідний час
+            // Перевіряємо час
             const elapsedTime = Date.now() - startTimestamp;
-            const remainingTime = config.socialVerificationDelay - elapsedTime;
-
-            console.log('⏱️ [TaskVerification] Час з початку:', Math.floor(elapsedTime / 1000), 'сек');
+            const remainingTime = state.socialVerificationDelay - elapsedTime;
 
             if (remainingTime > 0) {
-                console.log('⏳ [TaskVerification] Потрібно зачекати ще:', Math.ceil(remainingTime / 1000), 'сек');
-
-                // Показуємо таймер
                 showVerificationTimer(taskId, remainingTime);
-
                 throw new Error(`Зачекайте ще ${Math.ceil(remainingTime / 1000)} секунд`);
             }
 
-            // Час пройшов, виконуємо верифікацію
-            console.log('✅ [TaskVerification] Час очікування завершено, перевіряємо...');
-
-            // Відправляємо запит на завершення
-            const response = await window.TasksAPI.tasks.complete(userId, taskId);
+            // Час пройшов, завершуємо
+            const response = await apiClient.execute(
+                `complete_${taskId}`,
+                () => window.TasksAPI.tasks.complete(userId, taskId),
+                { priority: 'high', deduplicate: false }
+            );
 
             if (response.success) {
-                console.log('✅ [TaskVerification] Завдання виконано');
+                // Очищаємо кеш
+                CacheManager.invalidate(CACHE_NAMESPACE, timestampKey);
 
-                // Видаляємо timestamp
-                state.taskTimestamps.delete(taskId);
-                saveTaskTimestamps();
-
-                // Оновлюємо статус
-                await completeTask(taskId, verification);
-
-                // Нараховуємо винагороду
-                await claimReward(taskId, response.reward);
+                await completeTask(taskId, verification, response.reward);
 
                 return {
                     success: true,
@@ -292,7 +235,6 @@ window.TaskVerification = (function() {
             }
 
         } catch (error) {
-            console.error('❌ [TaskVerification] Помилка соціальної верифікації:', error);
             updateTaskUI(taskId, 'failed', error.message);
             throw error;
         }
@@ -302,12 +244,7 @@ window.TaskVerification = (function() {
      * Показати таймер верифікації
      */
     function showVerificationTimer(taskId, duration) {
-        console.log('⏲️ [TaskVerification] Показуємо таймер для завдання:', taskId);
-
-        const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
-        if (!taskCard) return;
-
-        const button = taskCard.querySelector('.task-button');
+        const button = document.querySelector(`[data-task-id="${taskId}"] .task-button`);
         if (!button) return;
 
         let remainingTime = Math.ceil(duration / 1000);
@@ -332,10 +269,8 @@ window.TaskVerification = (function() {
     /**
      * Завершити завдання
      */
-    async function completeTask(taskId, verification) {
-        console.log('✅ [TaskVerification] Завершення завдання:', taskId);
-
-        // Оновлюємо статус в сторі
+    async function completeTask(taskId, verification, reward) {
+        // Оновлюємо Store
         window.TasksStore.actions.updateTaskStatus(
             verification.taskType,
             taskId,
@@ -345,26 +280,28 @@ window.TaskVerification = (function() {
         // Оновлюємо UI
         updateTaskUI(taskId, 'completed');
 
-        // Видаляємо з активних верифікацій
-        state.activeVerifications.delete(verification.id);
+        // Кешуємо виконане завдання
+        const completedKey = `completed_${taskId}`;
+        CacheManager.set(CACHE_NAMESPACE, completedKey, true, Infinity);
 
-        // Зберігаємо в localStorage
-        saveCompletedTask(taskId, verification);
+        // Нараховуємо винагороду
+        if (reward && (reward.winix || reward.tickets)) {
+            await claimReward(taskId, reward);
+        }
+
+        // Емітуємо подію завершення
+        EventBus.emit(EventBus.EVENTS.TASK_COMPLETED, {
+            taskId,
+            taskType: verification.taskType,
+            reward
+        });
     }
 
     /**
      * Нарахувати винагороду
      */
     async function claimReward(taskId, reward) {
-        console.log('💰 [TaskVerification] === НАРАХУВАННЯ ВИНАГОРОДИ ===');
-        console.log('🎁 [TaskVerification] Винагорода:', reward);
-
-        if (!reward || (!reward.winix && !reward.tickets)) {
-            console.warn('⚠️ [TaskVerification] Винагорода відсутня');
-            return;
-        }
-
-        // Оновлюємо баланс
+        // Оновлюємо баланс через Store
         const currentBalance = window.TasksStore.selectors.getUserBalance();
         const newBalance = {
             winix: currentBalance.winix + (reward.winix || 0),
@@ -373,167 +310,82 @@ window.TaskVerification = (function() {
 
         window.TasksStore.actions.updateBalance(newBalance);
 
-        // Показуємо анімацію винагороди
-        showRewardAnimation(reward);
+        // Емітуємо подію отримання винагороди
+        EventBus.emit(EventBus.EVENTS.TASK_CLAIMED, {
+            taskId,
+            reward
+        });
 
-        // Показуємо повідомлення
+        // Показуємо анімацію через EventBus
+        eventBus.emit('showRewardAnimation', reward);
+
+        // Toast повідомлення
         window.TasksServices?.Notification?.showReward(reward);
-
-        console.log('✅ [TaskVerification] Винагорода нарахована');
     }
 
     /**
      * Оновити UI завдання
      */
     function updateTaskUI(taskId, status, message = '') {
-        console.log('🔄 [TaskVerification] Оновлення UI завдання:', {
+        // Використовуємо EventBus для UI оновлень
+        EventBus.emit('task.ui.update', {
             taskId,
             status,
             message
         });
 
-        const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
-        if (!taskCard) {
-            console.warn('⚠️ [TaskVerification] Картка завдання не знайдена');
-            return;
+        // Мінімальне пряме оновлення для критичних елементів
+        const button = document.querySelector(`[data-task-id="${taskId}"] .task-button`);
+        if (!button) return;
+
+        switch(status) {
+            case 'verifying':
+                button.textContent = 'Перевірка...';
+                button.disabled = true;
+                break;
+
+            case 'completed':
+                button.textContent = 'Виконано ✓';
+                button.disabled = true;
+                break;
+
+            case 'failed':
+                button.textContent = 'Спробувати знову';
+                button.disabled = false;
+                if (message) {
+                    window.TasksUtils.showToast(message, 'error');
+                }
+                break;
         }
-
-        // Видаляємо попередні класи статусу
-        taskCard.classList.remove('verifying', 'claiming', 'completed', 'failed');
-
-        // Додаємо новий клас статусу
-        taskCard.classList.add(status);
-
-        // Оновлюємо кнопку
-        const button = taskCard.querySelector('.task-button');
-        if (button) {
-            switch(status) {
-                case 'verifying':
-                    button.textContent = 'Перевірка...';
-                    button.disabled = true;
-                    break;
-
-                case 'claiming':
-                    button.textContent = 'Отримання...';
-                    button.disabled = true;
-                    break;
-
-                case 'completed':
-                    button.textContent = 'Виконано ✓';
-                    button.disabled = true;
-                    break;
-
-                case 'failed':
-                    button.textContent = 'Спробувати знову';
-                    button.disabled = false;
-                    if (message) {
-                        window.TasksUtils.showToast(message, 'error');
-                    }
-                    break;
-            }
-        }
-    }
-
-    /**
-     * Показати анімацію винагороди
-     */
-    function showRewardAnimation(reward) {
-        console.log('🎊 [TaskVerification] Показуємо анімацію винагороди');
-
-        const animDiv = document.createElement('div');
-        animDiv.className = 'task-reward-animation';
-
-        let content = '';
-        if (reward.winix) {
-            content += `<div class="reward-winix">+${reward.winix} WINIX</div>`;
-        }
-        if (reward.tickets) {
-            content += `<div class="reward-tickets">+${reward.tickets} TICKETS</div>`;
-        }
-
-        animDiv.innerHTML = content;
-        document.body.appendChild(animDiv);
-
-        // Запускаємо анімацію
-        setTimeout(() => {
-            animDiv.classList.add('show');
-        }, 10);
-
-        // Видаляємо після анімації
-        setTimeout(() => {
-            animDiv.classList.remove('show');
-            setTimeout(() => {
-                document.body.removeChild(animDiv);
-            }, 500);
-        }, 2500);
-    }
-
-    /**
-     * Обробка черги верифікацій
-     */
-    function startQueueProcessor() {
-        console.log('🔄 [TaskVerification] Запуск обробника черги');
-
-        setInterval(() => {
-            if (state.isProcessing || state.verificationQueue.length === 0) {
-                return;
-            }
-
-            processNextVerification();
-        }, config.queueProcessInterval);
-    }
-
-    /**
-     * Обробити наступну верифікацію з черги
-     */
-    async function processNextVerification() {
-        if (state.verificationQueue.length === 0) return;
-
-        state.isProcessing = true;
-        const verification = state.verificationQueue.shift();
-
-        console.log('🔄 [TaskVerification] Обробка верифікації з черги:', verification);
-
-        try {
-            await verifyTask(
-                verification.taskId,
-                verification.taskType,
-                verification.platform,
-                verification.data
-            );
-        } catch (error) {
-            console.error('❌ [TaskVerification] Помилка обробки:', error);
-        }
-
-        state.isProcessing = false;
     }
 
     /**
      * Додати завдання в чергу верифікації
      */
     function addToQueue(taskId, taskType, platform, data) {
-        console.log('📥 [TaskVerification] Додавання в чергу:', {
-            taskId,
-            taskType,
-            platform
-        });
-
-        state.verificationQueue.push({
-            taskId,
-            taskType,
-            platform,
-            data,
-            addedAt: Date.now()
+        // Використовуємо RequestManager замість власної черги
+        apiClient.execute(
+            `queue_verify_${taskId}`,
+            () => verifyTask(taskId, taskType, platform, data),
+            { priority: 'normal' }
+        ).catch(error => {
+            console.error('❌ [TaskVerification-V3] Помилка черги:', error);
         });
     }
 
     /**
-     * Налаштування обробників подій
+     * Перевірити чи завдання виконано
      */
-    function setupEventHandlers() {
-        console.log('🎯 [TaskVerification] Налаштування обробників подій');
+    function isTaskCompleted(taskId) {
+        const completedKey = `completed_${taskId}`;
+        return CacheManager.get(CACHE_NAMESPACE, completedKey) === true;
+    }
 
-        // Обробник кліків на кнопки завдань
+    /**
+     * Налаштування підписок на події
+     */
+    function setupEventSubscriptions() {
+        // Обробка кліків на завданнях через делегування
         document.addEventListener('click', async (e) => {
             const taskButton = e.target.closest('.task-button');
             if (!taskButton) return;
@@ -545,19 +397,13 @@ window.TaskVerification = (function() {
             const taskType = taskCard.getAttribute('data-task-type');
             const platform = taskCard.getAttribute('data-platform');
 
-            console.log('🖱️ [TaskVerification] Клік на завдання:', {
-                taskId,
-                taskType,
-                platform
-            });
-
-            // Перевіряємо чи завдання вже виконано
-            if (taskCard.classList.contains('completed')) {
-                console.log('ℹ️ [TaskVerification] Завдання вже виконано');
+            // Перевіряємо стан
+            if (taskCard.classList.contains('completed') || isTaskCompleted(taskId)) {
+                console.log('ℹ️ [TaskVerification-V3] Завдання вже виконано');
                 return;
             }
 
-            // Збираємо додаткові дані
+            // Збираємо дані
             const data = {
                 channelUsername: taskCard.getAttribute('data-channel'),
                 actionType: taskCard.getAttribute('data-action'),
@@ -565,77 +411,51 @@ window.TaskVerification = (function() {
             };
 
             try {
-                // Запускаємо верифікацію
                 await verifyTask(taskId, taskType, platform, data);
             } catch (error) {
-                console.error('❌ [TaskVerification] Помилка виконання:', error);
+                console.error('❌ [TaskVerification-V3] Помилка:', error);
+            }
+        });
+
+        // Підписка на запит верифікації
+        EventBus.on('task.verify', async (data) => {
+            try {
+                await verifyTask(data.taskId, data.taskType, data.platform, data);
+            } catch (error) {
+                console.error('❌ [TaskVerification-V3] Помилка:', error);
             }
         });
     }
 
     /**
-     * Генерація ID верифікації
-     */
-    function generateVerificationId() {
-        return `ver_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-
-    /**
-     * Зберегти виконане завдання
-     */
-    function saveCompletedTask(taskId, verification) {
-        console.log('💾 [TaskVerification] Збереження виконаного завдання');
-
-        const completedTasks = window.TasksUtils.storage.get('completedTasks', {});
-        completedTasks[taskId] = {
-            taskId,
-            platform: verification.platform,
-            completedAt: Date.now(),
-            reward: verification.reward
-        };
-
-        window.TasksUtils.storage.set('completedTasks', completedTasks);
-    }
-
-    /**
-     * Перевірити чи завдання виконано
-     */
-    function isTaskCompleted(taskId) {
-        const completedTasks = window.TasksUtils.storage.get('completedTasks', {});
-        return !!completedTasks[taskId];
-    }
-
-    /**
-     * Отримати статистику верифікацій
+     * Отримати статистику
      */
     function getStatistics() {
-        const completedTasks = window.TasksUtils.storage.get('completedTasks', {});
-        const platforms = {};
+        const completedTasks = [];
 
-        Object.values(completedTasks).forEach(task => {
-            platforms[task.platform] = (platforms[task.platform] || 0) + 1;
+        // Збираємо виконані завдання з кешу
+        CacheManager.getNamespaceData(CACHE_NAMESPACE).forEach((value, key) => {
+            if (key.startsWith('completed_') && value === true) {
+                completedTasks.push(key.replace('completed_', ''));
+            }
         });
 
         return {
-            totalCompleted: Object.keys(completedTasks).length,
-            byPlatform: platforms,
-            activeVerifications: state.activeVerifications.size,
-            queueLength: state.verificationQueue.length,
-            pendingTimers: state.taskTimestamps.size
+            totalCompleted: completedTasks.length,
+            completedTaskIds: completedTasks,
+            pendingVerifications: apiClient.getStatus().pendingRequests
         };
     }
 
     /**
-     * Очистити кеш виконаних завдань
+     * Очистити кеш
      */
     function clearCompletedCache() {
-        console.log('🧹 [TaskVerification] Очищення кешу виконаних завдань');
-        window.TasksUtils.storage.remove('completedTasks');
-        window.TasksUtils.storage.remove(window.TasksConstants.STORAGE_KEYS.TASK_TIMESTAMPS);
-        state.taskTimestamps.clear();
+        console.log('🧹 [TaskVerification-V3] Очищення кешу');
+        CacheManager.invalidateNamespace(CACHE_NAMESPACE);
     }
 
-    console.log('✅ [TaskVerification] Модуль верифікації готовий');
+    console.log('✅ [TaskVerification-V3] Модуль готовий');
 
     // Публічний API
     return {
@@ -649,4 +469,4 @@ window.TaskVerification = (function() {
 
 })();
 
-console.log('✅ [TaskVerification] Модуль експортовано глобально');
+console.log('✅ [TaskVerification-V3] Модуль експортовано глобально');
