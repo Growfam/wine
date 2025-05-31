@@ -1,166 +1,21 @@
 /**
- * Сервісні функції для системи завдань WINIX - Оптимізована версія V2
- * Intelligent sync, diff-based оновлення та централізоване кешування
+ * Оптимізовані сервісні функції для системи завдань WINIX
+ * Використовує централізовані утиліти без дублювання функціоналу
  */
 
 window.TasksServices = (function() {
     'use strict';
 
-    console.log('🛠️ [TasksServices-V2] ===== ІНІЦІАЛІЗАЦІЯ ОПТИМІЗОВАНОГО СЕРВІСНОГО МОДУЛЯ =====');
+    console.log('🛠️ [TasksServices] ===== ІНІЦІАЛІЗАЦІЯ ОПТИМІЗОВАНОГО СЕРВІСНОГО МОДУЛЯ =====');
 
-    // Централізований кеш для всіх сервісів
-    const ServiceCache = {
-        data: new Map(),
-        checksums: new Map(),
-        lastSync: new Map(),
+    // Використовуємо централізовані утиліти
+    const { CacheManager, RequestManager, EventBus } = window;
 
-        ttl: {
-            apiHealth: 30000,        // 30 секунд
-            userSession: 5 * 60000,  // 5 хвилин
-            balance: 30000,          // 30 секунд
-            tasks: 2 * 60000,        // 2 хвилини
-            dailyStatus: 60000,      // 1 хвилина
-            flexStatus: 60000        // 1 хвилина
-        },
+    // RequestManager клієнт для сервісів
+    const requestClient = RequestManager.createClient('services');
 
-        set(key, data, customTTL) {
-            const checksum = this.calculateChecksum(data);
-            this.data.set(key, data);
-            this.checksums.set(key, checksum);
-            this.lastSync.set(key, Date.now());
-
-            const ttl = customTTL || this.ttl[key.split('_')[0]] || 60000;
-            setTimeout(() => this.invalidate(key), ttl);
-
-            return checksum;
-        },
-
-        get(key) {
-            const timestamp = this.lastSync.get(key);
-            if (!timestamp) return null;
-
-            const age = Date.now() - timestamp;
-            const ttl = this.ttl[key.split('_')[0]] || 60000;
-
-            if (age > ttl) {
-                this.invalidate(key);
-                return null;
-            }
-
-            return this.data.get(key);
-        },
-
-        hasChanged(key, newData) {
-            const oldChecksum = this.checksums.get(key);
-            if (!oldChecksum) return true;
-
-            const newChecksum = this.calculateChecksum(newData);
-            return oldChecksum !== newChecksum;
-        },
-
-        calculateChecksum(data) {
-            // Простий checksum для порівняння
-            return JSON.stringify(data).split('').reduce((a, b) => {
-                a = ((a << 5) - a) + b.charCodeAt(0);
-                return a & a;
-            }, 0);
-        },
-
-        getDiff(key, newData) {
-            const oldData = this.data.get(key);
-            if (!oldData) return { type: 'full', data: newData };
-
-            return this.computeDiff(oldData, newData);
-        },
-
-        computeDiff(oldObj, newObj) {
-            const diff = {
-                added: {},
-                modified: {},
-                removed: {}
-            };
-
-            // Check for added/modified
-            for (const key in newObj) {
-                if (!(key in oldObj)) {
-                    diff.added[key] = newObj[key];
-                } else if (JSON.stringify(oldObj[key]) !== JSON.stringify(newObj[key])) {
-                    diff.modified[key] = newObj[key];
-                }
-            }
-
-            // Check for removed
-            for (const key in oldObj) {
-                if (!(key in newObj)) {
-                    diff.removed[key] = true;
-                }
-            }
-
-            const hasChanges = Object.keys(diff.added).length > 0 ||
-                               Object.keys(diff.modified).length > 0 ||
-                               Object.keys(diff.removed).length > 0;
-
-            return hasChanges ? { type: 'diff', diff } : { type: 'none' };
-        },
-
-        invalidate(key) {
-            this.data.delete(key);
-            this.checksums.delete(key);
-            this.lastSync.delete(key);
-        },
-
-        clear() {
-            this.data.clear();
-            this.checksums.clear();
-            this.lastSync.clear();
-        }
-    };
-
-    // Intelligent Sync Queue
-    const SyncQueue = {
-        queue: [],
-        processing: false,
-        priorities: {
-            critical: 10,
-            high: 7,
-            normal: 5,
-            low: 3
-        },
-
-        enqueue(task, priority = 'normal') {
-            this.queue.push({
-                task,
-                priority: this.priorities[priority] || this.priorities.normal,
-                timestamp: Date.now()
-            });
-
-            // Сортуємо по пріоритету
-            this.queue.sort((a, b) => b.priority - a.priority);
-
-            if (!this.processing) {
-                this.process();
-            }
-        },
-
-        async process() {
-            if (this.queue.length === 0) {
-                this.processing = false;
-                return;
-            }
-
-            this.processing = true;
-            const item = this.queue.shift();
-
-            try {
-                await item.task();
-            } catch (error) {
-                console.error('❌ [SyncQueue] Помилка виконання завдання:', error);
-            }
-
-            // Обробляємо наступне завдання
-            setTimeout(() => this.process(), 100);
-        }
-    };
+    // EventBus namespace для сервісів
+    const eventBus = EventBus.createNamespace('services');
 
     // Стан сервісів
     const servicesState = {
@@ -171,10 +26,6 @@ window.TasksServices = (function() {
             tasksStore: false,
             tasksConstants: false
         },
-        apiAvailable: false,
-        lastHealthCheck: 0,
-        syncInProgress: false,
-        lastFullSync: 0,
         userActivity: {
             lastAction: Date.now(),
             isActive: true
@@ -182,112 +33,37 @@ window.TasksServices = (function() {
     };
 
     /**
-     * Перевірка готовності залежностей - ОПТИМІЗОВАНА
+     * Перевірка готовності залежностей
      */
-    const checkDependencies = (() => {
-        let lastCheck = 0;
-        let lastResult = false;
+    function checkDependencies() {
+        console.log('🔍 [TasksServices] Перевірка залежностей...');
 
-        return function() {
-            const now = Date.now();
+        servicesState.dependencies.telegramValidator = !!(window.TelegramValidator?.validateTelegramAuth);
+        servicesState.dependencies.tasksAPI = !!(window.TasksAPI?.auth);
+        servicesState.dependencies.tasksStore = !!(window.TasksStore?.actions);
+        servicesState.dependencies.tasksConstants = !!(window.TasksConstants?.API_ENDPOINTS);
 
-            // Кешуємо результат на 5 секунд
-            if (now - lastCheck < 5000 && lastResult) {
-                return lastResult;
-            }
+        const allReady = Object.values(servicesState.dependencies).every(ready => ready);
 
-            console.log('🔍 [TasksServices-V2] Перевірка залежностей...');
+        console.log(`${allReady ? '✅' : '❌'} [TasksServices] Залежності готові:`, allReady);
 
-            servicesState.dependencies.telegramValidator = !!(window.TelegramValidator?.validateTelegramAuth);
-            servicesState.dependencies.tasksAPI = !!(window.TasksAPI?.auth);
-            servicesState.dependencies.tasksStore = !!(window.TasksStore?.actions);
-            servicesState.dependencies.tasksConstants = !!(window.TasksConstants?.API_ENDPOINTS);
-
-            lastResult = Object.values(servicesState.dependencies).every(ready => ready);
-            lastCheck = now;
-
-            console.log(`${lastResult ? '✅' : '❌'} [TasksServices-V2] Залежності готові:`, lastResult);
-
-            return lastResult;
-        };
-    })();
-
-    /**
-     * Перевірка здоров'я API - ОПТИМІЗОВАНА з кешуванням
-     */
-    async function checkApiHealth(force = false) {
-        const cacheKey = 'apiHealth';
-
-        if (!force) {
-            const cached = ServiceCache.get(cacheKey);
-            if (cached !== null) {
-                console.log('✅ [TasksServices-V2] API здоровий (кеш)');
-                return cached;
-            }
-        }
-
-        console.log('🏥 [TasksServices-V2] Перевірка здоров\'я API...');
-
-        try {
-            const response = await fetch('/api/ping', {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 5000
-            });
-
-            const isHealthy = response.ok;
-            servicesState.apiAvailable = isHealthy;
-
-            // Кешуємо результат
-            ServiceCache.set(cacheKey, isHealthy);
-
-            console.log(`${isHealthy ? '✅' : '❌'} [TasksServices-V2] API статус:`, response.status);
-            return isHealthy;
-
-        } catch (error) {
-            console.error('❌ [TasksServices-V2] API недоступний:', error.message);
-            servicesState.apiAvailable = false;
-            ServiceCache.set(cacheKey, false);
-            return false;
-        }
+        return allReady;
     }
 
     /**
-     * Сервіс авторизації - ОПТИМІЗОВАНИЙ
+     * Сервіс авторизації
      */
     const AuthService = {
-        isInitializing: false,
-        retryCount: 0,
-        maxRetries: 3,
-        authPromise: null,
-
         /**
-         * Ініціалізація користувача з кешуванням
+         * Ініціалізація користувача
          */
         async initUser() {
-            console.log('👤 [AuthService-V2] === ІНІЦІАЛІЗАЦІЯ КОРИСТУВАЧА ===');
+            console.log('👤 [AuthService] === ІНІЦІАЛІЗАЦІЯ КОРИСТУВАЧА ===');
 
-            // Уникаємо множинних викликів
-            if (this.authPromise) {
-                console.log('⏸️ [AuthService-V2] Повертаємо існуючий Promise');
-                return this.authPromise;
-            }
-
-            this.authPromise = this._initUserInternal();
-
-            try {
-                const result = await this.authPromise;
-                return result;
-            } finally {
-                this.authPromise = null;
-            }
-        },
-
-        async _initUserInternal() {
             // Перевіряємо кеш сесії
-            const cachedSession = ServiceCache.get('userSession');
+            const cachedSession = CacheManager.get(CacheManager.NAMESPACES.USER, 'session');
             if (cachedSession) {
-                console.log('✅ [AuthService-V2] Використовуємо кешовану сесію');
+                console.log('✅ [AuthService] Використовуємо кешовану сесію');
                 this.updateUserUI(cachedSession);
                 return cachedSession;
             }
@@ -298,18 +74,8 @@ window.TasksServices = (function() {
                     throw new Error('Система ініціалізується. Зачекайте...');
                 }
 
-                // Перевіряємо API
-                const apiHealthy = await checkApiHealth();
-                if (!apiHealthy) {
-                    this.retryCount++;
-                    if (this.retryCount >= this.maxRetries) {
-                        throw new Error('Сервер тимчасово недоступний');
-                    }
-                    throw new Error(`Сервер недоступний. Спроба ${this.retryCount}/${this.maxRetries}`);
-                }
-
                 // Валідація Telegram
-                console.log('🔄 [AuthService-V2] Валідація Telegram...');
+                console.log('🔄 [AuthService] Валідація Telegram...');
                 const validation = await window.TelegramValidator.validateTelegramAuth();
 
                 if (!validation.valid) {
@@ -318,10 +84,12 @@ window.TasksServices = (function() {
 
                 const telegramUser = validation.user;
 
-                // Завантажуємо профіль
-                console.log('🔄 [AuthService-V2] Завантаження профілю...');
-                const profile = await window.TasksAPI.user.getProfile(
-                    telegramUser.telegram_id || telegramUser.id
+                // Завантажуємо профіль через RequestManager
+                console.log('🔄 [AuthService] Завантаження профілю...');
+                const profile = await requestClient.execute(
+                    `profile_${telegramUser.telegram_id}`,
+                    () => window.TasksAPI.user.getProfile(telegramUser.telegram_id || telegramUser.id),
+                    { priority: 'high' }
                 );
 
                 if (!profile?.data) {
@@ -333,31 +101,31 @@ window.TasksServices = (function() {
                     id: profile.data.id,
                     telegramId: telegramUser.telegram_id || telegramUser.id,
                     username: profile.data.username || telegramUser.username,
-                    firstName: profile.data.first_name || telegramUser.first_name,
-                    lastName: profile.data.last_name || telegramUser.last_name,
                     balance: profile.data.balance || { winix: 0, tickets: 0, flex: 0 }
                 });
 
                 // Кешуємо сесію
-                ServiceCache.set('userSession', profile.data);
+                CacheManager.set(CacheManager.NAMESPACES.USER, 'session', profile.data);
+
+                // Емітуємо подію
+                EventBus.emit(EventBus.EVENTS.USER_LOGGED_IN, {
+                    userId: profile.data.id,
+                    user: profile.data
+                });
 
                 // Оновлюємо UI
                 this.updateUserUI(profile.data);
 
-                // Скидаємо лічильник помилок
-                this.retryCount = 0;
-
-                console.log('✅ [AuthService-V2] Ініціалізація завершена');
+                console.log('✅ [AuthService] Ініціалізація завершена');
                 return profile.data;
 
             } catch (error) {
-                console.error('❌ [AuthService-V2] Помилка ініціалізації:', error);
+                console.error('❌ [AuthService] Помилка ініціалізації:', error);
 
-                // Показуємо помилку
-                if (window.TasksUtils?.showToast) {
-                    const errorMessage = error.message.includes('ініціалізується') ? 'info' : 'error';
-                    window.TasksUtils.showToast(error.message, errorMessage);
-                }
+                EventBus.emit(EventBus.EVENTS.APP_ERROR, {
+                    service: 'auth',
+                    error: error.message
+                });
 
                 throw error;
             }
@@ -367,7 +135,7 @@ window.TasksServices = (function() {
          * Оновити UI користувача
          */
         updateUserUI(user) {
-            console.log('🔄 [AuthService-V2] Оновлення UI користувача');
+            console.log('🔄 [AuthService] Оновлення UI користувача');
 
             requestAnimationFrame(() => {
                 // ID користувача
@@ -397,13 +165,13 @@ window.TasksServices = (function() {
         },
 
         /**
-         * Перевірити сесію - ОПТИМІЗОВАНА
+         * Перевірити сесію
          */
         async checkSession() {
-            console.log('🔐 [AuthService-V2] Перевірка сесії');
+            console.log('🔐 [AuthService] Перевірка сесії');
 
             // Кешована перевірка
-            const cachedSession = ServiceCache.get('userSession');
+            const cachedSession = CacheManager.get(CacheManager.NAMESPACES.USER, 'session');
             if (cachedSession) {
                 return true;
             }
@@ -416,388 +184,267 @@ window.TasksServices = (function() {
                 const isAuth = window.TelegramValidator.isAuthenticated();
 
                 if (!isAuth) {
-                    console.warn('⚠️ [AuthService-V2] Користувач не авторизований');
+                    console.warn('⚠️ [AuthService] Користувач не авторизований');
 
-                    if (window.TasksUtils?.showToast) {
-                        window.TasksUtils.showToast('Сесія закінчилася. Оновіть сторінку', 'error');
-                    }
+                    EventBus.emit(EventBus.EVENTS.USER_LOGGED_OUT);
+
+                    NotificationService.showError('Сесія закінчилася. Оновіть сторінку');
 
                     setTimeout(() => window.location.reload(), 3000);
                     return false;
                 }
 
-                // Перевіряємо термін дії токену
-                const token = window.TelegramValidator.getAuthToken();
-                if (token) {
-                    try {
-                        const payload = JSON.parse(atob(token.split('.')[1]));
-                        const exp = payload.exp * 1000;
-                        const now = Date.now();
-
-                        if (exp - now < 5 * 60 * 1000) { // Менше 5 хвилин
-                            console.log('🔄 [AuthService-V2] Оновлення токену');
-                            await window.TelegramValidator.refreshToken();
-                        }
-                    } catch (error) {
-                        console.error('❌ [AuthService-V2] Помилка перевірки токену:', error);
-                        window.TelegramValidator.clearAuthToken();
-                        return false;
-                    }
-                }
-
                 return true;
 
             } catch (error) {
-                console.error('❌ [AuthService-V2] Помилка перевірки сесії:', error);
+                console.error('❌ [AuthService] Помилка перевірки сесії:', error);
                 return false;
             }
         }
     };
 
     /**
-     * Сервіс синхронізації - INTELLIGENT SYNC
+     * Сервіс синхронізації
      */
     const SyncService = {
         syncInterval: null,
-        lastSyncTime: 0,
-        isSyncing: false,
-        syncHistory: new Map(),
+        syncSubscriptions: new Map(),
 
         /**
          * Запустити автоматичну синхронізацію
          */
         startAutoSync() {
-            console.log('🔄 [SyncService-V2] === ЗАПУСК INTELLIGENT SYNC ===');
+            console.log('🔄 [SyncService] === ЗАПУСК АВТОСИНХРОНІЗАЦІЇ ===');
 
-            if (this.syncInterval) {
-                clearInterval(this.syncInterval);
-            }
+            // Підписуємось на події для smart sync
+            this.setupEventSubscriptions();
 
-            // Адаптивний інтервал синхронізації
-            const getAdaptiveInterval = () => {
-                const isActive = servicesState.userActivity.isActive;
-                const timeSinceLastAction = Date.now() - servicesState.userActivity.lastAction;
-
-                // Якщо користувач неактивний більше 5 хв - рідша синхронізація
-                if (!isActive || timeSinceLastAction > 5 * 60000) {
-                    return 10 * 60000; // 10 хвилин
+            // Запускаємо періодичну синхронізацію
+            this.syncInterval = setInterval(() => {
+                if (servicesState.userActivity.isActive) {
+                    this.performSync();
                 }
+            }, 2 * 60 * 1000); // 2 хвилини
 
-                // Активний користувач - частіша синхронізація
-                return 2 * 60000; // 2 хвилини
-            };
-
-            const syncLoop = () => {
-                if (servicesState.apiAvailable) {
-                    this.intelligentSync();
-                }
-
-                // Адаптуємо інтервал
-                const nextInterval = getAdaptiveInterval();
-                this.syncInterval = setTimeout(syncLoop, nextInterval);
-            };
-
-            // Запускаємо цикл
-            syncLoop();
-
-            console.log('✅ [SyncService-V2] Intelligent sync запущено');
+            console.log('✅ [SyncService] Автосинхронізація запущена');
         },
 
         /**
-         * Intelligent синхронізація - тільки змінені дані
+         * Налаштування підписок на події
          */
-        async intelligentSync() {
-            console.log('🧠 [SyncService-V2] === INTELLIGENT SYNC ===');
+        setupEventSubscriptions() {
+            // Реагуємо на критичні події
+            this.syncSubscriptions.set('balance',
+                EventBus.on(EventBus.EVENTS.TASK_COMPLETED, () => {
+                    this.syncBalance();
+                })
+            );
 
-            if (this.isSyncing) {
-                console.log('⏸️ [SyncService-V2] Синхронізація вже виконується');
+            this.syncSubscriptions.set('wallet',
+                EventBus.on(EventBus.EVENTS.WALLET_CONNECTED, () => {
+                    this.syncWalletData();
+                })
+            );
+
+            this.syncSubscriptions.set('daily',
+                EventBus.on(EventBus.EVENTS.DAILY_CLAIMED, () => {
+                    setTimeout(() => this.syncDailyBonus(), 1000);
+                })
+            );
+        },
+
+        /**
+         * Виконати синхронізацію
+         */
+        async performSync() {
+            console.log('🔄 [SyncService] === ВИКОНАННЯ СИНХРОНІЗАЦІЇ ===');
+
+            const userId = window.TasksStore?.selectors?.getUserId();
+            if (!userId) {
+                console.warn('⚠️ [SyncService] User ID відсутній');
                 return;
             }
 
-            this.isSyncing = true;
+            // Визначаємо що потрібно синхронізувати
+            const syncTasks = [];
 
-            try {
-                // Перевіряємо сесію
-                const sessionValid = await AuthService.checkSession();
-                if (!sessionValid) {
-                    return;
-                }
+            // Баланс - завжди
+            syncTasks.push(this.syncBalance(userId));
 
-                const userId = window.TasksStore?.selectors?.getUserId();
-                if (!userId) {
-                    throw new Error('User ID відсутній');
-                }
-
-                // Визначаємо що потрібно синхронізувати
-                const syncTasks = this.determineSyncTasks();
-
-                console.log(`🎯 [SyncService-V2] Заплановано ${syncTasks.length} завдань синхронізації`);
-
-                // Додаємо завдання в чергу з пріоритетами
-                syncTasks.forEach(({ task, priority }) => {
-                    SyncQueue.enqueue(task, priority);
-                });
-
-                this.lastSyncTime = Date.now();
-
-            } catch (error) {
-                console.error('❌ [SyncService-V2] Помилка синхронізації:', error);
-
-                if (error.message.includes('User ID') || error.message.includes('авторизації')) {
-                    if (window.TasksUtils?.showToast) {
-                        window.TasksUtils.showToast('Помилка авторизації. Оновлюємо сторінку...', 'error');
-                    }
-                    setTimeout(() => window.location.reload(), 2000);
-                }
-            } finally {
-                this.isSyncing = false;
-            }
-        },
-
-        /**
-         * Визначити завдання для синхронізації
-         */
-        determineSyncTasks() {
-            const tasks = [];
-            const now = Date.now();
-            const userId = window.TasksStore?.selectors?.getUserId();
-
-            // Баланс - висока пріоритет якщо активний
-            if (servicesState.userActivity.isActive) {
-                const lastBalanceSync = this.syncHistory.get('balance') || 0;
-                if (now - lastBalanceSync > 30000) { // 30 сек
-                    tasks.push({
-                        task: () => this.syncBalance(userId),
-                        priority: 'high'
-                    });
-                }
-            }
-
-            // Flex статус - якщо гаманець підключений
+            // Flex - якщо гаманець підключений
             if (window.TasksStore?.selectors?.isWalletConnected()) {
-                const lastFlexSync = this.syncHistory.get('flex') || 0;
-                if (now - lastFlexSync > 60000) { // 1 хв
-                    tasks.push({
-                        task: () => this.syncFlexStatus(userId),
-                        priority: 'normal'
-                    });
-                }
+                syncTasks.push(this.syncFlexBalance(userId));
             }
 
             // Daily bonus - раз на хвилину
-            const lastDailySync = this.syncHistory.get('daily') || 0;
-            if (now - lastDailySync > 60000) { // 1 хв
-                tasks.push({
-                    task: () => this.syncDailyBonus(userId),
-                    priority: 'normal'
-                });
+            const lastDailySync = CacheManager.get(CacheManager.NAMESPACES.TEMP, 'lastDailySync') || 0;
+            if (Date.now() - lastDailySync > 60000) {
+                syncTasks.push(this.syncDailyBonus(userId));
             }
 
-            // Завдання - якщо відкрита відповідна вкладка
-            const currentTab = window.TasksStore?.selectors?.getCurrentTab();
-            if (['social', 'limited', 'partner'].includes(currentTab)) {
-                const lastTasksSync = this.syncHistory.get('tasks') || 0;
-                if (now - lastTasksSync > 120000) { // 2 хв
-                    tasks.push({
-                        task: () => this.syncTasks(userId),
-                        priority: 'low'
-                    });
-                }
+            // Виконуємо всі завдання паралельно
+            try {
+                await Promise.all(syncTasks);
+                console.log('✅ [SyncService] Синхронізація завершена');
+            } catch (error) {
+                console.error('❌ [SyncService] Помилка синхронізації:', error);
             }
-
-            return tasks;
         },
 
         /**
-         * Синхронізація балансу - DIFF BASED
+         * Синхронізація балансу
          */
         async syncBalance(userId) {
-            console.log('💰 [SyncService-V2] Синхронізація балансу (diff-based)');
+            userId = userId || window.TasksStore?.selectors?.getUserId();
+            if (!userId) return;
 
-            const cacheKey = `balance_${userId}`;
+            console.log('💰 [SyncService] Синхронізація балансу');
 
             try {
-                const response = await window.TasksAPI.user.getBalance(userId);
+                const response = await requestClient.execute(
+                    `balance_${userId}`,
+                    () => window.TasksAPI.user.getBalance(userId),
+                    { deduplicate: false } // Завжди свіжі дані
+                );
 
-                if (response.status === 'success') {
-                    const newBalance = response.balance || response.data;
+                if (response?.status === 'success' && response.data) {
+                    // Перевіряємо чи змінився баланс
+                    const hasChanged = CacheManager.update(
+                        CacheManager.NAMESPACES.BALANCE,
+                        userId,
+                        response.data
+                    );
 
-                    // Перевіряємо чи змінилися дані
-                    if (!ServiceCache.hasChanged(cacheKey, newBalance)) {
-                        console.log('✅ [SyncService-V2] Баланс не змінився, пропускаємо оновлення');
-                        return;
+                    if (hasChanged) {
+                        window.TasksStore.actions.updateBalance(response.data);
                     }
-
-                    // Отримуємо diff
-                    const diff = ServiceCache.getDiff(cacheKey, newBalance);
-                    console.log('📊 [SyncService-V2] Diff балансу:', diff);
-
-                    // Оновлюємо кеш
-                    ServiceCache.set(cacheKey, newBalance);
-
-                    // Оновлюємо Store
-                    window.TasksStore.actions.updateBalance(newBalance);
-
-                    // Оновлюємо UI тільки якщо є зміни
-                    if (diff.type !== 'none') {
-                        AuthService.updateUserUI({ balance: newBalance });
-                    }
-
-                    this.syncHistory.set('balance', Date.now());
-                    return response;
                 }
-
             } catch (error) {
-                console.error('❌ [SyncService-V2] Помилка синхронізації балансу:', error);
-                throw error;
+                console.error('❌ [SyncService] Помилка синхронізації балансу:', error);
             }
         },
 
         /**
-         * Синхронізація Flex статусу
+         * Синхронізація Flex балансу
          */
-        async syncFlexStatus(userId) {
-            console.log('💎 [SyncService-V2] Синхронізація Flex статусу');
-
+        async syncFlexBalance(userId) {
             const wallet = window.TasksStore?.selectors?.getWalletAddress();
-            if (!wallet) {
-                console.log('⏸️ [SyncService-V2] Гаманець не підключено');
-                return { skipped: true };
-            }
+            if (!wallet) return;
 
-            if (window.FlexEarnManager) {
-                await window.FlexEarnManager.checkFlexBalance();
-                this.syncHistory.set('flex', Date.now());
-                return { synced: true };
-            }
+            console.log('💎 [SyncService] Синхронізація Flex балансу');
 
-            return { skipped: true };
+            try {
+                const response = await requestClient.execute(
+                    `flex_balance_${wallet}`,
+                    () => window.TasksAPI.flex.getBalance(userId, wallet)
+                );
+
+                if (response?.balance !== undefined) {
+                    window.TasksStore.actions.setFlexBalance(parseInt(response.balance));
+                }
+            } catch (error) {
+                console.error('❌ [SyncService] Помилка синхронізації Flex:', error);
+            }
         },
 
         /**
-         * Синхронізація щоденного бонусу
+         * Синхронізація Daily Bonus
          */
         async syncDailyBonus(userId) {
-            console.log('🎁 [SyncService-V2] Синхронізація щоденного бонусу');
+            console.log('🎁 [SyncService] Синхронізація Daily Bonus');
 
-            const cacheKey = `daily_${userId}`;
+            CacheManager.set(CacheManager.NAMESPACES.TEMP, 'lastDailySync', Date.now());
 
             try {
-                const response = await window.TasksAPI.daily.getStatus(userId);
+                const response = await requestClient.execute(
+                    `daily_status_${userId}`,
+                    () => window.TasksAPI.daily.getStatus(userId)
+                );
 
-                if (response.status === 'success') {
-                    // Перевіряємо зміни
-                    if (!ServiceCache.hasChanged(cacheKey, response.data)) {
-                        console.log('✅ [SyncService-V2] Daily bonus не змінився');
-                        return;
-                    }
-
-                    // Оновлюємо кеш
-                    ServiceCache.set(cacheKey, response.data);
-
-                    // Оновлюємо UI
-                    if (window.DailyBonusManager?.updateDailyBonusUI) {
-                        window.DailyBonusManager.updateDailyBonusUI();
-                    }
-
-                    this.syncHistory.set('daily', Date.now());
-                    return response;
+                if (response?.status === 'success') {
+                    // Емітуємо подію для DailyBonusManager
+                    EventBus.emit('daily.status.updated', response.data);
                 }
-
             } catch (error) {
-                console.error('❌ [SyncService-V2] Помилка синхронізації daily bonus:', error);
-                throw error;
+                console.error('❌ [SyncService] Помилка синхронізації Daily:', error);
             }
         },
 
         /**
-         * Синхронізація завдань
+         * Синхронізація даних гаманця
          */
-        async syncTasks(userId) {
-            console.log('📋 [SyncService-V2] Синхронізація завдань');
+        async syncWalletData() {
+            const userId = window.TasksStore?.selectors?.getUserId();
+            if (!userId) return;
 
-            const cacheKey = `tasks_${userId}`;
+            console.log('👛 [SyncService] Синхронізація даних гаманця');
 
             try {
-                const response = await window.TasksAPI.tasks.getList(userId);
+                const response = await requestClient.execute(
+                    `wallet_status_${userId}`,
+                    () => window.TasksAPI.wallet.checkStatus(userId)
+                );
 
-                if (response.status === 'success' && response.data.tasks) {
-                    // Перевіряємо зміни
-                    const diff = ServiceCache.getDiff(cacheKey, response.data.tasks);
-
-                    if (diff.type === 'none') {
-                        console.log('✅ [SyncService-V2] Завдання не змінились');
-                        return;
-                    }
-
-                    console.log('📊 [SyncService-V2] Diff завдань:', diff);
-
-                    // Оновлюємо кеш
-                    ServiceCache.set(cacheKey, response.data.tasks);
-
-                    // Оновлюємо тільки змінені завдання
-                    if (diff.type === 'diff') {
-                        // Додані завдання
-                        Object.entries(diff.diff.added).forEach(([type, tasks]) => {
-                            const currentTasks = window.TasksStore.getState().tasks[type] || {};
-                            window.TasksStore.actions.setTasks(type, { ...currentTasks, ...tasks });
-                        });
-
-                        // Змінені завдання
-                        Object.entries(diff.diff.modified).forEach(([type, tasks]) => {
-                            const currentTasks = window.TasksStore.getState().tasks[type] || {};
-                            window.TasksStore.actions.setTasks(type, { ...currentTasks, ...tasks });
-                        });
-
-                        // Видалені завдання
-                        Object.entries(diff.diff.removed).forEach(([type, taskIds]) => {
-                            const currentTasks = { ...window.TasksStore.getState().tasks[type] };
-                            taskIds.forEach(id => delete currentTasks[id]);
-                            window.TasksStore.actions.setTasks(type, currentTasks);
-                        });
-                    } else {
-                        // Повне оновлення
-                        Object.entries(response.data.tasks).forEach(([type, tasks]) => {
-                            window.TasksStore.actions.setTasks(type, tasks);
-                        });
-                    }
-
-                    this.syncHistory.set('tasks', Date.now());
-                    return response;
+                if (response?.status === 'success' && response.data) {
+                    // Емітуємо подію
+                    EventBus.emit('wallet.status.updated', response.data);
                 }
-
             } catch (error) {
-                console.error('❌ [SyncService-V2] Помилка синхронізації завдань:', error);
-                throw error;
+                console.error('❌ [SyncService] Помилка синхронізації гаманця:', error);
             }
+        },
+
+        /**
+         * Зупинити синхронізацію
+         */
+        stopAutoSync() {
+            if (this.syncInterval) {
+                clearInterval(this.syncInterval);
+                this.syncInterval = null;
+            }
+
+            // Відписуємось від подій
+            this.syncSubscriptions.forEach(unsubscribe => unsubscribe());
+            this.syncSubscriptions.clear();
+
+            console.log('⏹️ [SyncService] Автосинхронізація зупинена');
         }
     };
 
     /**
-     * Сервіс нотифікацій - без змін
+     * Сервіс нотифікацій
      */
     const NotificationService = {
         showSuccess(message, duration = 3000) {
             console.log('✅ [NotificationService] Успіх:', message);
             window.TasksUtils?.showToast?.(message, 'success', duration);
             this.vibrate([50]);
+
+            // Емітуємо подію
+            eventBus.emit('notification.shown', { type: 'success', message });
         },
 
         showError(message, duration = 5000) {
             console.log('❌ [NotificationService] Помилка:', message);
             window.TasksUtils?.showToast?.(message, 'error', duration);
             this.vibrate([100, 50, 100]);
+
+            eventBus.emit('notification.shown', { type: 'error', message });
         },
 
         showWarning(message, duration = 4000) {
             console.log('⚠️ [NotificationService] Попередження:', message);
             window.TasksUtils?.showToast?.(message, 'warning', duration);
             this.vibrate([75]);
+
+            eventBus.emit('notification.shown', { type: 'warning', message });
         },
 
         showInfo(message, duration = 3000) {
             console.log('ℹ️ [NotificationService] Інформація:', message);
             window.TasksUtils?.showToast?.(message, 'info', duration);
+
+            eventBus.emit('notification.shown', { type: 'info', message });
         },
 
         showReward(reward) {
@@ -814,6 +461,8 @@ window.TasksServices = (function() {
 
             this.showSuccess(message, 4000);
             this.vibrate([50, 100, 50, 100, 50]);
+
+            eventBus.emit('reward.received', reward);
         },
 
         vibrate(pattern) {
@@ -832,21 +481,21 @@ window.TasksServices = (function() {
     };
 
     /**
-     * Сервіс аналітики - ОПТИМІЗОВАНИЙ
+     * Сервіс аналітики
      */
     const AnalyticsService = {
         sessionId: null,
-        eventQueue: [],
-        flushInterval: null,
 
         init() {
             this.sessionId = this.generateSessionId();
             console.log('📊 [AnalyticsService] Сесія:', this.sessionId);
 
-            // Батчинг подій
-            this.flushInterval = setInterval(() => {
-                this.flushEvents();
-            }, 5000);
+            // Підписуємось на всі події для логування
+            EventBus.on('*', (data, context) => {
+                if (context.event && !context.event.startsWith('analytics.')) {
+                    this.trackEvent('System', context.event, JSON.stringify(data));
+                }
+            });
         },
 
         generateSessionId() {
@@ -865,20 +514,23 @@ window.TasksServices = (function() {
 
             console.log('📊 [AnalyticsService] Подія:', event);
 
-            // Додаємо в чергу
-            this.eventQueue.push(event);
+            // Використовуємо CacheManager для батчингу
+            const events = CacheManager.get(CacheManager.NAMESPACES.TEMP, 'analytics_batch') || [];
+            events.push(event);
+            CacheManager.set(CacheManager.NAMESPACES.TEMP, 'analytics_batch', events);
 
-            // Якщо черга велика - відправляємо одразу
-            if (this.eventQueue.length >= 10) {
+            // Відправляємо якщо накопичилось багато
+            if (events.length >= 10) {
                 this.flushEvents();
             }
         },
 
         async flushEvents() {
-            if (this.eventQueue.length === 0) return;
+            const events = CacheManager.get(CacheManager.NAMESPACES.TEMP, 'analytics_batch') || [];
+            if (events.length === 0) return;
 
-            const events = [...this.eventQueue];
-            this.eventQueue = [];
+            // Очищаємо кеш
+            CacheManager.invalidate(CacheManager.NAMESPACES.TEMP, 'analytics_batch');
 
             try {
                 // Telegram WebApp
@@ -888,18 +540,8 @@ window.TasksServices = (function() {
                         events
                     }));
                 }
-
-                // Backend
-                if (servicesState.apiAvailable && window.TasksAPI) {
-                    await window.TasksAPI.call('/analytics/batch', {
-                        method: 'POST',
-                        body: { events }
-                    });
-                }
             } catch (error) {
                 console.error('❌ [AnalyticsService] Помилка відправки:', error);
-                // Повертаємо події в чергу
-                this.eventQueue.unshift(...events);
             }
         },
 
@@ -908,30 +550,16 @@ window.TasksServices = (function() {
         },
 
         trackError(error, context) {
-            const errorData = {
-                name: error.name || 'UnknownError',
-                message: error.message || 'Unknown error',
-                stack: error.stack ? error.stack.substring(0, 500) : null,
-                context
-            };
-
-            this.trackEvent('Error', errorData.name, context, 1);
+            this.trackEvent('Error', error.name || 'UnknownError', context, 1);
         },
 
         trackTiming(category, variable, time) {
             this.trackEvent('Timing', category, variable, time);
-        },
-
-        destroy() {
-            if (this.flushInterval) {
-                clearInterval(this.flushInterval);
-                this.flushEvents(); // Відправляємо залишки
-            }
         }
     };
 
     /**
-     * Сервіс валідації - без змін, вже оптимальний
+     * Сервіс валідації
      */
     const ValidationService = {
         validateTask(task) {
@@ -1011,14 +639,12 @@ window.TasksServices = (function() {
      * Відстеження активності користувача
      */
     function setupActivityTracking() {
-        const activityEvents = ['click', 'keypress', 'mousemove', 'touchstart', 'scroll'];
-
         const updateActivity = window.TasksUtils.throttle(() => {
             servicesState.userActivity.lastAction = Date.now();
             servicesState.userActivity.isActive = true;
         }, 1000);
 
-        activityEvents.forEach(event => {
+        ['click', 'keypress', 'mousemove', 'touchstart', 'scroll'].forEach(event => {
             document.addEventListener(event, updateActivity, { passive: true });
         });
 
@@ -1030,10 +656,10 @@ window.TasksServices = (function() {
     }
 
     /**
-     * Ініціалізація сервісів - ОПТИМІЗОВАНА
+     * Ініціалізація сервісів
      */
     async function init() {
-        console.log('🚀 [TasksServices-V2] Ініціалізація сервісів (Optimized)');
+        console.log('🚀 [TasksServices] Ініціалізація сервісів');
 
         try {
             // Чекаємо готовності залежностей
@@ -1041,7 +667,7 @@ window.TasksServices = (function() {
             const startTime = Date.now();
 
             while (!checkDependencies() && (Date.now() - startTime) < maxWaitTime) {
-                console.log('⏳ [TasksServices-V2] Очікування готовності залежностей...');
+                console.log('⏳ [TasksServices] Очікування готовності залежностей...');
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
 
@@ -1053,33 +679,17 @@ window.TasksServices = (function() {
             AnalyticsService.init();
             setupActivityTracking();
 
-            // Перевіряємо здоров'я API
-            await checkApiHealth();
-
-            // Запускаємо intelligent sync
-            if (servicesState.apiAvailable) {
+            // Запускаємо автосинхронізацію після успішної авторизації
+            EventBus.once(EventBus.EVENTS.USER_LOGGED_IN, () => {
                 SyncService.startAutoSync();
-            } else {
-                console.warn('⚠️ [TasksServices-V2] API недоступний, синхронізація відкладена');
-
-                // Повторна спроба через 30 секунд
-                setTimeout(async () => {
-                    if (await checkApiHealth(true)) {
-                        SyncService.startAutoSync();
-                    }
-                }, 30000);
-            }
+            });
 
             servicesState.initialized = true;
 
-            // Відстежуємо успішну ініціалізацію
-            AnalyticsService.trackEvent('System', 'init', 'services_v2_optimized');
-
-            console.log('✅ [TasksServices-V2] Сервіси ініціалізовано (Optimized)');
+            console.log('✅ [TasksServices] Сервіси ініціалізовано');
 
         } catch (error) {
-            console.error('❌ [TasksServices-V2] Помилка ініціалізації:', error);
-            AnalyticsService.trackError(error, 'services_init');
+            console.error('❌ [TasksServices] Помилка ініціалізації:', error);
             throw error;
         }
     }
@@ -1088,23 +698,21 @@ window.TasksServices = (function() {
      * Знищення сервісів
      */
     function destroy() {
-        console.log('🗑️ [TasksServices-V2] Знищення сервісів');
+        console.log('🗑️ [TasksServices] Знищення сервісів');
 
         // Зупиняємо синхронізацію
-        if (SyncService.syncInterval) {
-            clearInterval(SyncService.syncInterval);
-        }
+        SyncService.stopAutoSync();
 
-        // Очищаємо кеш
-        ServiceCache.clear();
+        // Відправляємо залишки аналітики
+        AnalyticsService.flushEvents();
 
-        // Знищуємо аналітику
-        AnalyticsService.destroy();
+        // Відписуємось від подій
+        eventBus.clear();
 
-        console.log('✅ [TasksServices-V2] Сервіси знищено');
+        console.log('✅ [TasksServices] Сервіси знищено');
     }
 
-    console.log('✅ [TasksServices-V2] Сервісний модуль готовий (Optimized)');
+    console.log('✅ [TasksServices] Сервісний модуль готовий');
 
     // Публічний API
     return {
@@ -1115,15 +723,10 @@ window.TasksServices = (function() {
         Validation: ValidationService,
         init,
         checkDependencies,
-        checkApiHealth,
         getState: () => servicesState,
-        destroy,
-
-        // Додаткові утиліти для тестування
-        _cache: ServiceCache,
-        _queue: SyncQueue
+        destroy
     };
 
 })();
 
-console.log('✅ [TasksServices-V2] Модуль експортовано глобально (Optimized)');
+console.log('✅ [TasksServices] Модуль експортовано глобально');

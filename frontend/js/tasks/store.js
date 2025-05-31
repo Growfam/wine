@@ -1,12 +1,12 @@
 /**
- * Redux-подібний стор для системи завдань WINIX
- * ОПТИМІЗОВАНА ВЕРСІЯ - з батчінгом оновлень та кешуванням
+ * Оптимізований Redux-подібний стор для системи завдань WINIX
+ * Використовує централізовані утиліти та EventBus для уникнення циклічностей
  */
 
 window.TasksStore = (function() {
     'use strict';
 
-    console.log('🏪 [TasksStore] ===== ІНІЦІАЛІЗАЦІЯ СТОРУ (ОПТИМІЗОВАНИЙ) =====');
+    console.log('🏪 [TasksStore] ===== ІНІЦІАЛІЗАЦІЯ ОПТИМІЗОВАНОГО СТОРУ =====');
 
     // Початковий стан
     const initialState = {
@@ -27,6 +27,7 @@ window.TasksStore = (function() {
         wallet: {
             connected: false,
             address: null,
+            addressFriendly: null,
             chainId: null,
             provider: null,
             lastCheck: null,
@@ -54,15 +55,14 @@ window.TasksStore = (function() {
             currentStreak: 0,
             longestStreak: 0,
             lastClaimDate: null,
-            claimedDays: [], // масив дат
-            ticketDays: [], // дні коли були tickets
+            claimedDays: [],
+            ticketDays: [],
             totalClaimed: {
                 winix: 0,
                 tickets: 0
             },
             nextTicketDay: null,
-            claiming: false,
-            isClaiming: false // додано для сумісності
+            claiming: false
         },
 
         // Завдання
@@ -93,27 +93,25 @@ window.TasksStore = (function() {
     // Поточний стан
     let state = window.TasksUtils.deepClone(initialState);
 
+    // Middleware система
+    const middleware = [];
+
     // Слухачі змін
     const listeners = new Set();
 
-    // Історія дій (для налагодження)
-    const actionHistory = [];
-    const MAX_HISTORY_LENGTH = 50;
-
-    // Батчінг оновлень
+    // Батчинг через microtasks
     let updateQueue = [];
-    let isProcessingQueue = false;
-    const BATCH_DELAY = 16; // 1 frame (60fps)
+    let isFlushScheduled = false;
 
-    // Кешування селекторів
-    const selectorCache = new Map();
-    let lastStateForCache = null;
+    // Використовуємо централізовані утиліти
+    const { CacheManager, EventBus } = window;
 
     // Типи дій
     const ActionTypes = {
         // User actions
         SET_USER: 'SET_USER',
         UPDATE_BALANCE: 'UPDATE_BALANCE',
+        CLEAR_USER: 'CLEAR_USER',
 
         // Wallet actions
         SET_WALLET_CONNECTED: 'SET_WALLET_CONNECTED',
@@ -156,120 +154,97 @@ window.TasksStore = (function() {
 
         // Global actions
         RESET_STATE: 'RESET_STATE',
-        HYDRATE_STATE: 'HYDRATE_STATE',
-        CLEAR_USER: 'CLEAR_USER'
+        HYDRATE_STATE: 'HYDRATE_STATE'
     };
 
     /**
-     * Батчінг dispatch - групування оновлень
+     * Батчинг dispatch через microtasks
      */
-    function batchedDispatch(action) {
-        updateQueue.push(action);
-
-        if (!isProcessingQueue) {
-            isProcessingQueue = true;
-
-            // Використовуємо requestAnimationFrame для оптимальної продуктивності
-            requestAnimationFrame(() => {
-                processBatchedUpdates();
-            });
+    function scheduleFlush() {
+        if (!isFlushScheduled) {
+            isFlushScheduled = true;
+            queueMicrotask(flushUpdateQueue);
         }
     }
 
     /**
      * Обробка батчових оновлень
      */
-    function processBatchedUpdates() {
+    function flushUpdateQueue() {
         if (updateQueue.length === 0) {
-            isProcessingQueue = false;
+            isFlushScheduled = false;
             return;
         }
 
-        console.log(`📦 [TasksStore] Обробка ${updateQueue.length} батчових оновлень`);
-
         const actions = [...updateQueue];
         updateQueue = [];
+        isFlushScheduled = false;
 
-        // Зберігаємо початковий стан
-        const initialBatchState = state;
+        console.log(`📦 [TasksStore] Обробка ${actions.length} батчових оновлень`);
+
+        // Зберігаємо початковий стан для порівняння
+        const prevState = state;
 
         // Обробляємо всі дії
         actions.forEach(action => {
-            const prevState = state;
             state = rootReducer(state, action);
-
-            // Зберігаємо в історію
-            if (actionHistory.length >= MAX_HISTORY_LENGTH) {
-                actionHistory.shift();
-            }
-
-            actionHistory.push({
-                action,
-                timestamp: Date.now(),
-                prevState: window.TasksUtils.deepClone(prevState)
-            });
         });
 
-        // Очищаємо кеш селекторів якщо стан змінився
-        if (state !== initialBatchState) {
-            clearSelectorCache();
+        // Якщо стан змінився - повідомляємо
+        if (state !== prevState) {
+            // Кешуємо новий стан
+            CacheManager.set(CacheManager.NAMESPACES.UI, 'currentState', state);
 
-            // Зберігаємо в localStorage
+            // Зберігаємо в storage
             saveStateToStorage();
 
-            // Повідомляємо слухачів один раз для всіх змін
-            notifyListeners(actions, initialBatchState);
-        }
-
-        isProcessingQueue = false;
-
-        // Якщо є нові оновлення в черзі, обробляємо їх
-        if (updateQueue.length > 0) {
-            requestAnimationFrame(() => {
-                processBatchedUpdates();
-            });
+            // Повідомляємо слухачів через EventBus
+            notifyListeners(actions, prevState);
         }
     }
 
     /**
-     * Dispatch - відправка дії до стору
+     * Dispatch з middleware підтримкою
      */
     function dispatch(action) {
-        console.log('📤 [TasksStore] Dispatch action:', action.type);
-        console.log('  📊 Payload:', action.payload);
+        // Проходимо через middleware
+        let modifiedAction = action;
 
-        // Для критичних дій - миттєва обробка
+        for (const mw of middleware) {
+            modifiedAction = mw(modifiedAction, getState, dispatch);
+            if (!modifiedAction) return; // Middleware може скасувати action
+        }
+
+        // Критичні дії обробляємо одразу
         const criticalActions = [
             ActionTypes.UPDATE_BALANCE,
             ActionTypes.CLAIM_DAILY_BONUS,
-            ActionTypes.SET_DAILY_CLAIMING,
-            ActionTypes.SET_FLEX_CLAIMING
+            ActionTypes.SET_WALLET_CONNECTED
         ];
 
-        if (criticalActions.includes(action.type)) {
+        if (criticalActions.includes(modifiedAction.type)) {
             // Миттєва обробка
             const prevState = state;
-            state = rootReducer(state, action);
+            state = rootReducer(state, modifiedAction);
 
             if (state !== prevState) {
-                clearSelectorCache();
+                CacheManager.set(CacheManager.NAMESPACES.UI, 'currentState', state);
                 saveStateToStorage();
-                notifyListeners([action], prevState);
+                notifyListeners([modifiedAction], prevState);
             }
         } else {
             // Батчова обробка
-            batchedDispatch(action);
+            updateQueue.push(modifiedAction);
+            scheduleFlush();
         }
 
-        return action;
+        return modifiedAction;
     }
 
     /**
      * Кореневий reducer
      */
     function rootReducer(state = initialState, action) {
-        console.log('🔄 [TasksStore] Reducer обробляє:', action.type);
-
         return {
             user: userReducer(state.user, action),
             wallet: walletReducer(state.wallet, action),
@@ -282,46 +257,50 @@ window.TasksStore = (function() {
     }
 
     /**
-     * User Reducer - ВИПРАВЛЕНО для правильної обробки балансу
+     * User Reducer
      */
     function userReducer(state = initialState.user, action) {
         switch(action.type) {
             case ActionTypes.SET_USER:
-                console.log('  👤 [TasksStore] Встановлення користувача');
                 return { ...state, ...action.payload };
 
-            case ActionTypes.UPDATE_BALANCE:
-                console.log('  💰 [TasksStore] Оновлення балансу');
-                console.log('    📊 Поточний баланс:', state.balance);
-                console.log('    📊 Новий баланс:', action.payload);
+            case ActionTypes.UPDATE_BALANCE: {
+                const newBalance = { ...state.balance };
 
-                // Обробляємо різні формати балансу
-                let newBalance = { ...state.balance };
+                // Підтримка різних форматів
+                if (action.payload.winix !== undefined) {
+                    newBalance.winix = action.payload.winix;
+                } else if (action.payload.balance !== undefined) {
+                    newBalance.winix = action.payload.balance;
+                }
 
-                // Якщо payload містить winix/tickets - використовуємо напряму
-                if (action.payload.winix !== undefined || action.payload.tickets !== undefined) {
-                    newBalance.winix = action.payload.winix !== undefined ? action.payload.winix : state.balance.winix;
-                    newBalance.tickets = action.payload.tickets !== undefined ? action.payload.tickets : state.balance.tickets;
-                    console.log('    ✅ Використовуємо формат winix/tickets');
+                if (action.payload.tickets !== undefined) {
+                    newBalance.tickets = action.payload.tickets;
+                } else if (action.payload.coins !== undefined) {
+                    newBalance.tickets = action.payload.coins;
                 }
-                // Якщо payload містить balance/coins - конвертуємо
-                else if (action.payload.balance !== undefined || action.payload.coins !== undefined) {
-                    newBalance.winix = action.payload.balance !== undefined ? action.payload.balance : state.balance.winix;
-                    newBalance.tickets = action.payload.coins !== undefined ? action.payload.coins : state.balance.tickets;
-                    console.log('    ⚠️ Конвертуємо формат balance/coins в winix/tickets');
-                }
-                // Якщо payload містить flex - оновлюємо
+
                 if (action.payload.flex !== undefined) {
                     newBalance.flex = action.payload.flex;
                 }
 
-                console.log('    📊 Фінальний баланс:', newBalance);
+                // Емітуємо подію через EventBus
+                EventBus.emit(EventBus.EVENTS.BALANCE_UPDATED, {
+                    oldBalance: state.balance,
+                    newBalance,
+                    change: {
+                        winix: newBalance.winix - state.balance.winix,
+                        tickets: newBalance.tickets - state.balance.tickets,
+                        flex: newBalance.flex - state.balance.flex
+                    }
+                });
 
                 return {
                     ...state,
                     balance: newBalance,
                     lastSync: Date.now()
                 };
+            }
 
             case ActionTypes.CLEAR_USER:
                 return initialState.user;
@@ -342,41 +321,56 @@ window.TasksStore = (function() {
      */
     function walletReducer(state = initialState.wallet, action) {
         switch(action.type) {
-            case ActionTypes.SET_WALLET_CONNECTED:
-                console.log('  🔌 [TasksStore] Встановлення статусу підключення гаманця');
+            case ActionTypes.SET_WALLET_CONNECTED: {
+                const connected = action.payload;
+
+                // Емітуємо подію
+                EventBus.emit(
+                    connected ? EventBus.EVENTS.WALLET_CONNECTED : EventBus.EVENTS.WALLET_DISCONNECTED,
+                    { wallet: state }
+                );
+
                 return {
                     ...state,
-                    connected: action.payload,
+                    connected,
                     lastCheck: Date.now()
                 };
+            }
 
             case ActionTypes.SET_WALLET_ADDRESS:
-                console.log('  📍 [TasksStore] Встановлення адреси гаманця');
                 return {
                     ...state,
                     address: action.payload.address,
-                    addressFriendly: action.payload.addressFriendly,
+                    addressFriendly: action.payload.addressFriendly || action.payload.address,
                     chainId: action.payload.chainId,
                     provider: action.payload.provider
                 };
 
             case ActionTypes.SET_WALLET_CHECKING:
-                console.log('  🔍 [TasksStore] Встановлення стану перевірки гаманця');
                 return { ...state, checking: action.payload };
 
             case ActionTypes.DISCONNECT_WALLET:
-                console.log('  🔌 [TasksStore] Відключення гаманця');
+                EventBus.emit(EventBus.EVENTS.WALLET_DISCONNECTED, { wallet: state });
                 return {
                     ...initialState.wallet,
                     lastCheck: Date.now()
                 };
 
-            case ActionTypes.SET_FLEX_BALANCE:
-                console.log('  💎 [TasksStore] Встановлення FLEX балансу в гаманці');
+            case ActionTypes.SET_FLEX_BALANCE: {
+                const newBalance = action.payload;
+
+                if (newBalance !== state.flexBalance) {
+                    EventBus.emit(EventBus.EVENTS.FLEX_BALANCE_UPDATED, {
+                        oldBalance: state.flexBalance,
+                        newBalance
+                    });
+                }
+
                 return {
                     ...state,
-                    flexBalance: action.payload
+                    flexBalance: newBalance
                 };
+            }
 
             case ActionTypes.HYDRATE_STATE:
                 return action.payload.wallet || state;
@@ -394,51 +388,70 @@ window.TasksStore = (function() {
      */
     function flexEarnReducer(state = initialState.flexEarn, action) {
         switch(action.type) {
-            case ActionTypes.SET_FLEX_BALANCE:
-                console.log('  💎 [TasksStore] Встановлення балансу FLEX');
+            case ActionTypes.SET_FLEX_BALANCE: {
+                const newBalance = action.payload;
+
+                if (newBalance !== state.flexBalance) {
+                    EventBus.emit(EventBus.EVENTS.FLEX_BALANCE_UPDATED, {
+                        oldBalance: state.flexBalance,
+                        newBalance
+                    });
+                }
+
                 return {
                     ...state,
-                    flexBalance: action.payload,
+                    flexBalance: newBalance,
                     lastBalanceCheck: Date.now()
                 };
+            }
 
-            case ActionTypes.SET_FLEX_LEVEL_CLAIMED:
-                console.log('  ✅ [TasksStore] Встановлення статусу отримання рівня');
+            case ActionTypes.SET_FLEX_LEVEL_CLAIMED: {
+                const level = action.payload.level;
+
+                EventBus.emit(EventBus.EVENTS.FLEX_LEVEL_CLAIMED, {
+                    level,
+                    timestamp: Date.now()
+                });
+
                 return {
                     ...state,
                     levels: {
                         ...state.levels,
-                        [action.payload.level]: {
-                            ...state.levels[action.payload.level],
+                        [level]: {
+                            ...state.levels[level],
                             claimed: true,
                             lastClaim: Date.now()
                         }
                     }
                 };
+            }
 
-            case ActionTypes.SET_FLEX_LEVEL_AVAILABLE:
-                console.log('  🎯 [TasksStore] Встановлення доступності рівня');
+            case ActionTypes.SET_FLEX_LEVEL_AVAILABLE: {
+                const { level, available } = action.payload;
+
+                if (available && !state.levels[level].available) {
+                    EventBus.emit(EventBus.EVENTS.FLEX_LEVEL_AVAILABLE, { level });
+                }
+
                 return {
                     ...state,
                     levels: {
                         ...state.levels,
-                        [action.payload.level]: {
-                            ...state.levels[action.payload.level],
-                            available: action.payload.available
+                        [level]: {
+                            ...state.levels[level],
+                            available
                         }
                     }
                 };
+            }
 
             case ActionTypes.SET_FLEX_CHECKING:
-                console.log('  🔍 [TasksStore] Встановлення стану перевірки FLEX');
                 return { ...state, checking: action.payload };
 
             case ActionTypes.SET_FLEX_CLAIMING:
-                console.log('  🎁 [TasksStore] Встановлення стану отримання винагороди');
                 return { ...state, claiming: action.payload };
 
-            case ActionTypes.RESET_FLEX_DAILY:
-                console.log('  🔄 [TasksStore] Скидання щоденних винагород FLEX');
+            case ActionTypes.RESET_FLEX_DAILY: {
                 const resetLevels = {};
                 Object.keys(state.levels).forEach(level => {
                     resetLevels[level] = {
@@ -447,6 +460,7 @@ window.TasksStore = (function() {
                     };
                 });
                 return { ...state, levels: resetLevels };
+            }
 
             case ActionTypes.HYDRATE_STATE:
                 return action.payload.flexEarn || state;
@@ -460,21 +474,35 @@ window.TasksStore = (function() {
     }
 
     /**
-     * Daily Bonus Reducer - розширено новими діями
+     * Daily Bonus Reducer
      */
     function dailyBonusReducer(state = initialState.dailyBonus, action) {
         switch(action.type) {
-            case ActionTypes.SET_DAILY_STREAK:
-                console.log('  🔥 [TasksStore] Встановлення серії днів');
+            case ActionTypes.SET_DAILY_STREAK: {
+                const newStreak = action.payload.current;
+
+                if (newStreak !== state.currentStreak) {
+                    EventBus.emit(EventBus.EVENTS.DAILY_STREAK_UPDATED, {
+                        oldStreak: state.currentStreak,
+                        newStreak
+                    });
+                }
+
                 return {
                     ...state,
-                    currentStreak: action.payload.current,
-                    longestStreak: Math.max(state.longestStreak, action.payload.current)
+                    currentStreak: newStreak,
+                    longestStreak: Math.max(state.longestStreak, newStreak)
                 };
+            }
 
-            case ActionTypes.CLAIM_DAILY_BONUS:
-                console.log('  🎁 [TasksStore] Отримання щоденного бонусу');
+            case ActionTypes.CLAIM_DAILY_BONUS: {
                 const today = new Date().toDateString();
+
+                EventBus.emit(EventBus.EVENTS.DAILY_CLAIMED, {
+                    reward: action.payload,
+                    day: state.currentStreak + 1
+                });
+
                 return {
                     ...state,
                     lastClaimDate: today,
@@ -485,24 +513,21 @@ window.TasksStore = (function() {
                         tickets: state.totalClaimed.tickets + (action.payload.tickets || 0)
                     }
                 };
+            }
 
             case ActionTypes.ADD_TICKET_DAY:
-                console.log('  🎟️ [TasksStore] Додавання дня з квитками');
                 return {
                     ...state,
                     ticketDays: [...state.ticketDays, action.payload]
                 };
 
             case ActionTypes.SET_DAILY_CLAIMING:
-                console.log('  🔄 [TasksStore] Встановлення стану отримання бонусу');
                 return {
                     ...state,
-                    claiming: action.payload,
-                    isClaiming: action.payload // для сумісності
+                    claiming: action.payload
                 };
 
             case ActionTypes.ADD_CLAIMED_DAY:
-                console.log('  📅 [TasksStore] Додавання дня отримання бонусу');
                 if (!state.claimedDays.includes(action.payload)) {
                     return {
                         ...state,
@@ -512,14 +537,12 @@ window.TasksStore = (function() {
                 return state;
 
             case ActionTypes.SET_CLAIMED_DAYS:
-                console.log('  📅 [TasksStore] Встановлення днів отримання бонусів');
                 return {
                     ...state,
                     claimedDays: action.payload || []
                 };
 
             case ActionTypes.UPDATE_DAILY_TOTAL_CLAIMED:
-                console.log('  💰 [TasksStore] Оновлення загальної суми отриманих бонусів');
                 return {
                     ...state,
                     totalClaimed: {
@@ -529,7 +552,7 @@ window.TasksStore = (function() {
                 };
 
             case ActionTypes.RESET_DAILY_BONUS:
-                console.log('  🔄 [TasksStore] Скидання щоденного бонусу');
+                EventBus.emit(EventBus.EVENTS.DAILY_RESET);
                 return initialState.dailyBonus;
 
             case ActionTypes.HYDRATE_STATE:
@@ -549,16 +572,31 @@ window.TasksStore = (function() {
     function tasksReducer(state = initialState.tasks, action) {
         switch(action.type) {
             case ActionTypes.SET_TASKS:
-                console.log('  📋 [TasksStore] Встановлення завдань');
                 return {
                     ...state,
                     [action.payload.type]: action.payload.tasks,
                     lastUpdate: Date.now()
                 };
 
-            case ActionTypes.UPDATE_TASK_STATUS:
-                console.log('  ✏️ [TasksStore] Оновлення статусу завдання');
+            case ActionTypes.UPDATE_TASK_STATUS: {
                 const { type, taskId, status } = action.payload;
+
+                // Емітуємо події для різних статусів
+                switch(status) {
+                    case 'started':
+                        EventBus.emit(EventBus.EVENTS.TASK_STARTED, { type, taskId });
+                        break;
+                    case 'completed':
+                        EventBus.emit(EventBus.EVENTS.TASK_COMPLETED, { type, taskId });
+                        break;
+                    case 'failed':
+                        EventBus.emit(EventBus.EVENTS.TASK_FAILED, { type, taskId });
+                        break;
+                    case 'claimed':
+                        EventBus.emit(EventBus.EVENTS.TASK_CLAIMED, { type, taskId });
+                        break;
+                }
+
                 return {
                     ...state,
                     [type]: {
@@ -570,9 +608,9 @@ window.TasksStore = (function() {
                         }
                     }
                 };
+            }
 
             case ActionTypes.SET_TASKS_LOADING:
-                console.log('  ⏳ [TasksStore] Встановлення стану завантаження завдань');
                 return { ...state, loading: action.payload };
 
             case ActionTypes.HYDRATE_STATE:
@@ -591,20 +629,38 @@ window.TasksStore = (function() {
      */
     function uiReducer(state = initialState.ui, action) {
         switch(action.type) {
-            case ActionTypes.SET_CURRENT_TAB:
-                console.log('  📑 [TasksStore] Встановлення поточної вкладки');
-                return { ...state, currentTab: action.payload };
+            case ActionTypes.SET_CURRENT_TAB: {
+                const newTab = action.payload;
 
-            case ActionTypes.SET_LOADING:
-                console.log('  ⏳ [TasksStore] Встановлення стану завантаження');
-                return { ...state, loading: action.payload };
+                if (newTab !== state.currentTab) {
+                    EventBus.emit(EventBus.EVENTS.TAB_CHANGED, {
+                        oldTab: state.currentTab,
+                        newTab
+                    });
+                }
 
-            case ActionTypes.SET_ERROR:
-                console.log('  ❌ [TasksStore] Встановлення помилки');
+                return { ...state, currentTab: newTab };
+            }
+
+            case ActionTypes.SET_LOADING: {
+                const loading = action.payload;
+
+                EventBus.emit(
+                    loading ? EventBus.EVENTS.LOADING_START : EventBus.EVENTS.LOADING_END
+                );
+
+                return { ...state, loading };
+            }
+
+            case ActionTypes.SET_ERROR: {
+                if (action.payload) {
+                    EventBus.emit(EventBus.EVENTS.APP_ERROR, { error: action.payload });
+                }
+
                 return { ...state, error: action.payload };
+            }
 
             case ActionTypes.ADD_TOAST:
-                console.log('  💬 [TasksStore] Додавання toast повідомлення');
                 return {
                     ...state,
                     toasts: [...state.toasts, {
@@ -615,7 +671,6 @@ window.TasksStore = (function() {
                 };
 
             case ActionTypes.REMOVE_TOAST:
-                console.log('  🗑️ [TasksStore] Видалення toast повідомлення');
                 return {
                     ...state,
                     toasts: state.toasts.filter(t => t.id !== action.payload)
@@ -637,13 +692,19 @@ window.TasksStore = (function() {
      */
     function networkReducer(state = initialState.network, action) {
         switch(action.type) {
-            case ActionTypes.SET_ONLINE:
-                console.log('  🌐 [TasksStore] Встановлення статусу мережі');
+            case ActionTypes.SET_ONLINE: {
+                const online = action.payload;
+
+                EventBus.emit(
+                    online ? EventBus.EVENTS.NETWORK_ONLINE : EventBus.EVENTS.NETWORK_OFFLINE
+                );
+
                 return {
                     ...state,
-                    online: action.payload,
-                    lastOnline: action.payload ? Date.now() : state.lastOnline
+                    online,
+                    lastOnline: online ? Date.now() : state.lastOnline
                 };
+            }
 
             case ActionTypes.HYDRATE_STATE:
                 return action.payload.network || state;
@@ -657,44 +718,241 @@ window.TasksStore = (function() {
     }
 
     /**
-     * Підписка на зміни стану - ОПТИМІЗОВАНА
+     * Мемоізовані селектори
      */
-    function subscribe(listener) {
-        console.log('👂 [TasksStore] Додавання слухача');
+    const selectors = createMemoizedSelectors();
 
-        // Обгортаємо listener для оптимізації
-        const wrappedListener = function(state, prevState, actions) {
-            // Використовуємо requestAnimationFrame для уникнення блокування UI
-            requestAnimationFrame(() => {
-                try {
-                    listener(state, prevState, actions);
-                } catch (error) {
-                    console.error('❌ [TasksStore] Помилка в слухачі:', error);
+    function createMemoizedSelectors() {
+        const cache = new Map();
+        const cacheKey = () => JSON.stringify(state);
+
+        function memoize(name, fn) {
+            return function() {
+                const key = `${name}:${cacheKey()}`;
+
+                if (cache.has(key)) {
+                    return cache.get(key);
                 }
-            });
-        };
 
-        listeners.add(wrappedListener);
+                const result = fn();
+                cache.set(key, result);
 
-        // Повертаємо функцію відписки
-        return function unsubscribe() {
-            console.log('🔇 [TasksStore] Видалення слухача');
-            listeners.delete(wrappedListener);
+                // Обмежуємо розмір кешу
+                if (cache.size > 100) {
+                    const firstKey = cache.keys().next().value;
+                    cache.delete(firstKey);
+                }
+
+                return result;
+            };
+        }
+
+        return {
+            // User selectors
+            getUserId: memoize('userId', () => state.user.id),
+            getUserBalance: memoize('userBalance', () => state.user.balance),
+            getWinixBalance: memoize('winixBalance', () => state.user.balance.winix),
+            getTicketsBalance: memoize('ticketsBalance', () => state.user.balance.tickets),
+
+            // Wallet selectors
+            isWalletConnected: memoize('walletConnected', () => state.wallet.connected),
+            getWalletAddress: memoize('walletAddress', () => state.wallet.address),
+            getWalletFlexBalance: memoize('walletFlexBalance', () => state.wallet.flexBalance),
+
+            // Flex selectors
+            getFlexBalance: memoize('flexBalance', () =>
+                state.flexEarn.flexBalance || state.wallet.flexBalance
+            ),
+            getFlexLevel: (level) => state.flexEarn.levels[level],
+            isFlexLevelClaimed: (level) => state.flexEarn.levels[level]?.claimed || false,
+            isFlexLevelAvailable: (level) => state.flexEarn.levels[level]?.available || false,
+
+            // Daily bonus selectors
+            getCurrentStreak: memoize('currentStreak', () => state.dailyBonus.currentStreak),
+            getLastClaimDate: memoize('lastClaimDate', () => state.dailyBonus.lastClaimDate),
+            canClaimDailyBonus: memoize('canClaimDaily', () => {
+                const lastClaim = state.dailyBonus.lastClaimDate;
+                if (!lastClaim) return true;
+                return window.TasksUtils.isNewDay(lastClaim);
+            }),
+            getDailyBonus: memoize('dailyBonus', () => state.dailyBonus),
+            getDailyStreak: memoize('dailyStreak', () => state.dailyBonus.currentStreak),
+            getClaimedDays: memoize('claimedDays', () => state.dailyBonus.claimedDays),
+            isDailyClaiming: memoize('dailyClaiming', () => state.dailyBonus.claiming),
+            getTotalClaimed: memoize('totalClaimed', () => state.dailyBonus.totalClaimed),
+            getTicketDays: memoize('ticketDays', () => state.dailyBonus.ticketDays),
+
+            // Tasks selectors
+            getTasks: (type) => state.tasks[type] || {},
+            getTaskById: (type, id) => state.tasks[type]?.[id],
+            isTasksLoading: memoize('tasksLoading', () => state.tasks.loading),
+
+            // UI selectors
+            getCurrentTab: memoize('currentTab', () => state.ui.currentTab),
+            isLoading: memoize('isLoading', () => state.ui.loading),
+            getError: memoize('error', () => state.ui.error),
+            getToasts: memoize('toasts', () => state.ui.toasts),
+
+            // Network selectors
+            isOnline: memoize('isOnline', () => state.network.online),
+
+            // Загальний стан
+            getState: () => state
         };
     }
 
     /**
-     * Повідомлення слухачів - ОПТИМІЗОВАНА
+     * Action creators
+     */
+    const actions = {
+        // User actions
+        setUser: (userData) => dispatch({ type: ActionTypes.SET_USER, payload: userData }),
+        updateBalance: (balances) => dispatch({ type: ActionTypes.UPDATE_BALANCE, payload: balances }),
+        clearUser: () => dispatch({ type: ActionTypes.CLEAR_USER }),
+
+        // Wallet actions
+        setWalletConnected: (connected) =>
+            dispatch({ type: ActionTypes.SET_WALLET_CONNECTED, payload: connected }),
+        setWalletAddress: (data) =>
+            dispatch({ type: ActionTypes.SET_WALLET_ADDRESS, payload: data }),
+        setWalletChecking: (checking) =>
+            dispatch({ type: ActionTypes.SET_WALLET_CHECKING, payload: checking }),
+        disconnectWallet: () => dispatch({ type: ActionTypes.DISCONNECT_WALLET }),
+
+        // Flex actions
+        setFlexBalance: (balance) =>
+            dispatch({ type: ActionTypes.SET_FLEX_BALANCE, payload: balance }),
+        setFlexLevelClaimed: (level) =>
+            dispatch({ type: ActionTypes.SET_FLEX_LEVEL_CLAIMED, payload: { level } }),
+        setFlexLevelAvailable: (level, available) =>
+            dispatch({ type: ActionTypes.SET_FLEX_LEVEL_AVAILABLE, payload: { level, available } }),
+        setFlexChecking: (checking) =>
+            dispatch({ type: ActionTypes.SET_FLEX_CHECKING, payload: checking }),
+        setFlexClaiming: (claiming) =>
+            dispatch({ type: ActionTypes.SET_FLEX_CLAIMING, payload: claiming }),
+        resetFlexDaily: () => dispatch({ type: ActionTypes.RESET_FLEX_DAILY }),
+
+        // Daily bonus actions
+        setDailyStreak: (current) =>
+            dispatch({ type: ActionTypes.SET_DAILY_STREAK, payload: { current } }),
+        claimDailyBonus: (rewards) =>
+            dispatch({ type: ActionTypes.CLAIM_DAILY_BONUS, payload: rewards }),
+        addTicketDay: (date) =>
+            dispatch({ type: ActionTypes.ADD_TICKET_DAY, payload: date }),
+        setDailyClaiming: (claiming) =>
+            dispatch({ type: ActionTypes.SET_DAILY_CLAIMING, payload: claiming }),
+        addClaimedDay: (day) =>
+            dispatch({ type: ActionTypes.ADD_CLAIMED_DAY, payload: day }),
+        setClaimedDays: (days) =>
+            dispatch({ type: ActionTypes.SET_CLAIMED_DAYS, payload: days }),
+        updateDailyTotalClaimed: (totals) =>
+            dispatch({ type: ActionTypes.UPDATE_DAILY_TOTAL_CLAIMED, payload: totals }),
+        resetDailyBonus: () => dispatch({ type: ActionTypes.RESET_DAILY_BONUS }),
+
+        // Tasks actions
+        setTasks: (type, tasks) =>
+            dispatch({ type: ActionTypes.SET_TASKS, payload: { type, tasks } }),
+        updateTaskStatus: (type, taskId, status) =>
+            dispatch({ type: ActionTypes.UPDATE_TASK_STATUS, payload: { type, taskId, status } }),
+        setTasksLoading: (loading) =>
+            dispatch({ type: ActionTypes.SET_TASKS_LOADING, payload: loading }),
+
+        // UI actions
+        setCurrentTab: (tab) =>
+            dispatch({ type: ActionTypes.SET_CURRENT_TAB, payload: tab }),
+        setLoading: (loading) =>
+            dispatch({ type: ActionTypes.SET_LOADING, payload: loading }),
+        setError: (error) =>
+            dispatch({ type: ActionTypes.SET_ERROR, payload: error }),
+        addToast: (toast) =>
+            dispatch({ type: ActionTypes.ADD_TOAST, payload: toast }),
+        removeToast: (id) =>
+            dispatch({ type: ActionTypes.REMOVE_TOAST, payload: id }),
+
+        // Network actions
+        setOnline: (online) =>
+            dispatch({ type: ActionTypes.SET_ONLINE, payload: online }),
+
+        // Global actions
+        resetState: () => dispatch({ type: ActionTypes.RESET_STATE }),
+        hydrateState: (savedState) =>
+            dispatch({ type: ActionTypes.HYDRATE_STATE, payload: savedState })
+    };
+
+    /**
+     * Підписка на зміни
+     */
+    function subscribe(listener) {
+        listeners.add(listener);
+
+        return function unsubscribe() {
+            listeners.delete(listener);
+        };
+    }
+
+    /**
+     * Повідомлення слухачів
      */
     function notifyListeners(actions, prevState) {
-        console.log(`📢 [TasksStore] Повідомлення ${listeners.size} слухачів`);
-
-        // Для батчових оновлень передаємо масив дій
-        const actionInfo = actions.length === 1 ? actions[0] : { type: 'BATCH_UPDATE', actions };
-
-        listeners.forEach(listener => {
-            listener(state, prevState, actionInfo);
+        // Використовуємо EventBus для уникнення прямих залежностей
+        EventBus.emit('store.updated', {
+            state,
+            prevState,
+            actions
         });
+
+        // Також викликаємо прямих слухачів
+        listeners.forEach(listener => {
+            queueMicrotask(() => {
+                try {
+                    listener(state, prevState, actions.length === 1 ? actions[0] : actions);
+                } catch (error) {
+                    console.error('❌ [TasksStore] Помилка в слухачі:', error);
+                }
+            });
+        });
+    }
+
+    /**
+     * Middleware система
+     */
+    function applyMiddleware(...mws) {
+        middleware.push(...mws);
+    }
+
+    /**
+     * Збереження стану
+     */
+    const saveStateToStorage = window.TasksUtils.debounce(function() {
+        const stateToSave = {
+            user: state.user,
+            flexEarn: {
+                levels: state.flexEarn.levels,
+                flexBalance: state.flexEarn.flexBalance
+            },
+            dailyBonus: state.dailyBonus,
+            ui: {
+                currentTab: state.ui.currentTab
+            }
+        };
+
+        sessionStorage.setItem('tasksStoreState', JSON.stringify(stateToSave));
+    }, 1000);
+
+    /**
+     * Завантаження стану
+     */
+    function loadStateFromStorage() {
+        try {
+            const savedStateStr = sessionStorage.getItem('tasksStoreState');
+            if (savedStateStr) {
+                const savedState = JSON.parse(savedStateStr);
+                actions.hydrateState(savedState);
+            }
+        } catch (error) {
+            console.error('❌ [TasksStore] Помилка завантаження стану:', error);
+            sessionStorage.removeItem('tasksStoreState');
+        }
     }
 
     /**
@@ -705,201 +963,7 @@ window.TasksStore = (function() {
     }
 
     /**
-     * Очищення кешу селекторів
-     */
-    function clearSelectorCache() {
-        selectorCache.clear();
-        lastStateForCache = null;
-    }
-
-    /**
-     * Кешований селектор
-     */
-    function createCachedSelector(name, selector) {
-        return function() {
-            // Перевіряємо чи стан змінився
-            if (lastStateForCache !== state) {
-                clearSelectorCache();
-                lastStateForCache = state;
-            }
-
-            // Перевіряємо кеш
-            if (selectorCache.has(name)) {
-                return selectorCache.get(name);
-            }
-
-            // Обчислюємо і кешуємо результат
-            const result = selector();
-            selectorCache.set(name, result);
-            return result;
-        };
-    }
-
-    /**
-     * Селектори - ОПТИМІЗОВАНІ З КЕШУВАННЯМ
-     */
-    const selectors = {
-        // User selectors
-        getUserId: createCachedSelector('userId', () => state.user.id),
-        getUserBalance: createCachedSelector('userBalance', () => state.user.balance),
-        getWinixBalance: createCachedSelector('winixBalance', () => state.user.balance.winix),
-        getTicketsBalance: createCachedSelector('ticketsBalance', () => state.user.balance.tickets),
-
-        // Wallet selectors
-        isWalletConnected: createCachedSelector('walletConnected', () => state.wallet.connected),
-        getWalletAddress: createCachedSelector('walletAddress', () => state.wallet.address),
-        getWalletFlexBalance: createCachedSelector('walletFlexBalance', () => state.wallet.flexBalance),
-
-        // Flex selectors
-        getFlexBalance: createCachedSelector('flexBalance', () => state.flexEarn.flexBalance || state.wallet.flexBalance),
-        getFlexLevel: (level) => state.flexEarn.levels[level],
-        isFlexLevelClaimed: (level) => state.flexEarn.levels[level]?.claimed || false,
-        isFlexLevelAvailable: (level) => state.flexEarn.levels[level]?.available || false,
-
-        // Daily bonus selectors - розширено
-        getCurrentStreak: createCachedSelector('currentStreak', () => state.dailyBonus.currentStreak),
-        getLastClaimDate: createCachedSelector('lastClaimDate', () => state.dailyBonus.lastClaimDate),
-        canClaimDailyBonus: createCachedSelector('canClaimDaily', () => {
-            const lastClaim = state.dailyBonus.lastClaimDate;
-            if (!lastClaim) return true;
-            return window.TasksUtils.isNewDay(lastClaim);
-        }),
-        getDailyBonus: createCachedSelector('dailyBonus', () => state.dailyBonus),
-        getDailyStreak: createCachedSelector('dailyStreak', () => state.dailyBonus.currentStreak),
-        getClaimedDays: createCachedSelector('claimedDays', () => state.dailyBonus.claimedDays),
-        isDailyClaiming: createCachedSelector('dailyClaiming', () => state.dailyBonus.claiming || state.dailyBonus.isClaiming),
-        getTotalClaimed: createCachedSelector('totalClaimed', () => state.dailyBonus.totalClaimed),
-        getTicketDays: createCachedSelector('ticketDays', () => state.dailyBonus.ticketDays),
-
-        // UI selectors
-        getCurrentTab: createCachedSelector('currentTab', () => state.ui.currentTab),
-        isLoading: createCachedSelector('isLoading', () => state.ui.loading),
-        getError: createCachedSelector('error', () => state.ui.error),
-
-        // Network selectors
-        isOnline: createCachedSelector('isOnline', () => state.network.online)
-    };
-
-    /**
-     * Action creators - розширено для Daily Bonus
-     */
-    const actions = {
-        // User actions
-        setUser: (userData) => dispatch({ type: ActionTypes.SET_USER, payload: userData }),
-        updateBalance: (balances) => {
-            console.log('🎯 [TasksStore] Action creator updateBalance викликано з:', balances);
-            return dispatch({ type: ActionTypes.UPDATE_BALANCE, payload: balances });
-        },
-        clearUser: () => dispatch({ type: ActionTypes.CLEAR_USER }),
-
-        // Wallet actions
-        setWalletConnected: (connected) => dispatch({ type: ActionTypes.SET_WALLET_CONNECTED, payload: connected }),
-        setWalletAddress: (data) => dispatch({ type: ActionTypes.SET_WALLET_ADDRESS, payload: data }),
-        setWalletChecking: (checking) => dispatch({ type: ActionTypes.SET_WALLET_CHECKING, payload: checking }),
-        disconnectWallet: () => dispatch({ type: ActionTypes.DISCONNECT_WALLET }),
-
-        // Flex actions
-        setFlexBalance: (balance) => dispatch({ type: ActionTypes.SET_FLEX_BALANCE, payload: balance }),
-        setFlexLevelClaimed: (level) => dispatch({ type: ActionTypes.SET_FLEX_LEVEL_CLAIMED, payload: { level } }),
-        setFlexLevelAvailable: (level, available) => dispatch({
-            type: ActionTypes.SET_FLEX_LEVEL_AVAILABLE,
-            payload: { level, available }
-        }),
-        setFlexChecking: (checking) => dispatch({ type: ActionTypes.SET_FLEX_CHECKING, payload: checking }),
-        setFlexClaiming: (claiming) => dispatch({ type: ActionTypes.SET_FLEX_CLAIMING, payload: claiming }),
-        resetFlexDaily: () => dispatch({ type: ActionTypes.RESET_FLEX_DAILY }),
-
-        // Daily bonus actions - розширено новими методами
-        setDailyStreak: (current) => dispatch({ type: ActionTypes.SET_DAILY_STREAK, payload: { current } }),
-        claimDailyBonus: (rewards) => dispatch({ type: ActionTypes.CLAIM_DAILY_BONUS, payload: rewards }),
-        addTicketDay: (date) => dispatch({ type: ActionTypes.ADD_TICKET_DAY, payload: date }),
-        setDailyClaiming: (claiming) => dispatch({ type: ActionTypes.SET_DAILY_CLAIMING, payload: claiming }),
-        addClaimedDay: (day) => dispatch({ type: ActionTypes.ADD_CLAIMED_DAY, payload: day }),
-        setClaimedDays: (days) => dispatch({ type: ActionTypes.SET_CLAIMED_DAYS, payload: days }),
-        updateDailyTotalClaimed: (totals) => dispatch({
-            type: ActionTypes.UPDATE_DAILY_TOTAL_CLAIMED,
-            payload: totals
-        }),
-        resetDailyBonus: () => dispatch({ type: ActionTypes.RESET_DAILY_BONUS }),
-
-        // Tasks actions
-        setTasks: (type, tasks) => dispatch({ type: ActionTypes.SET_TASKS, payload: { type, tasks } }),
-        updateTaskStatus: (type, taskId, status) => dispatch({
-            type: ActionTypes.UPDATE_TASK_STATUS,
-            payload: { type, taskId, status }
-        }),
-        setTasksLoading: (loading) => dispatch({ type: ActionTypes.SET_TASKS_LOADING, payload: loading }),
-
-        // UI actions
-        setCurrentTab: (tab) => dispatch({ type: ActionTypes.SET_CURRENT_TAB, payload: tab }),
-        setLoading: (loading) => dispatch({ type: ActionTypes.SET_LOADING, payload: loading }),
-        setError: (error) => dispatch({ type: ActionTypes.SET_ERROR, payload: error }),
-        addToast: (toast) => dispatch({ type: ActionTypes.ADD_TOAST, payload: toast }),
-        removeToast: (id) => dispatch({ type: ActionTypes.REMOVE_TOAST, payload: id }),
-
-        // Network actions
-        setOnline: (online) => dispatch({ type: ActionTypes.SET_ONLINE, payload: online }),
-
-        // Global actions
-        resetState: () => dispatch({ type: ActionTypes.RESET_STATE }),
-        hydrateState: (savedState) => dispatch({ type: ActionTypes.HYDRATE_STATE, payload: savedState })
-    };
-
-    /**
-     * Збереження стану в sessionStorage - ДЕБАУНСОВАНЕ
-     */
-    const saveStateToStorage = window.TasksUtils.debounce(function() {
-        console.log('💾 [TasksStore] Збереження стану в sessionStorage');
-
-        try {
-            const stateToSave = {
-                user: state.user,
-                flexEarn: {
-                    levels: state.flexEarn.levels,
-                    flexBalance: state.flexEarn.flexBalance
-                },
-                dailyBonus: state.dailyBonus,
-                ui: {
-                    currentTab: state.ui.currentTab
-                }
-            };
-
-            // Використовуємо sessionStorage для безпеки
-            sessionStorage.setItem('tasksStoreState', JSON.stringify(stateToSave));
-            console.log('✅ [TasksStore] Стан збережено в sessionStorage');
-        } catch (error) {
-            console.error('❌ [TasksStore] Помилка збереження стану:', error);
-        }
-    }, 1000); // 1 секунда дебаунс
-
-    /**
-     * Завантаження стану з sessionStorage
-     */
-    function loadStateFromStorage() {
-        console.log('📂 [TasksStore] Завантаження стану з sessionStorage');
-
-        try {
-            const savedStateStr = sessionStorage.getItem('tasksStoreState');
-            if (savedStateStr) {
-                const savedState = JSON.parse(savedStateStr);
-                console.log('✅ [TasksStore] Знайдено збережений стан');
-
-                // Валідуємо дані перед використанням
-                if (savedState && typeof savedState === 'object') {
-                    actions.hydrateState(savedState);
-                }
-            } else {
-                console.log('📭 [TasksStore] Збережений стан не знайдено');
-            }
-        } catch (error) {
-            console.error('❌ [TasksStore] Помилка завантаження стану:', error);
-            // Очищаємо пошкоджені дані
-            sessionStorage.removeItem('tasksStoreState');
-        }
-    }
-
-    /**
-     * Ініціалізація стору
+     * Ініціалізація
      */
     function init() {
         console.log('🚀 [TasksStore] Ініціалізація стору');
@@ -911,14 +975,23 @@ window.TasksStore = (function() {
         window.addEventListener('online', () => actions.setOnline(true));
         window.addEventListener('offline', () => actions.setOnline(false));
 
+        // Підписуємось на події CacheManager для синхронізації
+        CacheManager.subscribe(CacheManager.NAMESPACES.BALANCE, (action, key, value) => {
+            if (action === 'set' && value) {
+                actions.updateBalance(value);
+            }
+        });
+
+        // Емітуємо подію готовності
+        EventBus.emit(EventBus.EVENTS.APP_READY, { store: true });
+
         console.log('✅ [TasksStore] Стор ініціалізовано');
-        console.log('📊 [TasksStore] Початковий стан:', state);
     }
 
     // Автоматична ініціалізація
     init();
 
-    console.log('✅ [TasksStore] Redux-подібний стор готовий до використання (ОПТИМІЗОВАНИЙ)');
+    console.log('✅ [TasksStore] Redux-подібний стор готовий (ОПТИМІЗОВАНИЙ)');
 
     // Публічний API
     return {
@@ -927,9 +1000,10 @@ window.TasksStore = (function() {
         getState,
         selectors,
         actions,
-        ActionTypes
+        ActionTypes,
+        applyMiddleware
     };
 
 })();
 
-console.log('✅ [TasksStore] Модуль стору експортовано глобально (ОПТИМІЗОВАНИЙ)');
+console.log('✅ [TasksStore] Модуль стору експортовано глобально');
