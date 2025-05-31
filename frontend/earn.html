@@ -592,20 +592,27 @@
     <!-- НОВИЙ СКРИПТ - Система завантаження -->
     <script src="./js/loading-system.js"></script>
 
-    <!-- Завантаження скриптів у правильному порядку -->
+    <!-- ========== ПРАВИЛЬНИЙ ПОРЯДОК ПІДКЛЮЧЕННЯ СКРИПТІВ ========== -->
+
+    <!-- 1. Базові скрипти системи -->
     <script src="./js/api-init.js"></script>
     <script src="./js/api.js"></script>
     <script src="./js/auth.js"></script>
     <script src="./js/core.js"></script>
 
-    <!-- 1. Базові утиліти та константи (не мають залежностей) -->
+    <!-- 2. Базові утиліти та константи (не мають залежностей) -->
     <script src="js/tasks/constants.js"></script>
     <script src="js/tasks/utils.js"></script>
 
-    <!-- 2. Store (залежить від utils та констант) -->
+    <!-- 3. ЦЕНТРАЛІЗОВАНІ УТИЛІТИ (критично важливі!) -->
+    <script src="js/tasks/cacheManager.js"></script>
+    <script src="js/tasks/requestManager.js"></script>
+    <script src="js/tasks/eventBus.js"></script>
+
+    <!-- 4. Store (залежить від EventBus та utils) -->
     <script src="js/tasks/store.js"></script>
 
-    <!-- 3. Telegram валідатор (залежить від констант, utils, store) -->
+    <!-- 5. Telegram валідатор (залежить від централізованих утиліт) -->
     <script>
         // Строга перевірка наявності Telegram WebApp
         document.addEventListener('DOMContentLoaded', function() {
@@ -661,8 +668,8 @@
                 }
 
                 // Оновлюємо баланси
-                const winixEl = document.getElementById('user-winix');
-                const ticketsEl = document.getElementById('user-tickets');
+                const winixEl = document.getElementById('user-tokens');
+                const ticketsEl = document.getElementById('user-coins');
 
                 if (winixEl) {
                     winixEl.textContent = state.user.balance.winix || 0;
@@ -731,20 +738,21 @@
         }
     </script>
 
+    <!-- 6. API модуль задач (залежить від централізованих утиліт) -->
     <script src="js/tasks/api.js"></script>
 
-    <!-- 4.4. Валідатори та сервіси (залежать від api, store) -->
+    <!-- 7. Валідатори та сервіси -->
     <script src="js/tasks/telegramValidator.js"></script>
     <script src="js/tasks/services.js"></script>
 
-    <!-- 6. Основні модулі функціональності -->
+    <!-- 8. Основні модулі функціональності -->
     <script src="js/tasks/walletChecker.js"></script>
     <script src="js/tasks/taskVerification.js"></script>
     <script src="js/tasks/flexEarn.js"></script>
     <script src="js/tasks/dailyBonus.js"></script>
     <script src="js/tasks/tasksManager.js"></script>
 
-    <!-- 7. Фінальна інтеграція -->
+    <!-- 9. Фінальна інтеграція -->
     <script src="js/tasks/integration.js"></script>
 
     <!-- Базова ініціалізація -->
@@ -799,6 +807,7 @@
         }
     </script>
 
+    <!-- Глобальна система підключення гаманця -->
     <script>
         /**
          * Глобальна система підключення гаманця з автоматичною ініціалізацією
