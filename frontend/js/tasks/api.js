@@ -137,34 +137,41 @@ window.TasksAPI = (function() {
     }
 
     // Утилітарна функція для отримання ID користувача
-    function getUserId() {
-        console.log('👤 [TasksAPI] === getUserId START ===');
+   function getUserId() {
+    console.log('👤 [TasksAPI] === getUserId START ===');
 
-        // Спочатку спробуємо через WinixAPI
-        if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
-            console.log('🔍 [TasksAPI] Спроба отримати ID через WinixAPI...');
-            const apiId = window.WinixAPI.getUserId();
-            console.log('📊 [TasksAPI] WinixAPI.getUserId результат:', apiId);
+    // Спочатку спробуємо через WinixAPI
+    if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
+        console.log('🔍 [TasksAPI] Спроба отримати ID через WinixAPI...');
+        const apiId = window.WinixAPI.getUserId();
+        console.log('📊 [TasksAPI] WinixAPI.getUserId результат:', apiId);
 
-            if (apiId && apiId !== 'undefined' && apiId !== 'null') {
-                console.log('✅ [TasksAPI] ID отримано через WinixAPI:', apiId);
-                return apiId;
-            }
+        if (apiId && apiId !== 'undefined' && apiId !== 'null') {
+            console.log('✅ [TasksAPI] ID отримано через WinixAPI:', apiId);
+            // Очищаємо ID від зайвих символів
+            const cleanId = String(apiId).replace(/[^0-9]/g, '');
+            return cleanId;
         }
-
-        const telegramId = localStorage.getItem('telegram_user_id');
-        const userId = localStorage.getItem('user_id');
-
-        console.log('📊 [TasksAPI] ID в localStorage:', {
-            telegram_user_id: telegramId,
-            user_id: userId
-        });
-
-        const result = telegramId || userId;
-        console.log('👤 [TasksAPI] Результат getUserId:', result || 'ID відсутній');
-
-        return result;
     }
+
+    const telegramId = localStorage.getItem('telegram_user_id');
+    const userId = localStorage.getItem('user_id');
+
+    console.log('📊 [TasksAPI] ID в localStorage:', {
+        telegram_user_id: telegramId,
+        user_id: userId
+    });
+
+    const result = telegramId || userId;
+    console.log('👤 [TasksAPI] Результат getUserId:', result || 'ID відсутній');
+
+    // Очищаємо результат від зайвих символів
+    if (result) {
+        return String(result).replace(/[^0-9]/g, '');
+    }
+
+    return result;
+}
 
     // Утилітарна функція для виконання HTTP запитів з кешуванням
     function apiRequest(url, options, useCache = true, priority = 0) {
@@ -394,80 +401,87 @@ window.TasksAPI = (function() {
 }
     // API методи для User
     const user = {
-        getProfile: function(userId) {
-            console.log('👤 [TasksAPI] Отримання профілю:', userId);
-            if (!userId) {
-                return Promise.reject(new Error('User ID не вказано'));
-            }
-            return apiRequest(API_CONFIG.baseUrl + '/api/user/' + userId, null, true, 5)
-                .then(function(response) {
-                    console.log('👤 [TasksAPI] Профіль отримано (raw):', response);
-
-                    // Трансформуємо дані балансу
-                    if (response && response.data) {
-                        // Трансформуємо баланс у форматі data
-                        response.data.transformedBalance = transformBalance(response.data);
-
-                        // Зберігаємо також у кореневому об'єкті для сумісності
-                        response.balance = response.data.transformedBalance;
-
-                        console.log('👤 [TasksAPI] Профіль після трансформації:', response);
-                    }
-
-                    return response;
-                });
-        },
-
-        getBalance: function(userId) {
-            console.log('💰 [TasksAPI] Отримання балансу:', userId);
-            if (!userId) {
-                return Promise.reject(new Error('User ID не вказано'));
-            }
-            return apiRequest(API_CONFIG.baseUrl + '/api/user/' + userId + '/balance', null, true, 3)
-                .then(function(response) {
-                    console.log('💰 [TasksAPI] Баланс отримано (raw):', response);
-
-                    // Трансформуємо відповідь
-                    if (response) {
-                        // Шукаємо дані балансу в різних місцях
-                        let balanceData = response.data || response;
-
-                        // Трансформуємо баланс
-                        const transformedBalance = transformBalance(balanceData);
-
-                        // Додаємо трансформований баланс у різні місця для сумісності
-                        response.balance = transformedBalance;
-
-                        if (!response.data) {
-                            response.data = {};
-                        }
-                        response.data.balance = transformedBalance;
-
-                        console.log('💰 [TasksAPI] Баланс після трансформації:', response);
-                    }
-
-                    return response;
-                });
-        },
-
-        updateBalance: function(userId, balances) {
-            console.log('💰 [TasksAPI] Оновлення балансу:', userId, balances);
-            if (!userId || !balances) {
-                return Promise.reject(new Error('Невірні параметри'));
-            }
-
-            // Трансформуємо назад для backend якщо потрібно
-            const backendData = {
-                balance: balances.winix || balances.balance || 0,
-                coins: balances.tickets || balances.coins || 0
-            };
-
-            return apiRequest(API_CONFIG.baseUrl + '/api/user/' + userId + '/update-balance', {
-                method: 'POST',
-                body: JSON.stringify(backendData)
-            }, false, 10); // Високий пріоритет, без кешу
+    getProfile: function(userId) {
+        console.log('👤 [TasksAPI] Отримання профілю:', userId);
+        if (!userId) {
+            return Promise.reject(new Error('User ID не вказано'));
         }
-    };
+        // Очищаємо userId від зайвих символів
+        const cleanUserId = String(userId).replace(/[^0-9]/g, '');
+        return apiRequest(API_CONFIG.baseUrl + '/api/user/' + cleanUserId, null, true, 5)
+            .then(function(response) {
+                console.log('👤 [TasksAPI] Профіль отримано (raw):', response);
+
+                // Трансформуємо дані балансу
+                if (response && response.data) {
+                    // Трансформуємо баланс у форматі data
+                    response.data.transformedBalance = transformBalance(response.data);
+
+                    // Зберігаємо також у кореневому об'єкті для сумісності
+                    response.balance = response.data.transformedBalance;
+
+                    console.log('👤 [TasksAPI] Профіль після трансформації:', response);
+                }
+
+                return response;
+            });
+    },
+
+    getBalance: function(userId) {
+        console.log('💰 [TasksAPI] Отримання балансу:', userId);
+        if (!userId) {
+            return Promise.reject(new Error('User ID не вказано'));
+        }
+        // Очищаємо userId від зайвих символів
+        const cleanUserId = String(userId).replace(/[^0-9]/g, '');
+        return apiRequest(API_CONFIG.baseUrl + '/api/user/' + cleanUserId + '/balance', null, true, 3)
+            .then(function(response) {
+                console.log('💰 [TasksAPI] Баланс отримано (raw):', response);
+
+                // Трансформуємо відповідь
+                if (response) {
+                    // Шукаємо дані балансу в різних місцях
+                    let balanceData = response.data || response;
+
+                    // Трансформуємо баланс
+                    const transformedBalance = transformBalance(balanceData);
+
+                    // Додаємо трансформований баланс у різні місця для сумісності
+                    response.balance = transformedBalance;
+
+                    if (!response.data) {
+                        response.data = {};
+                    }
+                    response.data.balance = transformedBalance;
+
+                    console.log('💰 [TasksAPI] Баланс після трансформації:', response);
+                }
+
+                return response;
+            });
+    },
+
+    updateBalance: function(userId, balances) {
+        console.log('💰 [TasksAPI] Оновлення балансу:', userId, balances);
+        if (!userId || !balances) {
+            return Promise.reject(new Error('Невірні параметри'));
+        }
+
+        // Очищаємо userId від зайвих символів
+        const cleanUserId = String(userId).replace(/[^0-9]/g, '');
+
+        // Трансформуємо назад для backend якщо потрібно
+        const backendData = {
+            balance: balances.winix || balances.balance || 0,
+            coins: balances.tickets || balances.coins || 0
+        };
+
+        return apiRequest(API_CONFIG.baseUrl + '/api/user/' + cleanUserId + '/update-balance', {
+            method: 'POST',
+            body: JSON.stringify(backendData)
+        }, false, 10); // Високий пріоритет, без кешу
+    }
+};
 
     // API методи для Wallet - ВИПРАВЛЕНО з підтримкою raw та user-friendly адрес
     const wallet = {
@@ -639,59 +653,69 @@ window.TasksAPI = (function() {
     };
 
     // API методи для Daily
-    const daily = {
-        getStatus: function(userId) {
-            console.log('📅 [TasksAPI] Отримання статусу щоденного бонусу:', userId);
-            if (!userId) {
-                return Promise.reject(new Error('User ID не вказано'));
-            }
-            return apiRequest(API_CONFIG.baseUrl + '/api/daily/status/' + userId, null, true, 3);
-        },
-
-        claim: function(userId) {
-            console.log('🎁 [TasksAPI] Отримання щоденного бонусу:', userId);
-            if (!userId) {
-                return Promise.reject(new Error('User ID не вказано'));
-            }
-            return apiRequest(API_CONFIG.baseUrl + '/api/daily/claim/' + userId, {
-                method: 'POST',
-                body: JSON.stringify({ timestamp: Date.now() })
-            }, false, 10); // Високий пріоритет, без кешу
-        },
-
-        getHistory: function(userId, limit) {
-            console.log('📜 [TasksAPI] Отримання історії щоденних бонусів:', userId);
-            if (!userId) {
-                return Promise.reject(new Error('User ID не вказано'));
-            }
-
-            let url = API_CONFIG.baseUrl + '/api/daily/history/' + userId;
-            if (limit) {
-                url += '?limit=' + limit;
-            }
-
-            return apiRequest(url, null, true, 1);
-        },
-
-        refresh: function(userId) {
-            console.log('🔄 [TasksAPI] Примусове оновлення статусу щоденного бонусу:', userId);
-            if (!userId) {
-                return Promise.reject(new Error('User ID не вказано'));
-            }
-            return apiRequest(API_CONFIG.baseUrl + '/api/daily/refresh/' + userId, {
-                method: 'POST',
-                body: JSON.stringify({ timestamp: Date.now() })
-            }, false, 5);
-        },
-
-        calculateReward: function(userId, day) {
-            console.log('💰 [TasksAPI] Розрахунок винагороди для дня:', day);
-            if (!userId || !day) {
-                return Promise.reject(new Error('Невірні параметри'));
-            }
-            return apiRequest(API_CONFIG.baseUrl + '/api/daily/calculate-reward/' + userId + '?day=' + day, null, true, 1);
+   const daily = {
+    getStatus: function(userId) {
+        console.log('📅 [TasksAPI] Отримання статусу щоденного бонусу:', userId);
+        if (!userId) {
+            return Promise.reject(new Error('User ID не вказано'));
         }
-    };
+        // Очищаємо userId від зайвих символів
+        const cleanUserId = String(userId).replace(/[^0-9]/g, '');
+        return apiRequest(API_CONFIG.baseUrl + '/api/daily/status/' + cleanUserId, null, true, 3);
+    },
+
+    claim: function(userId) {
+        console.log('🎁 [TasksAPI] Отримання щоденного бонусу:', userId);
+        if (!userId) {
+            return Promise.reject(new Error('User ID не вказано'));
+        }
+        // Очищаємо userId від зайвих символів
+        const cleanUserId = String(userId).replace(/[^0-9]/g, '');
+        return apiRequest(API_CONFIG.baseUrl + '/api/daily/claim/' + cleanUserId, {
+            method: 'POST',
+            body: JSON.stringify({ timestamp: Date.now() })
+        }, false, 10); // Високий пріоритет, без кешу
+    },
+
+    getHistory: function(userId, limit) {
+        console.log('📜 [TasksAPI] Отримання історії щоденних бонусів:', userId);
+        if (!userId) {
+            return Promise.reject(new Error('User ID не вказано'));
+        }
+
+        // Очищаємо userId від зайвих символів
+        const cleanUserId = String(userId).replace(/[^0-9]/g, '');
+        let url = API_CONFIG.baseUrl + '/api/daily/history/' + cleanUserId;
+        if (limit) {
+            url += '?limit=' + limit;
+        }
+
+        return apiRequest(url, null, true, 1);
+    },
+
+    refresh: function(userId) {
+        console.log('🔄 [TasksAPI] Примусове оновлення статусу щоденного бонусу:', userId);
+        if (!userId) {
+            return Promise.reject(new Error('User ID не вказано'));
+        }
+        // Очищаємо userId від зайвих символів
+        const cleanUserId = String(userId).replace(/[^0-9]/g, '');
+        return apiRequest(API_CONFIG.baseUrl + '/api/daily/refresh/' + cleanUserId, {
+            method: 'POST',
+            body: JSON.stringify({ timestamp: Date.now() })
+        }, false, 5);
+    },
+
+    calculateReward: function(userId, day) {
+        console.log('💰 [TasksAPI] Розрахунок винагороди для дня:', day);
+        if (!userId || !day) {
+            return Promise.reject(new Error('Невірні параметри'));
+        }
+        // Очищаємо userId від зайвих символів
+        const cleanUserId = String(userId).replace(/[^0-9]/g, '');
+        return apiRequest(API_CONFIG.baseUrl + '/api/daily/calculate-reward/' + cleanUserId + '?day=' + day, null, true, 1);
+    }
+};
 
     // API методи для Tasks
     const tasks = {
