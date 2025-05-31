@@ -129,6 +129,7 @@ window.TasksStore = (function() {
         ADD_CLAIMED_DAY: 'ADD_CLAIMED_DAY',
         SET_CLAIMED_DAYS: 'SET_CLAIMED_DAYS',
         UPDATE_DAILY_TOTAL_CLAIMED: 'UPDATE_DAILY_TOTAL_CLAIMED',
+         resetDailyBonus: () => dispatch({ type: ActionTypes.RESET_DAILY_BONUS }),
 
         // Tasks actions
         SET_TASKS: 'SET_TASKS',

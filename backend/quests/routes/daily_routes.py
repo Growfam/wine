@@ -12,7 +12,8 @@ from ..controllers.daily_controller import (
     calculate_reward_route,
     get_reward_preview_route,
     reset_streak_route,
-    get_daily_statistics_route
+    get_daily_statistics_route,
+refresh_daily_status_route
 )
 from ..utils.decorators import (
     secure_endpoint,
@@ -361,6 +362,36 @@ def reset_daily_streak(telegram_id):
             "code": "streak_reset_error"
         }), 400
 
+@daily_bp.route('/refresh/<telegram_id>', methods=['POST'])
+@secure_endpoint(max_requests=10, window_seconds=60)
+def refresh_daily_status(telegram_id):
+    """
+    Примусове оновлення статусу з БД
+
+    POST /api/daily/refresh/<telegram_id>
+
+    Headers:
+        Authorization: Bearer <token>
+
+    Response:
+    {
+        "status": "success",
+        "data": { ...оновлений статус... }
+    }
+    """
+    logger.info(f"=== POST /api/daily/refresh/{telegram_id} ===")
+
+    try:
+        result = refresh_daily_status_route(telegram_id)
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"Помилка в refresh_daily_status: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "code": "daily_refresh_error"
+        }), 400
 
 @daily_bp.route('/statistics/<telegram_id>', methods=['GET'])
 @secure_endpoint(max_requests=20, window_seconds=60)
