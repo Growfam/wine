@@ -97,11 +97,11 @@ window.DailyBonusManager = (function() {
 
         try {
             // API виклик через RequestManager
-const response = await apiClient.execute(
-    `daily_claim_${state.userId}_${Date.now()}`,
-    () => window.TasksAPI.daily.claim(state.userId),
-    { priority: 'high', deduplicate: false }
-);
+    const response = await apiClient.execute(
+        `daily_claim_${state.userId}_${Date.now()}`,
+        () => window.TasksAPI.daily.claim(state.userId),
+        { priority: 'high', deduplicate: false }
+    );
             console.log('📊 [DailyBonus-V3] Відповідь сервера:', response);
 
             // Обробка різних форматів відповіді
@@ -398,7 +398,7 @@ async function checkAndUpdateStatus() {
     try {
         // API виклик через RequestManager
 const response = await apiClient.execute(
-    `status_${state.userId}`,
+    `daily_status_${state.userId}`,
     () => window.TasksAPI.daily.getStatus(state.userId),
     { priority: 'high', deduplicate: false }
 );

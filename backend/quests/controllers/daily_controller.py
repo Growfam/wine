@@ -734,58 +734,35 @@ class DailyController:
         return time_diff.total_seconds() / 3600
 
     @staticmethod
-    def _get_calendar_rewards(user_id: int) -> List[Dict[str, Any]]:
-        """
-        Отримує календар винагород для користувача на весь місяць
-
-        Args:
-            user_id: ID користувача
-
-        Returns:
-            List з інформацією про винагороди кожного дня
-        """
-        calendar = []
-
+    def _get_calendar_rewards(user_id: int) -> Dict[int, Dict[str, Any]]:
+        """Повертає об'єкт замість масиву"""
+        calendar = {}
         for day in range(1, 31):
             reward = calculate_daily_reward(
                 user_id=user_id,
                 day_number=day,
-                current_streak=day,  # Припускаємо ідеальну серію
+                current_streak=day,
                 user_level=1
             )
-
-            calendar.append({
-                "day": day,
+            calendar[day] = {
                 "winix": reward.winix,
                 "tickets": reward.tickets,
                 "hasTickets": reward.tickets > 0
-            })
-
+            }
         return calendar
 
+
     @staticmethod
-    def _get_claimed_days(user_id: str) -> List[int]:
-        """
-        Отримує список днів які вже були отримані
-
-        Args:
-            user_id: User ID для БД
-
-        Returns:
-            List з номерами днів
-        """
+    def _get_claimed_days(user_id: str) -> List[str]:
+        """Повертає дати замість номерів днів"""
         try:
-            # Отримуємо історію з БД
             history = daily_bonus_manager.get_user_history(user_id, limit=30)
-
-            # Витягуємо номери днів
-            claimed_days = [entry.day_number for entry in history]
-
-            # Логуємо для діагностики
-            logger.info(f"Claimed days для {user_id}: {sorted(set(claimed_days))}")
-
-            return sorted(set(claimed_days))  # Унікальні та відсортовані
-
+            # Конвертуємо в ISO дати
+            claimed_dates = [
+                entry.claim_date.date().isoformat()
+                for entry in history
+            ]
+            return sorted(set(claimed_dates))
         except Exception as e:
             logger.error(f"Помилка отримання claimed days: {e}", exc_info=True)
             return []

@@ -139,38 +139,178 @@ window.TasksAPI = (function() {
     // Утилітарна функція для отримання ID користувача
    function getUserId() {
     console.log('👤 [TasksAPI] === getUserId START ===');
+    console.log('🕐 [TasksAPI] Час виклику:', new Date().toISOString());
+
+    // Логуємо стан window об'єктів
+    console.log('🪟 [TasksAPI] Window об\'єкти:', {
+        hasWinixAPI: !!window.WinixAPI,
+        hasWinixAPIGetUserId: !!(window.WinixAPI && typeof window.WinixAPI.getUserId === 'function'),
+        hasTelegram: !!window.Telegram,
+        hasTelegramWebApp: !!(window.Telegram && window.Telegram.WebApp),
+        hasTelegramUser: !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user)
+    });
 
     // Спочатку спробуємо через WinixAPI
     if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
         console.log('🔍 [TasksAPI] Спроба отримати ID через WinixAPI...');
-        const apiId = window.WinixAPI.getUserId();
-        console.log('📊 [TasksAPI] WinixAPI.getUserId результат:', apiId);
+        try {
+            const apiId = window.WinixAPI.getUserId();
+            console.log('📊 [TasksAPI] WinixAPI.getUserId результат:', {
+                value: apiId,
+                type: typeof apiId,
+                isNull: apiId === null,
+                isUndefined: apiId === undefined,
+                stringValue: String(apiId),
+                length: apiId ? String(apiId).length : 0
+            });
 
-        if (apiId && apiId !== 'undefined' && apiId !== 'null') {
-            console.log('✅ [TasksAPI] ID отримано через WinixAPI:', apiId);
-            // Очищаємо ID від зайвих символів
-            const cleanId = String(apiId).replace(/[^0-9]/g, '');
-            return cleanId;
+            if (apiId && apiId !== 'undefined' && apiId !== 'null' && apiId !== null && apiId !== undefined) {
+                console.log('✅ [TasksAPI] ID отримано через WinixAPI:', apiId);
+                // Очищаємо ID від зайвих символів
+                const cleanId = String(apiId).replace(/[^0-9]/g, '');
+                console.log('🧹 [TasksAPI] Очищений ID від WinixAPI:', {
+                    original: apiId,
+                    cleaned: cleanId,
+                    removedChars: String(apiId).replace(/[0-9]/g, '')
+                });
+
+                if (cleanId && cleanId.length > 0) {
+                    console.log('✅ [TasksAPI] Повертаємо ID з WinixAPI:', cleanId);
+                    return cleanId;
+                } else {
+                    console.warn('⚠️ [TasksAPI] Очищений ID з WinixAPI порожній');
+                }
+            } else {
+                console.warn('⚠️ [TasksAPI] WinixAPI повернув невалідне значення:', apiId);
+            }
+        } catch (error) {
+            console.error('❌ [TasksAPI] Помилка при виклику WinixAPI.getUserId:', error);
+        }
+    } else {
+        console.log('⚠️ [TasksAPI] WinixAPI або getUserId недоступні');
+    }
+
+    // Перевіряємо localStorage
+    console.log('📦 [TasksAPI] Перевіряємо localStorage...');
+    const telegramId = localStorage.getItem('telegram_user_id');
+    const userId = localStorage.getItem('user_id');
+    const authToken = localStorage.getItem('auth_token');
+    const jwtToken = localStorage.getItem('jwt_token');
+
+    console.log('📊 [TasksAPI] Дані в localStorage:', {
+        telegram_user_id: telegramId ? `${telegramId} (length: ${telegramId.length})` : 'null',
+        user_id: userId ? `${userId} (length: ${userId.length})` : 'null',
+        hasAuthToken: !!authToken,
+        hasJwtToken: !!jwtToken,
+        allKeys: Object.keys(localStorage).filter(key =>
+            key.includes('user') ||
+            key.includes('id') ||
+            key.includes('telegram')
+        )
+    });
+
+    // Спробуємо отримати з Telegram WebApp
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+        console.log('📱 [TasksAPI] Перевіряємо Telegram WebApp...');
+        const tgData = window.Telegram.WebApp.initDataUnsafe;
+        console.log('📊 [TasksAPI] Telegram WebApp дані:', {
+            hasUser: !!tgData.user,
+            userId: tgData.user?.id,
+            userIdType: typeof tgData.user?.id,
+            username: tgData.user?.username,
+            firstName: tgData.user?.first_name,
+            authDate: tgData.auth_date,
+            hash: tgData.hash ? 'present' : 'missing'
+        });
+
+        if (tgData.user && tgData.user.id) {
+            const tgUserId = String(tgData.user.id);
+            console.log('📱 [TasksAPI] ID з Telegram WebApp:', tgUserId);
+
+            // Якщо немає в localStorage - зберігаємо
+            if (!telegramId && !userId) {
+                console.log('💾 [TasksAPI] Зберігаємо ID з Telegram в localStorage');
+                localStorage.setItem('telegram_user_id', tgUserId);
+                return tgUserId;
+            }
+        }
+    } else {
+        console.log('⚠️ [TasksAPI] Telegram WebApp недоступний');
+    }
+
+    // Визначаємо результат
+    const result = telegramId || userId;
+
+    console.log('🔍 [TasksAPI] Фінальна перевірка:', {
+        telegramId: telegramId,
+        userId: userId,
+        selectedValue: result,
+        source: telegramId ? 'telegram_user_id' : (userId ? 'user_id' : 'none')
+    });
+
+    if (result) {
+        const originalLength = result.length;
+        const cleanedResult = String(result).replace(/[^0-9]/g, '');
+        const removedChars = String(result).replace(/[0-9]/g, '');
+
+        console.log('🧹 [TasksAPI] Очищення результату:', {
+            original: result,
+            cleaned: cleanedResult,
+            originalLength: originalLength,
+            cleanedLength: cleanedResult.length,
+            removedCharacters: removedChars || 'none'
+        });
+
+        if (cleanedResult && cleanedResult.length > 0) {
+            console.log('✅ [TasksAPI] === getUserId SUCCESS ===');
+            console.log('👤 [TasksAPI] Повертаємо ID:', cleanedResult);
+            return cleanedResult;
+        } else {
+            console.error('❌ [TasksAPI] Очищений ID порожній!');
         }
     }
 
-    const telegramId = localStorage.getItem('telegram_user_id');
-    const userId = localStorage.getItem('user_id');
-
-    console.log('📊 [TasksAPI] ID в localStorage:', {
-        telegram_user_id: telegramId,
-        user_id: userId
+    // Додаткова діагностика якщо ID не знайдено
+    console.group('🔍 [TasksAPI] Додаткова діагностика - ID не знайдено');
+    console.log('LocalStorage всі ключі:', Object.keys(localStorage));
+    console.log('SessionStorage всі ключі:', Object.keys(sessionStorage));
+    console.log('Window.Telegram:', window.Telegram);
+    console.log('Document cookies:', document.cookie || 'none');
+    console.log('Window location:', {
+        href: window.location.href,
+        search: window.location.search,
+        hash: window.location.hash
     });
+    console.groupEnd();
 
-    const result = telegramId || userId;
-    console.log('👤 [TasksAPI] Результат getUserId:', result || 'ID відсутній');
+    console.error('❌ [TasksAPI] === getUserId FAILED - ID НЕ ЗНАЙДЕНО ===');
+    return null;
+}
 
-    // Очищаємо результат від зайвих символів
-    if (result) {
-        return String(result).replace(/[^0-9]/g, '');
+    function saveUserId(id) {
+    console.log('💾 [TasksAPI] Збереження User ID:', id);
+
+    if (!id) {
+        console.error('❌ [TasksAPI] Спроба зберегти порожній ID');
+        return false;
     }
 
-    return result;
+    const cleanId = String(id).replace(/[^0-9]/g, '');
+
+    if (!cleanId) {
+        console.error('❌ [TasksAPI] ID став порожнім після очищення:', id);
+        return false;
+    }
+
+    try {
+        localStorage.setItem('telegram_user_id', cleanId);
+        localStorage.setItem('user_id', cleanId);
+        console.log('✅ [TasksAPI] ID збережено успішно:', cleanId);
+        return true;
+    } catch (error) {
+        console.error('❌ [TasksAPI] Помилка збереження ID:', error);
+        return false;
+    }
 }
 
     // Утилітарна функція для виконання HTTP запитів з кешуванням
@@ -875,6 +1015,7 @@ window.TasksAPI = (function() {
         apiRequest: apiRequest,
         getAuthToken: getAuthToken,
         getUserId: getUserId,
+        saveUserId: saveUserId,
         transformBalance: transformBalance,
         clearCache: clearCache,
         getStats: getStats,
