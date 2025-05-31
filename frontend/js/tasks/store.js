@@ -1,13 +1,12 @@
 /**
  * Redux-подібний стор для системи завдань WINIX
- * Централізоване управління станом
- * ВИПРАВЛЕНА ВЕРСІЯ з правильною обробкою балансу
+ * ОПТИМІЗОВАНА ВЕРСІЯ - з батчінгом оновлень та кешуванням
  */
 
 window.TasksStore = (function() {
     'use strict';
 
-    console.log('🏪 [TasksStore] ===== ІНІЦІАЛІЗАЦІЯ СТОРУ =====');
+    console.log('🏪 [TasksStore] ===== ІНІЦІАЛІЗАЦІЯ СТОРУ (ОПТИМІЗОВАНИЙ) =====');
 
     // Початковий стан
     const initialState = {
@@ -71,6 +70,7 @@ window.TasksStore = (function() {
             social: {},
             limited: {},
             partner: {},
+            daily: {},
             loading: false,
             lastUpdate: null
         },
@@ -99,6 +99,15 @@ window.TasksStore = (function() {
     // Історія дій (для налагодження)
     const actionHistory = [];
     const MAX_HISTORY_LENGTH = 50;
+
+    // Батчінг оновлень
+    let updateQueue = [];
+    let isProcessingQueue = false;
+    const BATCH_DELAY = 16; // 1 frame (60fps)
+
+    // Кешування селекторів
+    const selectorCache = new Map();
+    let lastStateForCache = null;
 
     // Типи дій
     const ActionTypes = {
@@ -129,7 +138,6 @@ window.TasksStore = (function() {
         ADD_CLAIMED_DAY: 'ADD_CLAIMED_DAY',
         SET_CLAIMED_DAYS: 'SET_CLAIMED_DAYS',
         UPDATE_DAILY_TOTAL_CLAIMED: 'UPDATE_DAILY_TOTAL_CLAIMED',
-         resetDailyBonus: () => dispatch({ type: ActionTypes.RESET_DAILY_BONUS }),
 
         // Tasks actions
         SET_TASKS: 'SET_TASKS',
@@ -148,8 +156,80 @@ window.TasksStore = (function() {
 
         // Global actions
         RESET_STATE: 'RESET_STATE',
-        HYDRATE_STATE: 'HYDRATE_STATE'
+        HYDRATE_STATE: 'HYDRATE_STATE',
+        CLEAR_USER: 'CLEAR_USER'
     };
+
+    /**
+     * Батчінг dispatch - групування оновлень
+     */
+    function batchedDispatch(action) {
+        updateQueue.push(action);
+
+        if (!isProcessingQueue) {
+            isProcessingQueue = true;
+
+            // Використовуємо requestAnimationFrame для оптимальної продуктивності
+            requestAnimationFrame(() => {
+                processBatchedUpdates();
+            });
+        }
+    }
+
+    /**
+     * Обробка батчових оновлень
+     */
+    function processBatchedUpdates() {
+        if (updateQueue.length === 0) {
+            isProcessingQueue = false;
+            return;
+        }
+
+        console.log(`📦 [TasksStore] Обробка ${updateQueue.length} батчових оновлень`);
+
+        const actions = [...updateQueue];
+        updateQueue = [];
+
+        // Зберігаємо початковий стан
+        const initialBatchState = state;
+
+        // Обробляємо всі дії
+        actions.forEach(action => {
+            const prevState = state;
+            state = rootReducer(state, action);
+
+            // Зберігаємо в історію
+            if (actionHistory.length >= MAX_HISTORY_LENGTH) {
+                actionHistory.shift();
+            }
+
+            actionHistory.push({
+                action,
+                timestamp: Date.now(),
+                prevState: window.TasksUtils.deepClone(prevState)
+            });
+        });
+
+        // Очищаємо кеш селекторів якщо стан змінився
+        if (state !== initialBatchState) {
+            clearSelectorCache();
+
+            // Зберігаємо в localStorage
+            saveStateToStorage();
+
+            // Повідомляємо слухачів один раз для всіх змін
+            notifyListeners(actions, initialBatchState);
+        }
+
+        isProcessingQueue = false;
+
+        // Якщо є нові оновлення в черзі, обробляємо їх
+        if (updateQueue.length > 0) {
+            requestAnimationFrame(() => {
+                processBatchedUpdates();
+            });
+        }
+    }
 
     /**
      * Dispatch - відправка дії до стору
@@ -158,34 +238,27 @@ window.TasksStore = (function() {
         console.log('📤 [TasksStore] Dispatch action:', action.type);
         console.log('  📊 Payload:', action.payload);
 
-        // Зберігаємо в історію
-        actionHistory.push({
-            action,
-            timestamp: Date.now(),
-            prevState: window.TasksUtils.deepClone(state)
-        });
+        // Для критичних дій - миттєва обробка
+        const criticalActions = [
+            ActionTypes.UPDATE_BALANCE,
+            ActionTypes.CLAIM_DAILY_BONUS,
+            ActionTypes.SET_DAILY_CLAIMING,
+            ActionTypes.SET_FLEX_CLAIMING
+        ];
 
-        // Обмежуємо розмір історії
-        if (actionHistory.length > MAX_HISTORY_LENGTH) {
-            actionHistory.shift();
-        }
+        if (criticalActions.includes(action.type)) {
+            // Миттєва обробка
+            const prevState = state;
+            state = rootReducer(state, action);
 
-        // Оновлюємо стан
-        const prevState = state;
-        state = rootReducer(state, action);
-
-        // Перевіряємо чи змінився стан
-        if (state !== prevState) {
-            console.log('✅ [TasksStore] Стан оновлено');
-            console.log('  📊 Новий стан:', state);
-
-            // Зберігаємо в localStorage
-            saveStateToStorage();
-
-            // Повідомляємо слухачів
-            notifyListeners(action, prevState);
+            if (state !== prevState) {
+                clearSelectorCache();
+                saveStateToStorage();
+                notifyListeners([action], prevState);
+            }
         } else {
-            console.log('ℹ️ [TasksStore] Стан не змінився');
+            // Батчова обробка
+            batchedDispatch(action);
         }
 
         return action;
@@ -249,6 +322,9 @@ window.TasksStore = (function() {
                     balance: newBalance,
                     lastSync: Date.now()
                 };
+
+            case ActionTypes.CLEAR_USER:
+                return initialState.user;
 
             case ActionTypes.HYDRATE_STATE:
                 return action.payload.user || state;
@@ -581,31 +657,43 @@ window.TasksStore = (function() {
     }
 
     /**
-     * Підписка на зміни стану
+     * Підписка на зміни стану - ОПТИМІЗОВАНА
      */
     function subscribe(listener) {
         console.log('👂 [TasksStore] Додавання слухача');
-        listeners.add(listener);
+
+        // Обгортаємо listener для оптимізації
+        const wrappedListener = function(state, prevState, actions) {
+            // Використовуємо requestAnimationFrame для уникнення блокування UI
+            requestAnimationFrame(() => {
+                try {
+                    listener(state, prevState, actions);
+                } catch (error) {
+                    console.error('❌ [TasksStore] Помилка в слухачі:', error);
+                }
+            });
+        };
+
+        listeners.add(wrappedListener);
 
         // Повертаємо функцію відписки
         return function unsubscribe() {
             console.log('🔇 [TasksStore] Видалення слухача');
-            listeners.delete(listener);
+            listeners.delete(wrappedListener);
         };
     }
 
     /**
-     * Повідомлення слухачів
+     * Повідомлення слухачів - ОПТИМІЗОВАНА
      */
-    function notifyListeners(action, prevState) {
+    function notifyListeners(actions, prevState) {
         console.log(`📢 [TasksStore] Повідомлення ${listeners.size} слухачів`);
 
+        // Для батчових оновлень передаємо масив дій
+        const actionInfo = actions.length === 1 ? actions[0] : { type: 'BATCH_UPDATE', actions };
+
         listeners.forEach(listener => {
-            try {
-                listener(state, prevState, action);
-            } catch (error) {
-                console.error('❌ [TasksStore] Помилка в слухачі:', error);
-            }
+            listener(state, prevState, actionInfo);
         });
     }
 
@@ -613,53 +701,83 @@ window.TasksStore = (function() {
      * Отримати поточний стан
      */
     function getState() {
-        console.log('📊 [TasksStore] Отримання стану');
         return state;
     }
 
     /**
-     * Селектори - розширено для Daily Bonus
+     * Очищення кешу селекторів
+     */
+    function clearSelectorCache() {
+        selectorCache.clear();
+        lastStateForCache = null;
+    }
+
+    /**
+     * Кешований селектор
+     */
+    function createCachedSelector(name, selector) {
+        return function() {
+            // Перевіряємо чи стан змінився
+            if (lastStateForCache !== state) {
+                clearSelectorCache();
+                lastStateForCache = state;
+            }
+
+            // Перевіряємо кеш
+            if (selectorCache.has(name)) {
+                return selectorCache.get(name);
+            }
+
+            // Обчислюємо і кешуємо результат
+            const result = selector();
+            selectorCache.set(name, result);
+            return result;
+        };
+    }
+
+    /**
+     * Селектори - ОПТИМІЗОВАНІ З КЕШУВАННЯМ
      */
     const selectors = {
         // User selectors
-        getUserId: () => state.user.id,
-        getUserBalance: () => state.user.balance,
-        getWinixBalance: () => state.user.balance.winix,
-        getTicketsBalance: () => state.user.balance.tickets,
+        getUserId: createCachedSelector('userId', () => state.user.id),
+        getUserBalance: createCachedSelector('userBalance', () => state.user.balance),
+        getWinixBalance: createCachedSelector('winixBalance', () => state.user.balance.winix),
+        getTicketsBalance: createCachedSelector('ticketsBalance', () => state.user.balance.tickets),
 
         // Wallet selectors
-        isWalletConnected: () => state.wallet.connected,
-        getWalletAddress: () => state.wallet.address,
-        getWalletFlexBalance: () => state.wallet.flexBalance,
+        isWalletConnected: createCachedSelector('walletConnected', () => state.wallet.connected),
+        getWalletAddress: createCachedSelector('walletAddress', () => state.wallet.address),
+        getWalletFlexBalance: createCachedSelector('walletFlexBalance', () => state.wallet.flexBalance),
 
         // Flex selectors
-        getFlexBalance: () => state.flexEarn.flexBalance || state.wallet.flexBalance,
+        getFlexBalance: createCachedSelector('flexBalance', () => state.flexEarn.flexBalance || state.wallet.flexBalance),
         getFlexLevel: (level) => state.flexEarn.levels[level],
         isFlexLevelClaimed: (level) => state.flexEarn.levels[level]?.claimed || false,
         isFlexLevelAvailable: (level) => state.flexEarn.levels[level]?.available || false,
 
         // Daily bonus selectors - розширено
-        getCurrentStreak: () => state.dailyBonus.currentStreak,
-        getLastClaimDate: () => state.dailyBonus.lastClaimDate,
-        canClaimDailyBonus: () => {
+        getCurrentStreak: createCachedSelector('currentStreak', () => state.dailyBonus.currentStreak),
+        getLastClaimDate: createCachedSelector('lastClaimDate', () => state.dailyBonus.lastClaimDate),
+        canClaimDailyBonus: createCachedSelector('canClaimDaily', () => {
             const lastClaim = state.dailyBonus.lastClaimDate;
             if (!lastClaim) return true;
             return window.TasksUtils.isNewDay(lastClaim);
-        },
-        getDailyBonus: () => state.dailyBonus,
-        getDailyStreak: () => state.dailyBonus.currentStreak,
-        getClaimedDays: () => state.dailyBonus.claimedDays,
-        isDailyClaiming: () => state.dailyBonus.claiming || state.dailyBonus.isClaiming,
-        getTotalClaimed: () => state.dailyBonus.totalClaimed,
-        getTicketDays: () => state.dailyBonus.ticketDays,
+        }),
+        getDailyBonus: createCachedSelector('dailyBonus', () => state.dailyBonus),
+        getDailyStreak: createCachedSelector('dailyStreak', () => state.dailyBonus.currentStreak),
+        getClaimedDays: createCachedSelector('claimedDays', () => state.dailyBonus.claimedDays),
+        isDailyClaiming: createCachedSelector('dailyClaiming', () => state.dailyBonus.claiming || state.dailyBonus.isClaiming),
+        getTotalClaimed: createCachedSelector('totalClaimed', () => state.dailyBonus.totalClaimed),
+        getTicketDays: createCachedSelector('ticketDays', () => state.dailyBonus.ticketDays),
 
         // UI selectors
-        getCurrentTab: () => state.ui.currentTab,
-        isLoading: () => state.ui.loading,
-        getError: () => state.ui.error,
+        getCurrentTab: createCachedSelector('currentTab', () => state.ui.currentTab),
+        isLoading: createCachedSelector('isLoading', () => state.ui.loading),
+        getError: createCachedSelector('error', () => state.ui.error),
 
         // Network selectors
-        isOnline: () => state.network.online
+        isOnline: createCachedSelector('isOnline', () => state.network.online)
     };
 
     /**
@@ -672,6 +790,7 @@ window.TasksStore = (function() {
             console.log('🎯 [TasksStore] Action creator updateBalance викликано з:', balances);
             return dispatch({ type: ActionTypes.UPDATE_BALANCE, payload: balances });
         },
+        clearUser: () => dispatch({ type: ActionTypes.CLEAR_USER }),
 
         // Wallet actions
         setWalletConnected: (connected) => dispatch({ type: ActionTypes.SET_WALLET_CONNECTED, payload: connected }),
@@ -701,6 +820,7 @@ window.TasksStore = (function() {
             type: ActionTypes.UPDATE_DAILY_TOTAL_CLAIMED,
             payload: totals
         }),
+        resetDailyBonus: () => dispatch({ type: ActionTypes.RESET_DAILY_BONUS }),
 
         // Tasks actions
         setTasks: (type, tasks) => dispatch({ type: ActionTypes.SET_TASKS, payload: { type, tasks } }),
@@ -726,9 +846,9 @@ window.TasksStore = (function() {
     };
 
     /**
-     * Збереження стану в sessionStorage
+     * Збереження стану в sessionStorage - ДЕБАУНСОВАНЕ
      */
-    function saveStateToStorage() {
+    const saveStateToStorage = window.TasksUtils.debounce(function() {
         console.log('💾 [TasksStore] Збереження стану в sessionStorage');
 
         try {
@@ -750,7 +870,7 @@ window.TasksStore = (function() {
         } catch (error) {
             console.error('❌ [TasksStore] Помилка збереження стану:', error);
         }
-    }
+    }, 1000); // 1 секунда дебаунс
 
     /**
      * Завантаження стану з sessionStorage
@@ -798,7 +918,7 @@ window.TasksStore = (function() {
     // Автоматична ініціалізація
     init();
 
-    console.log('✅ [TasksStore] Redux-подібний стор готовий до використання');
+    console.log('✅ [TasksStore] Redux-подібний стор готовий до використання (ОПТИМІЗОВАНИЙ)');
 
     // Публічний API
     return {
@@ -812,4 +932,4 @@ window.TasksStore = (function() {
 
 })();
 
-console.log('✅ [TasksStore] Модуль стору експортовано глобально');
+console.log('✅ [TasksStore] Модуль стору експортовано глобально (ОПТИМІЗОВАНИЙ)');
