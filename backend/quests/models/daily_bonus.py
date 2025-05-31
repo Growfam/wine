@@ -1,7 +1,7 @@
 """
 Модель щоденних бонусів для системи завдань WINIX
 Управління серіями днів та винагородами з автоматичним скиданням серії
-З повною підтримкою Supabase БД
+З повною підтримкою Supabase БД - БЕЗ КЕШУВАННЯ
 """
 
 import logging
@@ -397,47 +397,23 @@ class DailyBonusStatus:
 
 
 class DailyBonusManager:
-    """Менеджер щоденних бонусів з підтримкою БД"""
+    """Менеджер щоденних бонусів БЕЗ КЕШУВАННЯ"""
 
     def __init__(self):
-        # Кеш статусів
-        self._status_cache: Dict[str, DailyBonusStatus] = {}
-        self._cache_ttl = 300  # 5 хвилин
-        self._last_cache_clear = get_current_utc_time()
-
-    def _clear_old_cache(self):
-        """Очищення застарілого кешу"""
-        now = get_current_utc_time()
-        if (now - self._last_cache_clear).total_seconds() > self._cache_ttl:
-            self._status_cache.clear()
-            self._last_cache_clear = now
+        # НЕ ВИКОРИСТОВУЄМО КЕШУВАННЯ
+        pass
 
     def get_user_status(self, user_id: str, force_refresh: bool = False) -> DailyBonusStatus:
         """
-        Отримання статусу щоденних бонусів користувача
-
-        Args:
-            user_id: User ID користувача
-            force_refresh: Примусове оновлення з БД
-
-        Returns:
-            DailyBonusStatus об'єкт
+        ЗАВЖДИ отримуємо свіжі дані з БД
         """
-        self._clear_old_cache()
+        logger.info(f"Завантаження статусу для {user_id} з БД (без кешування)")
 
-        if not force_refresh and user_id in self._status_cache:
-            cached_status = self._status_cache[user_id]
-            # Оновлюємо поточний статус на основі часу
-            cached_status._update_current_status()
-            return cached_status
-
-        # Завантажуємо з БД
+        # Завжди завантажуємо з БД
         status = self._load_status_from_db(user_id)
 
         # Розраховуємо статистику з історії
         self._update_statistics_from_history(status)
-
-        self._status_cache[user_id] = status
 
         return status
 
@@ -446,19 +422,20 @@ class DailyBonusManager:
         try:
             from supabase_client import supabase
 
-            # Завантажуємо статус користувача
-            response = supabase.table('daily_bonus_status').select('*').eq('user_id', user_id).maybeSingle().execute()
+            # Завантажуємо статус користувача - ВИПРАВЛЕНО
+            response = supabase.table('daily_bonus_status').select('*').eq('user_id', user_id).execute()
 
-            if response.data:
+            # Перевіряємо чи є дані
+            if response.data and len(response.data) > 0:
                 # Конвертуємо з запису БД
-                return DailyBonusStatus.from_db_record(response.data)
+                return DailyBonusStatus.from_db_record(response.data[0])
             else:
                 # Новий користувач
                 logger.info(f"Creating new daily bonus status for user {user_id}")
                 return DailyBonusStatus(user_id=user_id)
 
         except Exception as e:
-            logger.error(f"Error loading daily bonus status for {user_id}: {e}")
+            logger.error(f"Error loading daily bonus status for {user_id}: {e}", exc_info=True)
             return DailyBonusStatus(user_id=user_id)
 
     def _update_statistics_from_history(self, status: DailyBonusStatus):
@@ -505,13 +482,10 @@ class DailyBonusManager:
 
             logger.info(f"Saved daily bonus status for {status.user_id}")
 
-            # Очищаємо кеш
-            self._status_cache.pop(status.user_id, None)
-
             return True
 
         except Exception as e:
-            logger.error(f"Error saving daily bonus status: {e}")
+            logger.error(f"Error saving daily bonus status: {e}", exc_info=True)
             return False
 
     def save_entry_to_db(self, entry: DailyBonusEntry) -> bool:
@@ -527,7 +501,7 @@ class DailyBonusManager:
             return True
 
         except Exception as e:
-            logger.error(f"Error saving daily bonus entry: {e}")
+            logger.error(f"Error saving daily bonus entry: {e}", exc_info=True)
             return False
 
     def get_user_history(self, user_id: str, limit: int = 30) -> List[DailyBonusEntry]:
@@ -631,9 +605,6 @@ class DailyBonusManager:
                 ).execute()
 
                 logger.info(f"Статус синхронізовано для {user_id}")
-
-                # Очищаємо кеш
-                self._status_cache.pop(user_id, None)
 
             return True
 

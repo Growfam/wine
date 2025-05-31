@@ -68,9 +68,31 @@ async function loadDailyBonusState() {
     console.log('📂 [DailyBonus] Завантаження стану з бекенду...');
 
     try {
-        const response = await window.TasksAPI.daily.getStatus(state.userId);
+        let response = await window.TasksAPI.daily.getStatus(state.userId);
 
         console.log('✅ [DailyBonus] Отримано стан з бекенду:', response);
+
+        // Перевіряємо валідність даних
+        if (response.data) {
+            const data = response.data;
+
+            // Автоматичний refresh при невалідних даних
+            if (data.can_claim_today && data.next_claim_in_hours > 0) {
+                console.warn('⚠️ [DailyBonus] Невалідні дані, робимо refresh');
+
+                try {
+                    // Викликаємо refresh
+                    await window.TasksAPI.daily.refresh(state.userId);
+
+                    // Повторно завантажуємо статус
+                    response = await window.TasksAPI.daily.getStatus(state.userId);
+                    console.log('✅ [DailyBonus] Статус оновлено після refresh:', response);
+                } catch (refreshError) {
+                    console.error('❌ [DailyBonus] Помилка refresh:', refreshError);
+                    // Продовжуємо з поточними даними
+                }
+            }
+        }
 
         if (response.status === 'success' && response.data) {
             const data = response.data;
@@ -581,6 +603,16 @@ function createDayCell(dayNumber, dailyBonus, claimedDays) {
                 console.log('🆕 [DailyBonus] Новий день! Оновлюємо стан');
                 await loadDailyBonusState();
                 updateDailyBonusUI();
+            }
+        }
+
+        // Додаткова перевірка на десинхронізацію UI
+        const button = document.getElementById('claim-daily-button');
+        if (button) {
+            const shouldBeDisabled = !state.canClaim;
+            if (button.disabled !== shouldBeDisabled) {
+                console.warn('⚠️ [DailyBonus] UI десинхронізація виявлена, оновлюємо...');
+                updateClaimButtonUI();
             }
         }
     }

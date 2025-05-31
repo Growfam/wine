@@ -492,6 +492,7 @@ window.TasksAPI = (function() {
     };
 
     // API методи для Daily
+    // API методи для Daily
     const daily = {
         getStatus: function(userId) {
             console.log('📅 [TasksAPI] Отримання статусу щоденного бонусу:', userId);
@@ -524,6 +525,17 @@ window.TasksAPI = (function() {
             }
 
             return apiRequest(url);
+        },
+
+        refresh: function(userId) {
+            console.log('🔄 [TasksAPI] Примусове оновлення статусу щоденного бонусу:', userId);
+            if (!userId) {
+                return Promise.reject(new Error('User ID не вказано'));
+            }
+            return apiRequest(API_CONFIG.baseUrl + '/api/daily/refresh/' + userId, {
+                method: 'POST',
+                body: JSON.stringify({ timestamp: Date.now() })
+            });
         }
     };
 
