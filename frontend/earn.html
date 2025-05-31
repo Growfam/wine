@@ -425,80 +425,112 @@
                     </div>
                 </div>
 
-                <!-- ВКЛАДКА 2: DAILY BONUS -->
-                <div class="main-tab-pane" id="daily-tab">
-                    <!-- Прогрес бар місяця -->
-                    <div class="month-progress-container">
-                        <div class="month-progress-header">
-                            <h3 class="month-progress-title">Прогрес за місяць</h3>
-                            <div class="month-progress-stats">
-                                <div class="progress-stat">
-                                    <div class="progress-stat-icon fire-icon"></div>
-                                    <span id="current-streak">0</span> днів
-                                </div>
-                                <div class="progress-stat">
-                                    <div class="progress-stat-icon star-icon"></div>
-                                    <span id="longest-streak">0</span> рекорд
-                                </div>
-                            </div>
-                        </div>
-                        <div class="month-progress-bar">
-                            <div class="month-progress-fill" id="month-progress-fill" style="width: 0%"></div>
-                        </div>
-                        <div class="month-progress-text">
-                            <span id="days-completed">0</span> з 30 днів завершено
-                        </div>
+               <!-- Daily Bonus Tab -->
+<div id="daily-tab" class="main-tab-pane" style="display: none;">
+    <div class="daily-bonus-container">
+
+        <!-- Прогрес місяця -->
+        <div class="month-progress-container">
+            <div class="month-progress-header">
+                <h3 class="month-progress-title">Прогрес місяця</h3>
+                <div class="month-progress-stats">
+                    <div class="progress-stat">
+                        <div class="progress-stat-icon fire-icon"></div>
+                        <span>Стрік: <span class="progress-stat-value streak">0</span></span>
                     </div>
-
-                    <!-- Останні 5 днів -->
-                    <div class="recent-days-container">
-                        <h3 class="recent-days-title">Останні 5 днів</h3>
-                        <div class="recent-days-grid" id="recent-days-grid">
-                            <!-- Дні будуть додані динамічно -->
-                        </div>
-                    </div>
-
-                    <!-- Календар нагород -->
-                    <div class="rewards-calendar-container">
-                        <div class="calendar-header">
-                            <h3 class="calendar-title">Календар нагород</h3>
-                            <div class="calendar-legend">
-                                <div class="legend-item">
-                                    <div class="legend-dot claimed"></div>
-                                    <span>Отримано</span>
-                                </div>
-                                <div class="legend-item">
-                                    <div class="legend-dot available"></div>
-                                    <span>Доступно</span>
-                                </div>
-                                <div class="legend-item">
-                                    <div class="legend-dot future"></div>
-                                    <span>Майбутнє</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="calendar-grid" id="daily-calendar">
-                            <!-- Дні календаря будуть додані динамічно -->
-                        </div>
-                    </div>
-
-                    <!-- Кнопка отримання щоденного бонусу -->
-                    <button class="claim-daily-button available" id="claim-daily-button">
-                        <span class="button-text">Отримати щоденний бонус</span>
-                        <span class="timer"></span>
-                    </button>
-
-                    <!-- Інформація про систему -->
-                    <div class="daily-info">
-                        <h3>Як працює щоденний бонус?</h3>
-                        <ul>
-                            <li>Заходьте щодня та отримуйте винагороди</li>
-                            <li>Винагороди розраховуються на сервері</li>
-                            <li>Не пропускайте дні, щоб зберегти серію!</li>
-                            <li>Бонуси оновлюються о 00:00 UTC</li>
-                        </ul>
+                    <div class="progress-stat">
+                        <div class="progress-stat-icon star-icon"></div>
+                        <span>Днів: <span class="progress-stat-value days">0</span></span>
                     </div>
                 </div>
+            </div>
+            <div class="month-progress-bar">
+                <div class="month-progress-fill" style="width: 0%"></div>
+            </div>
+            <div class="month-progress-text">День 0 з 30</div>
+        </div>
+
+        <!-- Останні 5 днів -->
+        <div class="recent-days-container">
+            <h3 class="recent-days-title">Останні дні</h3>
+            <div class="recent-days-grid">
+                <!-- Генерується через JS -->
+            </div>
+        </div>
+
+        <!-- Календар нагород -->
+        <div class="rewards-calendar-container">
+            <div class="calendar-header">
+                <h3 class="calendar-title">Календар нагород</h3>
+                <div class="calendar-legend">
+                    <div class="legend-item">
+                        <div class="legend-dot claimed"></div>
+                        <span>Отримано</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot available"></div>
+                        <span>Доступно</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot future"></div>
+                        <span>Майбутні</span>
+                    </div>
+                </div>
+            </div>
+            <div class="calendar-grid">
+                <!-- Генерується через JS -->
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div class="daily-bonus-stats">
+            <div class="stats-card">
+                <div class="stats-icon streak-icon"></div>
+                <div class="stats-info">
+                    <div class="stats-value" id="current-streak">0</div>
+                    <div class="stats-label">Поточний стрік</div>
+                </div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon longest-icon"></div>
+                <div class="stats-info">
+                    <div class="stats-value" id="longest-streak">0</div>
+                    <div class="stats-label">Найдовший стрік</div>
+                </div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon winix-icon"></div>
+                <div class="stats-info">
+                    <div class="stats-value" id="total-winix">0</div>
+                    <div class="stats-label">Всього WINIX</div>
+                </div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon tickets-icon"></div>
+                <div class="stats-info">
+                    <div class="stats-value" id="total-tickets">0</div>
+                    <div class="stats-label">Всього Tickets</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Кнопка отримання -->
+        <button id="claim-daily-button" class="claim-daily-button">
+            <span class="button-text">Отримати щоденний бонус</span>
+        </button>
+
+        <!-- Інформація -->
+        <div class="daily-info">
+            <h3>Як це працює?</h3>
+            <ul>
+                <li>Заходьте щодня та отримуйте винагороди</li>
+                <li>Чим довший стрік - тим більші нагороди</li>
+                <li>Кожні 7 днів - бонусні tickets</li>
+                <li>Не пропускайте жодного дня!</li>
+            </ul>
+        </div>
+    </div>
+</div>
 
                 <!-- ВКЛАДКА 3: SOCIAL -->
                 <div class="main-tab-pane" id="social-tab">

@@ -277,7 +277,7 @@ window.TasksAPI = (function() {
                             });
 
                             // Спробуємо отримати деталі помилки з відповіді
-                            return response.text().then(function(text) {
+                            return response.text().then(function (text) {
                                 console.error('📄 [TasksAPI] Response body:', text);
 
                                 // Спробуємо парсити як JSON
@@ -287,6 +287,7 @@ window.TasksAPI = (function() {
                                     error.status = response.status;
                                     error.statusText = response.statusText;
                                     error.data = errorData;
+                                    error.code = errorData.code;
                                     throw error;
                                 } catch (e) {
                                     // Якщо не JSON, повертаємо як є
@@ -351,28 +352,46 @@ window.TasksAPI = (function() {
 
     // Функція трансформації балансу з backend формату в frontend формат
     function transformBalance(data) {
-        console.log('🔄 [TasksAPI] Трансформація балансу:', data);
+    console.log('🔄 [TasksAPI] Трансформація балансу:', data);
 
-        // Якщо вже у правильному форматі
-        if (data && data.winix !== undefined && data.tickets !== undefined) {
-            return data;
-        }
-
-        // Трансформуємо balance/coins в winix/tickets
-        if (data && (data.balance !== undefined || data.coins !== undefined)) {
-            return {
-                winix: data.balance || 0,
-                tickets: data.coins || 0
-            };
-        }
-
-        // Повертаємо дефолтні значення
+    // Якщо вже у правильному форматі
+    if (data && data.winix !== undefined && data.tickets !== undefined) {
         return {
-            winix: 0,
+            winix: parseInt(data.winix) || 0,
+            tickets: parseInt(data.tickets) || 0
+        };
+    }
+
+    // Трансформуємо balance/coins в winix/tickets
+    if (data && (data.balance !== undefined || data.coins !== undefined)) {
+        return {
+            winix: parseInt(data.balance || data.winix || 0),
+            tickets: parseInt(data.coins || data.tickets || 0)
+        };
+    }
+
+    // Якщо data це число (старий формат)
+    if (typeof data === 'number') {
+        return {
+            winix: parseInt(data) || 0,
             tickets: 0
         };
     }
 
+    // Якщо є поля з іншими назвами
+    if (data && typeof data === 'object') {
+        return {
+            winix: parseInt(data.balance || data.winix || data.amount || 0),
+            tickets: parseInt(data.coins || data.tickets || data.ticket || 0)
+        };
+    }
+
+    // Повертаємо дефолтні значення
+    return {
+        winix: 0,
+        tickets: 0
+    };
+}
     // API методи для User
     const user = {
         getProfile: function(userId) {

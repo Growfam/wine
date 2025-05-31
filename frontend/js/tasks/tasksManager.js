@@ -145,71 +145,103 @@ window.TasksManager = (function() {
      * Обробити завдання
      */
     function processTasks(tasksData) {
-        console.log('[TasksManager-V3] Обробка завдань:', tasksData);
+    console.log('[TasksManager-V3] Обробка завдань:', tasksData);
 
-        // Конвертуємо в правильний формат для Store
-        const tasksByType = {
-            social: {},
-            limited: {},
-            partner: {},
-            daily: {}
-        };
+    // Конвертуємо в правильний формат для Store
+    const tasksByType = {
+        social: {},
+        limited: {},
+        partner: {},
+        daily: {}
+    };
 
-        // Обробляємо різні формати даних
-        if (Array.isArray(tasksData)) {
-            // Масив завдань
-            console.log('[TasksManager-V3] Обробка масиву завдань');
-            tasksData.forEach(task => {
+    // Обробляємо різні формати даних
+    if (Array.isArray(tasksData)) {
+        // Масив завдань
+        console.log('[TasksManager-V3] Обробка масиву завдань, кількість:', tasksData.length);
+        tasksData.forEach(task => {
+            if (task && task.id) {
                 const type = task.type || 'social';
-                if (tasksByType[type]) {
+                if (tasksByType[type] !== undefined) {
                     tasksByType[type][task.id] = task;
+                } else {
+                    console.warn('[TasksManager-V3] Невідомий тип завдання:', type);
+                    tasksByType.social[task.id] = task; // За замовчуванням - social
+                }
+            }
+        });
+    } else if (typeof tasksData === 'object' && tasksData !== null) {
+        console.log('[TasksManager-V3] Обробка об\'єкта завдань');
+
+        // Перевіряємо чи це вже згруповані завдання
+        const hasValidTypes = Object.keys(tasksData).some(key =>
+            ['social', 'limited', 'partner', 'daily'].includes(key)
+        );
+
+        if (hasValidTypes) {
+            // Вже згруповані по типах
+            Object.entries(tasksData).forEach(([type, tasks]) => {
+                if (tasksByType[type] !== undefined) {
+                    if (Array.isArray(tasks)) {
+                        tasks.forEach(task => {
+                            if (task && task.id) {
+                                tasksByType[type][task.id] = task;
+                            }
+                        });
+                    } else if (typeof tasks === 'object' && tasks !== null) {
+                        // Якщо tasks це об'єкт з завданнями
+                        Object.entries(tasks).forEach(([id, task]) => {
+                            if (task && (task.id || id)) {
+                                task.id = task.id || id;
+                                tasksByType[type][task.id] = task;
+                            }
+                        });
+                    }
                 }
             });
-        } else if (typeof tasksData === 'object') {
-            console.log('[TasksManager-V3] Обробка об\'єкта завдань');
-
-            // Перевіряємо чи це вже згруповані завдання
-            const hasValidTypes = Object.keys(tasksData).some(key =>
-                ['social', 'limited', 'partner', 'daily'].includes(key)
-            );
-
-            if (hasValidTypes) {
-                // Вже згруповані по типах
-                Object.entries(tasksData).forEach(([type, tasks]) => {
-                    if (tasksByType[type]) {
-                        if (Array.isArray(tasks)) {
-                            tasks.forEach(task => {
-                                tasksByType[type][task.id] = task;
-                            });
-                        } else if (typeof tasks === 'object') {
-                            tasksByType[type] = tasks;
-                        }
+        } else {
+            // Це об'єкт завдань без групування
+            Object.entries(tasksData).forEach(([key, task]) => {
+                if (task && (task.id || key)) {
+                    task.id = task.id || key;
+                    const type = task.type || 'social';
+                    if (tasksByType[type] !== undefined) {
+                        tasksByType[type][task.id] = task;
+                    } else {
+                        tasksByType.social[task.id] = task;
                     }
-                });
-            } else {
-                // Це об'єкт завдань без групування
-                Object.values(tasksData).forEach(task => {
-                    if (task && task.id) {
-                        const type = task.type || 'social';
-                        if (tasksByType[type]) {
-                            tasksByType[type][task.id] = task;
-                        }
-                    }
-                });
-            }
+                }
+            });
         }
-
-        console.log('[TasksManager-V3] Згруповані завдання:', tasksByType);
-
-        // Зберігаємо в Store
-        Object.entries(tasksByType).forEach(([type, tasks]) => {
-            window.TasksStore.actions.setTasks(type, tasks);
-        });
-
-        // Плануємо рендеринг
-        scheduleRender();
+    } else {
+        console.error('[TasksManager-V3] Невірний формат даних завдань:', typeof tasksData);
+        window.TasksUtils.showToast('Помилка формату даних завдань', 'error');
+        return;
     }
 
+    console.log('[TasksManager-V3] Згруповані завдання:', tasksByType);
+
+    // Підраховуємо кількість завдань
+    let totalTasks = 0;
+    Object.entries(tasksByType).forEach(([type, tasks]) => {
+        const count = Object.keys(tasks).length;
+        console.log(`[TasksManager-V3] ${type}: ${count} завдань`);
+        totalTasks += count;
+    });
+
+    if (totalTasks === 0) {
+        console.warn('[TasksManager-V3] Не знайдено жодного завдання');
+        window.TasksUtils.showToast('Немає доступних завдань', 'info');
+    }
+
+    // Зберігаємо в Store
+    Object.entries(tasksByType).forEach(([type, tasks]) => {
+        window.TasksStore.actions.setTasks(type, tasks);
+    });
+
+    // Плануємо рендеринг
+    scheduleRender();
+}
     /**
      * Планування рендерингу
      */
