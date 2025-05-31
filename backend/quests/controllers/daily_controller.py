@@ -177,20 +177,16 @@ class DailyController:
             # Отримуємо поточний статус (БЕЗ КЕШУ!)
             daily_status = daily_bonus_manager.get_user_status(user_id, force_refresh=True)
 
-            # ЖОРСТКА ПЕРЕВІРКА: чи справді можна отримати бонус
-            now = datetime.now(timezone.utc)
-
-            # Перевірка 1: Флаг can_claim_today
+            # ОСНОВНА ПЕРЕВІРКА: чи можна отримати бонус
             if not daily_status.can_claim_today:
                 hours_remaining = DailyController._calculate_hours_until_next_claim(daily_status)
                 raise ValidationError(f"Бонус вже отримано сьогодні. Наступний через {hours_remaining:.1f} годин")
 
-            # Перевірка 2: next_available_date
-            if daily_status.next_available_date and daily_status.next_available_date > now:
-                hours_remaining = (daily_status.next_available_date - now).total_seconds() / 3600
-                raise ValidationError(f"Бонус ще недоступний. Наступний через {hours_remaining:.1f} годин")
+            # Якщо can_claim_today = True, то НЕ перевіряємо next_available_date!
+            # Це важливо для коректної роботи після скидання серії
 
-            # Перевірка 3: last_claim_date (мінімум 20 годин)
+            # Додаткова перевірка тільки на мінімальний час між отриманнями
+            now = datetime.now(timezone.utc)
             if daily_status.last_claim_date:
                 time_since_last = now - daily_status.last_claim_date
                 hours_since_last = time_since_last.total_seconds() / 3600
@@ -724,6 +720,9 @@ class DailyController:
     @staticmethod
     def _calculate_hours_until_next_claim(daily_status: DailyBonusStatus) -> float:
         """Розрахунок годин до наступного отримання"""
+        if daily_status.can_claim_today:
+            return 0.0  # Якщо можна отримати, то 0 годин чекати
+
         if not daily_status.next_available_date:
             return 0.0
 

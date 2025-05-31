@@ -210,7 +210,7 @@ class DailyBonusStatus:
             # Перший раз
             self.can_claim_today = True
             self.current_day_number = 1
-            self.next_available_date = now + timedelta(days=1)
+            self.next_available_date = now  # Можна отримати одразу
         else:
             # Перевіряємо скільки часу минуло
             time_since_last = now - self.last_claim_date
@@ -222,28 +222,20 @@ class DailyBonusStatus:
                 if days_since_last == 0:
                     # Сьогодні вже отримували
                     self.can_claim_today = False
+                    # Наступний день після останнього отримання + 20 годин
+                    self.next_available_date = self.last_claim_date + timedelta(hours=20)
                 elif days_since_last == 1:
                     # Вчора отримували - продовжуємо серію
                     self.can_claim_today = True
                     self.current_day_number = self.current_streak + 1
+                    self.next_available_date = now  # Можна отримати одразу
                 else:
                     # Пропустили дні - СКИДАЄМО ВСЮ СЕРІЮ НА 1 ДЕНЬ
                     logger.warning(f"User {self.user_id} пропустив {days_since_last} днів. Скидання серії на день 1")
                     self.can_claim_today = True
                     self.current_day_number = 1
                     self.current_streak = 0  # Скидаємо поточну серію
-
-                # Розрахунок наступної доступної дати
-                if self.can_claim_today:
-                    self.next_available_date = now + timedelta(days=1)
-                else:
-                    # Наступний день після останнього отримання + 20 годин
-                    next_claim = self.last_claim_date + timedelta(hours=20)
-                    if next_claim.date() == now.date():
-                        # Завтра
-                        self.next_available_date = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-                    else:
-                        self.next_available_date = next_claim
+                    self.next_available_date = now  # ВАЖЛИВО: Можна отримати одразу після скидання!
             else:
                 # Ще не пройшло 20 годин
                 self.can_claim_today = False
@@ -341,6 +333,8 @@ class DailyBonusStatus:
 
         self.current_streak = 0
         self.current_day_number = 1  # Повертаємось на день 1
+        self.can_claim_today = True  # Дозволяємо отримати бонус після скидання
+        self.next_available_date = get_current_utc_time()  # Можна отримати одразу
         self._update_current_status()
         self.update_timestamp()
 
@@ -468,11 +462,8 @@ class DailyBonusManager:
 
             data = status.to_db_dict()
 
-            # ВАЖЛИВО: Переконуємось що дати правильні
-            if status.last_claim_date:
-                data['next_available_date'] = format_datetime(
-                    status.last_claim_date + timedelta(hours=20)
-                )
+            # Не перезаписуємо next_available_date якщо вона вже правильна
+            # Це важливо для збереження логіки скидання серії
 
             # Використовуємо upsert для створення або оновлення
             response = supabase.table('daily_bonus_status').upsert(
@@ -582,22 +573,24 @@ class DailyBonusManager:
 
             if needs_sync:
                 # Синхронізуємо
+                now = datetime.now(timezone.utc)
+                days_since_last = (now.date() - last_claim_date.date()).days
+
                 update_data = {
                     'last_claim_date': format_datetime(last_claim_date),
                     'total_days_claimed': total_entries,
                     'current_day_number': last_entry.get('day_number', total_entries),
-                    'next_available_date': format_datetime(last_claim_date + timedelta(hours=20)),
                     'updated_at': format_datetime(datetime.now(timezone.utc))
                 }
 
-                # Перераховуємо серію
-                now = datetime.now(timezone.utc)
-                days_since_last = (now.date() - last_claim_date.date()).days
-
+                # Перераховуємо серію та next_available_date
                 if days_since_last <= 1:
                     update_data['current_streak'] = min(total_entries, 30)
+                    update_data['next_available_date'] = format_datetime(last_claim_date + timedelta(hours=20))
                 else:
+                    # Скидаємо серію і дозволяємо отримати одразу
                     update_data['current_streak'] = 0
+                    update_data['next_available_date'] = format_datetime(now)  # Можна отримати одразу!
 
                 # Зберігаємо виправлений статус
                 supabase.table('daily_bonus_status').update(update_data).eq(
@@ -630,7 +623,7 @@ def get_daily_bonus_constants() -> Dict[str, Any]:
         "BASE_WINIX_REWARD": 100,  # Початкова винагорода
         "TICKETS_DAYS": [],  # Динамічно визначається для кожного користувача
         "PROGRESSIVE_MULTIPLIER": True,
-        "STREAK_RESET_POLICY": "RESET_TO_DAY_1"  # Нова політика скидання
+        "STREAK_RESET_POLICY": "RESET_TO_DAY_1_INSTANT_CLAIM"  # Нова політика - одразу можна отримати після скидання
     }
 
 
